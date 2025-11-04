@@ -1,12 +1,10 @@
-import torch
 import torch.distributed as dist
 
 
 def init_distributed_group():
-    """r initialize sequence parallel group.
-    """
+    """r initialize sequence parallel group."""
     if not dist.is_initialized():
-        dist.init_process_group(backend='nccl')
+        dist.init_process_group(backend="nccl")
 
 
 def get_rank():

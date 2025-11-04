@@ -1,0 +1,28 @@
+# .pre-commit-config.yaml
+repos:
+- repo: https://github.com/pre-commit/pre-commit-hooks
+  rev: v4.4.0
+  hooks:
+    - id: trailing-whitespace   # 删除行尾空格
+    - id: end-of-file-fixer     # 确保文件以换行符结束
+    - id: check-yaml            # 校验YAML语法
+
+# 1. Black: 负责代码的自动格式化
+-   repo: https://github.com/psf/black
+    rev: 24.10.0  # 你可以去 GitHub 查看 Black 的最新版本
+    hooks:
+    -   id: black
+        # (可选) 指定 black 应该运行在哪个 Python 版本
+        language_version: python3.10
+        args: [--line-length=120]
+
+# 2. Ruff: 负责检查代码风格、错误、并自动排序 import
+-   repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.5.5  # 你可以去 GitHub 查看 Ruff 的最新版本
+    hooks:
+    -   id: ruff
+        # 允许 ruff 自动修复它能修复的问题（比如自动排序 import）
+        args: [--fix, --exit-non-zero-on-fix]
+    # -   id: ruff-format
+        # (可选) 你也可以用 ruff 代替 black 来格式化，两者选其一
+        # id: ruff-format

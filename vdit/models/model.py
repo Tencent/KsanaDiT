@@ -1,80 +1,97 @@
 import os
-from abc import ABC, abstractmethod
-from ..utils import log
+from abc import ABC
+from ..utils import log, time_range
 
 from .wan.model import WanModel
-from .wan.configs import WAN2_2_CONFIGS 
+from .wan.configs import WAN2_2_CONFIGS
 
 
 def create_vdit_model(model_path, comfy_model_config):
     model_name = os.path.basename(model_path)
-    model_type = vDitModel.get_model_type(comfy_model_config, model_name) # t2v
-    model_kind = vDitModel.get_model_kind(model_name) # wan2.2
-    model_size = vDitModel.get_model_size(model_kind, model_name) #14b
+    model_type = vDitModel.get_model_type(comfy_model_config, model_name)  # t2v
+    model_kind = vDitModel.get_model_kind(model_name)  # wan2.2
+    model_size = vDitModel.get_model_size(model_kind, model_name)  # 14b
     assert model_kind in ["wan2.2"], "only support wan2.2 yet"
-    
+
     return vDitModel(model_kind, model_type, model_size)
+
 
 class vDitModel(ABC):
     def __init__(self, model_kind, model_type, model_size):
-        self.model_kind = model_kind # wan2.2
-        self.task_type = model_type # t2v
-        self.model_size = model_size #14b
-        
-    def load(self, 
-             model_path,  
-             comfy_model_config:dict = None,
-             comfy_model_state_dict=None,
-             comfy_model_options:dict=None,
-             load_device=None, offload_device=None):
+        self.model_kind = model_kind  # wan2.2
+        self.task_type = model_type  # t2v
+        self.model_size = model_size  # 14b
+
+    @time_range
+    def load(
+        self,
+        model_path,
+        comfy_model_config: dict = None,
+        comfy_model_state_dict=None,
+        comfy_model_options: dict = None,
+        load_device=None,
+        offload_device=None,
+    ):
         assert self.model_kind in ["wan2.2"], "only support wan2.2 yet"
         if "wan" in self.model_kind:
-            self.load_wan_model(model_path, comfy_model_config, comfy_model_state_dict, comfy_model_options, load_device, offload_device)
+            self.load_wan_model(
+                model_path,
+                comfy_model_config,
+                comfy_model_state_dict,
+                comfy_model_options,
+                load_device,
+                offload_device,
+            )
         else:
             raise ValueError(f"model_kind {self.model_kind} not supported")
 
-    def load_wan_model(self,
-                       model_path,
-                       comfy_model_config:dict = None,
-                       comfy_model_state_dict=None,
-                       comfy_model_options:dict=None,
-                       load_device=None,
-                       offload_device=None):
-        log.info(f"model_path:{model_path}, comfy_model_config:{comfy_model_config}, "
-                 f"load_device:{load_device}, offload_device:{offload_device}, comfy_model_options:{comfy_model_options}")
+    def load_wan_model(
+        self,
+        model_path,
+        comfy_model_config: dict = None,
+        comfy_model_state_dict=None,
+        comfy_model_options: dict = None,
+        load_device=None,
+        offload_device=None,
+    ):
+        log.info(
+            f"model_path:{model_path}, comfy_model_config:{comfy_model_config}, "
+            f"load_device:{load_device}, offload_device:{offload_device}, comfy_model_options:{comfy_model_options}"
+        )
         config_type = f"{self.task_type}-{self.model_size}"
         log.info(f"config_type: {config_type}")
         self._default_config = WAN2_2_CONFIGS[config_type]
         in_dim = comfy_model_config.get("in_dim", self.default_config.get("in_dim", 16))
         out_dim = comfy_model_config.get("out_dim", self.default_config.get("out_dim", 16))
         if comfy_model_state_dict is not None:
-            self.model = WanModel(model_type=self.task_type,
-                                  patch_size=self.default_config.patch_size,
-                                  text_len = self.default_config.text_len,
-                                  in_dim=in_dim,
-                                  dim=self.default_config.dim,
-                                  ffn_dim=self.default_config.ffn_dim,
-                                  freq_dim=self.default_config.freq_dim,
-                                  out_dim=out_dim,
-                                  num_heads=self.default_config.num_heads,
-                                  num_layers=self.default_config.num_layers,
-                                  window_size=self.default_config.window_size,
-                                  qk_norm=self.default_config.qk_norm,
-                                  cross_attn_norm=self.default_config.cross_attn_norm,
-                                  eps=self.default_config.eps)
+            self.model = WanModel(
+                model_type=self.task_type,
+                patch_size=self.default_config.patch_size,
+                text_len=self.default_config.text_len,
+                in_dim=in_dim,
+                dim=self.default_config.dim,
+                ffn_dim=self.default_config.ffn_dim,
+                freq_dim=self.default_config.freq_dim,
+                out_dim=out_dim,
+                num_heads=self.default_config.num_heads,
+                num_layers=self.default_config.num_layers,
+                window_size=self.default_config.window_size,
+                qk_norm=self.default_config.qk_norm,
+                cross_attn_norm=self.default_config.cross_attn_norm,
+                eps=self.default_config.eps,
+            )
             self.model.load_state_dict(comfy_model_state_dict)
         else:
-            #TODO: add ut to test this branch
+            # TODO: add ut to test this branch
             self.model = WanModel.from_pretrained(model_path)
-            
+
         # self.high_noise_model = self._configure_model(
         #     model=self.high_noise_model,
         #     use_sp=use_sp,
         #     dit_fsdp=dit_fsdp,
         #     shard_fn=shard_fn,
         #     convert_model_dtype=convert_model_dtype)
-        
-            
+
         # def _configure_model(self, model, use_sp, dit_fsdp, shard_fn,
         #                      convert_model_dtype):
         #     """
@@ -124,22 +141,22 @@ class vDitModel(ABC):
         return self
 
     @property
-    def default_config(self): #: change to default_model_config
+    def default_config(self):  #: change to default_model_config
         return self._default_config
 
     @property
     def dtype(self):
         return self.model.dtype
-    
+
     @property
     def device(self):
         return self.model.device
-    
+
     def forward(self, *args, **kwargs):
         return self.model(*args, **kwargs)
-    
+
     @staticmethod
-    def get_model_type(input_model_config:dict, model_name:str):
+    def get_model_type(input_model_config: dict, model_name: str):
         """
         Get the model type from the state dict.
         return t2v or s2v or i2v or ti2v
@@ -162,7 +179,7 @@ class vDitModel(ABC):
         # f"{wan, flux, xxx}-{version:2.2}-{task_type:t2v}-{params:14B}"
 
     @staticmethod
-    def get_model_kind(model_name:str):
+    def get_model_kind(model_name: str):
         """
         Get the model kind from the model name.
         return wan or flux
@@ -177,9 +194,9 @@ class vDitModel(ABC):
         #     if k in model_name.lower():
         #         return "wan2.1"
         raise ValueError(f"model_name {model_name} not supported")
-    
+
     @staticmethod
-    def get_model_size(model_kind:str, model_name:str):
+    def get_model_size(model_kind: str, model_name: str):
         """
         Get the model size from the model_kind and model name.
         return 14b, 1.3b, or others
@@ -197,4 +214,3 @@ class vDitModel(ABC):
                 return "1.3B"
         else:
             raise ValueError(f"can not detect model_size from model_kind:{model_kind}, model_name:{model_name}")
-    

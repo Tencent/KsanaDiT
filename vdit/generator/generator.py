@@ -1,10 +1,8 @@
-
-from abc import ABC, abstractmethod
+from abc import ABC
 import os
 import torch
 import torch.distributed as dist
 
-from ..distributed.utils import init_distributed_group, get_rank, get_world_size
 
 from ..executor.executor import vDitExecutor
 from ..utils import log
@@ -17,9 +15,10 @@ def singleton(cls):
         if cls not in instances:
             instances[cls] = cls(*args, **kwargs)
         # else:
-            # instances[cls].clean()
-            # instances[cls] = cls(*args, **kwargs)
+        # instances[cls].clean()
+        # instances[cls] = cls(*args, **kwargs)
         return instances[cls]
+
     return get_instance
 
 
@@ -29,6 +28,7 @@ def get_generator(*args, **kwargs):
     """
     return vDitGenerator(*args, **kwargs)
 
+
 # TODO: singlen
 # single generator
 @singleton
@@ -36,28 +36,26 @@ class vDitGenerator(ABC):
     """
     Base class for all vDit generators.
     """
+
     executors = None
+
     def __init__(self, *args, **kwargs):
         """
         Initialize the pipeline.
         """
-        
+
         rank = int(os.getenv("RANK", 0))
         world_size = int(os.getenv("WORLD_SIZE", 1))
         local_rank = int(os.getenv("LOCAL_RANK", 0))
         self.device = torch.device(f"cuda:{local_rank}")
         # _init_logging(rank)
         # log.info(f"Initializing vDitGenerator with kwargs: {kwargs}")
-        
+
         if world_size > 1:
             torch.cuda.set_device(local_rank)
-            dist.init_process_group(
-                backend="nccl",
-                init_method="env://",
-                rank=rank,
-                world_size=world_size)
+            dist.init_process_group(backend="nccl", init_method="env://", rank=rank, world_size=world_size)
         else:
-            log.info(f"Running in non-distributed environment.")
+            log.info("Running in non-distributed environment.")
             # TODO: support t5 fsdp and dit fsdp
             # assert not (
             #     args.t5_fsdp or args.dit_fsdp
@@ -70,30 +68,29 @@ class vDitGenerator(ABC):
         #     assert args.ulysses_size == world_size, f"The number of ulysses_size should be equal to the world size."
         #     init_distributed_group()
 
-    
         # if self.executor is None:
         #     raise ValueError("Executor must be provided.")
         # TODO: multi gpus support
         self.executors = vDitExecutor(device=self.device, **kwargs)
         self.model = self.executors.model
-        
+
         # self.executors._run_workers('initialize_wani2v', **kwargs)
-        
+
     def to_cpu(self):
         self.executors.to_cpu()
-        
+
     def to_gpu(self):
         self.executors.to_gpu()
-        
+
     # def clean(self):
     #     for worker in self.workers:
     #         ray.kill(worker)
     #     ray.util.remove_placement_group(self.placement_group)
     #     self.workers = []
-        
+
     def run(self, *args, **kwargs):
         return self.executors.run(*args, **kwargs)
-      
+
     # def load_state_dict_from_file(self, file_path):
     #     """
     #     Load state dict from file.

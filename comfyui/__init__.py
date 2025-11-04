@@ -1,13 +1,17 @@
-
 # WEB_DIRECTORY = "./web"
 try:
     from .debug import vDitDebugNode
-    from .cache import vDitDCacheNode, vDitTeaCacheNode, vDitEasyCacheNode, vDitMagCacheNode
+    from .cache import (
+        vDitDCacheNode,
+        vDitTeaCacheNode,
+        vDitEasyCacheNode,
+        vDitMagCacheNode,
+    )
     from .model_loader import vDitModelLoaderNode
     from .generator import vDitGeneratorNode
 except Exception as e:
     print(f"import错误: {str(e)}")
-    
+
 NODE_CLASS_MAPPINGS = {
     "vDitDCacheNode": vDitDCacheNode,
     "vDitTeaCacheNode": vDitTeaCacheNode,
