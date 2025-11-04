@@ -1,0 +1,77 @@
+[build-system]
+requires = ["setuptools>=42", "wheel"]  # 构建依赖
+build-backend = "setuptools.build_meta"  # 构建后端
+
+[project]
+name = "vDit"
+version = "0.1.0"
+description = "Venus Dit"
+authors = [{ name = "Venus", email = "venus@example.com" }]
+readme = "README.md"
+requires-python = ">=3.10"
+license = {file = "LICENSE"}
+dependencies = [
+  "numpy",
+  "easydict",
+  "torch >= 2.6.0",
+  # "torch >= 2.7.1",
+  "accelerate >= 1.2.1",
+  "diffusers >= 0.35.2",
+  "peft >= 0.17.0",
+  "ftfy",
+  "gguf >= 0.17.1",
+  "pyloudnorm",
+  "xformers >= 0.0.29",
+  "flash_attn >=2.6.0",
+  # "flash_attn >=2.7.1 <= 2.8.2",
+  "triton >= 3.2.0"
+]
+
+# wan2.2 deps:
+# torch                                          2.7.0
+# torchaudio                                     2.7.1+cu128
+# torchvision                                    0.22.1+cu128
+# flash_attn                                     2.7.3
+# flashinfer-python                              0.2.2.post1
+# vllm-flash-attn                                2.6.2+cu128
+# xformers                                       0.0.30
+# triton                                         3.3.0
+# tritonclient                                   2.51.0
+# trpc_triton                                    0.0.5a4
+# transformers                                   4.51.3
+
+
+# TODO: add lint
+# lint = [
+#     "pre-commit==4.0.1",
+# ]
+
+[project.urls]
+Repository = "https://git.woa.com/jackyjtang/vdit"
+
+#  Used by Comfy Registry https://comfyregistry.org
+[tool.comfy]
+PublisherId = "venus"
+DisplayName = "vDit"
+Icon = ""
+
+[project.optional-dependencies]  # 可选依赖
+dev = ["pytest>=6.0", "black>=21.0"]
+
+[project.scripts]  # 命令行工具
+mycli = "my_package.cli:main"
+
+[tool.setuptools.packages.find]  # 包发现规则
+where = ["."]
+exclude = ["tests*", "assets*", "docker*", "docs", "scripts*"]
+
+[tool.wheel]
+exclude = ["assets*", "docker*", "docs", "scripts*"]
+
+# 包含数据文件（如配置文件）
+[tool.setuptools.package-data]
+vDit = ["data/*.json"]
+
+# 自定义构建选项
+[tool.setuptools]
+zip-safe = false  # 禁止以 zip 形式安装
