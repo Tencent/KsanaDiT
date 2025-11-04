@@ -7,7 +7,7 @@ import torch
 import copy
 import comfy.model_management as mm
 
-from vdit.utils import get_gpu_count
+from vdit.utils import get_gpu_count, time_range
 from vdit import create_vdit_model
 
 from comfy.model_patcher import ModelPatcher
@@ -139,10 +139,8 @@ def load_diffusion_model_state_dict(
     model = model.to(offload_device)
 
     sdkeys = list(sd.keys())
-    print(f"sd keys samples: {len(sdkeys)} {sdkeys[0]}, {sdkeys[10]}")
-    # # print_recursive(sd)
     newsdkeys = list(new_sd.keys())
-    print(f"new_sd keys samples: {len(newsdkeys)} {newsdkeys[0]}, {newsdkeys[10]}")
+    print(f"sd keys samples: {len(sdkeys)}, new_sd keys samples: {len(newsdkeys)}")
     print(f"Load_device: {load_device}, Offload_device: {offload_device}")
     print(f"unet_config: {model_config.unet_config}, model_options:{model_options}")
 
@@ -150,13 +148,11 @@ def load_diffusion_model_state_dict(
     unet_config = model_config.unet_config
     del unet_config["disable_unet_model_creation"]
     manual_cast_dtype = model_config.manual_cast_dtype
-    # if model_config.custom_operations is None:
-    #     operations = comfy.ops.pick_operations(
-    #         unet_config.get("dtype", None), manual_cast_dtype
-    #     )
-    # else:
-    #     operations = model_config.custom_operations
-
+    if model_config.custom_operations is None:
+        operations = comfy.ops.pick_operations(unet_config.get("dtype", None), manual_cast_dtype)
+    else:
+        operations = model_config.custom_operations
+    print(f"custom_operations: {model_config.custom_operations}, operations:{operations}")
     print(
         f"unet_config: {model_config.unet_config}, model_options:{model_options}, diffusion_model_prefix:{diffusion_model_prefix}"
     )
@@ -167,6 +163,8 @@ def load_diffusion_model_state_dict(
         comfy_model_config=unet_config,
         comfy_model_state_dict=new_sd,
         comfy_model_options=model_options,
+        disable_weight_init_operations=operations,
+        dtype=unet_dtype,
         load_device=load_device,
         offload_device=offload_device,
     )
@@ -188,6 +186,7 @@ def load_diffusion_model_state_dict(
     return CustomModelPatcher(model, load_device=load_device, offload_device=offload_device, size=sd_size(sd))
 
 
+@time_range
 def load_diffusion_model(model_path, model_options={}):
     model = load_diffusion_model_state_dict(model_path, model_options=model_options, load_ori_weights=False)
 

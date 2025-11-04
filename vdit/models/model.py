@@ -1,9 +1,10 @@
 import os
 from abc import ABC
-from ..utils import log, time_range
+from ..utils import log, time_range  # , vProfiler
 
 from .wan.model import WanModel
 from .wan.configs import WAN2_2_CONFIGS
+import time
 
 
 def create_vdit_model(model_path, comfy_model_config):
@@ -29,6 +30,8 @@ class vDitModel(ABC):
         comfy_model_config: dict = None,
         comfy_model_state_dict=None,
         comfy_model_options: dict = None,
+        disable_weight_init_operations=None,
+        dtype=None,
         load_device=None,
         offload_device=None,
     ):
@@ -39,11 +42,30 @@ class vDitModel(ABC):
                 comfy_model_config,
                 comfy_model_state_dict,
                 comfy_model_options,
+                disable_weight_init_operations,
+                dtype,
                 load_device,
                 offload_device,
             )
         else:
             raise ValueError(f"model_kind {self.model_kind} not supported")
+
+    def load_model_weights(self, model, sd, unet_prefix=""):
+        to_load = {}
+        keys = list(sd.keys())
+        for k in keys:
+            if k.startswith(unet_prefix):
+                to_load[k[len(unet_prefix) :]] = sd.pop(k)
+
+        to_load = model.model_config.process_unet_state_dict(to_load)
+        m, u = model.load_state_dict(to_load, strict=False)
+        if len(m) > 0:
+            log.warning("unet missing: {}".format(m))
+
+        if len(u) > 0:
+            log.warning("unet unexpected: {}".format(u))
+        del to_load
+        return model
 
     def load_wan_model(
         self,
@@ -51,6 +73,8 @@ class vDitModel(ABC):
         comfy_model_config: dict = None,
         comfy_model_state_dict=None,
         comfy_model_options: dict = None,
+        disable_weight_init_operations=None,
+        dtype=None,
         load_device=None,
         offload_device=None,
     ):
@@ -63,7 +87,10 @@ class vDitModel(ABC):
         self._default_config = WAN2_2_CONFIGS[config_type]
         in_dim = comfy_model_config.get("in_dim", self.default_config.get("in_dim", 16))
         out_dim = comfy_model_config.get("out_dim", self.default_config.get("out_dim", 16))
+
+        # with vProfiler("vDitModel.load_wan_model"):
         if comfy_model_state_dict is not None:
+            start = time.time()
             self.model = WanModel(
                 model_type=self.task_type,
                 patch_size=self.default_config.patch_size,
@@ -79,8 +106,14 @@ class vDitModel(ABC):
                 qk_norm=self.default_config.qk_norm,
                 cross_attn_norm=self.default_config.cross_attn_norm,
                 eps=self.default_config.eps,
+                disable_weight_init_operations=disable_weight_init_operations,
+                device=offload_device,
+                dtype=dtype,
             )
-            self.model.load_state_dict(comfy_model_state_dict)
+            stop1 = time.time()
+            self.model.load_state_dict(comfy_model_state_dict, strict=False)
+            stop2 = time.time()
+            log.info(f"create model takes: {(stop1 - start):.2f}, load states takes {(stop2 - stop1):.2f} seconds")
         else:
             # TODO: add ut to test this branch
             self.model = WanModel.from_pretrained(model_path)
