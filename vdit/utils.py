@@ -7,6 +7,8 @@ import sys
 import cProfile
 import pstats
 
+import torch.cuda.nvtx as nvtx
+
 from pyinstrument import Profiler
 
 log = logging.getLogger(__name__)
@@ -105,13 +107,54 @@ def time_range(func):
     return wrapped_fn
 
 
-def nvtx_range(func):
-    def wrapped_fn(*args, **kwargs):
-        ret_val = func(*args, **kwargs)
-        # print(f"tjinfo: FUNC[{func.__qualname__}] takes {(stop - start):.2f} seconds")
-        return ret_val
+class nvtx_range:
+    def __init__(self, name=None, skip=True):
+        """
+        支持上下文管理器和装饰器的 NVTX 范围工具
 
-    return wrapped_fn
+        参数:
+        name (str): 范围名称
+        skip_compile (bool): 当 torch.compile 激活时是否跳过 NVTX
+        """
+        self.name = name if name else "nvtx_range"
+        self.skip = skip
+        self._func = None  # 用于装饰器模式
+
+    def _should_skip(self):
+        """检查是否需要跳过 NVTX 记录"""
+        return self.skip
+        # return self.skip and hasattr(torch, 'is_compiling') and torch.is_compiling()
+
+    def __enter__(self):
+        if not self._should_skip():
+            nvtx.range_push(self.name)
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if not self._should_skip():
+            nvtx.range_pop()
+
+    # TODO: test me
+    def __call__(self, func=None, *, name=None):
+        """装饰器实现"""
+        if func is None:
+            # 带参数装饰器: @nvtx_range(name="...")
+            return lambda f: self.__call__(f, name=name)
+
+        # 不带参数装饰器: @nvtx_range
+        self._func = func
+        self.name = name or self.name or func.__qualname__
+
+        def wrapper(*args, **kwargs):
+            if self._should_skip():
+                return func(*args, **kwargs)
+
+            nvtx.range_push(self.name)
+            result = func(*args, **kwargs)
+            nvtx.range_pop()
+            return result
+
+        return wrapper
 
 
 def print_recursive(obj, indent=0):
@@ -132,6 +175,9 @@ def print_recursive(obj, indent=0):
             s = f"{s}, dtype={obj.dtype}"
         if hasattr(obj, "device"):
             s = f"{s}, device={obj.device}"
+        if isinstance(obj, torch.Tensor):
+            on_cpu = obj.cpu()
+            s = f"{s}, abs_mean={on_cpu.abs().mean()}, max={on_cpu.max()}, min={on_cpu.min()}, abs_min={on_cpu.abs().min()}"
         print(s)
 
 

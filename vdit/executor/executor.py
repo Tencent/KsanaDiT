@@ -120,6 +120,7 @@ class vDitExecutor(ABC):
             )
             boundary = boundary if boundary is not None else low_model.default_config.boundary
         else:
+            low_cache = None
             low_sample_guide_scale = None
             boundary = None
 
@@ -129,12 +130,9 @@ class vDitExecutor(ABC):
 
         if len(latents.shape) == 5:
             latents = latents.squeeze(0)
-        if len(positive.shape) == 3:
-            positive = positive.squeeze(0)
-        if len(negative.shape) == 3:
-            negative = negative.squeeze(0)
-
         target_shape = latents.shape
+        # [bs, input_text_len, 4096]
+        assert positive.ndim == negative.ndim == 3, f"positive.shape {positive.shape} != target_shape {target_shape}"
 
         # used to target_shape, self.patch_size, sp_size
         seq_len = (
@@ -158,6 +156,8 @@ class vDitExecutor(ABC):
         )
 
         latents = noise  # maybe added input latents
+        # TODO: support bs > 1
+        latents = latents.unsqueeze(0)
 
         # # model
         # @contextmanager
@@ -167,7 +167,7 @@ class vDitExecutor(ABC):
         #                             noop_no_sync)
         # no_sync_high_noise = getattr(self.high_noise_model, 'no_sync',
         #                              noop_no_sync)
-        run_dtype = high_model.default_config.param_dtype
+        run_dtype = high_model.run_dtype  # high_model.default_config.param_dtype
         latents = self.cast_to(latents, run_dtype, self.run_device)
 
         with (
@@ -189,14 +189,14 @@ class vDitExecutor(ABC):
 
             arg_c = {
                 "phase": "cond",
-                "context": [positive],
+                "context": positive,
                 "seq_len": seq_len,
-            }  # , seq_len:720, 与frame_num相关
-            arg_null = {"phase": "uncond", "context": [negative], "seq_len": seq_len}
+            }
+            arg_null = {"phase": "uncond", "context": negative, "seq_len": seq_len}
             log.info(f"timesteps: {timesteps}")
-            latents = [latents]
             # timesteps: tensor([999, 997, ...])
             for iter_id, t in enumerate(tqdm(timesteps)):
+                # [bs, 16, fi, hi, wi]
                 latent_model_input = latents
                 # t : tensor(999)
                 if boundary is not None and low_model is not None:
@@ -218,22 +218,33 @@ class vDitExecutor(ABC):
                     timestep_id=timestep_id,
                     boundary=boundary,
                 )
+                # TODO: concat cond and uncond context to forward once
+                # arg_c["context"] = [torch.cat([positive, negative], dim=0)]
 
-                noise_pred_cond = run_model.forward(latent_model_input, t=timestep, cache=run_cache, **arg_c)[0]
-                noise_pred_uncond = run_model.forward(latent_model_input, t=timestep, cache=run_cache, **arg_null)[0]
-
+                # [bs, 16, fi, hi, wi] => [bs, 16, fi, hi, wi]
+                noise_pred_cond = run_model.forward(latent_model_input, t=timestep, cache=run_cache, **arg_c)
+                noise_pred_uncond = run_model.forward(latent_model_input, t=timestep, cache=run_cache, **arg_null)
                 noise_pred = noise_pred_uncond + sample_guide_scale * (noise_pred_cond - noise_pred_uncond)
 
+                log.info(
+                    f"noise_pred_cond shape: {noise_pred_cond.shape}, {noise_pred_cond.dtype}, {noise_pred_cond.cpu().abs().mean()}"
+                )
+                log.info(
+                    f"noise_pred_uncond shape: {noise_pred_uncond.shape}, {noise_pred_uncond.dtype}, {noise_pred_uncond.cpu().abs().mean()}"
+                )
+                log.info(f"noise_pred shape: {noise_pred.shape}, {noise_pred.dtype} {noise_pred.cpu().abs().mean()}")
+
+                # [bs, 16, fi, hi, wi] => [bs, 16, fi, hi, wi]
                 temp_x0 = sample_scheduler.step(
-                    noise_pred.unsqueeze(0),
+                    noise_pred,
                     t,
-                    latents[0].unsqueeze(0),
+                    latents,
                     return_dict=False,
                     generator=seed_g,
-                )[
-                    0
-                ]  # [1, 16, 2, 90, 160]
-                latents = [temp_x0.squeeze(0)]
+                )
+                temp_x0 = temp_x0[0]
+                log.info(f"------oo shape: {temp_x0.shape}, {temp_x0.dtype}, {temp_x0.cpu().abs().mean()}")
+                latents = temp_x0
             if high_cache is not None:
                 high_cache.show_cache_rate()
             if low_cache is not None:
@@ -248,8 +259,9 @@ class vDitExecutor(ABC):
         #     torch.cuda.synchronize()
         # if dist.is_initialized():
         #     dist.barrier()
-        log.info(f"latents shape: {latents[0].shape}")
-        return latents[0]
+        log.info(f"latents shape: {latents.shape}")
+        # [bs, 16, fi, hi, wi]
+        return latents
 
     def cast_to(self, src, dtype: torch.dtype, device: torch.device):
         if src.dtype != dtype:
@@ -262,22 +274,22 @@ class vDitExecutor(ABC):
         if low_model is None:
             return high_model
         assert boundary is not None, "boundary must be provided when low_model is not None"
-        if timestep_id <= boundary:
-            if high_model.device != self.offload_device:
-                high_model.to(self.offload_device)
-            return low_model
-        else:
+        if timestep_id >= boundary:
             if low_model.device != self.offload_device:
                 low_model.to(self.offload_device)
             return high_model
+        else:
+            if high_model.device != self.offload_device:
+                high_model.to(self.offload_device)
+            return low_model
 
     def get_run_cache(self, high_cache, low_cache, timestep_id, boundary):
         if low_cache is None:
             return high_cache
-        if timestep_id <= boundary:
-            return low_cache
-        else:
+        if timestep_id >= boundary:
             return high_cache
+        else:
+            return low_cache
 
     # def prepare_cache(self, cache_args: dict =None):
     #     """

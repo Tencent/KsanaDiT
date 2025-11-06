@@ -7,7 +7,6 @@ from diffusers.configuration_utils import ConfigMixin, register_to_config
 from diffusers.models.modeling_utils import ModelMixin
 
 from .attention import flash_attention
-from vdit.utils import nvtx_range
 import torch.cuda.nvtx as nvtx
 
 from vdit.cache import vDitCache
@@ -22,7 +21,7 @@ def sinusoidal_embedding_1d(dim, position):
     # preprocess
     assert dim % 2 == 0
     half = dim // 2
-    position = position.type(torch.float64)
+    position = position.type(torch.float32)
 
     # calculation
     sinusoid = torch.outer(position, torch.pow(10000, -torch.arange(half).to(position).div(half)))
@@ -265,7 +264,7 @@ class WanAttentionBlock(nn.Module):
             # modulation
             self.modulation = nn.Parameter(torch.randn(1, 6, dim) / dim**0.5)
 
-    @nvtx_range
+    # @nvtx_range
     def forward(
         self,
         x,
@@ -289,32 +288,35 @@ class WanAttentionBlock(nn.Module):
             grid_sizes(Tensor): Shape [B, 3], the second dimension contains (F, H, W) #: [2, 45, 80]
             freqs(Tensor): Rope freqs, shape [1024, C / num_heads / 2]                #: [1024, 64]
         """
-        assert e.dtype == torch.float32
+        # print(f"-----------x:{x.cpu().abs().mean().item()}")
+        # TODO: remove fp32 assert
+        # assert e.dtype == torch.float32
         # ipdb.set_trace()
-        with torch.amp.autocast("cuda", dtype=torch.float32):
-            # self.modulation : [1, 6, 5120]
-            e = (self.modulation.unsqueeze(0) + e).chunk(6, dim=2)
-            # [bs, seqlen, 6, 5120] => [bs, seqlen, 1, 5120] * 6
-        assert e[0].dtype == torch.float32
+        # with torch.amp.autocast("cuda", dtype=torch.float32):
+        # self.modulation : [1, 6, 5120]
+        e = (self.modulation.unsqueeze(0) + e).chunk(6, dim=2)
+        # [bs, seqlen, 6, 5120] => [bs, seqlen, 1, 5120] * 6
+        # assert e[0].dtype == torch.float32
 
         # ipdb.set_trace()
         # self-attention
         y = self.self_attn(
-            self.norm1(x).float() * (1 + e[1].squeeze(2)) + e[0].squeeze(2),
+            self.norm1(x) * (1 + e[1].squeeze(2)) + e[0].squeeze(2),
             seq_lens,
             grid_sizes,
             freqs,
         )
-        with torch.amp.autocast("cuda", dtype=torch.float32):
-            x = x + y * e[2].squeeze(2)
+        # with torch.amp.autocast("cuda", dtype=torch.float32):
+        x = x + y * e[2].squeeze(2)
+        del y
 
         # cross-attention & ffn function
-        @nvtx_range
+        # @nvtx_range
         def cross_attn_ffn(x, context, context_lens, e):
             x = x + self.cross_attn(self.norm3(x), context, context_lens)
-            y = self.ffn(self.norm2(x).float() * (1 + e[4].squeeze(2)) + e[3].squeeze(2))
-            with torch.amp.autocast("cuda", dtype=torch.float32):
-                x = x + y * e[5].squeeze(2)
+            y = self.ffn(self.norm2(x) * (1 + e[4].squeeze(2)) + e[3].squeeze(2))
+            # with torch.amp.autocast("cuda", dtype=torch.float32):
+            x = x + y * e[5].squeeze(2)
             return x
 
         x = cross_attn_ffn(x, context, context_lens, e)
@@ -340,7 +342,7 @@ class Head(nn.Module):
             self.head = comfy_operation_settings.get("operations").Linear(dim, out_dim, device=device, dtype=dtype)
             # modulation
             self.modulation = nn.Parameter(torch.empty(1, 2, dim, device=device, dtype=dtype))
-
+            print(f"head-----------dtype:{dtype}")
         else:
             self.norm = WanLayerNorm(dim, eps)
             self.head = nn.Linear(dim, out_dim)
@@ -354,10 +356,10 @@ class Head(nn.Module):
             e(Tensor): Shape [B, L1, C]
         """
         # use comfy.model_management.cast_to
-        assert e.dtype == torch.float32
-        with torch.amp.autocast("cuda", dtype=torch.float32):
-            e = (self.modulation.unsqueeze(0) + e.unsqueeze(2)).chunk(2, dim=2)
-            x = self.head(self.norm(x) * (1 + e[1].squeeze(2)) + e[0].squeeze(2))
+        # with torch.amp.autocast("cuda", dtype=torch.float32):
+        e = (self.modulation.unsqueeze(0) + e.unsqueeze(2)).chunk(2, dim=2)
+        x = self.head(self.norm(x) * (1 + e[1].squeeze(2)) + e[0].squeeze(2))
+        print(f"-----------x.dtype{x.dtype}, headoutput:{x.cpu().abs().mean().item()}")
         return x
 
 
@@ -518,14 +520,14 @@ class WanModel(ModelMixin, ConfigMixin):
         if disable_weight_init_operations is None:
             self.init_weights()
 
-    @nvtx_range
+    # @nvtx_range
     def forward(
         self,
-        x,
+        x: torch.Tensor,
         t,
         cache: vDitCache,
         phase: str,
-        context,
+        context: torch.Tensor,
         seq_len,
         y=None,
     ):
@@ -533,20 +535,20 @@ class WanModel(ModelMixin, ConfigMixin):
         Forward pass through the diffusion model
 
         Args:
-            x (List[Tensor]):
-                List of input video tensors, each with shape [C_in, F, H, W], : [16, 2, 90, 160]
+            x (Tensor):
+                Input video tensor with shape [B, C_in, F, H, W], : [bs, 16, v, h, w]
             t (Tensor):
                 Diffusion timesteps tensor of shape [B]
-            context (List[Tensor]):
-                List of text embeddings each with shape [L, C] : 73, 4096
+            context (Tensor):
+                Text embeddings tensor with shape [B, L, C] : [bs, 73, 4096]
             seq_len (`int`): 7200
                 Maximum sequence length for positional encoding
             y (List[Tensor], *optional*):
                 Conditional video inputs for image-to-video mode, same shape as x
 
         Returns:
-            List[Tensor]:
-                List of denoised video tensors with original input shapes [C_out, F, H / 8, W / 8]
+            Tensor:
+                Denoised video tensor with shape [B, C_out, F, H / 8, W / 8]
         """
         # ipdb.set_trace()
 
@@ -558,61 +560,68 @@ class WanModel(ModelMixin, ConfigMixin):
             self.freqs = self.freqs.to(device)
 
         if y is not None:
-            x = [torch.cat([u, v], dim=0) for u, v in zip(x, y)]
-
+            # x = [torch.cat([u, v], dim=0) for u, v in zip(x, y)]
+            x = torch.cat([x, y], dim=0)
         # embeddings
-        # [16, 2, 90, 160] => self.patch_embedding: Conv3d(16, 5120, kernel_size=(1, 2, 2), stride=(1, 2, 2)) => [1, 5120, 2, 45, 80],
-        # print(f"x: {x[0].shape}, device: {x[0].device}, dtype: {x[0].dtype}, bias: {self.patch_embedding.bias}")
-        x = [self.patch_embedding(u.unsqueeze(0)) for u in x]
-        grid_sizes = torch.stack([torch.tensor(u.shape[2:], dtype=torch.long) for u in x])  # => [2, 45, 80]
-        x = [u.flatten(2).transpose(1, 2) for u in x]  # => [1, 7200, 5120]
-        seq_lens = torch.tensor([u.size(1) for u in x], dtype=torch.long)  # 7200
+        # [bs, 16, fi, hi, wi] => [bs, 5120, f, h, w]
+        x = self.patch_embedding(x)
+        grid_sizes = torch.stack([torch.tensor(x.shape[2:], dtype=torch.long)])  # => [f, h, w]
+        # [bs, 5120, f*h*w] => [bs, f*h*w, 5120]
+        x = x.flatten(2).transpose(1, 2)
+        seq_lens = torch.tensor([x.shape[1]], dtype=torch.long)  # seqlen
         assert seq_lens.max() <= seq_len
         x = torch.cat(
-            [torch.cat([u, u.new_zeros(1, seq_len - u.size(1), u.size(2))], dim=1) for u in x]
-        )  # [7200, 5120]
+            [x, x.new_zeros(x.size(0), seq_len - x.size(1), x.size(2))], dim=1
+        )  # pad f*h*w to seqlen, => [bs, seqlen, 5120]
 
         # time embeddings
+        nvtx.range_push("time_embedding")
         timestep = t.item()  # TODO: support bs > 1
+        # TODO: e support do not expand
         if t.dim() == 1:
-            t = t.expand(t.size(0), seq_len)  # [1, 7200]
-        with torch.amp.autocast("cuda", dtype=torch.float32):
-            nvtx.range_push("time_embedding")
-            bt = t.size(0)  # 1
-            t = t.flatten()  # [7200]
-            # freq_dim : 256
-            # ipdb.set_trace()
-            e = sinusoidal_embedding_1d(self.freq_dim, t)  # [seqlen, 256]
-            # print(f"e.device: {e.device}, dtype: {e.dtype}")
-            e = self.time_embedding(e.unflatten(0, (bt, seq_len)).float())  # [1, seqlen, 512=>5120]
-            e0 = self.time_projection(e)  # => [1, seqlen, 6*5120]
-            e0 = e0.unflatten(2, (6, self.dim))  # [1, seqlen, 6, 5120]
-            assert e.dtype == torch.float32 and e0.dtype == torch.float32
-            nvtx.range_pop()
+            t = t.expand(t.size(0), seq_len)  # => [bs, seqlen]
+
+        bs = t.size(0)  # 1
+        # TODO: e do not flatten and support bs > 1
+        t = t.flatten()  # [7200]
+        # freq_dim : 256
+        # t: [seqlen] => [seqlen, freq_dim:256]
+        e = sinusoidal_embedding_1d(self.freq_dim, t)
+        # [seqlen, freq_dim] => [bs, seqlen, freq_dim]
+        e = e.unflatten(0, (bs, seq_len))
+        # [bs, seqlen, freq_dim=>self.dim:5120]
+        e = self.time_embedding(e.to(x.dtype))
+        # [bs, seqlen, 5120] => [bs, seqlen, 6*5120]
+        e0 = self.time_projection(e)
+        # [bs, seqlen, 6*5120] => [bs, seqlen, 6, 5120]
+        e0 = e0.unflatten(2, (6, self.dim))
+        nvtx.range_pop()
 
         # context
         context_lens = None
         nvtx.range_push("text_embedding")
-        context = self.text_embedding(
-            torch.stack([torch.cat([u, u.new_zeros(self.text_len - u.size(0), u.size(1))]) for u in context])
-        )  # =>[512, 5120]
+        # [bs, 512, 4096] pad to => [bs, text_len:512, 4096]
+        padded_context = torch.cat(
+            [context, context.new_zeros(bs, self.text_len - context.size(1), context.size(2))], dim=1
+        )
+        # [bs, text_len, 4096] => [bs, text_len, 5120]
+        context = self.text_embedding(padded_context)
         nvtx.range_pop()
 
         # arguments
         kwargs = dict(
-            e=e0,  # [1, 7200, 6, 5120]
+            e=e0,  # [bs, 7200, 6, 5120]
             seq_lens=seq_lens,  # [7200]
-            grid_sizes=grid_sizes,  # [[ 2, 45, 80]]
+            grid_sizes=grid_sizes,  # [[f, h, w]]
             freqs=self.freqs,  # [1024, 64]
-            context=context,  # [1, 512, 5120]
+            context=context,  # [bs, text_len:512, 5120]
             context_lens=context_lens,
         )
 
         if cache is None:
             for block in self.blocks:
-                # x [1, 7200, 5120]
+                # x: [bs, seqlen, 5120]
                 x = block(x, **kwargs)
-            nvtx.range_pop()
         else:
             # if cache.need_compile_cache:
             #     x_ori = x.clone()
@@ -623,7 +632,6 @@ class WanModel(ModelMixin, ConfigMixin):
             #     x_diff = x - x_ori
             #     cache.compile_config_add(timestep, x_diff)
             # else:
-
             use_cache = False
             if cache.can_use_cache(phase, x, timestep):
                 x_diff = cache.try_get_prev_cache(phase, x, timestep)
@@ -635,7 +643,7 @@ class WanModel(ModelMixin, ConfigMixin):
                 x_ori = x.clone()
                 # nvtx.range_push("blocks")
                 for block in self.blocks:
-                    # x [1, 7200, 5120]
+                    # x: [bs, seqlen, 5120]
                     x = block(x, **kwargs)
                 # nvtx.range_pop()
                 cache.update_states(phase, timestep, x_ori, x)
@@ -643,11 +651,18 @@ class WanModel(ModelMixin, ConfigMixin):
         # torch.save(x.cpu().abs().mean(dim = len(x.shape) - 1), f"{save_prefix}_xo_mean.pt")
 
         # head
+        # [bs, seqlen, 5120] => [bs, seqlen, 64]
         x = self.head(x, e)
+        print(f"----x.dtype:{x.dtype}---x.shape:{x.shape}----headout:{x.cpu().abs().mean().item()}")
 
         # unpatchify
+        # TODO: support bs > 1
+        # [1, seqlen, 64] => [16, fi, hi, wi]
         x = self.unpatchify(x, grid_sizes)
-        return [u.float() for u in x]
+        x = x[0].unsqueeze(0)
+        # => [bs, 16, fi, hi, wi]
+        print(f"--------shape:{x.shape}---lastout:{x.cpu().abs().mean().item()}")
+        return x
 
     def unpatchify(self, x, grid_sizes):
         r"""

@@ -87,6 +87,7 @@ class vDitModel(ABC):
         self._default_config = WAN2_2_CONFIGS[config_type]
         in_dim = comfy_model_config.get("in_dim", self.default_config.get("in_dim", 16))
         out_dim = comfy_model_config.get("out_dim", self.default_config.get("out_dim", 16))
+        self.run_dtype = dtype
 
         # with vProfiler("vDitModel.load_wan_model"):
         if comfy_model_state_dict is not None:
@@ -114,6 +115,7 @@ class vDitModel(ABC):
             self.model.load_state_dict(comfy_model_state_dict, strict=False)
             stop2 = time.time()
             log.info(f"create model takes: {(stop1 - start):.2f}, load states takes {(stop2 - stop1):.2f} seconds")
+            log.info(f"model: {self.model}")
         else:
             # TODO: add ut to test this branch
             self.model = WanModel.from_pretrained(model_path)

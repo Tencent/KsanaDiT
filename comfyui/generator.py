@@ -35,7 +35,7 @@ class vDitGeneratorNode:
                         "default": 42,
                         "min": 0,
                         "max": 0xFFFFFFFFFFFFFFFF,
-                        "control_after_generate": True,
+                        # "control_after_generate": True,
                         "tooltip": "The random seed used for creating the noise.",
                     },
                 ),

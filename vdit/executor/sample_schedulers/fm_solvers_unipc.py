@@ -18,8 +18,6 @@ from diffusers.utils import deprecate, is_scipy_available
 if is_scipy_available():
     pass
 
-from vdit.utils import nvtx_range
-
 
 class FlowUniPCMultistepScheduler(SchedulerMixin, ConfigMixin):
     """
@@ -630,7 +628,7 @@ class FlowUniPCMultistepScheduler(SchedulerMixin, ConfigMixin):
         else:
             self._step_index = self._begin_index
 
-    @nvtx_range
+    # @nvtx_range
     def step(
         self,
         model_output: torch.Tensor,
