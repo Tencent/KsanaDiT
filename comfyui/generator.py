@@ -147,6 +147,7 @@ class vDitGeneratorNode:
         # unet = UNet2DConditionModel.from_config(config)
         # unet.load_state_dict(my_state_dict)?
         vdit_generator = get_generator()
+        # TODO: maybe need to latent_format process_in for positive/negative?
         samples = vdit_generator.run(
             high_model=model.model.vdit_model,
             positive=positive[0][0],  # 1, 512, 4096?
@@ -166,6 +167,6 @@ class vDitGeneratorNode:
         )
         if len(samples.shape) == 4:
             samples = samples.unsqueeze(0)
-
+        samples = model.model.model_config.latent_format.process_out(samples)
         # out = latent_image.copy()
         return ({"samples": samples},)

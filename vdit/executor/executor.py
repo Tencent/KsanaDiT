@@ -186,12 +186,7 @@ class vDitExecutor(ABC):
                 device=self.run_device,
                 shift=sample_shift,
             )
-
-            arg_c = {
-                "phase": "cond",
-                "context": positive,
-                "seq_len": seq_len,
-            }
+            arg_c = {"phase": "cond", "context": positive, "seq_len": seq_len}
             arg_null = {"phase": "uncond", "context": negative, "seq_len": seq_len}
             log.info(f"timesteps: {timesteps}")
             # timesteps: tensor([999, 997, ...])
@@ -222,16 +217,9 @@ class vDitExecutor(ABC):
                 # arg_c["context"] = [torch.cat([positive, negative], dim=0)]
 
                 # [bs, 16, fi, hi, wi] => [bs, 16, fi, hi, wi]
-                noise_pred_cond = run_model.forward(latent_model_input, t=timestep, cache=run_cache, **arg_c)
-                noise_pred_uncond = run_model.forward(latent_model_input, t=timestep, cache=run_cache, **arg_null)
+                noise_pred_cond = run_model.forward(x=latent_model_input, t=timestep, cache=run_cache, **arg_c)
+                noise_pred_uncond = run_model.forward(x=latent_model_input, t=timestep, cache=run_cache, **arg_null)
                 noise_pred = noise_pred_uncond + sample_guide_scale * (noise_pred_cond - noise_pred_uncond)
-
-                log.info(
-                    f"noise_pred_cond shape: {noise_pred_cond.shape}, {noise_pred_cond.dtype}, {noise_pred_cond.cpu().abs().mean()}"
-                )
-                log.info(
-                    f"noise_pred_uncond shape: {noise_pred_uncond.shape}, {noise_pred_uncond.dtype}, {noise_pred_uncond.cpu().abs().mean()}"
-                )
                 log.info(f"noise_pred shape: {noise_pred.shape}, {noise_pred.dtype} {noise_pred.cpu().abs().mean()}")
 
                 # [bs, 16, fi, hi, wi] => [bs, 16, fi, hi, wi]
@@ -242,9 +230,8 @@ class vDitExecutor(ABC):
                     return_dict=False,
                     generator=seed_g,
                 )
-                temp_x0 = temp_x0[0]
-                log.info(f"------oo shape: {temp_x0.shape}, {temp_x0.dtype}, {temp_x0.cpu().abs().mean()}")
-                latents = temp_x0
+                latents = temp_x0[0]
+
             if high_cache is not None:
                 high_cache.show_cache_rate()
             if low_cache is not None:

@@ -564,7 +564,7 @@ class WanModel(ModelMixin, ConfigMixin):
             x = torch.cat([x, y], dim=0)
         # embeddings
         # [bs, 16, fi, hi, wi] => [bs, 5120, f, h, w]
-        x = self.patch_embedding(x)
+        x = self.patch_embedding(x.float()).to(x.dtype)
         grid_sizes = torch.stack([torch.tensor(x.shape[2:], dtype=torch.long)])  # => [f, h, w]
         # [bs, 5120, f*h*w] => [bs, f*h*w, 5120]
         x = x.flatten(2).transpose(1, 2)
@@ -610,8 +610,8 @@ class WanModel(ModelMixin, ConfigMixin):
 
         # arguments
         kwargs = dict(
-            e=e0,  # [bs, 7200, 6, 5120]
-            seq_lens=seq_lens,  # [7200]
+            e=e0,  # [bs, seqlen, 6, 5120]
+            seq_lens=seq_lens,  # [seqlen]
             grid_sizes=grid_sizes,  # [[f, h, w]]
             freqs=self.freqs,  # [1024, 64]
             context=context,  # [bs, text_len:512, 5120]
@@ -651,15 +651,15 @@ class WanModel(ModelMixin, ConfigMixin):
         # torch.save(x.cpu().abs().mean(dim = len(x.shape) - 1), f"{save_prefix}_xo_mean.pt")
 
         # head
-        # [bs, seqlen, 5120] => [bs, seqlen, 64]
+        # [bs, seqlen, 5120] => [bs, seqlen, 64], e:[bs, seqlen, freq_dim=>self.dim:5120]
         x = self.head(x, e)
-        print(f"----x.dtype:{x.dtype}---x.shape:{x.shape}----headout:{x.cpu().abs().mean().item()}")
 
         # unpatchify
         # TODO: support bs > 1
         # [1, seqlen, 64] => [16, fi, hi, wi]
         x = self.unpatchify(x, grid_sizes)
         x = x[0].unsqueeze(0)
+
         # => [bs, 16, fi, hi, wi]
         print(f"--------shape:{x.shape}---lastout:{x.cpu().abs().mean().item()}")
         return x

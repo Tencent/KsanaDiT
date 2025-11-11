@@ -142,7 +142,7 @@ def load_diffusion_model_state_dict(
     newsdkeys = list(new_sd.keys())
     print(f"sd keys samples: {len(sdkeys)}, new_sd keys samples: {len(newsdkeys)}")
     print(f"Load_device: {load_device}, Offload_device: {offload_device}")
-    print(f"unet_config: {model_config.unet_config}, model_options:{model_options}")
+    print(f"unet_config: {model_config.unet_config}, latent_format: {model_config.latent_format}, model_options:{model_options}")
 
     # Add Executor Logic
     unet_config = model_config.unet_config
