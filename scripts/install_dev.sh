@@ -1,6 +1,6 @@
 #!/bin/bash
 
-pip uninstall -y vdit
+pip uninstall -y kdit
 
 pwd
 pip install -e .

@@ -1,4 +1,4 @@
-from vdit.cache.cache_config import (
+from kdit.cache.cache_config import (
     DCacheConfig,
     TeaCacheConfig,
     EasyCacheConfig,
@@ -6,7 +6,7 @@ from vdit.cache.cache_config import (
 )
 
 
-class vDitDCacheNode:
+class kDitDCacheNode:
     @classmethod
     def INPUT_TYPES(cls):
         return {
@@ -36,10 +36,10 @@ class vDitDCacheNode:
     def VALIDATE_INPUTS(cls):
         return True
 
-    RETURN_TYPES = ("VDIT_CACHE_CONFIG",)
+    RETURN_TYPES = ("KDIT_CACHE_CONFIG",)
     RETURN_NAMES = ("cache_config",)
     FUNCTION = "func"
-    CATEGORY = "vdit/cache"
+    CATEGORY = "kdit/cache"
 
     def func(
         self,
@@ -60,7 +60,7 @@ class vDitDCacheNode:
         )
 
 
-class vDitTeaCacheNode:
+class kDitTeaCacheNode:
     @classmethod
     def INPUT_TYPES(cls):
         return {
@@ -91,10 +91,10 @@ class vDitTeaCacheNode:
     def VALIDATE_INPUTS(cls):
         return True
 
-    RETURN_TYPES = ("VDIT_CACHE_CONFIG",)
+    RETURN_TYPES = ("KDIT_CACHE_CONFIG",)
     RETURN_NAMES = ("cache_config",)
     FUNCTION = "func"
-    CATEGORY = "vdit/cache"
+    CATEGORY = "kdit/cache"
 
     def func(
         self,
@@ -119,7 +119,7 @@ class vDitTeaCacheNode:
         )
 
 
-class vDitEasyCacheNode:
+class kDitEasyCacheNode:
     @classmethod
     def INPUT_TYPES(cls):
         return {
@@ -144,16 +144,16 @@ class vDitEasyCacheNode:
     def VALIDATE_INPUTS(cls):
         return True
 
-    RETURN_TYPES = ("VDIT_CACHE_CONFIG",)
+    RETURN_TYPES = ("KDIT_CACHE_CONFIG",)
     RETURN_NAMES = ("cache_config",)
     FUNCTION = "func"
-    CATEGORY = "vdit/cache"
+    CATEGORY = "kdit/cache"
 
     def func(self, reuse_thresh, start_percent, end_percent, verbose, name=None):
         return (EasyCacheConfig(reuse_thresh, start_percent, end_percent, verbose, name=name),)
 
 
-class vDitMagCacheNode:
+class kDitMagCacheNode:
     @classmethod
     def INPUT_TYPES(cls):
         return {
@@ -182,10 +182,10 @@ class vDitMagCacheNode:
     def VALIDATE_INPUTS(cls):
         return True
 
-    RETURN_TYPES = ("VDIT_CACHE_CONFIG",)
+    RETURN_TYPES = ("KDIT_CACHE_CONFIG",)
     RETURN_NAMES = ("cache_config",)
     FUNCTION = "func"
-    CATEGORY = "vdit/cache"
+    CATEGORY = "kdit/cache"
 
     def func(self, threshold, K, cache_device, start_step, end_step, name=None):
         return (MagCacheConfig(threshold, K, cache_device, start_step, end_step, name=name),)

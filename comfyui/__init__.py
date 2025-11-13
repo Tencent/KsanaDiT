@@ -1,35 +1,35 @@
 # WEB_DIRECTORY = "./web"
 try:
-    from .debug import vDitDebugNode
+    from .debug import kDitDebugNode
     from .cache import (
-        vDitDCacheNode,
-        vDitTeaCacheNode,
-        vDitEasyCacheNode,
-        vDitMagCacheNode,
+        kDitDCacheNode,
+        kDitTeaCacheNode,
+        kDitEasyCacheNode,
+        kDitMagCacheNode,
     )
-    from .model_loader import vDitModelLoaderNode
-    from .generator import vDitGeneratorNode
+    from .model_loader import kDitModelLoaderNode
+    from .generator import kDitGeneratorNode
 except Exception as e:
     print(f"import错误: {str(e)}")
 
 NODE_CLASS_MAPPINGS = {
-    "vDitDCacheNode": vDitDCacheNode,
-    "vDitTeaCacheNode": vDitTeaCacheNode,
-    "vDitEasyCacheNode": vDitEasyCacheNode,
-    "vDitMagCacheNode": vDitMagCacheNode,
-    "vDitDebugNode": vDitDebugNode,
-    "vDitModelLoaderNode": vDitModelLoaderNode,
-    "vDitGeneratorNode": vDitGeneratorNode,
+    "kDitDCacheNode": kDitDCacheNode,
+    "kDitTeaCacheNode": kDitTeaCacheNode,
+    "kDitEasyCacheNode": kDitEasyCacheNode,
+    "kDitMagCacheNode": kDitMagCacheNode,
+    "kDitDebugNode": kDitDebugNode,
+    "kDitModelLoaderNode": kDitModelLoaderNode,
+    "kDitGeneratorNode": kDitGeneratorNode,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
-    "vDitDCacheNode": "vDit DCache Node",
-    "vDitTeaCacheNode": "vDit TeaCache Node",
-    "vDitEasyCacheNode": "vDit EasyCache Node",
-    "vDitMagCacheNode": "vDit MagCache Node",
-    "vDitDebugNode": "vDit Debug Node",
-    "vDitModelLoaderNode": "vDit Model Loader",
-    "vDitGeneratorNode": "vDit Generator",
+    "kDitDCacheNode": "kDit DCache Node",
+    "kDitTeaCacheNode": "kDit TeaCache Node",
+    "kDitEasyCacheNode": "kDit EasyCache Node",
+    "kDitMagCacheNode": "kDit MagCache Node",
+    "kDitDebugNode": "kDit Debug Node",
+    "kDitModelLoaderNode": "kDit Model Loader",
+    "kDitGeneratorNode": "kDit Generator",
 }
 
 

@@ -1,14 +1,14 @@
 import comfy
-from vdit import get_generator
+from kdit import get_generator
 
 
-class vDitGeneratorNode:
+class kDitGeneratorNode:
     @classmethod
     def INPUT_TYPES(s):
         return {
             "required": {
                 "model": (
-                    "VDITMODEL",
+                    "KDITMODEL",
                     {"tooltip": "The model used for denoising the input latent."},
                 ),
                 "positive": (
@@ -82,7 +82,7 @@ class vDitGeneratorNode:
             },
             "optional": {
                 "low_model": (
-                    "VDITMODEL",
+                    "KDITMODEL",
                     {"tooltip": "The model used for denoising the input latent."},
                 ),
                 "boundary": (
@@ -108,11 +108,11 @@ class vDitGeneratorNode:
                     },
                 ),
                 "high_cache_config": (
-                    "VDIT_CACHE_CONFIG",
+                    "KDIT_CACHE_CONFIG",
                     {"tooltip": "The cache used for high model."},
                 ),
                 "low_cache_config": (
-                    "VDIT_CACHE_CONFIG",
+                    "KDIT_CACHE_CONFIG",
                     {"tooltip": "The cache used for low model."},
                 ),
             },
@@ -122,7 +122,7 @@ class vDitGeneratorNode:
     OUTPUT_TOOLTIPS = ("The denoised latent.",)
     RETURN_NAMES = ("latents",)
     FUNCTION = "run"
-    CATEGORY = "vdit"
+    CATEGORY = "kdit"
     DESCRIPTION = "Uses the provided model, positive and negative conditioning to denoise the latent image."
 
     def run(
@@ -146,10 +146,10 @@ class vDitGeneratorNode:
         # model.model.keys()?
         # unet = UNet2DConditionModel.from_config(config)
         # unet.load_state_dict(my_state_dict)?
-        vdit_generator = get_generator()
+        kdit_generator = get_generator()
         # TODO: maybe need to latent_format process_in for positive/negative?
-        samples = vdit_generator.run(
-            high_model=model.model.vdit_model,
+        samples = kdit_generator.run(
+            high_model=model.model.kdit_model,
             positive=positive[0][0],  # 1, 512, 4096?
             negative=negative[0][0],  # 1, 512, 4096?
             latents=latent_image["samples"],  # [1, 16, 5, h/, w/]
@@ -158,7 +158,7 @@ class vDitGeneratorNode:
             sampling_steps=steps,
             sample_shift=sample_shift,
             sample_guide_scale=sample_guide_scale,
-            low_model=low_model.model.vdit_model if low_model is not None else None,
+            low_model=low_model.model.kdit_model if low_model is not None else None,
             boundary=boundary,
             low_sample_guide_scale=low_sample_guide_scale,
             high_cache_config=high_cache_config,

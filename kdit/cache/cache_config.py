@@ -1,13 +1,13 @@
 from abc import ABC
 
 
-class vDitCacheConfig(ABC):
+class kDitCacheConfig(ABC):
     def __init__(self, name: str):
         super().__init__()
         self.name = name
 
 
-class DCacheConfig(vDitCacheConfig):
+class DCacheConfig(kDitCacheConfig):
     def __init__(
         self,
         fast_degree,
@@ -34,7 +34,7 @@ class DCacheConfig(vDitCacheConfig):
         )
 
 
-class TeaCacheConfig(vDitCacheConfig):
+class TeaCacheConfig(kDitCacheConfig):
     def __init__(
         self,
         rel_l1_thresh,
@@ -62,7 +62,7 @@ class TeaCacheConfig(vDitCacheConfig):
         )
 
 
-class EasyCacheConfig(vDitCacheConfig):
+class EasyCacheConfig(kDitCacheConfig):
     def __init__(self, reuse_thresh, start_percent, end_percent, verbose, name: str = None):
         self.name = name if name else "EasyCache"
         super().__init__(self.name)
@@ -78,7 +78,7 @@ class EasyCacheConfig(vDitCacheConfig):
         )
 
 
-class MagCacheConfig(vDitCacheConfig):
+class MagCacheConfig(kDitCacheConfig):
     def __init__(self, threshold, K, cache_device, start_step, end_step, name: str = None):
         self.name = name if name else "MagCache"
         super().__init__(self.name)

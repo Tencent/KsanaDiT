@@ -7,8 +7,8 @@ import torch
 import copy
 import comfy.model_management as mm
 
-from vdit.utils import get_gpu_count, time_range
-from vdit import create_vdit_model
+from kdit.utils import get_gpu_count, time_range
+from kdit import create_kdit_model
 
 from comfy.model_patcher import ModelPatcher
 
@@ -42,8 +42,8 @@ class CustomModelPatcher(ModelPatcher):
     def partially_unload(self, device_to, memory_to_free=0):
         with self.use_ejected():
             # unload
-            # TODO: maybe control inside vdit_generator, and do not need CustomModelPatcher
-            self.model.vdit_generator.to_cpu()
+            # TODO: maybe control inside kdit_generator, and do not need CustomModelPatcher
+            self.model.kdit_generator.to_cpu()
 
             self.model.device = torch.device("cpu")
             memory_freed = self.model.model_loaded_weight_memory
@@ -61,7 +61,7 @@ class CustomModelPatcher(ModelPatcher):
         with self.use_ejected():
             self.unpatch_hooks()
             # load
-            self.model.vdit_generator.to_gpu()
+            self.model.kdit_generator.to_gpu()
 
             # TODO: should be device_to?
             self.model.device = torch.device("cuda:0")
@@ -142,7 +142,9 @@ def load_diffusion_model_state_dict(
     newsdkeys = list(new_sd.keys())
     print(f"sd keys samples: {len(sdkeys)}, new_sd keys samples: {len(newsdkeys)}")
     print(f"Load_device: {load_device}, Offload_device: {offload_device}")
-    print(f"unet_config: {model_config.unet_config}, latent_format: {model_config.latent_format}, model_options:{model_options}")
+    print(
+        f"unet_config: {model_config.unet_config}, latent_format: {model_config.latent_format}, model_options:{model_options}"
+    )
 
     # Add Executor Logic
     unet_config = model_config.unet_config
@@ -157,8 +159,8 @@ def load_diffusion_model_state_dict(
         f"unet_config: {model_config.unet_config}, model_options:{model_options}, diffusion_model_prefix:{diffusion_model_prefix}"
     )
 
-    vdit_model = create_vdit_model(model_path, unet_config)
-    vdit_model.load(
+    kdit_model = create_kdit_model(model_path, unet_config)
+    kdit_model.load(
         model_path,
         comfy_model_config=unet_config,
         comfy_model_state_dict=new_sd,
@@ -168,7 +170,7 @@ def load_diffusion_model_state_dict(
         load_device=load_device,
         offload_device=offload_device,
     )
-    model.vdit_model = vdit_model
+    model.kdit_model = kdit_model
 
     if load_ori_weights:
         model.load_model_weights(new_sd, "")
@@ -196,7 +198,7 @@ def load_diffusion_model(model_path, model_options={}):
     return model
 
 
-class vDitModelLoaderNode:
+class kDitModelLoaderNode:
     @classmethod
     def INPUT_TYPES(s):
         return {
@@ -221,10 +223,10 @@ class vDitModelLoaderNode:
             },
         }
 
-    RETURN_TYPES = ("VDITMODEL",)
+    RETURN_TYPES = ("KDITMODEL",)
     RETURN_NAMES = ("model",)
     FUNCTION = "load_model"
-    CATEGORY = "vdit"
+    CATEGORY = "kdit"
 
     @classmethod
     def VALIDATE_INPUTS(s, model_name):

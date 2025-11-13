@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 
 
-class vDitCache(ABC):
+class kDitCache(ABC):
     def __init__(self, name):
         self.name = name
         self.need_compile_cache = False

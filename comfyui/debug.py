@@ -1,9 +1,9 @@
 # import comfy
 from comfy.comfy_types.node_typing import IO
-from vdit.utils import print_recursive
+from kdit.utils import print_recursive
 
 
-class vDitDebugNode:
+class kDitDebugNode:
     """测试输入类型的调试节点"""
 
     @classmethod
@@ -21,7 +21,7 @@ class vDitDebugNode:
     RETURN_TYPES = ()
     OUTPUT_NODE = True
     FUNCTION = "show_func"
-    CATEGORY = "vdit/debug"
+    CATEGORY = "kdit/debug"
 
     def show_func(self, source, name="", node_id=None):
         name = name if name else "source"
@@ -60,7 +60,7 @@ class vDitDebugNode:
 #     RETURN_TYPES = ("LATENT",)
 #     RETURN_NAMES = ("samples",)
 #     FUNCTION = "process"
-#     CATEGORY = "vdit"
+#     CATEGORY = "kdit"
 
 #     def process(self, model, samples:dict, inputs: str, cache_args:str,selected_value:str,
 #                  selected_key: str,  quant_config: str, seed: int, node_id=None) -> tuple:
