@@ -1,4 +1,4 @@
-from .base_cache import kDitCache
+from .base_cache import KsanaCache
 from .cache_config import DCacheConfig
 import numpy as np
 
@@ -44,7 +44,7 @@ def get_coeffs(
         raise ValueError(f"Unknown model kind {model_kind}, type {model_type}, size {model_size}")
 
 
-class DCache(kDitCache):
+class DCache(KsanaCache):
     def __init__(self, model_kind: str, model_type: str, model_size: str, config: DCacheConfig):
         super().__init__(f"{model_kind}_{model_type}_{model_size}_{config.name}")
         self.config = config

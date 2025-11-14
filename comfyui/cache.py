@@ -1,4 +1,4 @@
-from kdit.cache.cache_config import (
+from ksana.cache.cache_config import (
     DCacheConfig,
     TeaCacheConfig,
     EasyCacheConfig,
@@ -6,7 +6,7 @@ from kdit.cache.cache_config import (
 )
 
 
-class kDitDCacheNode:
+class KsanaDCacheNode:
     @classmethod
     def INPUT_TYPES(cls):
         return {
@@ -36,10 +36,10 @@ class kDitDCacheNode:
     def VALIDATE_INPUTS(cls):
         return True
 
-    RETURN_TYPES = ("KDIT_CACHE_CONFIG",)
+    RETURN_TYPES = ("KSANA_CACHE_CONFIG",)
     RETURN_NAMES = ("cache_config",)
     FUNCTION = "func"
-    CATEGORY = "kdit/cache"
+    CATEGORY = "ksana/cache"
 
     def func(
         self,
@@ -60,7 +60,7 @@ class kDitDCacheNode:
         )
 
 
-class kDitTeaCacheNode:
+class KsanaTeaCacheNode:
     @classmethod
     def INPUT_TYPES(cls):
         return {
@@ -91,10 +91,10 @@ class kDitTeaCacheNode:
     def VALIDATE_INPUTS(cls):
         return True
 
-    RETURN_TYPES = ("KDIT_CACHE_CONFIG",)
+    RETURN_TYPES = ("KSANA_CACHE_CONFIG",)
     RETURN_NAMES = ("cache_config",)
     FUNCTION = "func"
-    CATEGORY = "kdit/cache"
+    CATEGORY = "ksana/cache"
 
     def func(
         self,
@@ -119,7 +119,7 @@ class kDitTeaCacheNode:
         )
 
 
-class kDitEasyCacheNode:
+class KsanaEasyCacheNode:
     @classmethod
     def INPUT_TYPES(cls):
         return {
@@ -144,16 +144,16 @@ class kDitEasyCacheNode:
     def VALIDATE_INPUTS(cls):
         return True
 
-    RETURN_TYPES = ("KDIT_CACHE_CONFIG",)
+    RETURN_TYPES = ("KSANA_CACHE_CONFIG",)
     RETURN_NAMES = ("cache_config",)
     FUNCTION = "func"
-    CATEGORY = "kdit/cache"
+    CATEGORY = "ksana/cache"
 
     def func(self, reuse_thresh, start_percent, end_percent, verbose, name=None):
         return (EasyCacheConfig(reuse_thresh, start_percent, end_percent, verbose, name=name),)
 
 
-class kDitMagCacheNode:
+class KsanaMagCacheNode:
     @classmethod
     def INPUT_TYPES(cls):
         return {
@@ -182,10 +182,10 @@ class kDitMagCacheNode:
     def VALIDATE_INPUTS(cls):
         return True
 
-    RETURN_TYPES = ("KDIT_CACHE_CONFIG",)
+    RETURN_TYPES = ("KSANA_CACHE_CONFIG",)
     RETURN_NAMES = ("cache_config",)
     FUNCTION = "func"
-    CATEGORY = "kdit/cache"
+    CATEGORY = "ksana/cache"
 
     def func(self, threshold, K, cache_device, start_step, end_step, name=None):
         return (MagCacheConfig(threshold, K, cache_device, start_step, end_step, name=name),)

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-pip uninstall -y kdit
+pip uninstall -y ksana
 
 pwd
 pip install -e .

@@ -9,8 +9,8 @@ from diffusers.models.modeling_utils import ModelMixin
 from .attention import flash_attention
 import torch.cuda.nvtx as nvtx
 
-from kdit.cache import kDitCache
-from kdit.utils import time_range
+from ksana.cache import KsanaCache
+from ksana.utils import time_range
 
 # import ipdb
 
@@ -525,7 +525,7 @@ class WanModel(ModelMixin, ConfigMixin):
         self,
         x: torch.Tensor,
         t,
-        cache: kDitCache,
+        cache: KsanaCache,
         phase: str,
         context: torch.Tensor,
         seq_len,

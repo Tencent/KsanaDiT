@@ -1,19 +1,19 @@
 from .cache_config import (
-    kDitCacheConfig,
+    KsanaCacheConfig,
     DCacheConfig,
     TeaCacheConfig,
     EasyCacheConfig,
     MagCacheConfig,
 )
 
-from .base_cache import kDitCache
+from .base_cache import KsanaCache
 from .dcache import DCache
 from .teacache import TeaCache
 from .easycache import EasyCache
 from .magcache import MagCache
 
 
-def create_cache(model_kind: str, model_type: str, model_size: str, config: kDitCacheConfig):
+def create_cache(model_kind: str, model_type: str, model_size: str, config: KsanaCacheConfig):
     if config is None:
         return None
     if isinstance(config, DCacheConfig):
@@ -28,4 +28,4 @@ def create_cache(model_kind: str, model_type: str, model_size: str, config: kDit
         raise ValueError(f"Unknown cache config type: {type(config)}")
 
 
-__all__ = ["create_cache", "kDitCache", "DCache", "TeaCache", "EasyCache", "MagCache"]
+__all__ = ["create_cache", "KsanaCache", "DCache", "TeaCache", "EasyCache", "MagCache"]

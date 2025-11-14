@@ -1,8 +1,8 @@
-from .base_cache import kDitCache
+from .base_cache import KsanaCache
 from .cache_config import EasyCacheConfig
 
 
-class EasyCache(kDitCache):
+class EasyCache(KsanaCache):
     def __init__(self, model_kind: str, model_type: str, model_size: str, config: EasyCacheConfig):
         super().__init__(f"{model_kind}_{model_type}_{model_size}_{config.name}")
         self.config = config

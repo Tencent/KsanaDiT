@@ -7,17 +7,17 @@ from .wan.configs import WAN2_2_CONFIGS
 import time
 
 
-def create_kdit_model(model_path, comfy_model_config):
+def create_ksana_model(model_path, comfy_model_config):
     model_name = os.path.basename(model_path)
-    model_type = kDitModel.get_model_type(comfy_model_config, model_name)  # t2v
-    model_kind = kDitModel.get_model_kind(model_name)  # wan2.2
-    model_size = kDitModel.get_model_size(model_kind, model_name)  # 14b
+    model_type = KsanaModel.get_model_type(comfy_model_config, model_name)  # t2v
+    model_kind = KsanaModel.get_model_kind(model_name)  # wan2.2
+    model_size = KsanaModel.get_model_size(model_kind, model_name)  # 14b
     assert model_kind in ["wan2.2"], "only support wan2.2 yet"
 
-    return kDitModel(model_kind, model_type, model_size)
+    return KsanaModel(model_kind, model_type, model_size)
 
 
-class kDitModel(ABC):
+class KsanaModel(ABC):
     def __init__(self, model_kind, model_type, model_size):
         self.model_kind = model_kind  # wan2.2
         self.task_type = model_type  # t2v
@@ -89,7 +89,7 @@ class kDitModel(ABC):
         out_dim = comfy_model_config.get("out_dim", self.default_config.get("out_dim", 16))
         self.run_dtype = dtype
 
-        # with vProfiler("kDitModel.load_wan_model"):
+        # with vProfiler("KsanaModel.load_wan_model"):
         if comfy_model_state_dict is not None:
             start = time.time()
             self.model = WanModel(

@@ -1,14 +1,14 @@
 import comfy
-from kdit import get_generator
+from ksana import get_generator
 
 
-class kDitGeneratorNode:
+class KsanaGeneratorNode:
     @classmethod
     def INPUT_TYPES(s):
         return {
             "required": {
                 "model": (
-                    "KDITMODEL",
+                    "KSANAMODEL",
                     {"tooltip": "The model used for denoising the input latent."},
                 ),
                 "positive": (
@@ -82,7 +82,7 @@ class kDitGeneratorNode:
             },
             "optional": {
                 "low_model": (
-                    "KDITMODEL",
+                    "KSANAMODEL",
                     {"tooltip": "The model used for denoising the input latent."},
                 ),
                 "boundary": (
@@ -108,11 +108,11 @@ class kDitGeneratorNode:
                     },
                 ),
                 "high_cache_config": (
-                    "KDIT_CACHE_CONFIG",
+                    "KSANA_CACHE_CONFIG",
                     {"tooltip": "The cache used for high model."},
                 ),
                 "low_cache_config": (
-                    "KDIT_CACHE_CONFIG",
+                    "KSANA_CACHE_CONFIG",
                     {"tooltip": "The cache used for low model."},
                 ),
             },
@@ -122,7 +122,7 @@ class kDitGeneratorNode:
     OUTPUT_TOOLTIPS = ("The denoised latent.",)
     RETURN_NAMES = ("latents",)
     FUNCTION = "run"
-    CATEGORY = "kdit"
+    CATEGORY = "ksana"
     DESCRIPTION = "Uses the provided model, positive and negative conditioning to denoise the latent image."
 
     def run(
@@ -146,10 +146,10 @@ class kDitGeneratorNode:
         # model.model.keys()?
         # unet = UNet2DConditionModel.from_config(config)
         # unet.load_state_dict(my_state_dict)?
-        kdit_generator = get_generator()
+        ksana_generator = get_generator()
         # TODO: maybe need to latent_format process_in for positive/negative?
-        samples = kdit_generator.run(
-            high_model=model.model.kdit_model,
+        samples = ksana_generator.run(
+            high_model=model.model.ksana_model,
             positive=positive[0][0],  # 1, 512, 4096?
             negative=negative[0][0],  # 1, 512, 4096?
             latents=latent_image["samples"],  # [1, 16, 5, h/, w/]
@@ -158,7 +158,7 @@ class kDitGeneratorNode:
             sampling_steps=steps,
             sample_shift=sample_shift,
             sample_guide_scale=sample_guide_scale,
-            low_model=low_model.model.kdit_model if low_model is not None else None,
+            low_model=low_model.model.ksana_model if low_model is not None else None,
             boundary=boundary,
             low_sample_guide_scale=low_sample_guide_scale,
             high_cache_config=high_cache_config,

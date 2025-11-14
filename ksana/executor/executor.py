@@ -9,7 +9,7 @@ from tqdm import tqdm
 
 from .sample_schedulers import get_sample_scheduler
 
-from ..models import kDitModel
+from ..models import KsanaModel
 from ..cache import create_cache
 from ..distributed.utils import get_world_size
 from ..utils import log, print_recursive, time_range
@@ -18,9 +18,9 @@ from ..utils import log, print_recursive, time_range
 # from .distributed.fsdp import shard_model
 
 
-class kDitExecutor(ABC):
+class KsanaExecutor(ABC):
     """
-    Base class for all kDit executors.
+    Base class for all Ksana executors.
     """
 
     model = None
@@ -50,7 +50,7 @@ class kDitExecutor(ABC):
     @time_range
     def run(
         self,
-        high_model: kDitModel,
+        high_model: KsanaModel,
         positive: torch.Tensor,  # [bs, 512, 4096]
         negative: torch.Tensor,  # [bs, 512, 4096]
         latents: torch.Tensor,  # [bs, 16, 2, 90, 160]
@@ -60,7 +60,7 @@ class kDitExecutor(ABC):
         denoise: float,
         sampling_steps: int = 50,
         sample_solver: str = "uni_pc",
-        low_model: kDitModel = None,
+        low_model: KsanaModel = None,
         boundary: float = None,
         low_sample_guide_scale: float = None,
         high_cache_config=None,

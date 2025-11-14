@@ -4,7 +4,7 @@ import torch
 import torch.distributed as dist
 
 
-from ..executor.executor import kDitExecutor
+from ..executor.executor import KsanaExecutor
 from ..utils import log, singleton
 
 
@@ -12,15 +12,15 @@ def get_generator(*args, **kwargs):
     """
     Get the generator instance.
     """
-    return kDitGenerator(*args, **kwargs)
+    return KsanaGenerator(*args, **kwargs)
 
 
 # TODO: singlen
 # single generator
 @singleton
-class kDitGenerator(ABC):
+class KsanaGenerator(ABC):
     """
-    Base class for all kDit generators.
+    Base class for all Ksana generators.
     """
 
     executors = None
@@ -35,7 +35,7 @@ class kDitGenerator(ABC):
         local_rank = int(os.getenv("LOCAL_RANK", 0))
         self.device = torch.device(f"cuda:{local_rank}")
         # _init_logging(rank)
-        # log.info(f"Initializing kDitGenerator with kwargs: {kwargs}")
+        # log.info(f"Initializing KsanaGenerator with kwargs: {kwargs}")
 
         if world_size > 1:
             torch.cuda.set_device(local_rank)
@@ -57,7 +57,7 @@ class kDitGenerator(ABC):
         # if self.executor is None:
         #     raise ValueError("Executor must be provided.")
         # TODO: multi gpus support
-        self.executors = kDitExecutor(device=self.device, **kwargs)
+        self.executors = KsanaExecutor(device=self.device, **kwargs)
         self.model = self.executors.model
 
         # self.executors._run_workers('initialize_wani2v', **kwargs)

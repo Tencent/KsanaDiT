@@ -3,9 +3,9 @@ requires = ["setuptools>=42", "wheel"]  # 构建依赖
 build-backend = "setuptools.build_meta"  # 构建后端
 
 [project]
-name = "kDit"
+name = "ksana"
 version = "0.1.0"
-description = "Venus Dit"
+description = "Venus KsanaDit"
 authors = [{ name = "Venus", email = "venus@example.com" }]
 readme = "README.md"
 requires-python = ">=3.10"
@@ -43,12 +43,12 @@ dependencies = [
 
 
 [project.urls]
-Repository = "https://git.woa.com/jackyjtang/ksanaDiT.git"
+Repository = "https://git.woa.com/jackyjtang/KsanaDiT.git"
 
 #  Used by Comfy Registry https://comfyregistry.org
 [tool.comfy]
 PublisherId = "venus"
-DisplayName = "kDit"
+DisplayName = "KsanaDit"
 Icon = ""
 
 [project.optional-dependencies]  # 可选依赖
@@ -66,7 +66,7 @@ exclude = ["assets*", "docker*", "docs", "scripts*"]
 
 # 包含数据文件（如配置文件）
 [tool.setuptools.package-data]
-kDit = ["data/*.json"]
+ksana = ["data/*.json"]
 
 # 自定义构建选项
 [tool.setuptools]

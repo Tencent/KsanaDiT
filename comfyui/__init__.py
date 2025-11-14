@@ -1,35 +1,35 @@
 # WEB_DIRECTORY = "./web"
 try:
-    from .debug import kDitDebugNode
+    from .debug import KsanaDebugNode
     from .cache import (
-        kDitDCacheNode,
-        kDitTeaCacheNode,
-        kDitEasyCacheNode,
-        kDitMagCacheNode,
+        KsanaDCacheNode,
+        KsanaTeaCacheNode,
+        KsanaEasyCacheNode,
+        KsanaMagCacheNode,
     )
-    from .model_loader import kDitModelLoaderNode
-    from .generator import kDitGeneratorNode
+    from .model_loader import KsanaModelLoaderNode
+    from .generator import KsanaGeneratorNode
 except Exception as e:
     print(f"import错误: {str(e)}")
 
 NODE_CLASS_MAPPINGS = {
-    "kDitDCacheNode": kDitDCacheNode,
-    "kDitTeaCacheNode": kDitTeaCacheNode,
-    "kDitEasyCacheNode": kDitEasyCacheNode,
-    "kDitMagCacheNode": kDitMagCacheNode,
-    "kDitDebugNode": kDitDebugNode,
-    "kDitModelLoaderNode": kDitModelLoaderNode,
-    "kDitGeneratorNode": kDitGeneratorNode,
+    "KsanaDCacheNode": KsanaDCacheNode,
+    "KsanaTeaCacheNode": KsanaTeaCacheNode,
+    "KsanaEasyCacheNode": KsanaEasyCacheNode,
+    "KsanaMagCacheNode": KsanaMagCacheNode,
+    "KsanaDebugNode": KsanaDebugNode,
+    "KsanaModelLoaderNode": KsanaModelLoaderNode,
+    "KsanaGeneratorNode": KsanaGeneratorNode,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
-    "kDitDCacheNode": "KsanaDit DCache Node",
-    "kDitTeaCacheNode": "KsanaDit TeaCache Node",
-    "kDitEasyCacheNode": "KsanaDit EasyCache Node",
-    "kDitMagCacheNode": "KsanaDit MagCache Node",
-    "kDitDebugNode": "KsanaDit Debug Node",
-    "kDitModelLoaderNode": "KsanaDit Model Loader",
-    "kDitGeneratorNode": "KsanaDit Generator",
+    "KsanaDCacheNode": "KsanaDit DCache Node",
+    "KsanaTeaCacheNode": "KsanaDit TeaCache Node",
+    "KsanaEasyCacheNode": "KsanaDit EasyCache Node",
+    "KsanaMagCacheNode": "KsanaDit MagCache Node",
+    "KsanaDebugNode": "KsanaDit Debug Node",
+    "KsanaModelLoaderNode": "KsanaDit Model Loader",
+    "KsanaGeneratorNode": "KsanaDit Generator",
 }
 
 
