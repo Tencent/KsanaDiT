@@ -23,13 +23,13 @@ NODE_CLASS_MAPPINGS = {
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
-    "kDitDCacheNode": "kDit DCache Node",
-    "kDitTeaCacheNode": "kDit TeaCache Node",
-    "kDitEasyCacheNode": "kDit EasyCache Node",
-    "kDitMagCacheNode": "kDit MagCache Node",
-    "kDitDebugNode": "kDit Debug Node",
-    "kDitModelLoaderNode": "kDit Model Loader",
-    "kDitGeneratorNode": "kDit Generator",
+    "kDitDCacheNode": "KsanaDit DCache Node",
+    "kDitTeaCacheNode": "KsanaDit TeaCache Node",
+    "kDitEasyCacheNode": "KsanaDit EasyCache Node",
+    "kDitMagCacheNode": "KsanaDit MagCache Node",
+    "kDitDebugNode": "KsanaDit Debug Node",
+    "kDitModelLoaderNode": "KsanaDit Model Loader",
+    "kDitGeneratorNode": "KsanaDit Generator",
 }
 
 
