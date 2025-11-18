@@ -1,4 +1,5 @@
 import torch.distributed as dist
+import torch
 
 
 def init_distributed_group():
@@ -13,3 +14,10 @@ def get_rank():
 
 def get_world_size():
     return dist.get_world_size()
+
+
+def get_gpu_count():
+    if not torch.cuda.is_available():
+        return 0
+    else:
+        return torch.cuda.device_count()

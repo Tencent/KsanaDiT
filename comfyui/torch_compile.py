@@ -1,4 +1,7 @@
-class KsanaTorchCompileArgs:
+from ksana.config import KsanaTorchCompileConfig
+
+
+class KsanaTorchCompileNode:
     @classmethod
     def INPUT_TYPES(s):
         return {
@@ -19,6 +22,16 @@ class KsanaTorchCompileArgs:
                 ),
             },
             "optional": {
+                "dynamo_cache_size_limit": (
+                    "INT",
+                    {
+                        "default": 128,
+                        "min": 0,
+                        "max": 1024,
+                        "step": 1,
+                        "tooltip": "torch._dynamo.config.recompile_limit",
+                    },
+                ),
                 "dynamo_recompile_limit": (
                     "INT",
                     {
@@ -63,17 +76,16 @@ class KsanaTorchCompileArgs:
         force_parameter_static_shapes=False,
         allow_unmerged_lora_compile=False,
     ):
-
-        compile_args = {
-            "backend": backend,
-            "fullgraph": fullgraph,
-            "mode": mode,
-            "dynamic": dynamic,
-            "compile_transformer_blocks_only": compile_transformer_blocks_only,
-            "dynamo_cache_size_limit": dynamo_cache_size_limit,
-            "dynamo_recompile_limit": dynamo_recompile_limit,
-            "force_parameter_static_shapes": force_parameter_static_shapes,
-            "allow_unmerged_lora_compile": allow_unmerged_lora_compile,
-        }
-
-        return (compile_args,)
+        return (
+            KsanaTorchCompileConfig(
+                backend=backend,
+                fullgraph=fullgraph,
+                mode=mode,
+                dynamic=dynamic,
+                compile_transformer_blocks_only=compile_transformer_blocks_only,
+                dynamo_cache_size_limit=dynamo_cache_size_limit,
+                dynamo_recompile_limit=dynamo_recompile_limit,
+                force_parameter_static_shapes=force_parameter_static_shapes,
+                allow_unmerged_lora_compile=allow_unmerged_lora_compile,
+            ),
+        )

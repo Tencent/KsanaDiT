@@ -23,13 +23,6 @@ class KsanaDCacheNode:
                 "slow_force_calc_every_n_step": ("INT", {"default": 5}),
                 "name": ("STRING", {"default": ""}),
             }
-            # "optional": {
-            #     "low_fast_degree": ("FLOAT", {"default": 50, "min": 1, "max": 90, "step": 0.1}),
-            #     "low_slow_degree": ("FLOAT", {"default": 30, "min": 1, "max": 90, "step": 0.1}),
-            #     "low_fast_n_step": ("INT", {"default": 2}),
-            #     "low_slow_n_step": ("INT", {"default": 4}),
-            #     "skip_first_n_iter": ("INT", {"default": 2})
-            #     },
         }
 
     @classmethod

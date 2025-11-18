@@ -3,9 +3,8 @@ import os
 import torch
 import torch.distributed as dist
 
-
-from ..executor.executor import KsanaExecutor
-from ..utils import log, singleton
+from ..executor import KsanaExecutor, create_executor_config
+from ..utils import log
 
 
 def get_generator(*args, **kwargs):
@@ -17,7 +16,7 @@ def get_generator(*args, **kwargs):
 
 # TODO: singlen
 # single generator
-@singleton
+# @singleton
 class KsanaGenerator(ABC):
     """
     Base class for all Ksana generators.
@@ -62,6 +61,21 @@ class KsanaGenerator(ABC):
 
         # self.executors._run_workers('initialize_wani2v', **kwargs)
 
+    def set_executor(self, executor):
+        self.executors = executor
+
+    @classmethod
+    def from_pretrained(cls, checkpoint_dir, *args, **kwargs):
+        """
+        Load a pre-trained model.
+        """
+        generator = get_generator()
+        executor_config = create_executor_config(checkpoint_dir)
+        executor = KsanaExecutor(executor_config)
+        executor.load_model(checkpoint_dir, torch_compile_config=kwargs.get("torch_compile_config", None))
+        generator.set_executor(executor)
+        return generator
+
     def to_cpu(self):
         self.executors.to_cpu()
 
@@ -74,8 +88,11 @@ class KsanaGenerator(ABC):
     #     ray.util.remove_placement_group(self.placement_group)
     #     self.workers = []
 
-    def run(self, *args, **kwargs):
-        return self.executors.run(*args, **kwargs)
+    def generate_video(self, *args, **kwargs):
+        return self.executors.generate_video(*args, **kwargs)
+
+    def generate_video_with_tensors(self, *args, **kwargs):
+        return self.executors.generate_video_with_tensors(*args, **kwargs)
 
     # def load_state_dict_from_file(self, file_path):
     #     """

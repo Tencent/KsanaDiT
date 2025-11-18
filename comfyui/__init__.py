@@ -1,6 +1,7 @@
 # WEB_DIRECTORY = "./web"
 NODE_CLASS_MAPPINGS = {}
 NODE_DISPLAY_NAME_MAPPINGS = {}
+
 try:
     from .debug import KsanaDebugNode
     from .cache import (
@@ -11,7 +12,7 @@ try:
     )
     from .model_loader import KsanaModelLoaderNode
     from .generator import KsanaGeneratorNode
-    from .torch_compile import KsanaTorchCompileArgs
+    from .torch_compile import KsanaTorchCompileNode
 
     NODE_CLASS_MAPPINGS = {
         "KsanaDCacheNode": KsanaDCacheNode,
@@ -21,7 +22,7 @@ try:
         "KsanaDebugNode": KsanaDebugNode,
         "KsanaModelLoaderNode": KsanaModelLoaderNode,
         "KsanaGeneratorNode": KsanaGeneratorNode,
-        "KsanaTorchCompileArgs": KsanaTorchCompileArgs,
+        "KsanaTorchCompileNode": KsanaTorchCompileNode,
     }
 
     NODE_DISPLAY_NAME_MAPPINGS = {
@@ -32,7 +33,7 @@ try:
         "KsanaDebugNode": "KsanaDit Debug Node",
         "KsanaModelLoaderNode": "KsanaDit Model Loader",
         "KsanaGeneratorNode": "KsanaDit Generator",
-        "KsanaTorchCompileArgs": "KsanaDiT Torch Compile Settings",
+        "KsanaTorchCompileNode": "KsanaDiT Torch Compile Node",
     }
 except Exception as e:
     print(f"import错误: {str(e)}")

@@ -8,6 +8,13 @@ from .shared_config import wan_shared_cfg
 t2v_A14B = EasyDict(__name__="Config: Wan T2V A14B")
 t2v_A14B.update(wan_shared_cfg)
 
+t2v_A14B.model_name = "wan2.2"  # wan2.2
+t2v_A14B.task_type = "t2v"  # t2v, t2i, v2v
+t2v_A14B.model_size = "A14B"  # A14B, 5B
+
+# size
+t2v_A14B.size = (1280, 720)
+
 # t5
 t2v_A14B.t5_checkpoint = "models_t5_umt5-xxl-enc-bf16.pth"
 t2v_A14B.t5_tokenizer = "google/umt5-xxl"
