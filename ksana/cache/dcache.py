@@ -6,6 +6,15 @@ from ..utils import log
 
 __all__ = ["DCache"]
 
+try:
+    # Avoid Dynamo compiling cache helpers that use numpy/Python control flow
+    from torch._dynamo import disable as _dynamo_disable
+except Exception:
+
+    def _dynamo_disable(fn=None):
+        return fn if fn is not None else (lambda f: f)
+
+
 DCACHE_COEFFS_MAPS = {
     "wan2.2-high": {
         "t2v": {
@@ -68,6 +77,7 @@ class DCache(KsanaCache):
     #     return super().__call__(*args, **kwds)
 
     @staticmethod
+    @_dynamo_disable()
     def get_unify_degree(degree_func, timestep):
         # import ipdb
         # ipdb.set_trace()
@@ -79,6 +89,7 @@ class DCache(KsanaCache):
             unify_degree = min(unify_degree, abs(180 - unify_degree))
         return unify_degree
 
+    @_dynamo_disable()
     def can_use_cache(self, phase: str, current_x_input, current_timestep: int) -> bool:
         self.total_cnt[phase] += 1
         if self.total_cnt[phase] <= self.config.skip_first_n_iter:
@@ -99,6 +110,7 @@ class DCache(KsanaCache):
         else:
             return True
 
+    @_dynamo_disable()
     def try_get_prev_cache(self, phase: str, current_x_input, current_timestep: int):
         self.total_in_cache_cnt[phase] += 1
         if (
@@ -129,9 +141,11 @@ class DCache(KsanaCache):
     # def post_cacheprocess(self, phase: str, current_timestep: int, current_x_diff):
     #     self.prev_diff[phase] = current_x_diff
 
+    @_dynamo_disable()
     def update_states(self, phase: str, current_timestep: int, current_x_input, current_x_output):
         self.prev_diff[phase] = current_x_output - current_x_input
 
+    @_dynamo_disable()
     def show_cache_rate(self):
         if self.need_compile_cache:
             return

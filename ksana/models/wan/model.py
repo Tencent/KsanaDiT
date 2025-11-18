@@ -41,6 +41,7 @@ def rope_params(max_seq_len, dim, theta=10000):
 
 
 @torch.amp.autocast("cuda", enabled=False)
+@torch.compiler.disable()
 def rope_apply(x, grid_sizes, freqs):
     n, c = x.size(2), x.size(3) // 2
 
@@ -264,6 +265,13 @@ class WanAttentionBlock(nn.Module):
             # modulation
             self.modulation = nn.Parameter(torch.randn(1, 6, dim) / dim**0.5)
 
+    def cross_attn_ffn(self, x, context, context_lens, e):
+        x = x + self.cross_attn(self.norm3(x), context, context_lens)
+        y = self.ffn(self.norm2(x) * (1 + e[4].squeeze(2)) + e[3].squeeze(2))
+        # with torch.amp.autocast("cuda", dtype=torch.float32):
+        x = x + y * e[5].squeeze(2)
+        return x
+
     # @nvtx_range
     def forward(
         self,
@@ -312,14 +320,7 @@ class WanAttentionBlock(nn.Module):
 
         # cross-attention & ffn function
         # @nvtx_range
-        def cross_attn_ffn(x, context, context_lens, e):
-            x = x + self.cross_attn(self.norm3(x), context, context_lens)
-            y = self.ffn(self.norm2(x) * (1 + e[4].squeeze(2)) + e[3].squeeze(2))
-            # with torch.amp.autocast("cuda", dtype=torch.float32):
-            x = x + y * e[5].squeeze(2)
-            return x
-
-        x = cross_attn_ffn(x, context, context_lens, e)
+        x = self.cross_attn_ffn(x, context, context_lens, e)
         return x
 
 

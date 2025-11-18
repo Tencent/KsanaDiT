@@ -71,7 +71,7 @@ class CustomModelPatcher(ModelPatcher):
 
 
 def load_diffusion_model_state_dict(
-    model_path, model_options={}, load_ori_weights=False
+    model_path, model_options={}, load_ori_weights=False, torch_compile_args=None
 ):  # load unet in diffusers or regular format
     sd = comfy.utils.load_torch_file(model_path)
 
@@ -169,6 +169,7 @@ def load_diffusion_model_state_dict(
         dtype=unet_dtype,
         load_device=load_device,
         offload_device=offload_device,
+        torch_compile_args=torch_compile_args,
     )
     model.ksana_model = ksana_model
 
@@ -189,8 +190,10 @@ def load_diffusion_model_state_dict(
 
 
 @time_range
-def load_diffusion_model(model_path, model_options={}):
-    model = load_diffusion_model_state_dict(model_path, model_options=model_options, load_ori_weights=False)
+def load_diffusion_model(model_path, model_options={}, torch_compile_args=None):
+    model = load_diffusion_model_state_dict(
+        model_path, model_options=model_options, load_ori_weights=False, torch_compile_args=torch_compile_args
+    )
 
     if model is None:
         logging.error("ERROR UNSUPPORTED MODEL {}".format(model_path))
@@ -219,7 +222,7 @@ class KsanaModelLoaderNode:
                 ),
             },
             "optional": {
-                "compile_args": ("STRING", {"default": "disabled"}),
+                "compile_args": ("KSANACOMPILEARGS", {"default": None}),
             },
         }
 
@@ -232,7 +235,7 @@ class KsanaModelLoaderNode:
     def VALIDATE_INPUTS(s, model_name):
         return True
 
-    def load_model(self, model_name, weight_dtype, compile_args: str = None):
+    def load_model(self, model_name, weight_dtype, compile_args=None):
         mm.unload_all_models()
         mm.cleanup_models()
         mm.soft_empty_cache()
@@ -255,5 +258,5 @@ class KsanaModelLoaderNode:
         model_path = folder_paths.get_full_path("diffusion_models", model_name)
         print(f"Start to load diffusion model {model_name}: {model_path} with {num_gpus} gpus")
 
-        model = load_diffusion_model(model_path, model_options=model_options)
+        model = load_diffusion_model(model_path, model_options=model_options, torch_compile_args=compile_args)
         return (model,)
