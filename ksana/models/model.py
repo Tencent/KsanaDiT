@@ -1,4 +1,5 @@
 import os
+import torch
 from abc import ABC
 from ..utils import log, time_range  # , vProfiler
 
@@ -22,6 +23,7 @@ class KsanaModel(ABC):
         self.model_kind = model_kind  # wan2.2
         self.task_type = model_type  # t2v
         self.model_size = model_size  # 14b
+        self.torch_compile_args = None
 
     @time_range
     def load(
@@ -34,8 +36,10 @@ class KsanaModel(ABC):
         dtype=None,
         load_device=None,
         offload_device=None,
+        torch_compile_args=None,
     ):
         assert self.model_kind in ["wan2.2"], "only support wan2.2 yet"
+        self.torch_compile_args = torch_compile_args
         if "wan" in self.model_kind:
             self.load_wan_model(
                 model_path,
@@ -46,6 +50,7 @@ class KsanaModel(ABC):
                 dtype,
                 load_device,
                 offload_device,
+                torch_compile_args=torch_compile_args,
             )
         else:
             raise ValueError(f"model_kind {self.model_kind} not supported")
@@ -77,6 +82,7 @@ class KsanaModel(ABC):
         dtype=None,
         load_device=None,
         offload_device=None,
+        torch_compile_args=None,
     ):
         log.info(
             f"model_path:{model_path}, comfy_model_config:{comfy_model_config}, "
@@ -119,6 +125,42 @@ class KsanaModel(ABC):
         else:
             # TODO: add ut to test this branch
             self.model = WanModel.from_pretrained(model_path)
+
+        if torch_compile_args:
+            if hasattr(torch, "_dynamo") and hasattr(torch._dynamo, "config"):
+                torch._dynamo.config.cache_size_limit = torch_compile_args["dynamo_cache_size_limit"]
+                torch._dynamo.config.force_parameter_static_shapes = torch_compile_args["force_parameter_static_shapes"]
+                try:
+                    torch._dynamo.config.recompile_limit = torch_compile_args["dynamo_recompile_limit"]
+                except Exception as e:
+                    log.warning(f"Could not set recompile_limit: {e}")
+            log.info(f"torch_compile_args: {torch_compile_args}")
+            if torch_compile_args.get("compile_transformer_blocks_only", False):
+                log.info("Compiling only transformer blocks")
+                compiled_cnt = 0
+                for i, block in enumerate(self.model.blocks):
+                    try:
+                        self.model.blocks[i] = torch.compile(
+                            block,
+                            backend=torch_compile_args["backend"],
+                            mode=torch_compile_args["mode"],
+                            fullgraph=torch_compile_args["fullgraph"],
+                            dynamic=torch_compile_args["dynamic"],
+                        )
+                        compiled_cnt += 1
+                    except Exception as e:
+                        log.warning(f"torch.compile block[{i}] failed: {e}")
+                log.info(f"Applied torch.compile to {compiled_cnt}/{len(self.model.blocks)} transformer blocks.")
+            else:
+                log.info("Compiling entire model")
+                # 编译整个 WanModel
+                self.model = torch.compile(
+                    self.model,
+                    fullgraph=torch_compile_args["fullgraph"],
+                    dynamic=torch_compile_args["dynamic"],
+                    backend=torch_compile_args["backend"],
+                    mode=torch_compile_args["mode"],
+                )
 
         # self.high_noise_model = self._configure_model(
         #     model=self.high_noise_model,
