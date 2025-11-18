@@ -148,7 +148,7 @@ class KsanaGeneratorNode:
         # unet.load_state_dict(my_state_dict)?
         ksana_generator = get_generator()
         # TODO: maybe need to latent_format process_in for positive/negative?
-        samples = ksana_generator.run(
+        samples = ksana_generator.generate_video_with_tensors(
             high_model=model.model.ksana_model,
             positive=positive[0][0],  # 1, 512, 4096?
             negative=negative[0][0],  # 1, 512, 4096?

@@ -360,7 +360,6 @@ class Head(nn.Module):
         # with torch.amp.autocast("cuda", dtype=torch.float32):
         e = (self.modulation.unsqueeze(0) + e.unsqueeze(2)).chunk(2, dim=2)
         x = self.head(self.norm(x) * (1 + e[1].squeeze(2)) + e[0].squeeze(2))
-        print(f"-----------x.dtype{x.dtype}, headoutput:{x.cpu().abs().mean().item()}")
         return x
 
 
@@ -474,6 +473,7 @@ class WanModel(ModelMixin, ConfigMixin):
             self.time_projection = nn.Sequential(
                 nn.SiLU(), disable_weight_init_operations.Linear(dim, dim * 6, device=device, dtype=dtype)
             )
+            comfy_operation_settings = {"operations": disable_weight_init_operations, "device": device, "dtype": dtype}
         else:
             self.patch_embedding = nn.Conv3d(in_dim, dim, kernel_size=patch_size, stride=patch_size)
             self.text_embedding = nn.Sequential(
@@ -482,8 +482,7 @@ class WanModel(ModelMixin, ConfigMixin):
 
             self.time_embedding = nn.Sequential(nn.Linear(freq_dim, dim), nn.SiLU(), nn.Linear(dim, dim))
             self.time_projection = nn.Sequential(nn.SiLU(), nn.Linear(dim, dim * 6))
-
-        comfy_operation_settings = {"operations": disable_weight_init_operations, "device": device, "dtype": dtype}
+            comfy_operation_settings = None
 
         # blocks
         self.blocks = nn.ModuleList(
@@ -662,7 +661,6 @@ class WanModel(ModelMixin, ConfigMixin):
         x = x[0].unsqueeze(0)
 
         # => [bs, 16, fi, hi, wi]
-        print(f"--------shape:{x.shape}---lastout:{x.cpu().abs().mean().item()}")
         return x
 
     def unpatchify(self, x, grid_sizes):

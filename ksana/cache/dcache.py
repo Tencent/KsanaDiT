@@ -42,22 +42,22 @@ DCACHE_COEFFS_MAPS = {
 
 
 def get_coeffs(
-    model_kind: str,
+    model_name: str,
     model_type: str,
     model_size: str,
 ):
     try:
-        coeffs = DCACHE_COEFFS_MAPS[model_kind][model_type][model_size]
+        coeffs = DCACHE_COEFFS_MAPS[model_name][model_type][model_size]
         return coeffs
     except KeyError:
-        raise ValueError(f"Unknown model kind {model_kind}, type {model_type}, size {model_size}")
+        raise ValueError(f"Unknown model kind {model_name}, type {model_type}, size {model_size}")
 
 
 class DCache(KsanaCache):
-    def __init__(self, model_kind: str, model_type: str, model_size: str, config: DCacheConfig):
-        super().__init__(f"{model_kind}_{model_type}_{model_size}_{config.name}")
+    def __init__(self, model_name: str, model_type: str, model_size: str, config: DCacheConfig):
+        super().__init__(f"{model_name}_{model_type}_{model_size}_{config.name}")
         self.config = config
-        coeffs = get_coeffs(model_kind, model_type, model_size)
+        coeffs = get_coeffs(model_name, model_type, model_size)
         self.degree_func = np.poly1d(coeffs)
         self.need_compile_cache = False
 

@@ -1,51 +1,9 @@
-import numpy as np
-import torch
-import logging
-import time
-import sys
-
-import cProfile
-import pstats
-
 import torch.cuda.nvtx as nvtx
-
 from pyinstrument import Profiler
-
-log = logging.getLogger(__name__)
-console_handler = logging.StreamHandler(sys.stdout)
-console_handler.setLevel(logging.INFO)
-formatter = logging.Formatter(
-    "%(asctime)s |KsanaDit| %(levelname)s|%(filename)s:%(lineno)d|%(funcName)s| %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S",
-)
-console_handler.setFormatter(formatter)  # 应用格式
-log.addHandler(console_handler)
-
-# def _init_logging(rank):
-#     # logging
-#     if rank == 0:
-#         # set format
-#         logging.basicConfig(
-#             level=logging.INFO,
-#             format="[%(asctime)s] %(levelname)s | KsanaDit |: %(message)s",
-#             handlers=[logging.StreamHandler(stream=sys.stdout)])
-#     else:
-#         logging.basicConfig(level=logging.ERROR)
-
-
-def singleton(cls):
-    instances = {}
-
-    def get_instance(*args, **kwargs):
-        if cls not in instances:
-            instances[cls] = cls(*args, **kwargs)
-        # else:
-        # instances[cls].clean()
-        # instances[cls] = cls(*args, **kwargs)
-        return instances[cls]
-
-    return get_instance
-
+import cProfile
+from .logger import log
+import time
+import pstats
 
 global g_cprofiler
 g_cprofiler = cProfile.Profile()
@@ -53,7 +11,7 @@ g_cprofiler = cProfile.Profile()
 
 class cProfiler:
     def __init__(self, name=None):
-        self.name = name if name else "vProfiler"
+        self.name = name if name else "ksanaProfiler"
         self.pr = g_cprofiler
 
     def __enter__(self):
@@ -72,14 +30,14 @@ class cProfiler:
         self.pr.dump_stats(filename)
 
 
-global g_vprofiler
-g_vprofiler = Profiler()
+global g_ksana_profiler
+g_ksana_profiler = Profiler()
 
 
-class vProfiler:
+class ksanaProfiler:
     def __init__(self, name=None):
-        self.name = name if name else "vProfiler"
-        self.profiler = g_vprofiler
+        self.name = name if name else "ksanaProfiler"
+        self.profiler = g_ksana_profiler
 
     def __enter__(self):
         self.start = time.time()
@@ -94,6 +52,64 @@ class vProfiler:
     def dump(self, filename="profile_stats.prof"):
         with open("pyinstrument_report.html", "w") as f:
             f.write(self.profiler.output_html())
+
+
+# TODO: implement time_range decorator
+# class time_range:
+#     def __init__(self, func_or_name=None, print_func=log.info):
+#         """
+#         :param func_or_name: 可以是被装饰的函数（无参装饰器用法），
+#                              也可以是任务名称（有参装饰器用法或with用法）
+#         :param print_func: 用于输出信息的函数，默认为 print，可以传入 logger.info 等
+#         """
+#         self.print_func = print_func
+#         self.start_time = None
+#         self.func = None
+#         self.name = "Task"
+
+#         # 逻辑判断：区分是 @Timer 还是 @Timer(...) / with Timer(...)
+#         if callable(func_or_name):
+#             # 情况 1: @Timer (无括号，func_or_name 是被装饰的函数)
+#             self.func = func_or_name
+#             self.name = func_or_name.__name__
+#             # 让 Timer 实例看起来像原函数（保留元数据）
+#             functools.update_wrapper(self, func_or_name)
+#         elif func_or_name is not None:
+#             # 情况 2: @Timer('name') 或 with Timer('name')
+#             self.name = func_or_name
+
+#     def __enter__(self):
+#         """上下文管理器入口"""
+#         self.start_time = time.perf_counter()
+#         return self
+
+#     def __exit__(self, exc_type, exc_val, exc_tb):
+#         """上下文管理器出口"""
+#         end_time = time.perf_counter()
+#         elapsed = end_time - self.start_time
+#         self.print_func(f"[{self.name}] takes {elapsed:.6f} s")
+#         return False
+
+#     def __call__(self, *args, **kwargs):
+#         """装饰器入口"""
+#         # 场景 A: 之前已经是 @Timer (无参)，self.func 已经保存了函数
+#         if self.func:
+#             # 直接执行包裹逻辑
+#             with self:
+#                 return self.func(*args, **kwargs)
+
+#         # 场景 B: 之前是 @Timer(...) (有参)，现在传入的是被装饰的函数
+#         # 此时 args[0] 应该是被装饰的函数
+#         func = args[0]
+
+#         @functools.wraps(func)
+#         def wrapper(*w_args, **w_kwargs):
+#             if self.name == "Task":
+#                 self.name = func.__name__
+#             with self:
+#                 return func(*w_args, **w_kwargs)
+
+#         return wrapper
 
 
 def time_range(func):
@@ -155,38 +171,3 @@ class nvtx_range:
             return result
 
         return wrapper
-
-
-def print_recursive(obj, indent=0):
-    if isinstance(obj, dict):
-        for k, v in obj.items():
-            print(f"{' ' * indent}{k}:")
-            print_recursive(v, indent + 2)
-    elif isinstance(obj, list) or isinstance(obj, tuple):
-        for i, v in enumerate(obj):
-            print(f"{' ' * indent}[{i}]:")
-            print_recursive(v, indent + 2)
-    else:
-        if hasattr(obj, "shape"):
-            s = f"{' ' * indent}(type:{type(obj)}) shape {obj.shape}"
-        else:
-            s = f"{' ' * indent}(type:{type(obj)}){obj}"
-        if hasattr(obj, "dtype"):
-            s = f"{s}, dtype={obj.dtype}"
-        if hasattr(obj, "device"):
-            s = f"{s}, device={obj.device}"
-        if isinstance(obj, torch.Tensor):
-            on_cpu = obj.cpu()
-            s = f"{s}, abs_mean={on_cpu.abs().mean()}, max={on_cpu.max()}, min={on_cpu.min()}, abs_min={on_cpu.abs().min()}"
-        print(s)
-
-
-def get_gpu_count():
-    if not torch.cuda.is_available():
-        return 0
-    else:
-        return torch.cuda.device_count()
-
-
-if __name__ == "__main__":
-    print_recursive({"a": 1, "b": np.array([1, 2, 3])})

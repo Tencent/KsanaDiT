@@ -71,7 +71,7 @@ class CustomModelPatcher(ModelPatcher):
 
 
 def load_diffusion_model_state_dict(
-    model_path, model_options={}, load_ori_weights=False, torch_compile_args=None
+    model_path, model_options={}, load_ori_weights=False, torch_compile_config=None
 ):  # load unet in diffusers or regular format
     sd = comfy.utils.load_torch_file(model_path)
 
@@ -161,7 +161,7 @@ def load_diffusion_model_state_dict(
 
     ksana_model = create_ksana_model(model_path, unet_config)
     ksana_model.load(
-        model_path,
+        comfy_model_path=model_path,
         comfy_model_config=unet_config,
         comfy_model_state_dict=new_sd,
         comfy_model_options=model_options,
@@ -169,7 +169,7 @@ def load_diffusion_model_state_dict(
         dtype=unet_dtype,
         load_device=load_device,
         offload_device=offload_device,
-        torch_compile_args=torch_compile_args,
+        torch_compile_config=torch_compile_config,
     )
     model.ksana_model = ksana_model
 
@@ -190,9 +190,9 @@ def load_diffusion_model_state_dict(
 
 
 @time_range
-def load_diffusion_model(model_path, model_options={}, torch_compile_args=None):
+def load_diffusion_model(model_path, model_options={}, torch_compile_config=None):
     model = load_diffusion_model_state_dict(
-        model_path, model_options=model_options, load_ori_weights=False, torch_compile_args=torch_compile_args
+        model_path, model_options=model_options, load_ori_weights=False, torch_compile_config=torch_compile_config
     )
 
     if model is None:
@@ -258,5 +258,5 @@ class KsanaModelLoaderNode:
         model_path = folder_paths.get_full_path("diffusion_models", model_name)
         print(f"Start to load diffusion model {model_name}: {model_path} with {num_gpus} gpus")
 
-        model = load_diffusion_model(model_path, model_options=model_options, torch_compile_args=compile_args)
+        model = load_diffusion_model(model_path, model_options=model_options, torch_compile_config=compile_args)
         return (model,)
