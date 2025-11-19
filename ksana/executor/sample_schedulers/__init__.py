@@ -4,6 +4,7 @@ from .fm_solvers import (
     retrieve_timesteps,
 )
 from .fm_solvers_unipc import FlowUniPCMultistepScheduler
+from .fm_solvers_euler import EulerScheduler
 
 
 def get_sample_scheduler(num_train_timesteps, sampling_steps, sample_solver, device, shift=5.0):
@@ -31,6 +32,10 @@ def get_sample_scheduler(num_train_timesteps, sampling_steps, sample_solver, dev
         )
         sampling_sigmas = get_sampling_sigmas(sampling_steps, shift)
         timesteps, _ = retrieve_timesteps(sample_scheduler, device=device, sigmas=sampling_sigmas)
+    elif sample_solver == "euler":
+        sample_scheduler = EulerScheduler(num_train_timesteps=sampling_steps, shift=shift, device=device)
+        sample_scheduler.set_timesteps(sampling_steps, device=device)
+        timesteps = sample_scheduler.timesteps[:-1].clone()
     else:
         raise NotImplementedError(f"Unsupported solver type {sample_solver}.")
     return sample_scheduler, sampling_sigmas, timesteps

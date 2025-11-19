@@ -13,10 +13,10 @@ license = {file = "LICENSE"}
 dependencies = [
   "numpy",
   "easydict",
-  "torch >= 2.6.0,<=2.7.1",
-  "torchvision >= 0.21.0,<=0.22.2",
-  "torchaudio >= 2.6.0,<=2.7.2",
-  # "torch >= 2.7.1",
+  # below should use cuda version in docker to avoid reinstall cpu version of torch
+  # "torch >= 2.6.0,<=2.7.1",
+  # "torchvision >= 0.21.0,<=0.22.2",
+  # "torchaudio >= 2.6.0,<=2.7.2",
   "accelerate >= 1.2.1",
   "diffusers >= 0.35.2",
   "peft >= 0.17.0",
@@ -57,7 +57,7 @@ DisplayName = "KsanaDit"
 Icon = ""
 
 [project.optional-dependencies]  # 可选依赖
-dev = ["pytest>=6.0", "black>=21.0", "pyinstrument>=5.1.1", "pre-commit>=4.0.0"]
+dev = ["pytest>=6.0", "black>=21.0", "pyinstrument>=5.1.1", "pre-commit>=4.0.0", "pytest"]
 
 [project.scripts]  # 命令行工具
 mycli = "my_package.cli:main"

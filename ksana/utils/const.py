@@ -1,0 +1,2 @@
+DEFAULT_OUTPUTS_VIDEO_DIR = "outputs_video"
+DEFAULT_SEED = 42

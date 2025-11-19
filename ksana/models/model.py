@@ -1,7 +1,7 @@
 import os
 import torch
 from abc import ABC
-from ..utils import log, time_range  # , ksanaProfiler
+from ..utils import log, time_range, load_and_merge_lora_weight_from_safetensors, model_safe_downcast  # , ksanaProfiler
 from .wan import WanModel, T5EncoderModel, Wan2_1_VAE, Wan2_2_VAE
 from .wan.configs import WAN2_2_CONFIGS
 import time
@@ -89,6 +89,7 @@ class KsanaModel(ABC):
         offload_device=None,
         checkpoint_dir=None,
         subfolder=None,
+        lora_dir=None,
         torch_compile_config=None,
     ):
         assert self.model_name in ["wan2.2"], "only support wan2.2 yet"
@@ -104,6 +105,7 @@ class KsanaModel(ABC):
                 offload_device=offload_device,
                 checkpoint_dir=checkpoint_dir,
                 subfolder=subfolder,
+                lora_dir=lora_dir,
                 torch_compile_config=torch_compile_config,
             )
         else:
@@ -175,6 +177,7 @@ class KsanaModel(ABC):
         offload_device=None,
         checkpoint_dir=None,
         subfolder=None,
+        lora_dir=None,
         torch_compile_config=None,
     ):
         # with ksanaProfiler("KsanaModel.load_wan_model"):
@@ -223,6 +226,16 @@ class KsanaModel(ABC):
         #     dit_fsdp=dit_fsdp,
         #     shard_fn=shard_fn,
         #     convert_model_dtype=convert_model_dtype)
+        if lora_dir:
+            log.info(f"load lora from {lora_dir}")
+            self.model.set_keep_in_fp32_modules()
+            self.model = load_and_merge_lora_weight_from_safetensors(self.model, lora_dir)
+            model_safe_downcast(
+                self.model,
+                dtype=self.run_dtype,
+                keep_in_fp32_modules=[],
+                keep_in_fp32_parameters=self.model._keep_in_fp32_params,
+            )
 
         # def _configure_model(self, model, use_sp, dit_fsdp, shard_fn,
         #                      convert_model_dtype):

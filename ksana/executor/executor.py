@@ -10,13 +10,14 @@ from datetime import datetime
 import gc
 
 from tqdm import tqdm
-from .configs import WanExecutorConfig, KsanaExecutorConfig
+from .configs import WanExecutorConfig, KsanaExecutorConfig, WanLightLoraExecutorConfig
 from .sample_schedulers import get_sample_scheduler
 
 from ..models import KsanaModel, KsanaT5Encoder, KsanaVAE
 from ..cache import create_cache, DCacheConfig
 from ..utils import log, print_recursive, time_range, save_video, merge_video_audio, get_world_size
-
+from ..utils.const import DEFAULT_OUTPUTS_VIDEO_DIR, DEFAULT_SEED
+from ..config import KsanaSampleConfig, KsanaRuntimeConfig
 
 # from functools import partial
 # from .distributed.fsdp import shard_model
@@ -50,10 +51,14 @@ class KsanaExecutor(ABC):
             self.sp_size = 1
 
         self.ksana_config = ksana_config
-        if not (isinstance(self.ksana_config, WanExecutorConfig) or self.ksana_config is None):
+        if not (
+            isinstance(self.ksana_config, WanExecutorConfig)
+            or isinstance(self.ksana_config, WanLightLoraExecutorConfig)
+            or self.ksana_config is None
+        ):
             raise RuntimeError(f"model_name {self.model_name} is not supported yet")
 
-    def load_model(self, checkpoint_dir, torch_compile_config=None):
+    def load_model(self, checkpoint_dir, lora_dir=None, torch_compile_config=None):
         if self.model_name != "wan2.2":
             raise RuntimeError(f"model_name {self.model_name} is not supported yet")
         if self.task_type != "t2v":
@@ -77,13 +82,85 @@ class KsanaExecutor(ABC):
         self.high_noise_model.load(
             checkpoint_dir=checkpoint_dir,
             subfolder=self.default_model_config.high_noise_checkpoint,
+            lora_dir=(
+                os.path.join(lora_dir, self.ksana_config.high_noise_lora_checkpoint) if lora_dir is not None else None
+            ),
             torch_compile_config=torch_compile_config,
         )
         self.low_noise_model.load(
             checkpoint_dir=checkpoint_dir,
             subfolder=self.default_model_config.low_noise_checkpoint,
+            lora_dir=(
+                os.path.join(lora_dir, self.ksana_config.low_noise_lora_checkpoint) if lora_dir is not None else None
+            ),
             torch_compile_config=torch_compile_config,
         )
+
+    def process_input_sample_config(self, **kwargs):
+        default_model_config = self.ksana_config.default_model_config
+
+        denoise = kwargs.get("denoise", 1.0)
+        sampling_steps = kwargs.get("steps", self.ksana_config.steps)
+        cfg_scale = kwargs.get("cfg_scale", self.ksana_config.cfg_scale)
+        sample_shift = kwargs.get("sample_shift", self.ksana_config.sample_shift)
+        sample_solver = kwargs.get("sample_solver", self.ksana_config.sample_solver)
+        if sampling_steps is None:
+            sampling_steps = default_model_config.get("sample_steps", None)
+        if sample_shift is None:
+            sample_shift = default_model_config.get("sample_shift", None)
+        if cfg_scale is None:
+            cfg_scale = default_model_config.get("sample_guide_scale", None)
+        if sample_solver is None:
+            sample_solver = default_model_config.get("sample_solver", None)
+
+        sample_config = KsanaSampleConfig(
+            steps=sampling_steps,
+            cfg_scale=cfg_scale,
+            shift=sample_shift,
+            solver=sample_solver,
+            denoise=denoise,
+        )
+        return sample_config
+
+    def process_input_runtime_config(self, **kwargs):
+        default_model_config = self.ksana_config.default_model_config
+        input_size = kwargs.get("size", default_model_config.get("size", None))
+        input_frame_num = kwargs.get("frame_num", default_model_config.get("frame_num", None))
+        seed = kwargs.get("seed", DEFAULT_SEED)
+        boundary = kwargs.get("boundary", default_model_config.boundary)
+        # TODO: input dtype should be str as float, float16, float32, give some map or just use torch.dtype
+        run_dtype = kwargs.get("run_dtype", None)
+        if run_dtype is None:
+            run_dtype = default_model_config.get("param_dtype", None)
+
+        runtime_config = KsanaRuntimeConfig(
+            input_size=input_size,
+            input_frame_num=input_frame_num,
+            seed=seed,
+            run_dtype=run_dtype,
+            boundary=boundary,
+        )
+        return runtime_config
+
+    def process_input_cache(self, cache_method):
+        high_cache_config = None
+        low_cache_config = None
+        if cache_method == "DCache":
+            high_cache_config = DCacheConfig(
+                fast_degree=70,
+                slow_degree=35,
+                fast_force_calc_every_n_steps=1,
+                slow_force_calc_every_n_steps=5,
+                name="high_dcache",
+            )
+            low_cache_config = DCacheConfig(
+                fast_degree=65,
+                slow_degree=25,
+                fast_force_calc_every_n_steps=2,
+                slow_force_calc_every_n_steps=4,
+                name="low_dcache",
+            )
+        return high_cache_config, low_cache_config
 
     @time_range
     def generate_video(self, prompt, **kwargs):
@@ -104,7 +181,8 @@ class KsanaExecutor(ABC):
         prompt_negative = kwargs.get("prompt_negative", default_model_config.sample_neg_prompt)
         # TODO: offload_model should be as a config
         offload_model = True
-        # import ipdb; ipdb.set_trace()
+
+        # TODO: maybe batch prompt for text encoder
         if prompt_positive is not None:
             positive = self.text_encoder.forward([prompt_positive])[0]
         if prompt_negative is not None:
@@ -114,35 +192,9 @@ class KsanaExecutor(ABC):
 
         positive = positive.unsqueeze(0)
         negative = negative.unsqueeze(0)
-        print_recursive(positive)
-        print_recursive(negative)
-        denoise = kwargs.get("denoise", 1.0)
-        sample_shift = kwargs.get("sample_shift", default_model_config.sample_shift)
-        sample_guide_scales = kwargs.get("sample_guide_scale", default_model_config.sample_guide_scale)
-        sampling_steps = kwargs.get("steps", default_model_config.sample_steps)
-        sample_solver = kwargs.get("sample_solver", self.ksana_config.sample_solver)
-        boundary = kwargs.get("boundary", default_model_config.boundary)
-        low_sample_guide_scale = sample_guide_scales[0]
-        high_sample_guide_scale = sample_guide_scales[1]
-
-        cache_method = kwargs.get("cache_method", "DCache")
-        high_cache_config = None
-        low_cache_config = None
-        if cache_method == "DCache":
-            high_cache_config = DCacheConfig(
-                fast_degree=70,
-                slow_degree=35,
-                fast_force_calc_every_n_steps=1,
-                slow_force_calc_every_n_steps=5,
-                name="high_dcache",
-            )
-            low_cache_config = DCacheConfig(
-                fast_degree=65,
-                slow_degree=25,
-                fast_force_calc_every_n_steps=2,
-                slow_force_calc_every_n_steps=4,
-                name="low_dcache",
-            )
+        sample_config = self.process_input_sample_config(**kwargs)
+        runtime_config = self.process_input_runtime_config(**kwargs)
+        high_cache_config, low_cache_config = self.process_input_cache(kwargs.get("cache_method", None))
 
         latents = self.generate_video_with_tensors(
             size=kwargs.get("size", default_model_config.size),
@@ -152,15 +204,8 @@ class KsanaExecutor(ABC):
             positive=positive,
             negative=negative,
             latents=None,
-            seed=kwargs.get("seed", 42),
-            sample_shift=sample_shift,
-            sample_guide_scale=high_sample_guide_scale,
-            denoise=denoise,
-            low_sample_guide_scale=low_sample_guide_scale,
-            sampling_steps=sampling_steps,
-            sample_solver=sample_solver,
-            boundary=boundary,
-            run_dtype=torch.bfloat16,
+            sample_config=sample_config,
+            runtime_config=runtime_config,
             high_cache_config=high_cache_config,
             low_cache_config=low_cache_config,
         )
@@ -177,7 +222,7 @@ class KsanaExecutor(ABC):
         if offload_model:
             gc.collect()
             torch.cuda.synchronize()
-        output_folder = kwargs.get("output_folder", "ksana_videos")
+        output_folder = kwargs.get("output_folder", DEFAULT_OUTPUTS_VIDEO_DIR)
         return_frames = kwargs.get("return_frames", False)
         self.save_video(videos, self.get_save_path(output_folder, prompt_positive))
 
@@ -193,7 +238,8 @@ class KsanaExecutor(ABC):
         formatted_prompt = prompt_positive.replace(" ", "_").replace("/", "_")[:30]
         suffix = ".mp4"
         save_file = (
-            f"{self.ksana_config.default_model_config.model_name}_{self.ksana_config.default_model_config.task_type}_{self.ksana_config.default_model_config.model_size}_{formatted_time}_{formatted_prompt}"
+            f"{self.ksana_config.default_model_config.model_name}_{self.ksana_config.default_model_config.task_type}_"
+            + f"{self.ksana_config.default_model_config.model_size}_{formatted_time}_{formatted_prompt}"
             + suffix
         )
         return os.path.join(output_folder, save_file)
@@ -225,22 +271,11 @@ class KsanaExecutor(ABC):
         positive: torch.Tensor,  # [bs, 512, 4096]
         negative: torch.Tensor,  # [bs, 512, 4096]
         latents: torch.Tensor,  # [bs, 16, 2, 90, 160]
-        seed: int,
-        sample_shift: float,
-        sample_guide_scale: float,
-        denoise: float,
-        sampling_steps: int = 50,
-        sample_solver: str = "uni_pc",
+        sample_config: KsanaSampleConfig,
+        runtime_config: KsanaRuntimeConfig,
         low_model: KsanaModel = None,
-        boundary: float = None,
-        low_sample_guide_scale: float = None,
         high_cache_config=None,
         low_cache_config=None,
-        #              size=(1280, 720),
-        #              frame_num=81,
-        #              offload_model=True,
-        #              cache_args=None):
-        run_dtype=None,
         *args,
         **kwargs,
     ):
@@ -248,36 +283,37 @@ class KsanaExecutor(ABC):
 
         Args:
             positive (torch.Tensor): _description_
-            sample_shift (float): _description_
-            sample_guide_scale (float): _description_
-            denoise (float): _description_
-            sampling_steps (int, optional): _description_. Defaults to 50.
-            sample_solver (str, optional): _description_. Defaults to "uni_pc".
+            sample_config (KsanaSampleConfig): _description_
             cache (_type_, optional): _description_. Defaults to None.
 
         Returns:
             latents (torch.Tensor)
         """
-        log.info(
-            f"seed: {seed}, sample_shift: {sample_shift}, sample_guide_scale: {sample_guide_scale}, denoise: {denoise}, "
-            f"sampling_steps: {sampling_steps}, sample_solver: {sample_solver}, boundary: {boundary}, low_sample_guide_scale: {low_sample_guide_scale}"
-        )
-        assert denoise == 1.0, f"only support denoise ==1.0 yet, but got {denoise}"
-        assert sample_solver in [
+        log.info(f"runtime_config: {runtime_config}, sample_config: {sample_config}")
+        assert sample_config.denoise == 1.0, f"only support denoise ==1.0 yet, but got {sample_config.denoise}"
+        assert sample_config.solver in [
             "uni_pc",
             "dpm++",
-        ], f"sample_solver {sample_solver} not supported in list: ['uni_pc', 'dpm++']"
-        log.info("latents, positive, negtive:")
-        print_recursive(latents)
-        print_recursive(positive)
-        print_recursive(negative)
+            "euler",
+        ], f"sample_solver {sample_config.solver} not supported in list: ['uni_pc', 'dpm++', 'euler']"
+        log.debug("latents, positive, negtive:")
+        print_recursive(latents, log.debug)
+        print_recursive(positive, log.debug)
+        print_recursive(negative, log.debug)
+
+        if isinstance(sample_config.cfg_scale, float):
+            high_sample_guide_scale = sample_config.cfg_scale
+            low_sample_guide_scale = sample_config.cfg_scale
+        elif hasattr(sample_config.cfg_scale, "__len__") and len(sample_config.cfg_scale) >= 2:
+            low_sample_guide_scale = sample_config.cfg_scale[0]
+            high_sample_guide_scale = sample_config.cfg_scale[1]
+        else:
+            raise ValueError(f"sample_config.cfg_scale {sample_config.cfg_scale} not supported")
+
         if low_model is not None:
-            low_sample_guide_scale = (
-                low_sample_guide_scale
-                if low_sample_guide_scale is not None
-                else low_model.default_config.sample_guide_scale[0]
+            boundary = (
+                runtime_config.boundary if runtime_config.boundary is not None else low_model.default_config.boundary
             )
-            boundary = boundary if boundary is not None else low_model.default_config.boundary
         else:
             low_sample_guide_scale = None
             boundary = None
@@ -298,7 +334,7 @@ class KsanaExecutor(ABC):
                 low_model.model_size,
                 low_cache_config,
             )
-        seed = seed if seed >= 0 else random.randint(0, sys.maxsize)
+        seed = runtime_config.seed if runtime_config.seed >= 0 else random.randint(0, sys.maxsize)
         seed_g = torch.Generator(device=self.run_device)
         seed_g.manual_seed(seed)
 
@@ -352,7 +388,7 @@ class KsanaExecutor(ABC):
         #                             noop_no_sync)
         # no_sync_high_noise = getattr(self.high_noise_model, 'no_sync',
         #                              noop_no_sync)
-        run_dtype = high_model.run_dtype if run_dtype is None else run_dtype
+        run_dtype = runtime_config.run_dtype if runtime_config.run_dtype is not None else high_model.run_dtype
         latents = self.cast_to(latents, run_dtype, self.run_device)
 
         with (
@@ -366,14 +402,14 @@ class KsanaExecutor(ABC):
                 boundary = boundary * low_model.default_model_config.num_train_timesteps
             sample_scheduler, _, timesteps = get_sample_scheduler(
                 num_train_timesteps=high_model.default_model_config.num_train_timesteps,
-                sampling_steps=sampling_steps,
-                sample_solver=sample_solver,
+                sampling_steps=sample_config.steps,
+                sample_solver=sample_config.solver,
                 device=self.run_device,
-                shift=sample_shift,
+                shift=sample_config.shift,
             )
             arg_c = {"phase": "cond", "context": positive, "seq_len": seq_len}
             arg_null = {"phase": "uncond", "context": negative, "seq_len": seq_len}
-            log.info(f"timesteps: {timesteps}")
+            log.debug(f"timesteps: {timesteps}, boundary:{boundary}, seq_len:{seq_len}")
             # timesteps: tensor([999, 997, ...])
             for iter_id, t in enumerate(tqdm(timesteps)):
                 # [bs, 16, fi, hi, wi]
@@ -381,7 +417,7 @@ class KsanaExecutor(ABC):
                 # t : tensor(999)
                 if boundary is not None and low_model is not None:
                     assert low_sample_guide_scale is not None
-                    sample_guide_scale = sample_guide_scale if t.item() >= boundary else low_sample_guide_scale
+                    sample_guide_scale = high_sample_guide_scale if t.item() >= boundary else low_sample_guide_scale
                 timestep = [t]
                 timestep = torch.stack(timestep)  # [tensor] => tensor([])
                 timestep_id = t.item()
@@ -403,9 +439,11 @@ class KsanaExecutor(ABC):
 
                 # [bs, 16, fi, hi, wi] => [bs, 16, fi, hi, wi]
                 noise_pred_cond = run_model.forward(x=latent_model_input, t=timestep, cache=run_cache, **arg_c)
-                noise_pred_uncond = run_model.forward(x=latent_model_input, t=timestep, cache=run_cache, **arg_null)
-                noise_pred = noise_pred_uncond + sample_guide_scale * (noise_pred_cond - noise_pred_uncond)
-                log.info(f"noise_pred shape: {noise_pred.shape}, {noise_pred.dtype} {noise_pred.cpu().abs().mean()}")
+                if self.use_cfg(sample_guide_scale):
+                    noise_pred_uncond = run_model.forward(x=latent_model_input, t=timestep, cache=run_cache, **arg_null)
+                    noise_pred = noise_pred_uncond + sample_guide_scale * (noise_pred_cond - noise_pred_uncond)
+                else:
+                    noise_pred = noise_pred_cond
 
                 # [bs, 16, fi, hi, wi] => [bs, 16, fi, hi, wi]
                 temp_x0 = sample_scheduler.step(
@@ -415,7 +453,7 @@ class KsanaExecutor(ABC):
                     return_dict=False,
                     generator=seed_g,
                 )
-                latents = temp_x0[0]
+                latents = temp_x0 if sample_config.solver == "euler" else temp_x0[0]
 
             if high_cache is not None:
                 high_cache.show_cache_rate()
@@ -431,9 +469,12 @@ class KsanaExecutor(ABC):
         #     torch.cuda.synchronize()
         # if dist.is_initialized():
         #     dist.barrier()
-        log.info(f"latents shape: {latents.shape}")
+        log.debug(f"latents shape: {latents.shape}")
         # [bs, 16, fi, hi, wi]
         return latents
+
+    def use_cfg(self, cfg_scale: float, eps: float = 1e-6):
+        return abs(cfg_scale - 1.0) > eps
 
     def cast_to(self, src, dtype: torch.dtype, device: torch.device):
         if src.dtype != dtype:

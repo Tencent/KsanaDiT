@@ -70,9 +70,12 @@ class KsanaGenerator(ABC):
         Load a pre-trained model.
         """
         generator = get_generator()
-        executor_config = create_executor_config(checkpoint_dir)
+        lora_dir = kwargs.get("lora_dir", None)
+        executor_config = create_executor_config(checkpoint_dir, lora_dir=lora_dir)
         executor = KsanaExecutor(executor_config)
-        executor.load_model(checkpoint_dir, torch_compile_config=kwargs.get("torch_compile_config", None))
+        executor.load_model(
+            checkpoint_dir, lora_dir=lora_dir, torch_compile_config=kwargs.get("torch_compile_config", None)
+        )
         generator.set_executor(executor)
         return generator
 
