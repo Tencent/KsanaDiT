@@ -1,4 +1,5 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from easydict import EasyDict
 
 
 @dataclass
@@ -7,9 +8,9 @@ class KsanaExecutorConfig:
     Base configuration class for Ksana executors.
     """
 
-    default_model_config = None
+    default_model_config: dict | EasyDict = field(default=None)
 
-    # model_path: str = None
-    sample_solver: str | None = None  # TODO: change to class
-    steps: int = 50
-    cfg_scale: float = 7.5
+    steps: int = field(default=50)
+    cfg_scale: float = field(default=None)
+    sample_shift: float = field(default=None)
+    sample_solver: str | None = field(default=None)  # TODO: change to class

@@ -1,5 +1,6 @@
 import comfy
 from ksana import get_generator
+from ksana.config import KsanaSampleConfig, KsanaRuntimeConfig
 
 
 class KsanaGeneratorNode:
@@ -39,7 +40,7 @@ class KsanaGeneratorNode:
                         "tooltip": "The random seed used for creating the noise.",
                     },
                 ),
-                "sampler_name": (
+                "solver_name": (
                     comfy.samplers.KSampler.SAMPLERS,
                     {
                         "default": "uni_pc",
@@ -133,7 +134,7 @@ class KsanaGeneratorNode:
         latent_image,
         steps,
         seed,
-        sampler_name,
+        solver_name,
         sample_guide_scale,
         sample_shift,
         denoise=1.0,
@@ -153,17 +154,20 @@ class KsanaGeneratorNode:
             positive=positive[0][0],  # 1, 512, 4096?
             negative=negative[0][0],  # 1, 512, 4096?
             latents=latent_image["samples"],  # [1, 16, 5, h/, w/]
-            seed=seed,
-            sample_solver=sampler_name,
-            sampling_steps=steps,
-            sample_shift=sample_shift,
-            sample_guide_scale=sample_guide_scale,
+            sample_config=KsanaSampleConfig(
+                steps=steps,
+                cfg_scale=(sample_guide_scale, low_sample_guide_scale),
+                shift=sample_shift,
+                solver=solver_name,
+                denoise=denoise,
+            ),
+            runtime_config=KsanaRuntimeConfig(
+                seed=seed,
+                boundary=boundary,
+            ),
             low_model=low_model.model.ksana_model if low_model is not None else None,
-            boundary=boundary,
-            low_sample_guide_scale=low_sample_guide_scale,
             high_cache_config=high_cache_config,
             low_cache_config=low_cache_config,
-            denoise=denoise,
         )
         if len(samples.shape) == 4:
             samples = samples.unsqueeze(0)

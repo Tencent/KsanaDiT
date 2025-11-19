@@ -296,17 +296,10 @@ class WanAttentionBlock(nn.Module):
             grid_sizes(Tensor): Shape [B, 3], the second dimension contains (F, H, W) #: [2, 45, 80]
             freqs(Tensor): Rope freqs, shape [1024, C / num_heads / 2]                #: [1024, 64]
         """
-        # print(f"-----------x:{x.cpu().abs().mean().item()}")
-        # TODO: remove fp32 assert
-        # assert e.dtype == torch.float32
-        # ipdb.set_trace()
-        # with torch.amp.autocast("cuda", dtype=torch.float32):
         # self.modulation : [1, 6, 5120]
         e = (self.modulation.unsqueeze(0) + e).chunk(6, dim=2)
         # [bs, seqlen, 6, 5120] => [bs, seqlen, 1, 5120] * 6
-        # assert e[0].dtype == torch.float32
 
-        # ipdb.set_trace()
         # self-attention
         y = self.self_attn(
             self.norm1(x) * (1 + e[1].squeeze(2)) + e[0].squeeze(2),
@@ -314,7 +307,6 @@ class WanAttentionBlock(nn.Module):
             grid_sizes,
             freqs,
         )
-        # with torch.amp.autocast("cuda", dtype=torch.float32):
         x = x + y * e[2].squeeze(2)
         del y
 
@@ -343,7 +335,6 @@ class Head(nn.Module):
             self.head = comfy_operation_settings.get("operations").Linear(dim, out_dim, device=device, dtype=dtype)
             # modulation
             self.modulation = nn.Parameter(torch.empty(1, 2, dim, device=device, dtype=dtype))
-            print(f"head-----------dtype:{dtype}")
         else:
             self.norm = WanLayerNorm(dim, eps)
             self.head = nn.Linear(dim, out_dim)
@@ -519,6 +510,22 @@ class WanModel(ModelMixin, ConfigMixin):
         # initialize weights
         if disable_weight_init_operations is None:
             self.init_weights()
+
+    def set_keep_in_fp32_modules(self):
+        self._keep_in_fp32_modules = [
+            "time_embedding",
+            "time_projection",
+            "head",
+            "norm3",
+            "norm_q",
+            "norm_k",
+            "img_emb.proj.0",
+            "img_emb.proj.4",
+        ]
+        self._keep_in_fp32_params = self._find_fp32_params(["modulation"])
+
+    def _find_fp32_params(self, keywords):
+        return [name for name, _ in self.named_parameters() if any(keyword in name for keyword in keywords)]
 
     # @nvtx_range
     def forward(
