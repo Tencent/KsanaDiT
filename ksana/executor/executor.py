@@ -478,6 +478,7 @@ class KsanaExecutor(ABC):
 
     def cast_to(self, src, dtype: torch.dtype, device: torch.device):
         if src.dtype != dtype:
+            # TODO: add more check for dtype, only allow
             src = src.to(dtype)
         if src.device != device:
             src = src.to(device)

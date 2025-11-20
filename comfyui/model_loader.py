@@ -209,8 +209,22 @@ class KsanaModelLoaderNode:
                 "model_name": (folder_paths.get_filename_list("diffusion_models"),),
             },
             "optional": {
-                "linear_backend": (["default", "fp8_gemm"], {"default": "default"}),
-                "attn_backend": (["default", "flash_attention"], {"default": "default"}),
+                # attn_backend dtype > linear_backend dtye > weight_dtype
+                "weight_dtype": (
+                    ["default", "float16", "bfloat16"],
+                    {"default": "default"},
+                    {"tooltip": "weight dtype of running model"},
+                ),
+                "linear_backend": (
+                    ["default", "fp8_gemm"],
+                    {"default": "default"},
+                    {"tooltip": "linear_backend default use linear dtype from model"},
+                ),
+                "attn_backend": (
+                    ["default", "flash_attention"],
+                    {"default": "default"},
+                    {"tooltip": "attention backend"},
+                ),
                 "compile_args": ("KSANACOMPILEARGS", {"default": None}),
             },
         }
