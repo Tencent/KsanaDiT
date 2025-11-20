@@ -3,99 +3,18 @@
   "last_link_id": 220,
   "nodes": [
     {
-      "id": 125,
-      "type": "KsanaTorchCompileNode",
-      "pos": [
-        -502,
-        392
-      ],
-      "size": {
-        "0": 315,
-        "1": 250
-      },
-      "flags": {},
-      "order": 0,
-      "mode": 0,
-      "outputs": [
-        {
-          "name": "torch_compile_args",
-          "type": "KSANACOMPILEARGS",
-          "links": [
-            219,
-            220
-          ],
-          "shape": 3,
-          "slot_index": 0
-        }
-      ],
-      "properties": {
-        "Node name for S&R": "KsanaTorchCompileNode"
-      },
-      "widgets_values": [
-        "inductor",
-        false,
-        "default",
-        false,
-        true,
-        128,
-        128,
-        false,
-        false
-      ]
-    },
-    {
-      "id": 117,
-      "type": "KsanaModelLoaderNode",
-      "pos": [
-        20,
-        372
-      ],
-      "size": {
-        "0": 389.2339782714844,
-        "1": 106
-      },
-      "flags": {},
-      "order": 6,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "compile_args",
-          "type": "KSANACOMPILEARGS",
-          "link": 219
-        }
-      ],
-      "outputs": [
-        {
-          "name": "model",
-          "type": "KSANAMODEL",
-          "links": [
-            213
-          ],
-          "shape": 3,
-          "slot_index": 0
-        }
-      ],
-      "properties": {
-        "Node name for S&R": "KsanaModelLoaderNode"
-      },
-      "widgets_values": [
-        "wan2.2_t2v_high_noise_14B_fp16.safetensors",
-        "default"
-      ]
-    },
-    {
       "id": 7,
       "type": "CLIPTextEncode",
       "pos": [
         530,
         797
       ],
-      "size": [
-        419.75219931598326,
-        115.21111204239617
-      ],
+      "size": {
+        "0": 419.752197265625,
+        "1": 115.21111297607422
+      },
       "flags": {},
-      "order": 9,
+      "order": 7,
       "mode": 0,
       "inputs": [
         {
@@ -125,84 +44,6 @@
       "bgcolor": "#533"
     },
     {
-      "id": 119,
-      "type": "KsanaGeneratorNode",
-      "pos": [
-        1096,
-        406
-      ],
-      "size": {
-        "0": 317.4000244140625,
-        "1": 370
-      },
-      "flags": {},
-      "order": 10,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "model",
-          "type": "KSANAMODEL",
-          "link": 213
-        },
-        {
-          "name": "positive",
-          "type": "CONDITIONING",
-          "link": 214
-        },
-        {
-          "name": "negative",
-          "type": "CONDITIONING",
-          "link": 215
-        },
-        {
-          "name": "latent_image",
-          "type": "LATENT",
-          "link": 216
-        },
-        {
-          "name": "low_model",
-          "type": "KSANAMODEL",
-          "link": 212
-        },
-        {
-          "name": "high_cache_config",
-          "type": "KSANA_CACHE_CONFIG",
-          "link": 217
-        },
-        {
-          "name": "low_cache_config",
-          "type": "KSANA_CACHE_CONFIG",
-          "link": 218
-        }
-      ],
-      "outputs": [
-        {
-          "name": "latents",
-          "type": "LATENT",
-          "links": [
-            210,
-            211
-          ],
-          "shape": 3,
-          "slot_index": 0
-        }
-      ],
-      "properties": {
-        "Node name for S&R": "KsanaGeneratorNode"
-      },
-      "widgets_values": [
-        20,
-        676659432707750,
-        "randomize",
-        "uni_pc",
-        4,
-        5,
-        1,
-        0.875,
-        3
-      ]
-    },
-    {
       "id": 123,
       "type": "KsanaDCacheNode",
       "pos": [
@@ -214,7 +55,7 @@
         "1": 154
       },
       "flags": {},
-      "order": 1,
+      "order": 0,
       "mode": 0,
       "outputs": [
         {
@@ -250,7 +91,7 @@
         "1": 154
       },
       "flags": {},
-      "order": 2,
+      "order": 1,
       "mode": 0,
       "outputs": [
         {
@@ -326,7 +167,7 @@
         "1": 58
       },
       "flags": {},
-      "order": 3,
+      "order": 2,
       "mode": 0,
       "inputs": [],
       "outputs": [
@@ -355,12 +196,12 @@
         26,
         721
       ],
-      "size": [
-        337.76839157505367,
-        106
-      ],
+      "size": {
+        "0": 337.7684020996094,
+        "1": 106
+      },
       "flags": {},
-      "order": 4,
+      "order": 3,
       "mode": 0,
       "inputs": [],
       "outputs": [
@@ -392,12 +233,12 @@
         26,
         532
       ],
-      "size": [
-        383.1172409774664,
-        104.97206671780532
-      ],
+      "size": {
+        "0": 383.11724853515625,
+        "1": 130
+      },
       "flags": {},
-      "order": 7,
+      "order": 9,
       "mode": 0,
       "inputs": [
         {
@@ -422,6 +263,8 @@
       },
       "widgets_values": [
         "wan2.2_t2v_low_noise_14B_fp16.safetensors",
+        "default",
+        "default",
         "default"
       ]
     },
@@ -483,13 +326,13 @@
           "hidden": false,
           "paused": false,
           "params": {
-            "filename": "AnimateDiff_00063.gif",
+            "filename": "AnimateDiff_00073.gif",
             "subfolder": "",
             "type": "output",
             "format": "image/gif",
             "frame_rate": 16,
-            "workflow": "AnimateDiff_00063.png",
-            "fullpath": "/workspace/user_code/00_sd_webui_private_00/outputs/output/AnimateDiff_00063.gif"
+            "workflow": "AnimateDiff_00073.png",
+            "fullpath": "/workspace/user_code/00_sd_webui_private_00/outputs/output/AnimateDiff_00073.gif"
           }
         }
       }
@@ -535,7 +378,7 @@
         "1": 130
       },
       "flags": {},
-      "order": 5,
+      "order": 4,
       "mode": 0,
       "inputs": [],
       "outputs": [
@@ -565,12 +408,12 @@
         532,
         618
       ],
-      "size": [
-        419.5483140711291,
-        130.81819423840523
-      ],
+      "size": {
+        "0": 419.5483093261719,
+        "1": 130.8181915283203
+      },
       "flags": {},
-      "order": 8,
+      "order": 6,
       "mode": 0,
       "inputs": [
         {
@@ -598,6 +441,167 @@
       ],
       "color": "#232",
       "bgcolor": "#353"
+    },
+    {
+      "id": 125,
+      "type": "KsanaTorchCompileNode",
+      "pos": [
+        -502,
+        392
+      ],
+      "size": {
+        "0": 315,
+        "1": 250
+      },
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "outputs": [
+        {
+          "name": "torch_compile_args",
+          "type": "KSANACOMPILEARGS",
+          "links": [
+            219,
+            220
+          ],
+          "shape": 3,
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "KsanaTorchCompileNode"
+      },
+      "widgets_values": [
+        "inductor",
+        false,
+        "default",
+        false,
+        true,
+        128,
+        128,
+        false,
+        false
+      ]
+    },
+    {
+      "id": 117,
+      "type": "KsanaModelLoaderNode",
+      "pos": [
+        20,
+        372
+      ],
+      "size": {
+        "0": 389.2339782714844,
+        "1": 130
+      },
+      "flags": {},
+      "order": 8,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "compile_args",
+          "type": "KSANACOMPILEARGS",
+          "link": 219
+        }
+      ],
+      "outputs": [
+        {
+          "name": "model",
+          "type": "KSANAMODEL",
+          "links": [
+            213
+          ],
+          "shape": 3,
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "KsanaModelLoaderNode"
+      },
+      "widgets_values": [
+        "wan2.2_t2v_high_noise_14B_fp16.safetensors",
+        "default",
+        "default",
+        "default"
+      ]
+    },
+    {
+      "id": 119,
+      "type": "KsanaGeneratorNode",
+      "pos": [
+        1096,
+        406
+      ],
+      "size": {
+        "0": 317.4000244140625,
+        "1": 370
+      },
+      "flags": {},
+      "order": 10,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "KSANAMODEL",
+          "link": 213
+        },
+        {
+          "name": "positive",
+          "type": "CONDITIONING",
+          "link": 214
+        },
+        {
+          "name": "negative",
+          "type": "CONDITIONING",
+          "link": 215
+        },
+        {
+          "name": "latent_image",
+          "type": "LATENT",
+          "link": 216
+        },
+        {
+          "name": "low_model",
+          "type": "KSANAMODEL",
+          "link": 212
+        },
+        {
+          "name": "high_cache_config",
+          "type": "KSANA_CACHE_CONFIG",
+          "link": 217
+        },
+        {
+          "name": "low_cache_config",
+          "type": "KSANA_CACHE_CONFIG",
+          "link": 218
+        }
+      ],
+      "outputs": [
+        {
+          "name": "latents",
+          "type": "LATENT",
+          "links": [
+            210,
+            211
+          ],
+          "shape": 3,
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "KsanaGeneratorNode"
+      },
+      "widgets_values": [
+        40,
+        1080221284457548,
+        "randomize",
+        "uni_pc",
+        4,
+        5,
+        1,
+        0.875,
+        3
+      ]
     }
   ],
   "links": [
@@ -726,10 +730,10 @@
   "config": {},
   "extra": {
     "ds": {
-      "scale": 0.9849732675807639,
+      "scale": 0.8954302432552422,
       "offset": [
-        319.77074291868786,
-        133.20762706153494
+        298.10710867424393,
+        105.48919501098058
       ]
     },
     "frontendVersion": "1.23.4"
