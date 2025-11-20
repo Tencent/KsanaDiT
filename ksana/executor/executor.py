@@ -309,6 +309,7 @@ class KsanaExecutor(ABC):
             high_sample_guide_scale = sample_config.cfg_scale[1]
         else:
             raise ValueError(f"sample_config.cfg_scale {sample_config.cfg_scale} not supported")
+        cfg_scale = high_sample_guide_scale
 
         if low_model is not None:
             boundary = (
@@ -415,9 +416,8 @@ class KsanaExecutor(ABC):
                 # [bs, 16, fi, hi, wi]
                 latent_model_input = latents
                 # t : tensor(999)
-                if boundary is not None and low_model is not None:
-                    assert low_sample_guide_scale is not None
-                    sample_guide_scale = high_sample_guide_scale if t.item() >= boundary else low_sample_guide_scale
+                if low_model is not None and boundary is not None and t.item() < boundary:
+                    cfg_scale = low_sample_guide_scale
                 timestep = [t]
                 timestep = torch.stack(timestep)  # [tensor] => tensor([])
                 timestep_id = t.item()
@@ -439,9 +439,9 @@ class KsanaExecutor(ABC):
 
                 # [bs, 16, fi, hi, wi] => [bs, 16, fi, hi, wi]
                 noise_pred_cond = run_model.forward(x=latent_model_input, t=timestep, cache=run_cache, **arg_c)
-                if self.use_cfg(sample_guide_scale):
+                if self.use_cfg(cfg_scale):
                     noise_pred_uncond = run_model.forward(x=latent_model_input, t=timestep, cache=run_cache, **arg_null)
-                    noise_pred = noise_pred_uncond + sample_guide_scale * (noise_pred_cond - noise_pred_uncond)
+                    noise_pred = noise_pred_uncond + cfg_scale * (noise_pred_cond - noise_pred_uncond)
                 else:
                     noise_pred = noise_pred_cond
 
