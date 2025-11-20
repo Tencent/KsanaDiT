@@ -125,15 +125,19 @@ def load_diffusion_model_state_dict(
     else:
         unet_dtype = dtype
     manual_cast_dtype = mm.unet_manual_cast(unet_dtype, load_device, model_config.supported_inference_dtypes)
-    print(
-        f"input dtype: {dtype}, weight_dtype: {weight_dtype}, supported_dtype: {unet_weight_dtype}, unet_dtype: {unet_dtype}, manual_cast_dtype: {manual_cast_dtype}"
-    )
-
     model_config.set_inference_dtype(unet_dtype, manual_cast_dtype)
     model_config.custom_operations = model_options.get("custom_operations", None)
-    if model_options.get("fp8_gemm", False):
+    linear_backend = model_options.get("linear_backend", None)
+    scaled_fp8_dtype = model_config.scaled_fp8
+    if linear_backend == "fp8_gemm" or (
+        scaled_fp8_dtype is not None and "float8" in str(scaled_fp8_dtype) and linear_backend == "default"
+    ):
         model_config.optimizations["fp8"] = True
 
+    print(
+        f"input dtype: {dtype}, weight_dtype: {weight_dtype}, supported_dtype: {unet_weight_dtype}, unet_dtype: {unet_dtype}, "
+        f"manual_cast_dtype: {manual_cast_dtype}, scaled_fp8: {scaled_fp8_dtype}, linear_backend: {linear_backend}"
+    )
     model_config.unet_config["disable_unet_model_creation"] = True
     model = model_config.get_model(new_sd, "")
     model = model.to(offload_device)
@@ -152,7 +156,9 @@ def load_diffusion_model_state_dict(
     manual_cast_dtype = model_config.manual_cast_dtype
     if model_config.custom_operations is None:
         fp8 = model_config.optimizations.get("fp8", False)
-        operations = comfy.ops.pick_operations(unet_config.get("dtype", None), manual_cast_dtype, fp8_optimizations=fp8, scaled_fp8=model_config.scaled_fp8)
+        operations = comfy.ops.pick_operations(
+            unet_config.get("dtype", None), manual_cast_dtype, fp8_optimizations=fp8, scaled_fp8=scaled_fp8_dtype
+        )
     else:
         operations = model_config.custom_operations
     print(f"custom_operations: {model_config.custom_operations}, operations:{operations}")
@@ -247,15 +253,16 @@ class KsanaModelLoaderNode:
         mm.soft_empty_cache()
 
         model_options = {}
-        
         if linear_backend == "fp8_gemm":
-            if weight_dtype == "float16" or weight_dtype == "bfloat16":
-                model_options["fp8_gemm"] = False
+            weight_dtype_has_fp8 = "float8" in weight_dtype.lower() or "fp8" in weight_dtype.lower()
+            if weight_dtype != "default" and (not weight_dtype_has_fp8):
                 logging.warning(
-                    f"fp8_gemm linear_backend is not compatible with weight_dtype {weight_dtype}"
+                    f" weight_dtype {weight_dtype} can not use fp8_gemm linear_backend, will use weight_dtype back to default"
                 )
-            else:
-                model_options["fp8_gemm"] = True
+                weight_dtype = "default"
+                linear_backend = "default"
+        model_options["weight_dtype"] = weight_dtype
+        model_options["linear_backend"] = linear_backend
 
         # TODO(jason): support attn_backend
         num_gpus = get_gpu_count()
