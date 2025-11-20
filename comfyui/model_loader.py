@@ -129,10 +129,12 @@ def load_diffusion_model_state_dict(
     model_config.custom_operations = model_options.get("custom_operations", None)
     linear_backend = model_options.get("linear_backend", None)
     scaled_fp8_dtype = model_config.scaled_fp8
-    if linear_backend == "fp8_gemm" or (
-        scaled_fp8_dtype is not None and "float8" in str(scaled_fp8_dtype) and linear_backend == "default"
-    ):
-        model_config.optimizations["fp8"] = True
+    if linear_backend == "default":
+        model_config.optimizations["fp8"] = (
+            True if scaled_fp8_dtype is not None and "float8" in str(scaled_fp8_dtype) else False
+        )
+    else:
+        model_config.optimizations["fp8"] = True if linear_backend == "fp8_gemm" else False
 
     print(
         f"input dtype: {dtype}, weight_dtype: {weight_dtype}, supported_dtype: {unet_weight_dtype}, unet_dtype: {unet_dtype}, "
@@ -223,7 +225,7 @@ class KsanaModelLoaderNode:
                     {"tooltip": "weight dtype of running model"},
                 ),
                 "linear_backend": (
-                    ["default", "fp8_gemm"],
+                    ["default", "fp8_gemm", "fp16_gemm"],
                     {"default": "default"},
                     {"tooltip": "linear_backend default use linear dtype from model"},
                 ),
