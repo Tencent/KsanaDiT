@@ -83,7 +83,7 @@ class KsanaModel(ABC):
         comfy_model_config: dict = None,
         comfy_model_state_dict=None,
         comfy_model_options: dict = None,
-        disable_weight_init_operations=None,
+        comfy_operations=None,
         dtype=None,
         load_device=None,
         offload_device=None,
@@ -99,7 +99,7 @@ class KsanaModel(ABC):
                 comfy_model_config=comfy_model_config,
                 comfy_model_state_dict=comfy_model_state_dict,
                 comfy_model_options=comfy_model_options,
-                disable_weight_init_operations=disable_weight_init_operations,
+                comfy_operations=comfy_operations,
                 dtype=dtype,
                 load_device=load_device,
                 offload_device=offload_device,
@@ -171,7 +171,7 @@ class KsanaModel(ABC):
         comfy_model_config: dict = None,
         comfy_model_state_dict=None,
         comfy_model_options: dict = None,
-        disable_weight_init_operations=None,
+        comfy_operations=None,
         dtype=None,
         load_device=None,
         offload_device=None,
@@ -184,7 +184,7 @@ class KsanaModel(ABC):
         if comfy_model_config is not None and comfy_model_state_dict is not None:
             log.info(
                 f"load from comfy_model_path:{comfy_model_path}, comfy_model_config:{comfy_model_config}, comfy_model_options:{comfy_model_options}, "
-                f"disable_weight_init_operations:{disable_weight_init_operations}, dtype:{dtype}, load_device:{load_device}, offload_device:{offload_device}"
+                f"comfy_operations:{comfy_operations}, dtype:{dtype}, load_device:{load_device}, offload_device:{offload_device}"
             )
             in_dim = comfy_model_config.get("in_dim", self.default_model_config.get("in_dim", 16))
             out_dim = comfy_model_config.get("out_dim", self.default_model_config.get("out_dim", 16))
@@ -205,14 +205,16 @@ class KsanaModel(ABC):
                 qk_norm=self.default_model_config.qk_norm,
                 cross_attn_norm=self.default_model_config.cross_attn_norm,
                 eps=self.default_model_config.eps,
-                disable_weight_init_operations=disable_weight_init_operations,
+                comfy_operations=comfy_operations,
                 device=offload_device,
                 dtype=dtype,
             )
             stop1 = time.time()
-            self.model.load_state_dict(comfy_model_state_dict, strict=False)
+            load_result = self.model.load_state_dict(comfy_model_state_dict, strict=False)
             stop2 = time.time()
+            log.warning(f"load_result: missing keys:{load_result.missing_keys}, unexpected keys:{load_result.unexpected_keys}")
             log.info(f"create model takes: {(stop1 - start):.2f}, load states takes {(stop2 - stop1):.2f} seconds")
+            
         else:
             log.info(f"load from checkpoint_dir:{checkpoint_dir}, subfolder:{subfolder}")
             self.model = WanModel.from_pretrained(checkpoint_dir, subfolder=subfolder)
