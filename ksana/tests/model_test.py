@@ -63,7 +63,7 @@ class TestKsana(unittest.TestCase):
             return_frames=True,
         )
         mean = video.cpu().abs().mean().item()
-        self.assertAlmostEqual(mean, 0.29763856530189514, places=eps_place)
+        self.assertAlmostEqual(mean, 0.26972827315330505, places=eps_place)
 
     def test_torch_compile(self):
         print("-----------------test_torch_compile-----------------")
@@ -96,7 +96,7 @@ class TestKsana(unittest.TestCase):
             return_frames=True,
         )
         mean = video.cpu().abs().mean().item()
-        self.assertAlmostEqual(mean, 0.2974734306335449, places=eps_place)
+        self.assertAlmostEqual(mean, 0.23030252754688263, places=eps_place)
 
 
 if __name__ == "__main__":

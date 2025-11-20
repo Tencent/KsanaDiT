@@ -33,7 +33,7 @@ def get_sample_scheduler(num_train_timesteps, sampling_steps, sample_solver, dev
         sampling_sigmas = get_sampling_sigmas(sampling_steps, shift)
         timesteps, _ = retrieve_timesteps(sample_scheduler, device=device, sigmas=sampling_sigmas)
     elif sample_solver == "euler":
-        sample_scheduler = EulerScheduler(num_train_timesteps=sampling_steps, shift=shift, device=device)
+        sample_scheduler = EulerScheduler(num_train_timesteps=num_train_timesteps, shift=shift, device=device)
         sample_scheduler.set_timesteps(sampling_steps, device=device)
         timesteps = sample_scheduler.timesteps[:-1].clone()
     else:
