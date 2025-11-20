@@ -386,7 +386,7 @@ class WanModel(ModelMixin, ConfigMixin):
         qk_norm=True,
         cross_attn_norm=True,
         eps=1e-6,
-        disable_weight_init_operations=None,
+        comfy_operations=None,
         device=None,
         dtype=None,
     ):
@@ -447,24 +447,24 @@ class WanModel(ModelMixin, ConfigMixin):
         self.eps = eps
 
         # embeddings
-        if disable_weight_init_operations:
-            self.patch_embedding = disable_weight_init_operations.Conv3d(
+        if comfy_operations:
+            self.patch_embedding = comfy_operations.Conv3d(
                 in_dim, dim, kernel_size=patch_size, stride=patch_size, device=device, dtype=torch.float32
             )
             self.text_embedding = nn.Sequential(
-                disable_weight_init_operations.Linear(text_dim, dim, device=device, dtype=dtype),
+                comfy_operations.Linear(text_dim, dim, device=device, dtype=dtype),
                 nn.GELU(approximate="tanh"),
-                disable_weight_init_operations.Linear(dim, dim, device=device, dtype=dtype),
+                comfy_operations.Linear(dim, dim, device=device, dtype=dtype),
             )
             self.time_embedding = nn.Sequential(
-                disable_weight_init_operations.Linear(freq_dim, dim, device=device, dtype=dtype),
+                comfy_operations.Linear(freq_dim, dim, device=device, dtype=dtype),
                 nn.SiLU(),
-                disable_weight_init_operations.Linear(dim, dim, device=device, dtype=dtype),
+                comfy_operations.Linear(dim, dim, device=device, dtype=dtype),
             )
             self.time_projection = nn.Sequential(
-                nn.SiLU(), disable_weight_init_operations.Linear(dim, dim * 6, device=device, dtype=dtype)
+                nn.SiLU(), comfy_operations.Linear(dim, dim * 6, device=device, dtype=dtype)
             )
-            comfy_operation_settings = {"operations": disable_weight_init_operations, "device": device, "dtype": dtype}
+            comfy_operation_settings = {"operations": comfy_operations, "device": device, "dtype": dtype}
         else:
             self.patch_embedding = nn.Conv3d(in_dim, dim, kernel_size=patch_size, stride=patch_size)
             self.text_embedding = nn.Sequential(
@@ -508,7 +508,7 @@ class WanModel(ModelMixin, ConfigMixin):
         )
 
         # initialize weights
-        if disable_weight_init_operations is None:
+        if comfy_operations is None:
             self.init_weights()
 
     def set_keep_in_fp32_modules(self):

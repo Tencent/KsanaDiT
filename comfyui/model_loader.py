@@ -131,7 +131,7 @@ def load_diffusion_model_state_dict(
 
     model_config.set_inference_dtype(unet_dtype, manual_cast_dtype)
     model_config.custom_operations = model_options.get("custom_operations", None)
-    if model_options.get("fp8_optimizations", False):
+    if model_options.get("fp8_gemm", False):
         model_config.optimizations["fp8"] = True
 
     model_config.unet_config["disable_unet_model_creation"] = True
@@ -151,7 +151,8 @@ def load_diffusion_model_state_dict(
     del unet_config["disable_unet_model_creation"]
     manual_cast_dtype = model_config.manual_cast_dtype
     if model_config.custom_operations is None:
-        operations = comfy.ops.pick_operations(unet_config.get("dtype", None), manual_cast_dtype)
+        fp8 = model_config.optimizations.get("fp8", False)
+        operations = comfy.ops.pick_operations(unet_config.get("dtype", None), manual_cast_dtype, fp8_optimizations=fp8, scaled_fp8=model_config.scaled_fp8)
     else:
         operations = model_config.custom_operations
     print(f"custom_operations: {model_config.custom_operations}, operations:{operations}")
@@ -165,7 +166,7 @@ def load_diffusion_model_state_dict(
         comfy_model_config=unet_config,
         comfy_model_state_dict=new_sd,
         comfy_model_options=model_options,
-        disable_weight_init_operations=operations,
+        comfy_operations=operations,
         dtype=unet_dtype,
         load_device=load_device,
         offload_device=offload_device,
@@ -246,7 +247,16 @@ class KsanaModelLoaderNode:
         mm.soft_empty_cache()
 
         model_options = {}
-        # TODO(rock): support linear_backend
+        
+        if linear_backend == "fp8_gemm":
+            if weight_dtype == "float16" or weight_dtype == "bfloat16":
+                model_options["fp8_gemm"] = False
+                logging.warning(
+                    f"fp8_gemm linear_backend is not compatible with weight_dtype {weight_dtype}"
+                )
+            else:
+                model_options["fp8_gemm"] = True
+
         # TODO(jason): support attn_backend
         num_gpus = get_gpu_count()
         if num_gpus != 1:
