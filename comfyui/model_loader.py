@@ -207,21 +207,10 @@ class KsanaModelLoaderNode:
         return {
             "required": {
                 "model_name": (folder_paths.get_filename_list("diffusion_models"),),
-                "weight_dtype": (
-                    [
-                        "default",
-                        "fp32",
-                        "bf16",
-                        "fp16",
-                        "fp16_fast",
-                        "fp8_e4m3fn",
-                        "fp8_e4m3fn_fast",
-                        "fp8_e5m2",
-                    ],
-                    {"default": "default"},
-                ),
             },
             "optional": {
+                "linear_backend": (["default", "fp8_gemm"], {"default": "default"}),
+                "attn_backend": (["default", "flash_attention"], {"default": "default"}),
                 "compile_args": ("KSANACOMPILEARGS", {"default": None}),
             },
         }
@@ -235,22 +224,14 @@ class KsanaModelLoaderNode:
     def VALIDATE_INPUTS(s, model_name):
         return True
 
-    def load_model(self, model_name, weight_dtype, compile_args=None):
+    def load_model(self, model_name, linear_backend="default", attn_backend="default", compile_args=None):
         mm.unload_all_models()
         mm.cleanup_models()
         mm.soft_empty_cache()
 
         model_options = {}
-        if weight_dtype == "fp8_e4m3fn":
-            model_options["dtype"] = torch.float8_e4m3fn
-        elif weight_dtype == "fp8_e4m3fn_fast":
-            model_options["dtype"] = torch.float8_e4m3fn
-            model_options["fp8_optimizations"] = True
-        elif weight_dtype == "fp8_e5m2":
-            model_options["dtype"] = torch.float8_e5m2
-        # elif weight_dtype == "bf16":
-        #     model_options["dtype"] = torch.bfloat16
-
+        # TODO(rock): support linear_backend
+        # TODO(jason): support attn_backend
         num_gpus = get_gpu_count()
         if num_gpus != 1:
             raise RuntimeError(f"only one GPU supported yet, but got {num_gpus}")
