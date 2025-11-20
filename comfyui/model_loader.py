@@ -238,7 +238,9 @@ class KsanaModelLoaderNode:
     def VALIDATE_INPUTS(s, model_name):
         return True
 
-    def load_model(self, model_name, linear_backend="default", attn_backend="default", compile_args=None):
+    def load_model(
+        self, model_name, weight_dtype="default", linear_backend="default", attn_backend="default", compile_args=None
+    ):
         mm.unload_all_models()
         mm.cleanup_models()
         mm.soft_empty_cache()
