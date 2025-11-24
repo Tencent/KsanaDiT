@@ -18,6 +18,7 @@ from ..cache import create_cache, DCacheConfig
 from ..utils import log, print_recursive, time_range, save_video, merge_video_audio, get_world_size
 from ..utils.const import DEFAULT_OUTPUTS_VIDEO_DIR, DEFAULT_SEED
 from ..config import KsanaSampleConfig, KsanaRuntimeConfig
+from ..utils.profile import MemoryProfiler
 
 # from functools import partial
 # from .distributed.fsdp import shard_model
@@ -412,7 +413,10 @@ class KsanaExecutor(ABC):
             arg_null = {"phase": "uncond", "context": negative, "seq_len": seq_len}
             log.debug(f"timesteps: {timesteps}, boundary:{boundary}, seq_len:{seq_len}")
             # timesteps: tensor([999, 997, ...])
+            MemoryProfiler.record_memory("before_inference_loop")
+
             for iter_id, t in enumerate(tqdm(timesteps)):
+                MemoryProfiler.record_memory(f"before_inference_loop_iter_{iter_id}")
                 # [bs, 16, fi, hi, wi]
                 latent_model_input = latents
                 # t : tensor(999)
@@ -428,6 +432,7 @@ class KsanaExecutor(ABC):
                     boundary=boundary,
                 )
                 run_model = run_model.to(self.run_device)
+                MemoryProfiler.record_memory(f"inference_step_{iter_id}_after_model_switch")
                 run_cache = self.get_run_cache(
                     high_cache=high_cache,
                     low_cache=low_cache,
@@ -454,6 +459,7 @@ class KsanaExecutor(ABC):
                     generator=seed_g,
                 )
                 latents = temp_x0 if sample_config.solver == "euler" else temp_x0[0]
+                MemoryProfiler.record_memory(f"inference_step_{iter_id}_after_sample_scheduler")
 
             if high_cache is not None:
                 high_cache.show_cache_rate()

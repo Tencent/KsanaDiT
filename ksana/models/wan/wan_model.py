@@ -17,6 +17,19 @@ from ksana.utils import time_range
 __all__ = ["WanModel"]
 
 
+def repeat_e(e, x):
+    target = x.size(1)
+    if e.size(1) == target:
+        return e
+    repeats = max(1, target // e.size(1))
+    expanded = torch.repeat_interleave(e, repeats, dim=1)
+    if expanded.size(1) < target:
+        expanded = torch.repeat_interleave(e, repeats + 1, dim=1)
+    if expanded.size(1) > target:
+        expanded = expanded[:, :target]
+    return expanded
+
+
 def sinusoidal_embedding_1d(dim, position):
     # preprocess
     assert dim % 2 == 0
@@ -265,13 +278,6 @@ class WanAttentionBlock(nn.Module):
             # modulation
             self.modulation = nn.Parameter(torch.randn(1, 6, dim) / dim**0.5)
 
-    def cross_attn_ffn(self, x, context, context_lens, e):
-        x = x + self.cross_attn(self.norm3(x), context, context_lens)
-        y = self.ffn(self.norm2(x) * (1 + e[4].squeeze(2)) + e[3].squeeze(2))
-        # with torch.amp.autocast("cuda", dtype=torch.float32):
-        x = x + y * e[5].squeeze(2)
-        return x
-
     # @nvtx_range
     def forward(
         self,
@@ -297,22 +303,27 @@ class WanAttentionBlock(nn.Module):
             freqs(Tensor): Rope freqs, shape [1024, C / num_heads / 2]                #: [1024, 64]
         """
         # self.modulation : [1, 6, 5120]
-        e = (self.modulation.unsqueeze(0) + e).chunk(6, dim=2)
-        # [bs, seqlen, 6, 5120] => [bs, seqlen, 1, 5120] * 6
+        if e.ndim < 4:
+            e = (self.modulation.unsqueeze(0) + e).chunk(6, dim=1)
+        else:
+            e = (self.modulation.unsqueeze(0) + e).unbind(2)
+        # [bs, 6, 5120] => [bs, 1, 5120] * 6
 
         # self-attention
         y = self.self_attn(
-            self.norm1(x) * (1 + e[1].squeeze(2)) + e[0].squeeze(2),
+            torch.addcmul(repeat_e(e[0], x), self.norm1(x), 1 + repeat_e(e[1], x)),
             seq_lens,
             grid_sizes,
             freqs,
         )
-        x = x + y * e[2].squeeze(2)
+        x = torch.addcmul(x, y, repeat_e(e[2], x))
         del y
 
         # cross-attention & ffn function
         # @nvtx_range
-        x = self.cross_attn_ffn(x, context, context_lens, e)
+        x = x + self.cross_attn(self.norm3(x), context, context_lens)
+        y = self.ffn(torch.addcmul(repeat_e(e[3], x), self.norm2(x), 1 + repeat_e(e[4], x)))
+        x = torch.addcmul(x, y, repeat_e(e[5], x))
         return x
 
 
@@ -349,8 +360,11 @@ class Head(nn.Module):
         """
         # use comfy.model_management.cast_to
         # with torch.amp.autocast("cuda", dtype=torch.float32):
-        e = (self.modulation.unsqueeze(0) + e.unsqueeze(2)).chunk(2, dim=2)
-        x = self.head(self.norm(x) * (1 + e[1].squeeze(2)) + e[0].squeeze(2))
+        if e.ndim < 3:
+            e = (self.modulation.unsqueeze(0) + e.unsqueeze(1)).chunk(2, dim=1)
+        else:
+            e = (self.modulation.unsqueeze(0) + e.unsqueeze(2)).unbind(2)
+        x = self.head(torch.addcmul(repeat_e(e[0], x), self.norm(x), 1 + repeat_e(e[1], x)))
         return x
 
 
@@ -584,23 +598,23 @@ class WanModel(ModelMixin, ConfigMixin):
         # time embeddings
         nvtx.range_push("time_embedding")
         timestep = t.item()  # TODO: support bs > 1
-        # TODO: e support do not expand
-        if t.dim() == 1:
-            t = t.expand(t.size(0), seq_len)  # => [bs, seqlen]
 
-        bs = t.size(0)  # 1
-        # TODO: e do not flatten and support bs > 1
-        t = t.flatten()  # [7200]
+        bs = t.size(0)  # batch size
+        if t.dim() == 1:
+            t = t.unsqueeze(1)
+        one = t.size(1)  # = 1
+        # t: [bs]
+        t = t.flatten()
         # freq_dim : 256
-        # t: [seqlen] => [seqlen, freq_dim:256]
+        # t: [bs] => [bs, freq_dim:256]
         e = sinusoidal_embedding_1d(self.freq_dim, t)
-        # [seqlen, freq_dim] => [bs, seqlen, freq_dim]
-        e = e.unflatten(0, (bs, seq_len))
-        # [bs, seqlen, freq_dim=>self.dim:5120]
+        # [bs, freq_dim] => [bs, one, freq_dim]
+        e = e.unflatten(0, (bs, one))
+        # [bs, one, freq_dim=>self.dim:5120]
         e = self.time_embedding(e.to(x.dtype))
-        # [bs, seqlen, 5120] => [bs, seqlen, 6*5120]
+        # [bs, one, 5120] => [bs, one, 6*5120]
         e0 = self.time_projection(e)
-        # [bs, seqlen, 6*5120] => [bs, seqlen, 6, 5120]
+        # [bs, one, 6*5120] => [bs, one, 6, 5120]
         e0 = e0.unflatten(2, (6, self.dim))
         nvtx.range_pop()
 

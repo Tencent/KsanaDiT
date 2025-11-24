@@ -4,11 +4,11 @@ import folder_paths
 from comfy import model_detection
 import logging
 import torch
-import copy
 import comfy.model_management as mm
 
 from ksana.utils import get_gpu_count, time_range
 from ksana import create_ksana_model
+from ksana.utils.profile import MemoryProfiler
 
 from comfy.model_patcher import ModelPatcher
 
@@ -16,6 +16,7 @@ from comfy.model_patcher import ModelPatcher
 class CustomModelPatcher(ModelPatcher):
     def __init__(self, model, load_device, offload_device, size=0, weight_inplace_update=False):
         super().__init__(model, load_device, offload_device, size, weight_inplace_update)
+
 
 def load_diffusion_model_state_dict(
     model_path, model_options={}, load_ori_weights=False, torch_compile_config=None
@@ -220,6 +221,7 @@ class KsanaModelLoaderNode:
 
         model_path = folder_paths.get_full_path("diffusion_models", model_name)
         print(f"Start to load diffusion model {model_name}: {model_path} with {num_gpus} gpus")
-
+        MemoryProfiler.record_memory(f"before_load_{model_name}")
         model = load_diffusion_model(model_path, model_options=model_options, torch_compile_config=compile_args)
+        MemoryProfiler.record_memory(f"after_load_{model_name}")
         return (model,)
