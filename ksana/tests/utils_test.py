@@ -4,6 +4,35 @@ import torch
 
 from ksana.utils.debug import print_recursive
 from ksana.utils.logger import log
+from ksana.utils import singleton
+
+from dataclasses import dataclass, field
+
+
+@singleton
+@dataclass
+class TestSingletonClass:
+    num: int = field(default=0)
+
+    @staticmethod
+    def static_func(num: int = 1):
+        return num
+
+    @classmethod
+    def class_func(cls, num: int = 2):
+        return num
+
+
+class TestSingleton(unittest.TestCase):
+    def test_singleton(self):
+        db1 = TestSingletonClass(num=-1)
+        db2 = TestSingletonClass(num=-2)
+        self.assertEqual(db1, db2)
+        self.assertEqual(db1.num, -1)
+        self.assertEqual(db1.static_func(), 1)
+        self.assertEqual(db1.static_func(3), 3)
+        self.assertEqual(db1.class_func(), 2)
+        self.assertEqual(db1.class_func(4), 4)
 
 
 class TestPrint(unittest.TestCase):

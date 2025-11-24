@@ -1,10 +1,20 @@
 import os
-import torch
-from abc import ABC
-from ..utils import log, time_range, load_and_merge_lora_weight_from_safetensors, model_safe_downcast  # , ksanaProfiler
-from .wan import WanModel, T5EncoderModel, Wan2_1_VAE, Wan2_2_VAE
-from .wan.configs import WAN2_2_CONFIGS
 import time
+import types
+from abc import ABC
+
+import torch
+import torch.distributed as dist
+
+from ..distributed import sp_attn_forward, sp_dit_forward
+from ..utils import (  # , ksanaProfiler
+    load_and_merge_lora_weight_from_safetensors,
+    log,
+    model_safe_downcast,
+    time_range,
+)
+from .wan import WanModel
+from .wan.configs import WAN2_2_CONFIGS
 
 
 def get_default_model_config(model_name, model_type, model_size):
@@ -17,64 +27,28 @@ def get_default_model_config(model_name, model_type, model_size):
 
 def create_ksana_model(model_path, comfy_model_config=None):
     full_model_name = os.path.basename(model_path)
-    model_name, model_type, model_size = KsanaModel.get_model_type(
+    model_name, model_type, model_size = KsanaDiffusionModel.get_model_type(
         full_model_name, comfy_model_config
     )  # wan2.2, t2v, A14B
     assert model_name in ["wan2.2"], "only support wan2.2 yet"
     model_config = get_default_model_config(model_name, model_type, model_size)
-    return KsanaModel(model_config)
+    return KsanaDiffusionModel(model_config)
 
 
-class KsanaT5Encoder(ABC):
-    def __init__(self, model_config, checkpoint_dir, shard_fn):
-        _default_config = model_config
-        self.model = T5EncoderModel(
-            text_len=_default_config.text_len,
-            dtype=_default_config.t5_dtype,
-            device=torch.device("cpu"),
-            checkpoint_path=os.path.join(checkpoint_dir, _default_config.t5_checkpoint),
-            tokenizer_path=os.path.join(checkpoint_dir, _default_config.t5_tokenizer),
-            shard_fn=shard_fn,
-        )
-
-    def forward(self, text):
-        # TODO: or other device
-        return self.model(text, device=torch.device("cpu"))
-
-    def to(self, device):
-        self.model.model.to(device)
-
-
-class KsanaVAE(ABC):
-    def __init__(self, vae_type, model_config, checkpoint_dir, device, dtype=torch.float):
-        _default_config = model_config
-        if vae_type == "wan2_1":
-            self.model = Wan2_1_VAE(
-                vae_pth=os.path.join(checkpoint_dir, _default_config.vae_checkpoint),
-                dtype=dtype,
-                device=device,
-            )
-        elif vae_type == "vae_2.2":
-            self.model = Wan2_2_VAE(
-                vae_pth=os.path.join(checkpoint_dir, _default_config.vae_checkpoint),
-                dtype=dtype,
-                device=device,
-            )
-        else:
-            raise ValueError(f"model_name {self.model_name} not supported")
-
-        self.z_dim = self.model.model.z_dim
-        self.vae_stride = _default_config.vae_stride
-        self.patch_size = _default_config.patch_size
-
-    def decode(self, latents):
-        return self.model.decode(latents)
-
-
-class KsanaModel(ABC):
-    def __init__(self, model_config):
+class KsanaDiffusionModel(ABC):
+    def __init__(self, model_config, dist_config):
         self._default_model_config = model_config
+        self.dist_config = dist_config
         self._run_dtype = model_config.get("param_dtype", torch.float16)
+
+        if self.dist_config.ulysses_size > 1:
+            assert (
+                self._default_model_config.num_heads % self.dist_config.ulysses_size == 0
+            ), f"`{self._default_model_config.num_heads=}` cannot be divided evenly by `{self.dist_config.ulysses_size=}`."
+        if dist_config.use_sp:
+            self.sp_size = dist_config.world_size
+        else:
+            self.sp_size = 1
 
     @time_range
     def load(
@@ -91,6 +65,7 @@ class KsanaModel(ABC):
         subfolder=None,
         lora_dir=None,
         torch_compile_config=None,
+        shard_fn=None,
     ):
         assert self.model_name in ["wan2.2"], "only support wan2.2 yet"
         if "wan" in self.model_name:
@@ -179,8 +154,9 @@ class KsanaModel(ABC):
         subfolder=None,
         lora_dir=None,
         torch_compile_config=None,
+        shard_fn=None,
     ):
-        # with ksanaProfiler("KsanaModel.load_wan_model"):
+        # with ksanaProfiler("KsanaDiffusionModel.load_wan_model"):
         if comfy_model_config is not None and comfy_model_state_dict is not None:
             log.info(
                 f"load from comfy_model_path:{comfy_model_path}, comfy_model_config:{comfy_model_config}, comfy_model_options:{comfy_model_options}, "
@@ -212,9 +188,11 @@ class KsanaModel(ABC):
             stop1 = time.time()
             load_result = self.model.load_state_dict(comfy_model_state_dict, strict=False)
             stop2 = time.time()
-            log.warning(f"load_result: missing keys:{load_result.missing_keys}, unexpected keys:{load_result.unexpected_keys}")
+            log.warning(
+                f"load_result: missing keys:{load_result.missing_keys}, unexpected keys:{load_result.unexpected_keys}"
+            )
             log.info(f"create model takes: {(stop1 - start):.2f}, load states takes {(stop2 - stop1):.2f} seconds")
-            
+
         else:
             log.info(f"load from checkpoint_dir:{checkpoint_dir}, subfolder:{subfolder}")
             self.model = WanModel.from_pretrained(checkpoint_dir, subfolder=subfolder)
@@ -222,12 +200,11 @@ class KsanaModel(ABC):
         log.debug(f"model: {self.model}")
         self.apply_torch_compile(torch_compile_config)
 
-        # self.high_noise_model = self._configure_model(
-        #     model=self.high_noise_model,
-        #     use_sp=use_sp,
-        #     dit_fsdp=dit_fsdp,
-        #     shard_fn=shard_fn,
-        #     convert_model_dtype=convert_model_dtype)
+        self.model.eval().requires_grad_(False)
+        self.model = self.prepare_distributed_model(
+            model=self.model, use_sp=self.dist_config.use_sp, dit_fsdp=self.dist_config.dit_fsdp, shard_fn=shard_fn
+        )
+
         if lora_dir:
             log.info(f"load lora from {lora_dir}")
             self.model.set_keep_in_fp32_modules()
@@ -239,49 +216,24 @@ class KsanaModel(ABC):
                 keep_in_fp32_parameters=self.model._keep_in_fp32_params,
             )
 
-        # def _configure_model(self, model, use_sp, dit_fsdp, shard_fn,
-        #                      convert_model_dtype):
-        #     """
-        #     Configures a model object. This includes setting evaluation modes,
-        #     applying distributed parallel strategy, and handling device placement.
+    def prepare_distributed_model(self, model, use_sp, dit_fsdp, shard_fn, convert_model_dtype=False):
+        if use_sp:
+            for block in model.blocks:
+                block.self_attn.forward = types.MethodType(sp_attn_forward, block.self_attn)
+            model.forward = types.MethodType(sp_dit_forward, model)
 
-        #     Args:
-        #         model (torch.nn.Module):
-        #             The model instance to configure.
-        #         use_sp (`bool`):
-        #             Enable distribution strategy of sequence parallel.
-        #         dit_fsdp (`bool`):
-        #             Enable FSDP sharding for DiT model.
-        #         shard_fn (callable):
-        #             The function to apply FSDP sharding.
-        #         convert_model_dtype (`bool`):
-        #             Convert DiT model parameters dtype to 'config.param_dtype'.
-        #             Only works without FSDP.
+        if dist.is_initialized():
+            dist.barrier()
 
-        #     Returns:
-        #         torch.nn.Module:
-        #             The configured model.
-        #     """
-        #     model.eval().requires_grad_(False)
+        if dit_fsdp:
+            model = shard_fn(model)
+        # else:
+        #     if convert_model_dtype:
+        #         model.to(self.param_dtype)
+        #     if not self.init_on_cpu:
+        #         model.to(self.device)
 
-        #     if use_sp:
-        #         for block in model.blocks:
-        #             block.self_attn.forward = types.MethodType(
-        #                 sp_attn_forward, block.self_attn)
-        #         model.forward = types.MethodType(sp_dit_forward, model)
-
-        #     if dist.is_initialized():
-        #         dist.barrier()
-
-        #     if dit_fsdp:
-        #         model = shard_fn(model)
-        #     else:
-        #         if convert_model_dtype:
-        #             model.to(self.param_dtype)
-        #         if not self.init_on_cpu:
-        #             model.to(self.device)
-
-        #     return model
+        return model
 
     def to(self, *args, **kwargs):
         self.model.to(*args, **kwargs)

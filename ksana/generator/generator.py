@@ -1,10 +1,12 @@
 from abc import ABC
-import os
-import torch
 import torch.distributed as dist
 
-from ..executor import KsanaExecutor, create_executor_config
-from ..utils import log
+from ..executor import KsanaExecutor
+from ..utils import log, singleton
+
+from ..utils.distribute import get_ksana_distributed_config_from_torchrun_env
+
+from ..config import KsanaDistributedConfig
 
 
 def get_generator(*args, **kwargs):
@@ -14,9 +16,7 @@ def get_generator(*args, **kwargs):
     return KsanaGenerator(*args, **kwargs)
 
 
-# TODO: singlen
-# single generator
-# @singleton
+@singleton
 class KsanaGenerator(ABC):
     """
     Base class for all Ksana generators.
@@ -24,66 +24,54 @@ class KsanaGenerator(ABC):
 
     executors = None
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, num_gpus: int = 1, **kwargs):
         """
-        Initialize the pipeline.
+        Initialize the KsanaGenerator.
         """
 
-        rank = int(os.getenv("RANK", 0))
-        world_size = int(os.getenv("WORLD_SIZE", 1))
-        local_rank = int(os.getenv("LOCAL_RANK", 0))
-        self.device = torch.device(f"cuda:{local_rank}")
-        # _init_logging(rank)
-        # log.info(f"Initializing KsanaGenerator with kwargs: {kwargs}")
+        log.info(f"Initializing KsanaGenerator with num_gpus: {num_gpus}, kwargs: {kwargs}")
+        self.init_executors(num_gpus, **kwargs)
+        self.num_gpus = num_gpus
 
-        if world_size > 1:
-            torch.cuda.set_device(local_rank)
-            dist.init_process_group(backend="nccl", init_method="env://", rank=rank, world_size=world_size)
+    def init_executors(self, num_gpus: int = 1, **kwargs):
+        if num_gpus > 1:
+            dist_config = get_ksana_distributed_config_from_torchrun_env(**kwargs)
+            if dist_config.world_size != num_gpus:
+                # TODO: run with ray
+                log.info(f"dist_config.world_size({dist_config.world_size}) != num_gpus({num_gpus})")
+                raise ValueError(f"dist_config.world_size({dist_config.world_size}) != num_gpus({num_gpus})")
+            else:
+                # means using torchrun so only create one executor
+                if kwargs.get("use_sp", False):
+                    dist_config.use_sp = True
+                self.executors = KsanaExecutor(dist_config=dist_config, **kwargs)
         else:
-            log.info("Running in non-distributed environment.")
-            # TODO: support t5 fsdp and dit fsdp
-            # assert not (
-            #     args.t5_fsdp or args.dit_fsdp
-            # ), f"t5_fsdp and dit_fsdp are not supported in non-distributed environments."
-            # assert not (
-            #     args.ulysses_size > 1
-            # ), f"sequence parallel are not supported in non-distributed environments."
-
-        # if args.ulysses_size > 1:
-        #     assert args.ulysses_size == world_size, f"The number of ulysses_size should be equal to the world size."
-        #     init_distributed_group()
-
-        # if self.executor is None:
-        #     raise ValueError("Executor must be provided.")
-        # TODO: multi gpus support
-        self.executors = KsanaExecutor(device=self.device, **kwargs)
-        self.model = self.executors.model
-
-        # self.executors._run_workers('initialize_wani2v', **kwargs)
+            self.executors = KsanaExecutor(dist_config=KsanaDistributedConfig())
 
     def set_executor(self, executor):
         self.executors = executor
 
     @classmethod
-    def from_pretrained(cls, checkpoint_dir, *args, **kwargs):
+    def from_pretrained(cls, checkpoint_dir, lora_dir=None, num_gpus=1, torch_compile_config=None, **kwargs):
         """
         Load a pre-trained model.
         """
-        generator = get_generator()
-        lora_dir = kwargs.get("lora_dir", None)
-        executor_config = create_executor_config(checkpoint_dir, lora_dir=lora_dir)
-        executor = KsanaExecutor(executor_config)
-        executor.load_model(
-            checkpoint_dir, lora_dir=lora_dir, torch_compile_config=kwargs.get("torch_compile_config", None)
+        generator = get_generator(num_gpus=num_gpus, **kwargs)
+        generator.load_model_from_pretrained(
+            checkpoint_dir, lora_dir=lora_dir, torch_compile_config=torch_compile_config
         )
-        generator.set_executor(executor)
         return generator
 
-    def to_cpu(self):
-        self.executors.to_cpu()
-
-    def to_gpu(self):
-        self.executors.to_gpu()
+    def load_model_from_pretrained(self, checkpoint_dir, lora_dir=None, torch_compile_config=None, **kwargs):
+        if hasattr(self.executors, "__iter__"):
+            for executor in self.executors:
+                executor.load_model_from_pretrained(
+                    checkpoint_dir, lora_dir=lora_dir, torch_compile_config=torch_compile_config, **kwargs
+                )
+        else:
+            self.executors.load_model_from_pretrained(
+                checkpoint_dir, lora_dir=lora_dir, torch_compile_config=torch_compile_config, **kwargs
+            )
 
     # def clean(self):
     #     for worker in self.workers:
@@ -91,14 +79,32 @@ class KsanaGenerator(ABC):
     #     ray.util.remove_placement_group(self.placement_group)
     #     self.workers = []
 
-    def generate_video(self, *args, **kwargs):
-        return self.executors.generate_video(*args, **kwargs)
+    def broadcast_input_args(self, prompt, seed, prompt_negative=None):
+        if dist.is_initialized():
+            dist.broadcast_object_list([prompt, seed], src=0)
+            if prompt_negative is not None:
+                dist.broadcast_object_list(prompt_negative, src=0)
+        # TODO: ray way to broadcast prompt
+
+    def generate_video(self, prompt: str, **kwargs):
+        if self.num_gpus > 1:
+            self.broadcast_input_args(
+                prompt, kwargs.get("seed", None), prompt_negative=kwargs.get("prompt_negative", None)
+            )
+
+        if hasattr(self.executors, "__iter__"):
+            # TODO: return videos
+            for executor in self.executors:
+                res = executor.generate_video(prompt=prompt, **kwargs)
+        else:
+            res = self.executors.generate_video(prompt=prompt, **kwargs)
+
+        return res
 
     def generate_video_with_tensors(self, *args, **kwargs):
-        return self.executors.generate_video_with_tensors(*args, **kwargs)
-
-    # def load_state_dict_from_file(self, file_path):
-    #     """
-    #     Load state dict from file.
-    #     """
-    #     return self.executor("load_state_dict_from_file", file_path)
+        if hasattr(self.executors, "__iter__"):
+            for executor in self.executors:
+                executor.generate_video_with_tensors(*args, **kwargs)
+        else:
+            self.executors.generate_video_with_tensors(*args, **kwargs)
+        return self.executors

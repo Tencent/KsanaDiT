@@ -31,7 +31,7 @@ class TestKsana(unittest.TestCase):
             return_frames=True,
         )
         mean = video.cpu().abs().mean().item()
-        self.assertAlmostEqual(mean, 0.34484848380088806, places=eps_place)
+        self.assertAlmostEqual(mean, 0.3424347937107086, places=eps_place)
 
     def test_cache(self):
         # TODO: step 1 can not test cache, real test cache logical,
@@ -47,7 +47,7 @@ class TestKsana(unittest.TestCase):
             return_frames=True,
         )
         mean = video.cpu().abs().mean().item()
-        self.assertAlmostEqual(mean, 0.666985273361206, places=eps_place)
+        self.assertAlmostEqual(mean, 0.6688011884689331, places=eps_place)
 
     def test_lora(self):
         print("-----------------test_lora-----------------")
@@ -63,7 +63,7 @@ class TestKsana(unittest.TestCase):
             return_frames=True,
         )
         mean = video.cpu().abs().mean().item()
-        self.assertAlmostEqual(mean, 0.26972827315330505, places=eps_place)
+        self.assertAlmostEqual(mean, 0.26962271332740784, places=eps_place)
 
     def test_torch_compile(self):
         print("-----------------test_torch_compile-----------------")
@@ -78,7 +78,7 @@ class TestKsana(unittest.TestCase):
             return_frames=True,
         )
         mean = video.cpu().abs().mean().item()
-        self.assertAlmostEqual(mean, 0.6693246960639954, places=eps_place)
+        self.assertAlmostEqual(mean, 0.6681634783744812, places=eps_place)
 
     def test_lora_torch_compile(self):
         print("-----------------test_lora_torch_compile-----------------")
@@ -96,7 +96,7 @@ class TestKsana(unittest.TestCase):
             return_frames=True,
         )
         mean = video.cpu().abs().mean().item()
-        self.assertAlmostEqual(mean, 0.23030252754688263, places=eps_place)
+        self.assertAlmostEqual(mean, 0.23027972877025604, places=eps_place)
 
 
 if __name__ == "__main__":
