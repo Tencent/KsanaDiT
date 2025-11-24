@@ -633,3 +633,8 @@ class Wan2_1_VAE:
     def decode(self, zs):
         with amp.autocast(dtype=self.dtype):
             return [self.model.decode(u.unsqueeze(0), self.scale).float().clamp_(-1, 1).squeeze(0) for u in zs]
+
+    def to(self, device):
+        self.model.to(device)
+        self.scale = [s.to(device) for s in self.scale]
+        self.device = device

@@ -7,6 +7,7 @@ import pstats
 import torch
 import os
 import csv
+from .env import KSANA_MEMORY_PROFILER
 
 global g_cprofiler
 g_cprofiler = cProfile.Profile()
@@ -177,12 +178,7 @@ class nvtx_range:
 
 
 class MemoryProfiler:
-    """
-    内存分析器类
-    """
-
-    # 只有环境变量中设置了 KSANA_MEMORY_PROFILER 才启用内存分析
-    KSANA_MEMORY_PROFILER = os.environ.get("KSANA_MEMORY_PROFILER", "").lower() in ("1", "true", "yes")
+    enabled = KSANA_MEMORY_PROFILER
 
     @staticmethod
     def record_memory(tag: str, project_name: str = "KsanaDit"):
@@ -195,7 +191,7 @@ class MemoryProfiler:
             project_name: 项目名称，用于CSV文件中的第一列和文件名
         """
         # 检查是否启用了内存分析
-        if not MemoryProfiler.KSANA_MEMORY_PROFILER:
+        if not MemoryProfiler.enabled:
             return
 
         if not torch.cuda.is_available():

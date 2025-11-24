@@ -1,7 +1,7 @@
 from dataclasses import dataclass, field
 
 
-@dataclass
+@dataclass(frozen=True)
 class KsanaSampleConfig:
     steps: int | None = field(default=None)
     cfg_scale: float | tuple[float, float] | None = field(default=None)

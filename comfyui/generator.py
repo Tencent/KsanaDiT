@@ -5,6 +5,8 @@ from ksana.config import KsanaSampleConfig, KsanaRuntimeConfig
 from ksana.utils.profile import MemoryProfiler
 from ksana.utils import log
 
+ONE_GB = 1024**3
+
 
 class KsanaGeneratorNode:
     @classmethod
@@ -146,8 +148,7 @@ class KsanaGeneratorNode:
         else:
             memory_usage_factor = 1.0
             log.warning(
-                f"[_estimate_ksana_model_memory] comfyui_memory_usage_factor not found in model config, using default 1.0. "
-                f"Model: {type(ksana_model).__name__}"
+                f"comfyui_memory_usage_factor not found in model config, using default 1.0. Model: {type(ksana_model).__name__}"
             )
         # 3. 计算推理过程中的内存需求（激活值等）
         # 参考 model_base.py 的 memory_required 方法
@@ -185,9 +186,9 @@ class KsanaGeneratorNode:
         log.debug(f"  area (batch*2): {area}, min_area (batch*1): {min_area}")
         log.debug(f"  actual_dtype (for calculation): {actual_dtype}, dtype_size: {dtype_size} bytes")
         log.debug(f"  model.dtype: {ksana_model.dtype}, model.run_dtype: {getattr(ksana_model, 'run_dtype', 'N/A')}")
-        log.debug(f"  memory_required: {memory_required} ({memory_required/(1024**3):.2f} GB)")
-        log.debug(f"  minimum_memory_required: {minimum_memory_required} ({minimum_memory_required/(1024**3):.2f} GB)")
-        log.debug(f"  model_weight_memory: {model_weight_memory} ({model_weight_memory/(1024**3):.2f} GB)")
+        log.debug(f"  memory_required: {memory_required} ({memory_required/ONE_GB:.2f} GB)")
+        log.debug(f"  minimum_memory_required: {minimum_memory_required} ({minimum_memory_required/ONE_GB:.2f} GB)")
+        log.debug(f"  model_weight_memory: {model_weight_memory} ({model_weight_memory/ONE_GB:.2f} GB)")
         return memory_required, minimum_memory_required, model_weight_memory
 
     def _prepare_memory_for_ksana_models(self, high_model, low_model, latent_shape, device):
@@ -230,16 +231,15 @@ class KsanaGeneratorNode:
             total_memory_required = max_model_weight_memory * 1.1 + max_memory_required + extra_mem
             minimum_memory_needed = max_model_weight_memory + max_minimum_memory_required + extra_mem
 
-            log.debug("KsanaDiT models memory estimate:")
-            log.debug(f"  latent_shape={latent_shape}")
-            log.debug(f"  extra_mem: {extra_mem / (1024*1024*1024):.1f} GB")
-            log.debug(f"  inference_memory: {inference_memory / (1024*1024*1024):.1f} GB")
-            log.debug(f"  max_model_weight_memory: {max_model_weight_memory / (1024*1024*1024):.1f} GB")
-            log.debug(f"  max_memory_required: {max_memory_required / (1024*1024*1024):.1f} GB")
-            log.debug(f"  max_minimum_memory_required: {max_minimum_memory_required / (1024*1024*1024):.1f} GB")
-            log.debug(f"  total_memory_required: {total_memory_required / (1024*1024*1024):.1f} GB")
-            log.debug(f"  minimum_memory_needed: {minimum_memory_needed / (1024*1024*1024):.1f} GB")
-            log.debug(f"  current_free_mem: {current_free_mem / (1024*1024*1024):.1f} GB")
+            log.debug("KsanaDiT models memory estimate: latent_shape={latent_shape}")
+            log.debug(f"  extra_mem: {extra_mem / ONE_GB :.1f} GB")
+            log.debug(f"  inference_memory: {inference_memory / ONE_GB:.1f} GB")
+            log.debug(f"  max_model_weight_memory: {max_model_weight_memory / ONE_GB:.1f} GB")
+            log.debug(f"  max_memory_required: {max_memory_required / ONE_GB:.1f} GB")
+            log.debug(f"  max_minimum_memory_required: {max_minimum_memory_required / ONE_GB:.1f} GB")
+            log.debug(f"  total_memory_required: {total_memory_required / ONE_GB:.1f} GB")
+            log.debug(f"  minimum_memory_needed: {minimum_memory_needed / ONE_GB:.1f} GB")
+            log.debug(f"  current_free_mem: {current_free_mem / ONE_GB:.1f} GB")
 
             # 如果当前可用内存不足，释放ComfyUI模型
             # 参考 load_models_gpu 中的两步释放策略

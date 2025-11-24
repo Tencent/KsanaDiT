@@ -7,6 +7,9 @@ from .fm_solvers_unipc import FlowUniPCMultistepScheduler
 from .fm_solvers_euler import EulerScheduler
 
 
+SUPPORTED_SOLVERS = ["uni_pc", "dpm++", "euler"]
+
+
 def get_sample_scheduler(num_train_timesteps, sampling_steps, sample_solver, device, shift=5.0):
     """
     Set sample scheduler.
@@ -41,4 +44,4 @@ def get_sample_scheduler(num_train_timesteps, sampling_steps, sample_solver, dev
     return sample_scheduler, sampling_sigmas, timesteps
 
 
-__all__ = ["get_sample_scheduler"]
+__all__ = ["get_sample_scheduler", SUPPORTED_SOLVERS]
