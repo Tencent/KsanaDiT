@@ -42,3 +42,7 @@ t2v_A14B.sample_shift = 12.0
 t2v_A14B.sample_steps = 40
 t2v_A14B.boundary = 0.875
 t2v_A14B.sample_guide_scale = (3.0, 4.0)  # low noise, high noise
+
+# comfyui memory management
+# comfyui_memory_usage_factor = dim / comfyui_memory_usage_base_dim
+t2v_A14B.comfyui_memory_usage_factor = t2v_A14B.dim / t2v_A14B.comfyui_memory_usage_base_dim

@@ -40,3 +40,7 @@ ti2v_5B.sample_shift = 5.0
 ti2v_5B.sample_steps = 50
 ti2v_5B.sample_guide_scale = 5.0
 ti2v_5B.frame_num = 121
+
+# comfyui memory management
+# comfyui_memory_usage_factor = dim / comfyui_memory_usage_base_dim
+ti2v_5B.comfyui_memory_usage_factor = ti2v_5B.dim / ti2v_5B.comfyui_memory_usage_base_dim

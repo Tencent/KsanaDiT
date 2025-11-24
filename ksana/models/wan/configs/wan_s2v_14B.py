@@ -58,3 +58,8 @@ s2v_14B.drop_first_motion = True
 s2v_14B.sample_shift = 3
 s2v_14B.sample_steps = 40
 s2v_14B.sample_guide_scale = 4.5
+
+# comfyui memory management
+# s2v 模型使用 transformer.dim，其他模型使用 dim
+# comfyui_memory_usage_factor = transformer.dim / comfyui_memory_usage_base_dim
+s2v_14B.comfyui_memory_usage_factor = s2v_14B.transformer.dim / s2v_14B.comfyui_memory_usage_base_dim

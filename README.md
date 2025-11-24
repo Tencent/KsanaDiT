@@ -7,6 +7,14 @@ pip install -e .
 pip install --force-reinstall .
 ```
 
+# 环境变量配置
+
+```bash
+export KSANA_LOGGER_LEVEL=debug          # 日志级别: debug/info/warn/error
+export KSANA_MEMORY_PROFILER=1           # 启用内存分析
+```
+
+详细说明参考 [ENV_CONFIG.md](ENV_CONFIG.md)
 
 # contribute
 

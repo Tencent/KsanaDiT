@@ -4,6 +4,9 @@ import cProfile
 from .logger import log
 import time
 import pstats
+import torch
+import os
+import csv
 
 global g_cprofiler
 g_cprofiler = cProfile.Profile()
@@ -171,3 +174,65 @@ class nvtx_range:
             return result
 
         return wrapper
+
+
+class MemoryProfiler:
+    """
+    内存分析器类
+    """
+
+    # 只有环境变量中设置了 KSANA_MEMORY_PROFILER 才启用内存分析
+    KSANA_MEMORY_PROFILER = os.environ.get("KSANA_MEMORY_PROFILER", "").lower() in ("1", "true", "yes")
+
+    @staticmethod
+    def record_memory(tag: str, project_name: str = "KsanaDit"):
+        """
+        记录内存使用情况到CSV文件
+        CSV格式: project_name, tag, allocated_memory, reserved_memory, max_allocated_memory
+
+        Args:
+            tag: 内存记录标签
+            project_name: 项目名称，用于CSV文件中的第一列和文件名
+        """
+        # 检查是否启用了内存分析
+        if not MemoryProfiler.KSANA_MEMORY_PROFILER:
+            return
+
+        if not torch.cuda.is_available():
+            log.warn(f"CUDA not available, skipping memory record for tag: {tag}")
+            return
+
+        # 获取当前内存使用情况
+        allocated = torch.cuda.memory_allocated()
+        reserved = torch.cuda.memory_reserved()
+        max_allocated = torch.cuda.max_memory_allocated()
+
+        # 生成CSV文件路径
+        csv_file_path = f"{project_name.lower()}_memory_usage.csv"
+
+        # 记录到CSV文件
+        file_exists = os.path.exists(csv_file_path)
+
+        with open(csv_file_path, "a", newline="", encoding="utf-8") as csvfile:
+            writer = csv.writer(csvfile)
+
+            # 如果文件不存在，写入表头
+            if not file_exists:
+                writer.writerow(
+                    ["Project", "Tag", "Allocated_Memory_GB", "Reserved_Memory_GB", "Max_Allocated_Memory_GB"]
+                )
+
+            # 写入数据行
+            writer.writerow(
+                [
+                    project_name,
+                    tag,
+                    allocated / (1024**3),  # 转换为GB
+                    reserved / (1024**3),  # 转换为GB
+                    max_allocated / (1024**3),  # 转换为GB
+                ]
+            )
+
+        log.info(
+            f"[{project_name}] Memory usage recorded for tag '{tag}': Allocated={allocated/1024**3:.2f}GB, Reserved={reserved/1024**3:.2f}GB, Max_Allocated={max_allocated/1024**3:.2f}GB"
+        )
