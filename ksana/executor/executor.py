@@ -393,7 +393,7 @@ class KsanaExecutor(ABC):
         latents = self.cast_to(latents, run_dtype, self.run_device)
 
         with (
-            torch.amp.autocast("cuda", dtype=run_dtype),
+            # torch.amp.autocast("cuda", dtype=run_dtype), # 应该不需要
             torch.no_grad(),
             # no_sync(),# 作用是什么
         ):
@@ -427,7 +427,7 @@ class KsanaExecutor(ABC):
                     timestep_id=timestep_id,
                     boundary=boundary,
                 )
-                run_model = self.cast_to(run_model, run_dtype, self.run_device)
+                run_model = run_model.to(self.run_device)
                 run_cache = self.get_run_cache(
                     high_cache=high_cache,
                     low_cache=low_cache,
