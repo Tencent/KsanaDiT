@@ -1,4 +1,3 @@
-# import comfy
 from comfy.comfy_types.node_typing import IO
 from ksana.utils import print_recursive
 

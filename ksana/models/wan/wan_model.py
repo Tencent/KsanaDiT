@@ -5,10 +5,9 @@ import torch
 import torch.nn as nn
 from diffusers.configuration_utils import ConfigMixin, register_to_config
 from diffusers.models.modeling_utils import ModelMixin
-
-from .attention import flash_attention
 import torch.cuda.nvtx as nvtx
 
+from ksana.attention import AttentionBackendEnum, LocalAttentionOp
 from ksana.cache import KsanaCache
 from ksana.utils import time_range
 
@@ -157,6 +156,17 @@ class WanSelfAttention(nn.Module):
             self.norm_q = WanRMSNorm(dim, eps=eps) if qk_norm else nn.Identity()
             self.norm_k = WanRMSNorm(dim, eps=eps) if qk_norm else nn.Identity()
 
+        self.attention = LocalAttentionOp(
+            num_heads=num_heads,
+            head_size=self.head_dim,
+            causal=False,
+            supported_attention_backends=(
+                AttentionBackendEnum.FLASH_ATTN,
+                AttentionBackendEnum.SAGE_ATTN,
+                AttentionBackendEnum.TORCH_SDPA,
+            ),
+        )
+
     def forward(self, x, seq_lens, grid_sizes, freqs):
         r"""
         Args:
@@ -176,10 +186,10 @@ class WanSelfAttention(nn.Module):
 
         q, k, v = qkv_fn(x)
 
-        x = flash_attention(
-            q=rope_apply(q, grid_sizes, freqs),
-            k=rope_apply(k, grid_sizes, freqs),
-            v=v,
+        x = self.attention(
+            rope_apply(q, grid_sizes, freqs),
+            rope_apply(k, grid_sizes, freqs),
+            v,
             k_lens=seq_lens,
             window_size=self.window_size,
         )
@@ -206,7 +216,7 @@ class WanCrossAttention(WanSelfAttention):
         v = self.v(context).view(b, -1, n, d)
 
         # compute attention
-        x = flash_attention(q, k, v, k_lens=context_lens)
+        x = self.attention(q, k, v, k_lens=context_lens)
 
         # output
         x = x.flatten(2)
