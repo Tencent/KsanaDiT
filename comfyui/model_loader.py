@@ -1,4 +1,3 @@
-# adapt from comfyui/sd.py
 import comfy
 import folder_paths
 from comfy import model_detection
