@@ -70,7 +70,7 @@ def rope_apply(x, grid_sizes, freqs):
 
         # append to collection
         output.append(x_i)
-    return torch.stack(output).float()
+    return torch.stack(output).type_as(x)
 
 
 class WanRMSNorm(nn.Module):
