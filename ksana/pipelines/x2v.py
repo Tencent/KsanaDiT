@@ -2,13 +2,12 @@ from abc import ABC, abstractmethod
 import torch
 
 from dataclasses import dataclass, field
-from ..config import KsanaSampleConfig, KsanaRuntimeConfig
-from ..utils.const import DEFAULT_SEED
+from ..config import KsanaSampleConfig, KsanaRuntimeConfig, KsanaPipelineConfig, KsanaModelConfig
 from ..utils import log, print_recursive, time_range, MemoryProfiler
 from ..cache import create_cache
 import random
 import sys
-from ..sample_solvers import SUPPORTED_SOLVERS, get_sample_scheduler
+from ..sample_solvers import get_sample_scheduler
 import math
 from ..models import KsanaDiffusionModel, KsanaT5Encoder, KsanaVAE
 from tqdm import tqdm
@@ -27,15 +26,13 @@ class KsanaDefaultArgs:
 
 
 class KsanaX2VPipeline(ABC):
-    def __init__(self, task_type, default_model_config):
+    def __init__(self, pipeline_config: KsanaPipelineConfig):
         """_summary_
 
         Args:
-            task_type (_type_): t2v, itv, v2v, etc.
-            default_model_config (_type_): _description_
+            pipeline_config (_type_): _description_
         """
-        self.task_type = task_type
-        self.default_model_config = default_model_config
+        self.pipeline_config = pipeline_config
         self.default_args = KsanaDefaultArgs()
 
         self.text_encoder = None
@@ -51,11 +48,11 @@ class KsanaX2VPipeline(ABC):
         pass
 
     @abstractmethod
-    def load_diffusion_model(
+    def load_diffusion_model_from_pretrained(
         self,
         checkpoint_dir,
         lora_dir=None,
-        torch_compile_config=None,
+        model_config: KsanaModelConfig = None,
         dist_config=None,
         shard_fn=None,
         device=None,
@@ -70,11 +67,11 @@ class KsanaX2VPipeline(ABC):
         else:
             self.diffusion_model.to(offload_device)
 
-    def load_model_from_pretrained(
+    def load_models_from_pretrained(
         self,
         checkpoint_dir,
         lora_dir=None,
-        torch_compile_config=None,
+        model_config=None,
         dist_config=None,
         shard_fn=None,
         device=None,
@@ -84,10 +81,10 @@ class KsanaX2VPipeline(ABC):
         if offload_device:
             self.text_encoder.to(offload_device)
         self.has_lora = lora_dir is not None
-        self.diffusion_model = self.load_diffusion_model(
+        self.diffusion_model = self.load_diffusion_model_from_pretrained(
             checkpoint_dir,
             lora_dir=lora_dir,
-            torch_compile_config=torch_compile_config,
+            model_config=model_config,
             dist_config=dist_config,
             shard_fn=shard_fn,
             device=device,
@@ -100,53 +97,25 @@ class KsanaX2VPipeline(ABC):
         if offload_device is not None:
             self.vae.to(offload_device)
 
-    def process_input_sample_config(self, **kwargs):
-        denoise = kwargs.get("denoise", 1.0)
-        sampling_steps = kwargs.get("steps", self.default_args.steps)
-        cfg_scale = kwargs.get("cfg_scale", self.default_args.cfg_scale)
-        sample_shift = kwargs.get("sample_shift", self.default_args.sample_shift)
-        sample_solver = kwargs.get("sample_solver", self.default_args.sample_solver)
-        if sampling_steps is None:
-            sampling_steps = self.default_model_config.get("sample_steps", None)
-        if sample_shift is None:
-            sample_shift = self.default_model_config.get("sample_shift", None)
-        if cfg_scale is None:
-            cfg_scale = self.default_model_config.get("sample_guide_scale", None)
-        if sample_solver is None:
-            sample_solver = self.default_model_config.get("sample_solver", None)
-
-        sample_config = KsanaSampleConfig(
-            steps=sampling_steps,
-            cfg_scale=cfg_scale,
-            shift=sample_shift,
-            solver=sample_solver,
-            denoise=denoise,
-        )
-        return sample_config
-
-    def process_input_runtime_config(self, **kwargs):
-        size = kwargs.get("size", self.default_model_config.get("size", None))
-        frame_num = kwargs.get("frame_num", self.default_model_config.get("frame_num", None))
-        seed = kwargs.get("seed", DEFAULT_SEED)
-        boundary = kwargs.get("boundary", self.default_model_config.boundary)
-        # TODO: input dtype should be str as float, float16, float32, give some map or just use torch.dtype
-        run_dtype = kwargs.get("run_dtype", None)
-        if run_dtype is None:
-            run_dtype = self.default_model_config.get("param_dtype", None)
-
-        runtime_config = KsanaRuntimeConfig(
-            size=size,
-            frame_num=frame_num,
-            seed=seed,
-            run_dtype=run_dtype,
-            boundary=boundary,
-        )
-        return runtime_config
+    @abstractmethod
+    def load_diffusion_model_from_comfy(
+        self,
+        model_config: KsanaModelConfig = None,
+        dist_config=None,
+        comfy_model_path: str = None,
+        comfy_model_config: dict = None,
+        comfy_model_state_dict=None,
+        comfy_operations=None,
+        device=None,
+        offload_device=None,
+        shard_fn=None,
+    ):
+        pass
 
     def forward_text_encoder(self, prompt, prompt_negative=None, device=None, offload_device=None):
-        default_model_config = self.default_model_config
+        default_pipeline_config = self.pipeline_config.default_config
         prompt_positive = prompt
-        prompt_negative = prompt_negative if prompt_negative is not None else default_model_config.sample_neg_prompt
+        prompt_negative = prompt_negative if prompt_negative is not None else default_pipeline_config.sample_neg_prompt
 
         assert device is not None
 
@@ -225,7 +194,7 @@ class KsanaX2VPipeline(ABC):
             high_model, low_model = model
         if isinstance(sample_config.cfg_scale, float):
             high_sample_guide_scale = sample_config.cfg_scale
-            low_sample_guide_scale = None
+            low_sample_guide_scale = None if low_model is None else sample_config.cfg_scale
         elif hasattr(sample_config.cfg_scale, "__len__"):
             assert (
                 len(sample_config.cfg_scale) == 2
@@ -235,10 +204,35 @@ class KsanaX2VPipeline(ABC):
         else:
             raise ValueError(f"sample_config.cfg_scale {sample_config.cfg_scale} not supported")
         assert sample_config.denoise == 1.0, f"only support denoise ==1.0 yet, but got {sample_config.denoise}"
-        assert (
-            sample_config.solver in SUPPORTED_SOLVERS
-        ), f"sample_solver {sample_config.solver} not supported in list: ['uni_pc', 'dpm++', 'euler']"
         return high_model, low_model, high_sample_guide_scale, low_sample_guide_scale
+
+    def prepare_sample_default_args(self, sample_config: KsanaSampleConfig):
+        # input sample_config > KsanaDefaultArgs > default_pipeline_config
+        default_pipeline_config = self.pipeline_config.default_config
+        sample_default_args = {
+            "steps": (
+                self.default_args.steps
+                if self.default_args.steps is not None
+                else default_pipeline_config.get("sample_steps", None)
+            ),
+            "cfg_scale": (
+                self.default_args.cfg_scale
+                if self.default_args.cfg_scale is not None
+                else default_pipeline_config.get("sample_guide_scale", None)
+            ),
+            "sample_shift": (
+                self.default_args.sample_shift
+                if self.default_args.sample_shift is not None
+                else default_pipeline_config.get("sample_shift", None)
+            ),
+            "sample_solver": (
+                self.default_args.sample_solver
+                if self.default_args.sample_solver is not None
+                else default_pipeline_config.get("sample_solver", None)
+            ),
+            "denoise": default_pipeline_config.get("denoise", None),
+        }
+        return KsanaSampleConfig.copy_with_default(sample_config, sample_default_args)
 
     def create_random_noise_latents(self, latents, runtime_config: KsanaRuntimeConfig, device: torch.device):
         """_summary_
@@ -246,7 +240,11 @@ class KsanaX2VPipeline(ABC):
         Args:
             return tensor shape :[bs, z_dim, f, h, w]
         """
-        seed = runtime_config.seed if runtime_config.seed >= 0 else random.randint(0, sys.maxsize)
+        seed = (
+            runtime_config.seed
+            if runtime_config.seed is not None and runtime_config.seed >= 0
+            else random.randint(0, sys.maxsize)
+        )
         seed_g = torch.Generator(device=device)
         seed_g.manual_seed(seed)
         bs = 1
@@ -318,9 +316,8 @@ class KsanaX2VPipeline(ABC):
         # [bs, input_text_len, 4096]
         assert positive.ndim == negative.ndim == 3, f"positive.shape {positive.shape}, negative.shape {negative.shape}"
 
-        boundary = (
-            None if low_model is None else runtime_config.boundary * self.default_model_config.num_train_timesteps
-        )
+        default_pipeline_config = self.pipeline_config.default_config
+        boundary = None if low_model is None else runtime_config.boundary * default_pipeline_config.num_train_timesteps
 
         low_cache = None
         high_cache = None
@@ -340,7 +337,7 @@ class KsanaX2VPipeline(ABC):
             )
 
         latents, seed_g = self.create_random_noise_latents(latents, runtime_config, device)
-        seq_len = self.get_seq_len(latents.shape, self.default_model_config.patch_size, high_model.sp_size)
+        seq_len = self.get_seq_len(latents.shape, default_pipeline_config.patch_size, high_model.sp_size)
 
         latents = self.cast_to(latents, runtime_config.run_dtype, device)
         positive = self.cast_to(positive, runtime_config.run_dtype, device)
@@ -350,7 +347,7 @@ class KsanaX2VPipeline(ABC):
             torch.no_grad(),
         ):
             sample_scheduler, _, timesteps = get_sample_scheduler(
-                num_train_timesteps=self.default_model_config.num_train_timesteps,
+                num_train_timesteps=default_pipeline_config.num_train_timesteps,
                 sampling_steps=sample_config.steps,
                 sample_solver=sample_config.solver,
                 device=device,
@@ -428,7 +425,19 @@ class KsanaX2VPipeline(ABC):
         return latents
 
     @property
+    def task_type(self):
+        return self.pipeline_config.task_type
+
+    @property
+    def model_name(self):
+        return self.pipeline_config.model_name
+
+    @property
+    def model_size(self):
+        return self.pipeline_config.model_size
+
+    @property
     def save_name(self):
-        name = f"{self.default_model_config.model_name}_{self.default_model_config.task_type}_{self.default_model_config.model_size}"
+        name = f"{self.pipeline_config.model_name}_{self.pipeline_config.task_type}_{self.pipeline_config.model_size}"
         name = name if not self.has_lora else name + "_with_lora"
         return name

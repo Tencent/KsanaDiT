@@ -7,16 +7,16 @@ from .wan import T5EncoderModel
 
 
 class KsanaT5Encoder(ABC):
-    def __init__(self, model_config, checkpoint_dir, shard_fn):
-        _default_config = model_config
+    def __init__(self, default_pipeline_config, checkpoint_dir, shard_fn):
+        default_pipeline_config = default_pipeline_config
         self.device = torch.device("cpu")
 
         self.model = T5EncoderModel(
-            text_len=_default_config.text_len,
-            dtype=_default_config.t5_dtype,
+            text_len=default_pipeline_config.text_len,
+            dtype=default_pipeline_config.t5_dtype,
             device=self.device,
-            checkpoint_path=os.path.join(checkpoint_dir, _default_config.t5_checkpoint),
-            tokenizer_path=os.path.join(checkpoint_dir, _default_config.t5_tokenizer),
+            checkpoint_path=os.path.join(checkpoint_dir, default_pipeline_config.t5_checkpoint),
+            tokenizer_path=os.path.join(checkpoint_dir, default_pipeline_config.t5_tokenizer),
             shard_fn=shard_fn,
         )
 

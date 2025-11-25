@@ -4,7 +4,7 @@ from ..config import KsanaDistributedConfig
 import os
 
 
-def get_ksana_distributed_config_from_torchrun_env(**kwargs) -> KsanaDistributedConfig:
+def get_ksana_distributed_config_from_torchrun_env(dist_config=KsanaDistributedConfig()) -> KsanaDistributedConfig:
 
     world_size = int(os.getenv("WORLD_SIZE", 1))
     num_nodes = int(os.getenv("NUM_NODES", 1))
@@ -16,8 +16,6 @@ def get_ksana_distributed_config_from_torchrun_env(**kwargs) -> KsanaDistributed
 
     master_addr = os.getenv("MASTER_ADDR", "localhost")
     master_port = int(os.getenv("MASTER_PORT", 29500))
-
-    dist_config = kwargs.get("dist_config", KsanaDistributedConfig())
 
     return KsanaDistributedConfig(
         world_size=world_size,

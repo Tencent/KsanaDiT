@@ -6,7 +6,8 @@ import torch
 import comfy.model_management as mm
 
 from ksana.utils import get_gpu_count, time_range
-from ksana import create_ksana_model
+from ksana import get_generator
+from ksana.config import KsanaModelConfig
 from ksana.utils.profile import MemoryProfiler
 
 from comfy.model_patcher import ModelPatcher
@@ -18,11 +19,11 @@ class CustomModelPatcher(ModelPatcher):
 
 
 def load_diffusion_model_state_dict(
-    model_path, model_options={}, load_ori_weights=False, torch_compile_config=None
+    model_path, num_gpus, ksana_model_config: KsanaModelConfig, load_ori_weights=False
 ):  # load unet in diffusers or regular format
     sd = comfy.utils.load_torch_file(model_path)
 
-    dtype = model_options.get("dtype", None)
+    dtype = None
 
     # Allow loading unets from checkpoint files
     diffusion_model_prefix = model_detection.unet_prefix_from_state_dict(sd)
@@ -73,8 +74,8 @@ def load_diffusion_model_state_dict(
         unet_dtype = dtype
     manual_cast_dtype = mm.unet_manual_cast(unet_dtype, load_device, model_config.supported_inference_dtypes)
     model_config.set_inference_dtype(unet_dtype, manual_cast_dtype)
-    model_config.custom_operations = model_options.get("custom_operations", None)
-    linear_backend = model_options.get("linear_backend", None)
+    model_config.custom_operations = None
+    linear_backend = ksana_model_config.linear_backend
     scaled_fp8_dtype = model_config.scaled_fp8
     if linear_backend == "default":
         model_config.optimizations["fp8"] = (
@@ -96,7 +97,7 @@ def load_diffusion_model_state_dict(
     print(f"sd keys samples: {len(sdkeys)}, new_sd keys samples: {len(newsdkeys)}")
     print(f"Load_device: {load_device}, Offload_device: {offload_device}")
     print(
-        f"unet_config: {model_config.unet_config}, latent_format: {model_config.latent_format}, model_options:{model_options}"
+        f"unet_config: {model_config.unet_config}, latent_format: {model_config.latent_format}, ksana_model_config:{ksana_model_config}"
     )
 
     # Add Executor Logic
@@ -111,21 +112,21 @@ def load_diffusion_model_state_dict(
     else:
         operations = model_config.custom_operations
     print(f"custom_operations: {model_config.custom_operations}, operations:{operations}")
-    print(
-        f"unet_config: {model_config.unet_config}, model_options:{model_options}, diffusion_model_prefix:{diffusion_model_prefix}"
-    )
+    print(f"unet_config: {model_config.unet_config}, diffusion_model_prefix:{diffusion_model_prefix}")
 
-    ksana_model = create_ksana_model(model_path, unet_config)
-    ksana_model.load(
+    if model_config.optimizations["fp8"]:
+        ksana_model_config.linear_backend = "fp8_gemm"
+    ksana_model_config.weight_dtype = unet_dtype
+
+    ksana_generator = get_generator(num_gpus=num_gpus)
+    ksana_model = ksana_generator.load_diffusion_model_from_comfy(
+        model_config=ksana_model_config,
         comfy_model_path=model_path,
         comfy_model_config=unet_config,
         comfy_model_state_dict=new_sd,
-        comfy_model_options=model_options,
         comfy_operations=operations,
-        dtype=unet_dtype,
         load_device=load_device,
         offload_device=offload_device,
-        torch_compile_config=torch_compile_config,
     )
     model.ksana_model = ksana_model
 
@@ -146,9 +147,9 @@ def load_diffusion_model_state_dict(
 
 
 @time_range
-def load_diffusion_model(model_path, model_options={}, torch_compile_config=None):
+def load_diffusion_model(model_path, num_gpus, ksana_model_config: KsanaModelConfig):
     model = load_diffusion_model_state_dict(
-        model_path, model_options=model_options, load_ori_weights=False, torch_compile_config=torch_compile_config
+        model_path, num_gpus=num_gpus, ksana_model_config=ksana_model_config, load_ori_weights=False
     )
 
     if model is None:
@@ -177,11 +178,12 @@ class KsanaModelLoaderNode:
                     {"tooltip": "linear_backend default use linear dtype from model"},
                 ),
                 "attn_backend": (
-                    ["default", "flash_attention"],
-                    {"default": "default"},
+                    ["default", "flash_attention", "sage_attention"],
+                    {"default": "flash_attention"},
                     {"tooltip": "attention backend"},
                 ),
-                "compile_args": ("KSANACOMPILEARGS", {"default": None}),
+                "num_gpus": ("INT", {"default": 1}),
+                "torch_compile_args": ("KSANACOMPILEARGS", {"default": None}),
             },
         }
 
@@ -191,17 +193,22 @@ class KsanaModelLoaderNode:
     CATEGORY = "ksana"
 
     @classmethod
-    def VALIDATE_INPUTS(s, model_name):
+    def VALIDATE_INPUTS(s):
         return True
 
     def load_model(
-        self, model_name, weight_dtype="default", linear_backend="default", attn_backend="default", compile_args=None
+        self,
+        model_name,
+        weight_dtype="default",
+        linear_backend="default",
+        attn_backend="default",
+        num_gpus=1,
+        torch_compile_args=None,
     ):
         mm.unload_all_models()
         mm.cleanup_models()
         mm.soft_empty_cache()
 
-        model_options = {}
         if linear_backend == "fp8_gemm":
             weight_dtype_has_fp8 = "float8" in weight_dtype.lower() or "fp8" in weight_dtype.lower()
             if weight_dtype != "default" and (not weight_dtype_has_fp8):
@@ -210,10 +217,21 @@ class KsanaModelLoaderNode:
                 )
                 weight_dtype = "default"
                 linear_backend = "default"
-        model_options["weight_dtype"] = weight_dtype
-        model_options["linear_backend"] = linear_backend
 
-        # TODO(jason): support attn_backend
+        if num_gpus > 1:
+            if num_gpus > get_gpu_count():
+                logging.warning(
+                    f"num_gpus {num_gpus} is larger than gpu count {get_gpu_count()}, will use gpu count {get_gpu_count()}"
+                )
+                num_gpus = get_gpu_count()
+
+        model_config = KsanaModelConfig(
+            weight_dtype=weight_dtype,
+            linear_backend=linear_backend,
+            attn_backend=attn_backend,
+            torch_compile_config=torch_compile_args,
+        )
+
         num_gpus = get_gpu_count()
         if num_gpus != 1:
             raise RuntimeError(f"only one GPU supported yet, but got {num_gpus}")
@@ -221,6 +239,6 @@ class KsanaModelLoaderNode:
         model_path = folder_paths.get_full_path("diffusion_models", model_name)
         print(f"Start to load diffusion model {model_name}: {model_path} with {num_gpus} gpus")
         MemoryProfiler.record_memory(f"before_load_{model_name}")
-        model = load_diffusion_model(model_path, model_options=model_options, torch_compile_config=compile_args)
+        model = load_diffusion_model(model_path, num_gpus=num_gpus, ksana_model_config=model_config)
         MemoryProfiler.record_memory(f"after_load_{model_name}")
         return (model,)
