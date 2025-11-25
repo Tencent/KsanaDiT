@@ -180,15 +180,6 @@ class KsanaGeneratorNode:
         # 走xformer 或者 flash attention（默认走flash attention）
         minimum_memory_required = (min_area * dtype_size * 0.01 * memory_usage_factor) * (1024 * 1024)
 
-        log.debug("[_estimate_ksana_model_memory]")
-        log.debug(f"  latent_shape: {latent_shape}")
-        log.debug(f"  memory_usage_factor: {memory_usage_factor}")
-        log.debug(f"  area (batch*2): {area}, min_area (batch*1): {min_area}")
-        log.debug(f"  actual_dtype (for calculation): {actual_dtype}, dtype_size: {dtype_size} bytes")
-        log.debug(f"  model.dtype: {ksana_model.dtype}, model.run_dtype: {getattr(ksana_model, 'run_dtype', 'N/A')}")
-        log.debug(f"  memory_required: {memory_required} ({memory_required/ONE_GB:.2f} GB)")
-        log.debug(f"  minimum_memory_required: {minimum_memory_required} ({minimum_memory_required/ONE_GB:.2f} GB)")
-        log.debug(f"  model_weight_memory: {model_weight_memory} ({model_weight_memory/ONE_GB:.2f} GB)")
         return memory_required, minimum_memory_required, model_weight_memory
 
     def _prepare_memory_for_ksana_models(self, high_model, low_model, latent_shape, device):
@@ -231,35 +222,22 @@ class KsanaGeneratorNode:
             total_memory_required = max_model_weight_memory * 1.1 + max_memory_required + extra_mem
             minimum_memory_needed = max_model_weight_memory + max_minimum_memory_required + extra_mem
 
-            log.debug("KsanaDiT models memory estimate: latent_shape={latent_shape}")
-            log.debug(f"  extra_mem: {extra_mem / ONE_GB :.1f} GB")
-            log.debug(f"  inference_memory: {inference_memory / ONE_GB:.1f} GB")
-            log.debug(f"  max_model_weight_memory: {max_model_weight_memory / ONE_GB:.1f} GB")
-            log.debug(f"  max_memory_required: {max_memory_required / ONE_GB:.1f} GB")
-            log.debug(f"  max_minimum_memory_required: {max_minimum_memory_required / ONE_GB:.1f} GB")
-            log.debug(f"  total_memory_required: {total_memory_required / ONE_GB:.1f} GB")
-            log.debug(f"  minimum_memory_needed: {minimum_memory_needed / ONE_GB:.1f} GB")
-            log.debug(f"  current_free_mem: {current_free_mem / ONE_GB:.1f} GB")
-
             # 如果当前可用内存不足，释放ComfyUI模型
             # 参考 load_models_gpu 中的两步释放策略
             if current_free_mem < total_memory_required:
                 log.debug(f"Need to free {(total_memory_required - current_free_mem) / (1024*1024):.1f} MB")
                 mm.free_memory(total_memory_required, device, keep_loaded=[])
 
-            # 如果可用内存仍然小于最小需求，再次尝试释放
             free_mem = mm.get_free_memory(device)
             if free_mem < minimum_memory_needed:
                 log.debug("Still need more memory, trying to free minimum required")
                 models_unloaded = mm.free_memory(minimum_memory_needed, device, keep_loaded=[])
                 log.debug(f"{len(models_unloaded)} ComfyUI models unloaded.")
 
-            # 打印最终内存状态
             final_free_mem = mm.get_free_memory(device)
             log.debug(f"Memory freed: {(final_free_mem - current_free_mem) / (1024*1024):.1f} MB")
             log.debug(f"Final free memory: {final_free_mem / (1024*1024):.1f} MB")
         except Exception as e:
-            # 如果释放失败，记录错误但不影响后续流程
             log.warning(f"Failed to prepare memory for KsanaDiT models: {e}")
 
     def run(
@@ -280,9 +258,6 @@ class KsanaGeneratorNode:
         high_cache_config=None,
         low_cache_config=None,
     ):
-        # model.model.keys()?
-        # unet = UNet2DConditionModel.from_config(config)
-        # unet.load_state_dict(my_state_dict)?
         ksana_generator = get_generator()
         MemoryProfiler.record_memory("before_ksana_generator_generate_video_with_tensors")
 
@@ -297,10 +272,11 @@ class KsanaGeneratorNode:
         )
 
         # TODO: maybe need to latent_format process_in for positive/negative?
+        low_model = low_model.model.ksana_model if low_model is not None else None
         samples = ksana_generator.generate_video_with_tensors(
-            high_model=model.model.ksana_model,
-            positive=positive[0][0],  # 1, 512, 4096?
-            negative=negative[0][0],  # 1, 512, 4096?
+            model=(model.model.ksana_model, low_model),
+            positive=positive[0][0],
+            negative=negative[0][0],
             latents=latent_image["samples"],  # [1, 16, 5, h/, w/]
             sample_config=KsanaSampleConfig(
                 steps=steps,
@@ -313,7 +289,6 @@ class KsanaGeneratorNode:
                 seed=seed,
                 boundary=boundary,
             ),
-            low_model=low_model.model.ksana_model if low_model is not None else None,
             high_cache_config=high_cache_config,
             low_cache_config=low_cache_config,
         )

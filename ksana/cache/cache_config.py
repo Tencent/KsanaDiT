@@ -1,5 +1,7 @@
 from abc import ABC
 
+SUPPORTED_CACHE_METHODS = ["DCache", "TeaCache", "EasyCache", "MagCache"]
+
 
 class KsanaCacheConfig(ABC):
     def __init__(self, name: str):

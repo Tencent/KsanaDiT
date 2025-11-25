@@ -1,4 +1,3 @@
-import os
 import time
 import types
 from abc import ABC
@@ -13,42 +12,42 @@ from ..utils import (  # , ksanaProfiler
     model_safe_downcast,
     time_range,
 )
+from ..utils.const import DEFAULT_RUN_DTYPE
 from .wan import WanModel
 from .wan.configs import WAN2_2_CONFIGS
-
-
-def get_default_model_config(model_name, model_type, model_size):
-    if model_name == "wan2.2":
-        config_type = f"{model_type}-{model_size}"
-        return WAN2_2_CONFIGS[config_type]
-    else:
-        raise ValueError(f"model_name {model_name} not supported")
-
-
-def create_ksana_model(model_path, comfy_model_config=None):
-    full_model_name = os.path.basename(model_path)
-    model_name, model_type, model_size = KsanaDiffusionModel.get_model_type(
-        full_model_name, comfy_model_config
-    )  # wan2.2, t2v, A14B
-    assert model_name in ["wan2.2"], "only support wan2.2 yet"
-    model_config = get_default_model_config(model_name, model_type, model_size)
-    return KsanaDiffusionModel(model_config)
+from ..config import KsanaModelConfig
 
 
 class KsanaDiffusionModel(ABC):
-    def __init__(self, model_config, dist_config):
-        self._default_model_config = model_config
+    def __init__(self, model_config: KsanaModelConfig, pipeline_config, dist_config):
+        self.model_name = pipeline_config.model_name
+        self.task_type = pipeline_config.task_type
+        self.model_size = pipeline_config.model_size
+        self.model_config = model_config
+        self.pipeline_config = pipeline_config
         self.dist_config = dist_config
-        self._run_dtype = model_config.get("param_dtype", torch.float16)
+        self.weight_dtype = (
+            model_config.weight_dtype
+            if model_config.weight_dtype is not None
+            else pipeline_config.default_config.get("param_dtype", DEFAULT_RUN_DTYPE)
+        )
+        if isinstance(self.weight_dtype, str):
+            if self.weight_dtype == "bfloat16":
+                self.weight_dtype = torch.bfloat16
+            elif self.weight_dtype == "float16":
+                self.weight_dtype = torch.float16
+            elif self.weight_dtype == "default":
+                self.weight_dtype = torch.float16
 
         if self.dist_config.ulysses_size > 1:
             assert (
-                self._default_model_config.num_heads % self.dist_config.ulysses_size == 0
-            ), f"`{self._default_model_config.num_heads=}` cannot be divided evenly by `{self.dist_config.ulysses_size=}`."
+                self.self.pipeline_config.default_config.num_heads % self.dist_config.ulysses_size == 0
+            ), f"`{self.self.pipeline_config.default_config.num_heads=}` cannot be divided evenly by `{self.dist_config.ulysses_size=}`."
         if dist_config.use_sp:
             self.sp_size = dist_config.world_size
         else:
             self.sp_size = 1
+        log.info(f"KsanaDiffusionModel init with {self.model_config}")
 
     @time_range
     def load(
@@ -56,15 +55,12 @@ class KsanaDiffusionModel(ABC):
         comfy_model_path: str = None,
         comfy_model_config: dict = None,
         comfy_model_state_dict=None,
-        comfy_model_options: dict = None,
         comfy_operations=None,
-        dtype=None,
         load_device=None,
         offload_device=None,
         checkpoint_dir=None,
         subfolder=None,
         lora_dir=None,
-        torch_compile_config=None,
         shard_fn=None,
     ):
         assert self.model_name in ["wan2.2"], "only support wan2.2 yet"
@@ -73,15 +69,13 @@ class KsanaDiffusionModel(ABC):
                 comfy_model_path=comfy_model_path,
                 comfy_model_config=comfy_model_config,
                 comfy_model_state_dict=comfy_model_state_dict,
-                comfy_model_options=comfy_model_options,
                 comfy_operations=comfy_operations,
-                dtype=dtype,
                 load_device=load_device,
                 offload_device=offload_device,
                 checkpoint_dir=checkpoint_dir,
                 subfolder=subfolder,
                 lora_dir=lora_dir,
-                torch_compile_config=torch_compile_config,
+                shard_fn=None,
             )
         else:
             raise ValueError(f"model_name {self.model_name} not supported")
@@ -145,45 +139,42 @@ class KsanaDiffusionModel(ABC):
         comfy_model_path: str = None,
         comfy_model_config: dict = None,
         comfy_model_state_dict=None,
-        comfy_model_options: dict = None,
         comfy_operations=None,
-        dtype=None,
         load_device=None,
         offload_device=None,
         checkpoint_dir=None,
         subfolder=None,
         lora_dir=None,
-        torch_compile_config=None,
         shard_fn=None,
     ):
         # with ksanaProfiler("KsanaDiffusionModel.load_wan_model"):
         if comfy_model_config is not None and comfy_model_state_dict is not None:
             log.info(
-                f"load from comfy_model_path:{comfy_model_path}, comfy_model_config:{comfy_model_config}, comfy_model_options:{comfy_model_options}, "
-                f"comfy_operations:{comfy_operations}, dtype:{dtype}, load_device:{load_device}, offload_device:{offload_device}"
+                f"load from comfy_model_path:{comfy_model_path}, comfy_model_config:{comfy_model_config}, "
+                f"comfy_operations:{comfy_operations}, load_device:{load_device}, offload_device:{offload_device}"
             )
-            in_dim = comfy_model_config.get("in_dim", self.default_model_config.get("in_dim", 16))
-            out_dim = comfy_model_config.get("out_dim", self.default_model_config.get("out_dim", 16))
-            self.set_run_dtype(dtype)
+            default_model_config = self.pipeline_config.default_config
+            in_dim = comfy_model_config.get("in_dim", default_model_config.get("in_dim", 16))
+            out_dim = comfy_model_config.get("out_dim", default_model_config.get("out_dim", 16))
             start = time.time()
             self.model = WanModel(
                 model_type=self.task_type,
-                patch_size=self.default_model_config.patch_size,
-                text_len=self.default_model_config.text_len,
+                patch_size=default_model_config.patch_size,
+                text_len=default_model_config.text_len,
                 in_dim=in_dim,
-                dim=self.default_model_config.dim,
-                ffn_dim=self.default_model_config.ffn_dim,
-                freq_dim=self.default_model_config.freq_dim,
+                dim=default_model_config.dim,
+                ffn_dim=default_model_config.ffn_dim,
+                freq_dim=default_model_config.freq_dim,
                 out_dim=out_dim,
-                num_heads=self.default_model_config.num_heads,
-                num_layers=self.default_model_config.num_layers,
-                window_size=self.default_model_config.window_size,
-                qk_norm=self.default_model_config.qk_norm,
-                cross_attn_norm=self.default_model_config.cross_attn_norm,
-                eps=self.default_model_config.eps,
+                num_heads=default_model_config.num_heads,
+                num_layers=default_model_config.num_layers,
+                window_size=default_model_config.window_size,
+                qk_norm=default_model_config.qk_norm,
+                cross_attn_norm=default_model_config.cross_attn_norm,
+                eps=default_model_config.eps,
                 comfy_operations=comfy_operations,
                 device=offload_device,
-                dtype=dtype,
+                dtype=self.weight_dtype,
             )
             stop1 = time.time()
             load_result = self.model.load_state_dict(comfy_model_state_dict, strict=False)
@@ -198,7 +189,7 @@ class KsanaDiffusionModel(ABC):
             self.model = WanModel.from_pretrained(checkpoint_dir, subfolder=subfolder)
 
         log.debug(f"model: {self.model}")
-        self.apply_torch_compile(torch_compile_config)
+        self.apply_torch_compile(self.model_config.torch_compile_config)
 
         self.model.eval().requires_grad_(False)
         self.model = self.prepare_distributed_model(
@@ -211,7 +202,7 @@ class KsanaDiffusionModel(ABC):
             self.model = load_and_merge_lora_weight_from_safetensors(self.model, lora_dir)
             model_safe_downcast(
                 self.model,
-                dtype=self.run_dtype,
+                dtype=self.weight_dtype,
                 keep_in_fp32_modules=[],
                 keep_in_fp32_parameters=self.model._keep_in_fp32_params,
             )
@@ -240,20 +231,8 @@ class KsanaDiffusionModel(ABC):
         return self
 
     @property
-    def model_name(self):
-        return self._default_model_config.model_name
-
-    @property
-    def task_type(self):
-        return self._default_model_config.task_type
-
-    @property
-    def model_size(self):
-        return self._default_model_config.model_size
-
-    @property
     def default_model_config(self):
-        return self._default_model_config
+        return self.pipeline_config.default_config
 
     @property
     def dtype(self):
@@ -263,15 +242,16 @@ class KsanaDiffusionModel(ABC):
     def device(self):
         return self.model.device
 
-    @property
-    def run_dtype(self):
-        return self._run_dtype
-
-    def set_run_dtype(self, dtype):
-        self._run_dtype = dtype
-
     def forward(self, *args, **kwargs):
         return self.model(*args, **kwargs)
+
+    @staticmethod
+    def get_default_pipeline_config(model_name, task_type, model_size):
+        if model_name == "wan2.2":
+            config_type = f"{task_type}-{model_size}"
+            return WAN2_2_CONFIGS[config_type]
+        else:
+            raise ValueError(f"model_name {model_name} not supported")
 
     @staticmethod
     def get_model_type(full_model_name: str, comfy_model_config: dict = None):

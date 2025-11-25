@@ -6,7 +6,7 @@ from ..utils import log, singleton
 
 from ..utils.distribute import get_ksana_distributed_config_from_torchrun_env
 
-from ..config import KsanaDistributedConfig
+from ..config import KsanaDistributedConfig, KsanaSampleConfig, KsanaRuntimeConfig, KsanaModelConfig
 
 
 def get_generator(*args, **kwargs):
@@ -24,27 +24,27 @@ class KsanaGenerator(ABC):
 
     executors = None
 
-    def __init__(self, num_gpus: int = 1, **kwargs):
+    def __init__(self, num_gpus: int = 1, dist_config=None, offload_device="cpu"):
         """
         Initialize the KsanaGenerator.
         """
 
-        log.info(f"Initializing KsanaGenerator with num_gpus: {num_gpus}, kwargs: {kwargs}")
-        self.init_executors(num_gpus, **kwargs)
+        log.info(
+            f"Initializing KsanaGenerator with num_gpus: {num_gpus}, dist_config: {dist_config}, offload_device: {offload_device}"
+        )
+        self.init_executors(num_gpus, dist_config, offload_device)
         self.num_gpus = num_gpus
 
-    def init_executors(self, num_gpus: int = 1, **kwargs):
+    def init_executors(self, num_gpus: int = 1, dist_config=None, offload_device=None):
         if num_gpus > 1:
-            dist_config = get_ksana_distributed_config_from_torchrun_env(**kwargs)
+            dist_config = get_ksana_distributed_config_from_torchrun_env(dist_config)
             if dist_config.world_size != num_gpus:
                 # TODO: run with ray
                 log.info(f"dist_config.world_size({dist_config.world_size}) != num_gpus({num_gpus})")
                 raise ValueError(f"dist_config.world_size({dist_config.world_size}) != num_gpus({num_gpus})")
             else:
                 # means using torchrun so only create one executor
-                if kwargs.get("use_sp", False):
-                    dist_config.use_sp = True
-                self.executors = KsanaExecutor(dist_config=dist_config, **kwargs)
+                self.executors = KsanaExecutor(dist_config=dist_config, offload_device=offload_device)
         else:
             self.executors = KsanaExecutor(dist_config=KsanaDistributedConfig())
 
@@ -52,26 +52,39 @@ class KsanaGenerator(ABC):
         self.executors = executor
 
     @classmethod
-    def from_pretrained(cls, checkpoint_dir, lora_dir=None, num_gpus=1, torch_compile_config=None, **kwargs):
+    def from_pretrained(
+        cls,
+        checkpoint_dir,
+        lora_dir=None,
+        num_gpus=1,
+        model_config: KsanaModelConfig = None,
+        dist_config: KsanaDistributedConfig = None,
+        offload_device="cpu",
+        **kwargs,
+    ):
         """
         Load a pre-trained model.
         """
-        generator = get_generator(num_gpus=num_gpus, **kwargs)
-        generator.load_model_from_pretrained(
-            checkpoint_dir, lora_dir=lora_dir, torch_compile_config=torch_compile_config
-        )
+        model_config = model_config or KsanaModelConfig()
+        if len(kwargs) > 0:
+            log.warning(f"kwargs {kwargs} are not used")
+        generator = get_generator(num_gpus=num_gpus, dist_config=dist_config, offload_device=offload_device)
+        generator.load_models_from_pretrained(checkpoint_dir, lora_dir=lora_dir, model_config=model_config)
         return generator
 
-    def load_model_from_pretrained(self, checkpoint_dir, lora_dir=None, torch_compile_config=None, **kwargs):
+    def load_models_from_pretrained(self, checkpoint_dir, lora_dir=None, model_config: KsanaModelConfig = None):
         if hasattr(self.executors, "__iter__"):
             for executor in self.executors:
-                executor.load_model_from_pretrained(
-                    checkpoint_dir, lora_dir=lora_dir, torch_compile_config=torch_compile_config, **kwargs
-                )
+                executor.load_models_from_pretrained(checkpoint_dir, lora_dir=lora_dir, model_config=model_config)
         else:
-            self.executors.load_model_from_pretrained(
-                checkpoint_dir, lora_dir=lora_dir, torch_compile_config=torch_compile_config, **kwargs
-            )
+            self.executors.load_models_from_pretrained(checkpoint_dir, lora_dir=lora_dir, model_config=model_config)
+
+    def load_diffusion_model_from_comfy(self, model_path, comfy_model_config, model_config: KsanaModelConfig):
+        if hasattr(self.executors, "__iter__"):
+            for executor in self.executors:
+                executor.load_diffusion_model_from_comfy(model_config=model_config)
+        else:
+            self.executors.load_diffusion_model_from_comfy(model_config=model_config)
 
     # def clean(self):
     #     for worker in self.workers:
@@ -86,25 +99,45 @@ class KsanaGenerator(ABC):
                 dist.broadcast_object_list(prompt_negative, src=0)
         # TODO: ray way to broadcast prompt
 
-    def generate_video(self, prompt: str, **kwargs):
+    def generate_video(
+        self,
+        prompt: str,
+        prompt_negative: str = None,
+        sample_config: KsanaSampleConfig = None,
+        runtime_config: KsanaRuntimeConfig = None,
+        **kwargs,
+    ):
+        if len(kwargs) > 0:
+            log.warning(f"kwargs {kwargs} are not used")
         if self.num_gpus > 1:
             self.broadcast_input_args(
-                prompt, kwargs.get("seed", None), prompt_negative=kwargs.get("prompt_negative", None)
+                prompt, runtime_config.seed if runtime_config else None, prompt_negative=prompt_negative
             )
 
         if hasattr(self.executors, "__iter__"):
             # TODO: return videos
             for executor in self.executors:
-                res = executor.generate_video(prompt=prompt, **kwargs)
+                res = executor.generate_video(
+                    prompt=prompt,
+                    prompt_negative=prompt_negative,
+                    sample_config=sample_config,
+                    runtime_config=runtime_config,
+                )
         else:
-            res = self.executors.generate_video(prompt=prompt, **kwargs)
+            res = self.executors.generate_video(
+                prompt=prompt,
+                prompt_negative=prompt_negative,
+                sample_config=sample_config,
+                runtime_config=runtime_config,
+            )
 
         return res
 
     def generate_video_with_tensors(self, *args, **kwargs):
         if hasattr(self.executors, "__iter__"):
+            res = []
             for executor in self.executors:
-                executor.generate_video_with_tensors(*args, **kwargs)
+                res.append(executor.generate_video_with_tensors(*args, **kwargs))
         else:
-            self.executors.generate_video_with_tensors(*args, **kwargs)
-        return self.executors
+            res = self.executors.generate_video_with_tensors(*args, **kwargs)
+        return res

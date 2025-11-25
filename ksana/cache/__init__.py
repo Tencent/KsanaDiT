@@ -4,6 +4,7 @@ from .cache_config import (
     TeaCacheConfig,
     EasyCacheConfig,
     MagCacheConfig,
+    SUPPORTED_CACHE_METHODS,
 )
 
 from .base_cache import KsanaCache
@@ -28,4 +29,4 @@ def create_cache(model_name: str, model_type: str, model_size: str, config: Ksan
         raise ValueError(f"Unknown cache config type: {type(config)}")
 
 
-__all__ = ["create_cache", "KsanaCache", "DCache", "TeaCache", "EasyCache", "MagCache"]
+__all__ = ["create_cache", "KsanaCache", "DCache", "TeaCache", "EasyCache", "MagCache", "SUPPORTED_CACHE_METHODS"]

@@ -180,6 +180,7 @@ class nvtx_range:
 class MemoryProfiler:
     enabled = KSANA_MEMORY_PROFILER
 
+    # TODO: this method is very un-pythonic, change it to a more pythonic way
     @staticmethod
     def record_memory(tag: str, project_name: str = "KsanaDit"):
         """
