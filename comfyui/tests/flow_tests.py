@@ -1,17 +1,4 @@
 #!/usr/bin/env python3
-"""
-ComfyUI Workflow 测试
-
-使用方法：
-    # 默认参数
-    python flow_tests.py
-
-    # 自定义参数
-    python flow_tests.py --path wan2.2_fp16.json --steps 5
-
-    # 使用已运行的 server
-    python flow_tests.py --no-server
-"""
 
 import argparse
 import json
@@ -33,68 +20,71 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger(__name__)
 
 
-def modify_workflow_params(api_prompt: dict, args) -> dict:
+def modify_workflow_params(api_prompt: dict, params: dict) -> dict:
     """修改 workflow 参数
 
     Args:
         api_prompt: API workflow 数据
-        args: 命令行参数对象，包含 steps, width, height, frames, precision
+        params: 包含参数的字典
 
     支持的节点类型和参数映射:
         - KsanaGeneratorNode: steps
-        - EmptyHunyuanLatentVideo: width, height, length (从 args.frames 获取)
-        - KsanaModelLoaderNode: 根据 precision 修改模型名称（仅当 precision 参数被设置时）
-        - CLIPLoader: 根据 precision 修改 CLIP 模型名称（仅当 precision 参数被设置时）
-
-    Returns:
-        修改后的 workflow
+        - EmptyHunyuanLatentVideo: width, height, length (从 params["frames"] 获取)
+        - KsanaModelLoaderNode: model_name, weight_dtype, linear_backend, attn_backend
+        - CLIPLoader: clip_name
     """
-    # 检查是否设置了 precision 参数
-    precision = getattr(args, "precision", None)
-
     for _, node_data in api_prompt.items():
         class_type = node_data.get("class_type")
-        inputs = node_data.get("inputs", {})
+        inputs = node_data.get("inputs")
+
+        if not inputs:
+            continue
 
         # KsanaGeneratorNode: 修改 steps
-        if class_type == "KsanaGeneratorNode" and "steps" in inputs:
-            node_data["inputs"]["steps"] = args.steps
+        if class_type == "KsanaGeneratorNode":
+            if "steps" in params and "steps" in inputs:
+                inputs["steps"] = params["steps"]
 
         # EmptyHunyuanLatentVideo: 修改 width, height, length
         elif class_type == "EmptyHunyuanLatentVideo":
-            if "width" in inputs:
-                node_data["inputs"]["width"] = args.width
+            if "width" in params and "width" in inputs:
+                inputs["width"] = params["width"]
+            if "height" in params and "height" in inputs:
+                inputs["height"] = params["height"]
+            if "frames" in params and "length" in inputs:
+                inputs["length"] = params["frames"]
 
-            if "height" in inputs:
-                node_data["inputs"]["height"] = args.height
+        # KsanaModelLoaderNode: 根据命令行参数修改模型
+        elif class_type == "KsanaModelLoaderNode":
+            model_name = inputs.get("model_name")
+            if not model_name:
+                raise ValueError("KsanaModelLoaderNode is missing 'model_name' in its inputs.")
 
-            if "length" in inputs:
-                node_data["inputs"]["length"] = args.frames
+            if "high_noise" in model_name and params.get("dit_high_model_name"):
+                inputs["model_name"] = params["dit_high_model_name"]
+            elif "low_noise" in model_name and params.get("dit_low_model_name"):
+                inputs["model_name"] = params["dit_low_model_name"]
 
-        # KsanaModelLoaderNode: 根据 precision 修改模型名称（仅当 precision 被设置时）
-        elif class_type == "KsanaModelLoaderNode" and precision:
-            if "ckpt_name" in inputs:
-                model_name = inputs["ckpt_name"]
-                if precision == "fp8":
-                    model_name = model_name.replace("_fp16.safetensors", "_fp8_scaled.safetensors")
-                node_data["inputs"]["ckpt_name"] = model_name
+            if params.get("weight_dtype") and "weight_dtype" in inputs:
+                inputs["weight_dtype"] = params["weight_dtype"]
+            if params.get("linear_backend") and "linear_backend" in inputs:
+                inputs["linear_backend"] = params["linear_backend"]
+            if params.get("attn_backend") and "attn_backend" in inputs:
+                inputs["attn_backend"] = params["attn_backend"]
 
-        # CLIPLoader: 根据 precision 修改 CLIP 模型名称（仅当 precision 被设置时）
-        elif class_type == "CLIPLoader" and precision:
-            if "clip_name" in inputs:
-                clip_name = inputs["clip_name"]
-                if precision == "fp8":
-                    clip_name = clip_name.replace("_fp16.safetensors", "_fp8_e4m3fn_scaled.safetensors")
-                node_data["inputs"]["clip_name"] = clip_name
+        # CLIPLoader: 根据命令行参数修改模型
+        elif class_type == "CLIPLoader":
+            if params.get("text_model_name") and "clip_name" in inputs:
+                inputs["clip_name"] = params["text_model_name"]
 
     return api_prompt
 
 
-def test_workflow(workflow_path: str, args) -> bool:
+def test_workflow(workflow_path: str, params: dict) -> bool:
     """测试 workflow
     Args:
         workflow_path: workflow 文件路径
-        args: 命令行参数
+        params: 包含参数的字典
     Returns:
         是否成功
     """
@@ -105,7 +95,7 @@ def test_workflow(workflow_path: str, args) -> bool:
         api_prompt = load_workflow(workflow_path, server_address)
 
         # 2. 修改参数
-        api_prompt = modify_workflow_params(api_prompt, args)
+        api_prompt = modify_workflow_params(api_prompt, params)
 
         # 3. 连接 WebSocket
         ws, client_id = connect_websocket(server_address)
@@ -129,24 +119,25 @@ def test_workflow(workflow_path: str, args) -> bool:
         return False
 
 
-def main():
+def create_argument_parser():
     parser = argparse.ArgumentParser(
         description="ComfyUI Workflow 测试工具",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 示例:
-  # 使用 fp16 精度（默认）
+  # 单个 workflow
     python flow_tests.py --steps 3 --width 1280 --height 720 --frames 25
 
-  # 使用 fp8 精度
-    python flow_tests.py --precision fp8 --steps 3 --width 1280 --height 720 --frames 25
-
+  # 多个 workflow，从配置文件加载多个 workflow，配置文件格式：workflows_config.json
+    python flow_tests.py --workflows-file workflows_config.json
 注意:
   如果使用普通格式 workflow，需要安装 playwright:
     pip install playwright
     playwright install chromium
         """,
     )
+
+    # 单个 workflow 参数（原有方式）
     parser.add_argument(
         "--workflow_path",
         type=str,
@@ -157,22 +148,83 @@ def main():
     parser.add_argument("--width", type=int, default=720, help="视频宽度 (默认: 720)")
     parser.add_argument("--height", type=int, default=480, help="视频高度 (默认: 480)")
     parser.add_argument("--frames", type=int, default=17, help="视频帧数 (默认: 17)")
+
+    # 模型名称参数
     parser.add_argument(
-        "--precision",
+        "--dit_high_model_name",
         type=str,
         default=None,
-        choices=["fp8"],
-        help="模型精度，设置后会修改 workflow 中的模型名称 (可选: fp8)",
+        help="DIT high noise 模型名称（例如: wan2.2_t2v_high_noise_14B_fp16.safetensors）",
     )
+    parser.add_argument(
+        "--dit_low_model_name",
+        type=str,
+        default=None,
+        help="DIT low noise 模型名称（例如: wan2.2_t2v_low_noise_14B_fp16.safetensors）",
+    )
+    parser.add_argument(
+        "--text_model_name",
+        type=str,
+        default=None,
+        help="Text encoder 模型名称（例如: umt5_xxl_fp16.safetensors）",
+    )
+    parser.add_argument(
+        "--weight_dtype",
+        type=str,
+        default=None,
+        choices=["default", "float16", "bfloat16"],
+        help="weight dtype of running model",
+    )
+    parser.add_argument(
+        "--linear_backend",
+        type=str,
+        default=None,
+        choices=["default", "fp8_gemm", "fp16_gemm"],
+        help="linear backend",
+    )
+    parser.add_argument(
+        "--attn_backend",
+        type=str,
+        default=None,
+        choices=["default", "flash_attention"],
+        help="attention backend",
+    )
+
+    # 多个 workflow 参数
+    parser.add_argument(
+        "--workflows-file",
+        type=str,
+        help="从 JSON 文件加载多个 workflow 配置",
+    )
+
     parser.add_argument("--no-server", action="store_true", help="不启动 server（假设 server 已经在运行）")
 
+    return parser
+
+
+def main():
+    parser = create_argument_parser()
     args = parser.parse_args()
+
+    # 准备 workflow 配置列表
+    workflow_configs = []
+
+    if args.workflows_file:
+        # 从文件加载配置
+        logger.info(f"从文件加载 workflow 配置: {args.workflows_file}")
+        with open(args.workflows_file, "r", encoding="utf-8") as f:
+            workflow_configs = json.load(f)
+    else:
+        # 使用单个 workflow（原有方式）
+        workflow_configs = [vars(args)]
 
     # 打印配置
     logger.info("=" * 60)
     logger.info("ComfyUI Workflow 测试")
     logger.info("=" * 60)
-    logger.info(f"配置: {args.__dict__}")
+    logger.info(f"总共 {len(workflow_configs)} 个 workflow:")
+    for i, config in enumerate(workflow_configs, 1):
+        logger.info(f"  [{i}] {config}")
     logger.info("=" * 60)
 
     server_process = None
@@ -189,23 +241,40 @@ def main():
         else:
             logger.info("跳过启动 server（使用已有 server）")
 
-        # 运行测试
-        success = test_workflow(workflow_path=args.workflow_path, args=args)
+        # 运行所有 workflow
+        all_success = True
+        for i, config in enumerate(workflow_configs, 1):
+            logger.info("=" * 60)
+            logger.info(f"执行 workflow [{i}/{len(workflow_configs)}]")
+            logger.info(f"配置: {config}")
+            logger.info("=" * 60)
 
-        # 计算耗时
+            # 运行测试
+            workflow_start_time = time.time()
+            success = test_workflow(workflow_path=config["workflow_path"], params=config)
+            workflow_elapsed = time.time() - workflow_start_time
+
+            if success:
+                logger.info(f"✓ Workflow [{i}/{len(workflow_configs)}] 成功! 耗时: {workflow_elapsed:.2f} 秒")
+            else:
+                logger.error(f"✗ Workflow [{i}/{len(workflow_configs)}] 失败! 耗时: {workflow_elapsed:.2f} 秒")
+                all_success = False
+                break  # 如果一个失败，停止执行后续的
+
+        # 计算总耗时
         elapsed_seconds = time.time() - test_start_time
         elapsed_minutes = int(elapsed_seconds // 60)
         remaining_seconds = int(elapsed_seconds % 60)
 
-        if success:
+        if all_success:
             logger.info("=" * 60)
-            logger.info("✓✓✓ 测试成功！")
-            logger.info(f"⏱️  耗时: {elapsed_minutes} 分 {remaining_seconds} 秒 (总计 {elapsed_seconds:.2f} 秒)")
+            logger.info(f"✓✓✓ 所有 {len(workflow_configs)} 个 workflow 测试成功！")
+            logger.info(f"⏱️  总耗时: {elapsed_minutes} 分 {remaining_seconds} 秒 (总计 {elapsed_seconds:.2f} 秒)")
             logger.info("=" * 60)
         else:
             logger.error("=" * 60)
             logger.error("✗✗✗ 测试失败！")
-            logger.error(f"⏱️  耗时: {elapsed_minutes} 分 {remaining_seconds} 秒 (总计 {elapsed_seconds:.2f} 秒)")
+            logger.error(f"⏱️  总耗时: {elapsed_minutes} 分 {remaining_seconds} 秒 (总计 {elapsed_seconds:.2f} 秒)")
             logger.error("=" * 60)
             assert False, "Workflow 测试失败"
 
