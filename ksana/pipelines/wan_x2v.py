@@ -170,6 +170,7 @@ class KsanaWanX2VPipeline(KsanaX2VPipeline):
         device=None,
         offload_device=None,
     ):
+        runtime_config = KsanaRuntimeConfig.copy_with_default(runtime_config, self.pipeline_config.default_config)
         high_cache_config, low_cache_config = self.process_input_cache(runtime_config.cache_method)
 
         latents = self.generate_video_with_tensors(
@@ -178,7 +179,7 @@ class KsanaWanX2VPipeline(KsanaX2VPipeline):
             negative=negative,
             latents=None,
             sample_config=self.prepare_sample_default_args(sample_config),
-            runtime_config=KsanaRuntimeConfig.copy_with_default(runtime_config, self.pipeline_config.default_config),
+            runtime_config=runtime_config,
             high_cache_config=high_cache_config,
             low_cache_config=low_cache_config,
             device=device,

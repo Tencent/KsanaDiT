@@ -80,6 +80,6 @@ def run_advanced():
 
 
 if __name__ == "__main__":
-    # run_simple()
-    # run_with_lora()
+    run_simple()
+    run_with_lora()
     run_advanced()
