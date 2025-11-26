@@ -31,6 +31,7 @@ dependencies = [
   "dataclasses >= 0.6; python_version < '3.7'",
   "imageio >= 2.34.2",
   "imageio-ffmpeg >= 0.4.8",
+  # "sageattention >= 2.1.1"
 ]
 
 # wan2.2 deps:
