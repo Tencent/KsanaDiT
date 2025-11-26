@@ -147,9 +147,14 @@ class KsanaExecutor(ABC):
             return videos
 
     @time_range
-    def generate_video_with_tensors(self, *args, **kwargs):
+    def generate_video_with_tensors(self, model, positive, negative, **kwargs):
         return self.pipeline.generate_video_with_tensors(
-            *args, device=self.device, offload_device=self.offload_device, **kwargs
+            model=model,
+            positive=positive,
+            negative=negative,
+            device=self.device,
+            offload_device=self.offload_device,
+            **kwargs,
         )
 
     # TODO: move save to generator, outside executors

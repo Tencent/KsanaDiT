@@ -79,12 +79,15 @@ class KsanaGenerator(ABC):
         else:
             self.executors.load_models_from_pretrained(checkpoint_dir, lora_dir=lora_dir, model_config=model_config)
 
-    def load_diffusion_model_from_comfy(self, model_path, comfy_model_config, model_config: KsanaModelConfig):
+    def load_diffusion_model_from_comfy(self, model_config: KsanaModelConfig, **kwargs):
         if hasattr(self.executors, "__iter__"):
+            # TODO: how to return multiple ksana_model
+            res = []
             for executor in self.executors:
-                executor.load_diffusion_model_from_comfy(model_config=model_config)
+                res.append(executor.load_diffusion_model_from_comfy(model_config=model_config, **kwargs))
         else:
-            self.executors.load_diffusion_model_from_comfy(model_config=model_config)
+            res = self.executors.load_diffusion_model_from_comfy(model_config=model_config, **kwargs)
+        return res
 
     # def clean(self):
     #     for worker in self.workers:
@@ -133,11 +136,15 @@ class KsanaGenerator(ABC):
 
         return res
 
-    def generate_video_with_tensors(self, *args, **kwargs):
+    def generate_video_with_tensors(self, model, positive, negative, **kwargs):
         if hasattr(self.executors, "__iter__"):
             res = []
             for executor in self.executors:
-                res.append(executor.generate_video_with_tensors(*args, **kwargs))
+                res.append(
+                    executor.generate_video_with_tensors(model=model, positive=positive, negative=negative, **kwargs)
+                )
         else:
-            res = self.executors.generate_video_with_tensors(*args, **kwargs)
+            res = self.executors.generate_video_with_tensors(
+                model=model, positive=positive, negative=negative, **kwargs
+            )
         return res

@@ -152,15 +152,10 @@ class KsanaGeneratorNode:
             )
         # 3. 计算推理过程中的内存需求（激活值等）
         # 参考 model_base.py 的 memory_required 方法
-        # 原始公式: area = sum(map(lambda input_shape: input_shape[0] * math.prod(input_shape[2:]), input_shapes))
-        # 其中 input_shape[0] 是 batch, input_shape[2:] 是空间维度 [T, H, W]
-        # 重要：batch_size 要乘以 2，因为推理时同时处理 cond 和 uncond
         batch_doubled = latent_shape[0] * 2  # cond + uncond
         spatial_size = latent_shape[2] * latent_shape[3] * latent_shape[4]  # T * H * W
         area = batch_doubled * spatial_size
 
-        # 注意: 使用 model.run_dtype 而不是 model.dtype
-        # model.dtype 可能返回 float32 (因为 patch_embedding 是 float32)，但实际推理使用的是 model.run_dtype (在 model_loader 中设置的)
         actual_dtype = (
             ksana_model.run_dtype
             if hasattr(ksana_model, "run_dtype") and ksana_model.run_dtype is not None
@@ -168,8 +163,6 @@ class KsanaGeneratorNode:
         )
         dtype_size = mm.dtype_size(actual_dtype)
 
-        # 标准注意力机制下的内存需求：memory_required = (area * 0.15 * memory_usage_factor) * (1024 * 1024)
-        # 走xformer 或者 flash attention（默认走flash attention）
         memory_required = (area * dtype_size * 0.01 * memory_usage_factor) * (1024 * 1024)
 
         # 最小内存需求：使用 batch_size = latent_shape[0]（不乘2）
@@ -202,27 +195,18 @@ class KsanaGeneratorNode:
                 memory_required, minimum_memory_required, model_weight_memory = self._estimate_ksana_model_memory(
                     ksana_model, latent_shape
                 )
-                # 使用最大的推理内存需求（因为是顺序推理，不是同时推理）
                 max_model_weight_memory = max(max_model_weight_memory, model_weight_memory)
                 max_memory_required = max(max_memory_required, memory_required)
                 max_minimum_memory_required = max(max_minimum_memory_required, minimum_memory_required)
 
-            # 获取当前可用内存
             current_free_mem = mm.get_free_memory(device)
-            # 获取extra_reserved_memory（类似_prepare_sampling中的extra_mem）
             extra_mem = mm.extra_reserved_memory()
             inference_memory = mm.minimum_inference_memory()
             extra_mem = max(inference_memory, extra_mem)
 
-            # 计算需要释放的内存量
-            # 参考 load_models_gpu 的逻辑：
-            # 1. total_memory_required = model_weight_memory (模型权重需要的内存)
-            # 2. 实际需要的内存 = model_weight_memory * 1.1 + memory_required + extra_mem
-            # 3. 最小需求 = model_weight_memory + minimum_memory_required + extra_mem
             total_memory_required = max_model_weight_memory * 1.1 + max_memory_required + extra_mem
             minimum_memory_needed = max_model_weight_memory + max_minimum_memory_required + extra_mem
 
-            # 如果当前可用内存不足，释放ComfyUI模型
             # 参考 load_models_gpu 中的两步释放策略
             if current_free_mem < total_memory_required:
                 log.debug(f"Need to free {(total_memory_required - current_free_mem) / (1024*1024):.1f} MB")
@@ -261,7 +245,6 @@ class KsanaGeneratorNode:
         ksana_generator = get_generator()
         MemoryProfiler.record_memory("before_ksana_generator_generate_video_with_tensors")
 
-        # 在调用 generate_video_with_tensors 前释放 ComfyUI 模型占用的内存
         latent_shape = latent_image["samples"].shape
         device = mm.get_torch_device()
         self._prepare_memory_for_ksana_models(

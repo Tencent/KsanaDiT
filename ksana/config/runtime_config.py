@@ -29,7 +29,7 @@ class KsanaRuntimeConfig:
 
     def __post_init__(self):
         assert (
-            self.cache_method in SUPPORTED_CACHE_METHODS
+            self.cache_method is None or self.cache_method in SUPPORTED_CACHE_METHODS
         ), f"unsupported cache method {self.cache_method}, not in {SUPPORTED_CACHE_METHODS}"
 
     @staticmethod
