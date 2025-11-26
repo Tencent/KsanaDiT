@@ -122,8 +122,8 @@ def test_workflow(workflow_path: str, params: dict, expect_values: Optional[dict
         try:
             error_data = json.loads(error_content)
             logger.error(json.dumps(error_data, indent=2, ensure_ascii=False))
-        except:
-            logger.error(error_content)
+        except Exception as e:
+            logger.error(error_content, e)
         return False
 
 
