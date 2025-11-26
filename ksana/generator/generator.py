@@ -32,11 +32,12 @@ class KsanaGenerator(ABC):
         log.info(
             f"Initializing KsanaGenerator with num_gpus: {num_gpus}, dist_config: {dist_config}, offload_device: {offload_device}"
         )
-        self.init_executors(num_gpus, dist_config, offload_device)
+        self.init_executors(num_gpus, dist_config=dist_config, offload_device=offload_device)
         self.num_gpus = num_gpus
 
     def init_executors(self, num_gpus: int = 1, dist_config=None, offload_device=None):
         if num_gpus > 1:
+            dist_config = dist_config if dist_config else KsanaDistributedConfig()
             dist_config = get_ksana_distributed_config_from_torchrun_env(dist_config)
             if dist_config.world_size != num_gpus:
                 # TODO: run with ray

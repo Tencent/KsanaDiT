@@ -176,7 +176,7 @@ class KsanaModelLoaderNode:
                     {"tooltip": "linear_backend default use linear dtype from model"},
                 ),
                 "attn_backend": (
-                    ["default", "flash_attention", "sage_attention"],
+                    ["flash_attention", "sage_attention"],
                     {"default": "flash_attention"},
                     {"tooltip": "attention backend"},
                 ),
