@@ -115,6 +115,8 @@ class KsanaExecutor(ABC):
         sample_config: KsanaSampleConfig = None,
         runtime_config: KsanaRuntimeConfig = None,
     ):
+        sample_config = sample_config if sample_config else KsanaSampleConfig()
+        runtime_config = runtime_config if runtime_config else KsanaRuntimeConfig()
         text_run_device = torch.device("cpu")  # TODO: maybe run text on cuda self.device
         positive, negative = self.pipeline.forward_text_encoder(
             prompt, prompt_negative, device=text_run_device, offload_device=self.offload_device
