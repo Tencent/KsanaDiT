@@ -5,6 +5,8 @@ import json
 import logging
 import time
 import urllib.error
+from typing import Optional
+
 
 from test_utils import (
     start_server,
@@ -13,6 +15,7 @@ from test_utils import (
     connect_websocket,
     submit_workflow,
     wait_for_completion,
+    check_media_data,
 )
 
 # 配置日志
@@ -80,11 +83,12 @@ def modify_workflow_params(api_prompt: dict, params: dict) -> dict:
     return api_prompt
 
 
-def test_workflow(workflow_path: str, params: dict) -> bool:
+def test_workflow(workflow_path: str, params: dict, expect_values: Optional[dict] = None) -> bool:
     """测试 workflow
     Args:
         workflow_path: workflow 文件路径
         params: 包含参数的字典
+        expect_values: 期望值，用于结果校验
     Returns:
         是否成功
     """
@@ -106,7 +110,11 @@ def test_workflow(workflow_path: str, params: dict) -> bool:
             return False
 
         # 5. 等待完成
-        return wait_for_completion(ws, prompt_id, server_address)
+        success, media_data = wait_for_completion(ws, prompt_id, server_address)
+        if not success:
+            return False
+        # 6. 校验结果
+        return check_media_data(media_data, expect_values)
 
     except urllib.error.HTTPError as e:
         error_content = e.read().decode("utf-8")
@@ -251,7 +259,8 @@ def main():
 
             # 运行测试
             workflow_start_time = time.time()
-            success = test_workflow(workflow_path=config["workflow_path"], params=config)
+            expect_values = config.get("expect_values")
+            success = test_workflow(workflow_path=config["workflow_path"], params=config, expect_values=expect_values)
             workflow_elapsed = time.time() - workflow_start_time
 
             if success:
@@ -259,7 +268,7 @@ def main():
             else:
                 logger.error(f"✗ Workflow [{i}/{len(workflow_configs)}] 失败! 耗时: {workflow_elapsed:.2f} 秒")
                 all_success = False
-                break  # 如果一个失败，停止执行后续的
+                # break  # 如果一个失败，停止执行后续的
 
         # 计算总耗时
         elapsed_seconds = time.time() - test_start_time

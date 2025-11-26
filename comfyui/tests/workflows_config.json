@@ -10,14 +10,20 @@
     "text_model_name": "umt5_xxl_fp8_e4m3fn_scaled.safetensors",
     "weight_dtype": "default",
     "linear_backend": "fp8_gemm",
-    "attn_backend": "default"
+    "attn_backend": "default",
+    "expect_values": {
+      "mean": 0.4937195
+    }
   },
   {
     "workflow_path": "../workflows/wan2.2_fp16.json",
-    "steps": 3,
+    "steps": 1,
     "width": 720,
     "height": 480,
-    "frames": 17
+    "frames": 20,
+    "expect_values": {
+      "mean": 0.5088274
+    }
   },
   {
     "workflow_path": "../workflows/wan2.2_fp16.json",
@@ -27,6 +33,9 @@
     "frames": 10,
     "dit_high_model_name": "wan2.2_t2v_high_noise_14B_fp8_scaled.safetensors",
     "dit_low_model_name": "wan2.2_t2v_low_noise_14B_fp8_scaled.safetensors",
-    "text_model_name": "umt5_xxl_fp8_e4m3fn_scaled.safetensors"
+    "text_model_name": "umt5_xxl_fp8_e4m3fn_scaled.safetensors",
+    "expect_values": {
+      "mean": 0.5133173
+    }
   }
 ]
