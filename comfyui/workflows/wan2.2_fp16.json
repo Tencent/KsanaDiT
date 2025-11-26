@@ -1,6 +1,6 @@
 {
-  "last_node_id": 125,
-  "last_link_id": 220,
+  "last_node_id": 127,
+  "last_link_id": 225,
   "nodes": [
     {
       "id": 7,
@@ -227,48 +227,6 @@
       "bgcolor": "#335"
     },
     {
-      "id": 120,
-      "type": "KsanaModelLoaderNode",
-      "pos": [
-        26,
-        532
-      ],
-      "size": {
-        "0": 383.11724853515625,
-        "1": 130
-      },
-      "flags": {},
-      "order": 9,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "compile_args",
-          "type": "KSANACOMPILEARGS",
-          "link": 220
-        }
-      ],
-      "outputs": [
-        {
-          "name": "model",
-          "type": "KSANAMODEL",
-          "links": [
-            212
-          ],
-          "shape": 3,
-          "slot_index": 0
-        }
-      ],
-      "properties": {
-        "Node name for S&R": "KsanaModelLoaderNode"
-      },
-      "widgets_values": [
-        "wan2.2_t2v_low_noise_14B_fp16.safetensors",
-        "default",
-        "default",
-        "default"
-      ]
-    },
-    {
       "id": 114,
       "type": "VHS_VideoCombine",
       "pos": [
@@ -461,8 +419,8 @@
           "name": "torch_compile_args",
           "type": "KSANACOMPILEARGS",
           "links": [
-            219,
-            220
+            221,
+            222
           ],
           "shape": 3,
           "slot_index": 0
@@ -484,24 +442,24 @@
       ]
     },
     {
-      "id": 117,
+      "id": 126,
       "type": "KsanaModelLoaderNode",
       "pos": [
-        20,
-        372
+        -7,
+        302
       ],
-      "size": {
-        "0": 389.2339782714844,
-        "1": 130
-      },
+      "size": [
+        411.3136044272595,
+        157.88584125043417
+      ],
       "flags": {},
       "order": 8,
       "mode": 0,
       "inputs": [
         {
-          "name": "compile_args",
+          "name": "torch_compile_args",
           "type": "KSANACOMPILEARGS",
-          "link": 219
+          "link": 221
         }
       ],
       "outputs": [
@@ -509,7 +467,7 @@
           "name": "model",
           "type": "KSANAMODEL",
           "links": [
-            213
+            224
           ],
           "shape": 3,
           "slot_index": 0
@@ -522,7 +480,51 @@
         "wan2.2_t2v_high_noise_14B_fp16.safetensors",
         "default",
         "default",
-        "default"
+        "flash_attention",
+        1
+      ]
+    },
+    {
+      "id": 127,
+      "type": "KsanaModelLoaderNode",
+      "pos": [
+        -6,
+        508
+      ],
+      "size": [
+        404.6119109804986,
+        156.1696214531296
+      ],
+      "flags": {},
+      "order": 9,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "torch_compile_args",
+          "type": "KSANACOMPILEARGS",
+          "link": 222
+        }
+      ],
+      "outputs": [
+        {
+          "name": "model",
+          "type": "KSANAMODEL",
+          "links": [
+            225
+          ],
+          "shape": 3,
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "KsanaModelLoaderNode"
+      },
+      "widgets_values": [
+        "wan2.2_t2v_low_noise_14B_fp16.safetensors",
+        "default",
+        "default",
+        "flash_attention",
+        1
       ]
     },
     {
@@ -543,7 +545,7 @@
         {
           "name": "model",
           "type": "KSANAMODEL",
-          "link": 213
+          "link": 224
         },
         {
           "name": "positive",
@@ -563,7 +565,7 @@
         {
           "name": "low_model",
           "type": "KSANAMODEL",
-          "link": 212
+          "link": 225
         },
         {
           "name": "high_cache_config",
@@ -593,8 +595,8 @@
       },
       "widgets_values": [
         40,
-        1080221284457548,
-        "randomize",
+        321,
+        "fixed",
         "uni_pc",
         4,
         5,
@@ -654,22 +656,6 @@
       "*"
     ],
     [
-      212,
-      120,
-      0,
-      119,
-      4,
-      "KSANAMODEL"
-    ],
-    [
-      213,
-      117,
-      0,
-      119,
-      0,
-      "KSANAMODEL"
-    ],
-    [
       214,
       6,
       0,
@@ -710,20 +696,36 @@
       "KSANA_CACHE_CONFIG"
     ],
     [
-      219,
+      221,
       125,
       0,
-      117,
+      126,
       0,
       "KSANACOMPILEARGS"
     ],
     [
-      220,
+      222,
       125,
       0,
-      120,
+      127,
       0,
       "KSANACOMPILEARGS"
+    ],
+    [
+      224,
+      126,
+      0,
+      119,
+      0,
+      "KSANAMODEL"
+    ],
+    [
+      225,
+      127,
+      0,
+      119,
+      4,
+      "KSANAMODEL"
     ]
   ],
   "groups": [],
