@@ -66,6 +66,7 @@ class LocalAttentionOp(nn.Module):
         self._backend_cls = backend_cls
         self._attn_impl_dtype = dtype
 
+    @torch.compiler.disable
     def forward(
         self,
         query: torch.Tensor,

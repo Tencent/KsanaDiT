@@ -20,43 +20,35 @@ seed = 1234
 num_gpus = int(os.getenv("WORLD_SIZE", "1"))
 
 
-# def run_simple():
-#     generator = KsanaGenerator.from_pretrained("./Wan2.2-T2V-A14B", num_gpus=num_gpus)
+def run_simple():
+    generator = KsanaGenerator.from_pretrained("./Wan2.2-T2V-A14B", num_gpus=num_gpus)
 
-#     # Generate the video
-#     video = generator.generate_video(
-#         prompt,
-#         steps=40,
-#         size=(720, 480),
-#         seed=seed,
-#         frame_num=17,  # 81
-#         cache_method="DCache",
-#         return_frames=True,
-#         output_folder="my_videos",
-#     )
-#     if video is not None:
-#         print("video shape:", video.shape)
+    video = generator.generate_video(
+        prompt,
+        sample_config=KsanaSampleConfig(steps=40),
+        runtime_config=KsanaRuntimeConfig(
+            seed=seed, size=(720, 480), frame_num=17, cache_method="DCache", return_frames=True
+        ),
+    )
+    if video is not None:
+        print("video shape:", video.shape)
 
 
-# def run_with_lora():
-#     generator = KsanaGenerator.from_pretrained(
-#         "./Wan2.2-T2V-A14B",
-#         lora_dir="./Wan2.2-Lightning/Wan2.2-T2V-A14B-4steps-lora-rank64-Seko-V1",
-#     )
+def run_with_lora():
+    generator = KsanaGenerator.from_pretrained(
+        "./Wan2.2-T2V-A14B",
+        lora_dir="./Wan2.2-Lightning/Wan2.2-T2V-A14B-4steps-lora-rank64-Seko-V1",
+    )
 
-#     # Generate the video
-#     generator.generate_video(
-#         prompt,
-#         seed=seed,
-#         output_folder="my_videos",
-#     )
+    # Generate the video
+    generator.generate_video(prompt)
 
 
 def run_advanced():
     model_config = KsanaModelConfig(
-        # weight_dtype=torch.float16,
-        # attn_backend="flash_attention",
-        # linear_backend="fp8_gemm",
+        weight_dtype="float16",
+        attn_backend="flash_attention",
+        linear_backend="fp8_gemm",
         torch_compile_config=KsanaTorchCompileConfig(),
     )
 
@@ -64,24 +56,19 @@ def run_advanced():
         "./Wan2.2-T2V-A14B",
         num_gpus=num_gpus,
         model_config=model_config,
-        dist_config=KsanaDistributedConfig(use_sp=False, dit_fsdp=False),
+        dist_config=KsanaDistributedConfig(),
     )
 
     runtime_config = KsanaRuntimeConfig(
         size=(720, 480),
         seed=seed,
-        frame_num=17,  # 81
+        frame_num=17,
         cache_method="DCache",
         return_frames=True,
         output_folder="my_videos",
         save_video=True,
     )
-    sample_config = KsanaSampleConfig(
-        steps=40,
-        cfg_scale=3.0,
-        # shift=3.0
-        # solver="uni_pc"
-    )
+    sample_config = KsanaSampleConfig(steps=40, cfg_scale=3.0, shift=12.0, solver="uni_pc")
 
     # Generate the video
     video = generator.generate_video(
