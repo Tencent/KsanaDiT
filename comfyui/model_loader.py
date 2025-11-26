@@ -125,8 +125,6 @@ def load_diffusion_model_state_dict(
         comfy_model_config=unet_config,
         comfy_model_state_dict=new_sd,
         comfy_operations=operations,
-        load_device=load_device,
-        offload_device=offload_device,
     )
     model.ksana_model = ksana_model
 
