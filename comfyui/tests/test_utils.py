@@ -19,6 +19,12 @@ import urllib.error
 from pathlib import Path
 from typing import Optional, Tuple
 
+# video mean
+from io import BytesIO
+import torch
+import numpy
+from PIL import Image
+
 import websocket
 
 # 配置日志
@@ -305,7 +311,78 @@ def submit_workflow(api_prompt: dict, client_id: str, server_address: str = "127
     return prompt_id
 
 
-def wait_for_completion(ws: websocket.WebSocket, prompt_id: str, server_address: str = "127.0.0.1:8188") -> bool:
+def get_history(prompt_id: str, server_address: str) -> dict:
+    with urllib.request.urlopen(f"http://{server_address}/history/{prompt_id}") as response:
+        return json.loads(response.read())
+
+
+def get_media(filename: str, subfolder: str, folder_type: str, server_address: str) -> bytes:
+    data = {"filename": filename, "subfolder": subfolder, "type": folder_type}
+    url_values = urllib.parse.urlencode(data)
+    with urllib.request.urlopen(f"http://{server_address}/view?{url_values}") as response:
+        return response.read()
+
+
+def _get_workflow_result_media(prompt_id: str, server_address: str) -> Tuple[bool, Optional[bytes]]:
+    """获取并下载 workflow 结果中的第一个媒体文件。"""
+    try:
+        history = get_history(prompt_id, server_address)[prompt_id]
+        for node_id in history["outputs"]:
+            node_output = history["outputs"][node_id]
+            media_keys = ["gifs", "images"]
+            for key in media_keys:
+                if key in node_output and node_output[key]:
+                    media_item = node_output[key][0]
+                    logger.info(f"找到媒体文件: {media_item['filename']}")
+                    media_data = get_media(
+                        media_item["filename"],
+                        media_item["subfolder"],
+                        media_item["type"],
+                        server_address,
+                    )
+                    return True, media_data
+        logger.warning("在 workflow 输出中未找到任何媒体文件。")
+        return True, None
+    except Exception as e:
+        logger.error(f"获取或下载媒体文件时出错: {e}")
+        return False, None
+
+
+def check_media_data(media_data: bytes, expect_values: dict) -> bool:
+    if not expect_values:
+        logger.warning("No `expect_values` provided for workflow. Skipping image check.")
+        return True
+    if not media_data:
+        logger.error("✗ `expect_values` was provided, but no image/video data was received.")
+        return False
+
+    try:
+        pil_image = Image.open(BytesIO(media_data))
+        if pil_image.format == "GIF":
+            pil_image.seek(0)
+
+        image_tensor = torch.from_numpy(numpy.array(pil_image).astype(numpy.float32) / 255.0)
+        mean = image_tensor.abs().mean().item()
+
+        expected_mean = expect_values["mean"]
+        tolerance = 1e-4
+
+        if abs(mean - expected_mean) < tolerance:
+            logger.info(f"✓ Image check passed. Mean: {mean:.7f}, Expected Mean: {expected_mean:.7f}")
+            return True
+        else:
+            logger.error(
+                f"✗ Image check failed. Mean: {mean:.7f}, Expected Mean: {expected_mean:.7f}, Tolerance: {tolerance}"
+            )
+            return False
+    except Exception as e:
+        logger.error(f"✗ Failed to process and check image/video data: {e}")
+        return False
+
+
+def wait_for_completion(
+    ws: websocket.WebSocket, prompt_id: str, server_address: str = "127.0.0.1:8188"
+) -> Tuple[bool, Optional[bytes]]:
     """等待 workflow 执行完成
 
     Args:
@@ -314,7 +391,7 @@ def wait_for_completion(ws: websocket.WebSocket, prompt_id: str, server_address:
         server_address: server 地址
 
     Returns:
-        是否成功完成
+        (是否成功完成, 最后一个媒体文件数据)
     """
     logger.info("等待执行...")
     while True:
@@ -327,7 +404,7 @@ def wait_for_completion(ws: websocket.WebSocket, prompt_id: str, server_address:
                     if data["data"]["node"] is None:
                         logger.info("✓ 执行完成！")
                         ws.close()
-                        return True
+                        return _get_workflow_result_media(prompt_id, server_address)
                     else:
                         logger.info(f"执行: {data['data']['node']}")
 
@@ -336,4 +413,4 @@ def wait_for_completion(ws: websocket.WebSocket, prompt_id: str, server_address:
                     logger.error("✗ 执行错误:")
                     logger.error(json.dumps(data["data"], indent=2, ensure_ascii=False))
                     ws.close()
-                    return False
+                    return False, None
