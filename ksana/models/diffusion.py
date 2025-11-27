@@ -57,7 +57,6 @@ class KsanaDiffusionModel(ABC):
         comfy_model_path: str = None,
         comfy_model_config: dict = None,
         comfy_model_state_dict=None,
-        operations=None,
         load_device=None,
         offload_device=None,
         checkpoint_dir=None,
@@ -71,7 +70,6 @@ class KsanaDiffusionModel(ABC):
                 comfy_model_path=comfy_model_path,
                 comfy_model_config=comfy_model_config,
                 comfy_model_state_dict=comfy_model_state_dict,
-                operations=operations,
                 load_device=load_device,
                 offload_device=offload_device,
                 checkpoint_dir=checkpoint_dir,
@@ -141,7 +139,6 @@ class KsanaDiffusionModel(ABC):
         comfy_model_path: str = None,
         comfy_model_config: dict = None,
         comfy_model_state_dict=None,
-        operations=None,
         load_device=None,
         offload_device=None,
         checkpoint_dir=None,
@@ -153,15 +150,10 @@ class KsanaDiffusionModel(ABC):
             # comfy_model_state_dict = load_torch_file(comfy_model_path)  # fp8
             comfy_model_state_dict = load_sharded_safetensors(f"{checkpoint_dir}/{subfolder}")  # fp16
 
-        if operations is None:
-            fp8_optimizations = False
-            scaled_fp8 = None
-            if self.model_config.linear_backend == "fp8_gemm":
-                fp8_optimizations = True
-                scaled_fp8 = torch.float8_e4m3fn
-            operations = pick_operations(
-                self.weight_dtype, None, fp8_optimizations=fp8_optimizations, scaled_fp8=scaled_fp8
-            )
+        fp8_gemm, scaled_fp8 = (
+            (True, torch.float8_e4m3fn) if self.model_config.linear_backend == "fp8_gemm" else (False, None)
+        )
+        operations = pick_operations(self.weight_dtype, fp8_gemm=fp8_gemm, scaled_fp8=scaled_fp8)
         if comfy_model_config is None:
             comfy_model_config = {}
 

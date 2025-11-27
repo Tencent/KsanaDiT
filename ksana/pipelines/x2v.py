@@ -105,7 +105,6 @@ class KsanaX2VPipeline(ABC):
         comfy_model_path: str = None,
         comfy_model_config: dict = None,
         comfy_model_state_dict=None,
-        operations=None,
         device=None,
         offload_device=None,
         shard_fn=None,

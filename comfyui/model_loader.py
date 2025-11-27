@@ -9,7 +9,6 @@ from ksana.utils import get_gpu_count, time_range
 from ksana import get_generator
 from ksana.config import KsanaModelConfig
 from ksana.utils.profile import MemoryProfiler
-from ksana.operations import pick_operations
 
 from comfy.model_patcher import ModelPatcher
 
@@ -74,51 +73,42 @@ def load_diffusion_model_state_dict(
     else:
         unet_dtype = dtype
     manual_cast_dtype = mm.unet_manual_cast(unet_dtype, load_device, model_config.supported_inference_dtypes)
+    assert (
+        manual_cast_dtype is None or manual_cast_dtype == unet_dtype
+    ), "manual_cast_dtype must be the same as unet_dtype"
     model_config.set_inference_dtype(unet_dtype, manual_cast_dtype)
     model_config.custom_operations = None
-    linear_backend = ksana_model_config.linear_backend
-    scaled_fp8_dtype = model_config.scaled_fp8
-    if linear_backend == "default":
-        model_config.optimizations["fp8"] = (
-            True if scaled_fp8_dtype is not None and "float8" in str(scaled_fp8_dtype) else False
-        )
-    else:
-        model_config.optimizations["fp8"] = True if linear_backend == "fp8_gemm" else False
 
-    print(
-        f"input dtype: {dtype}, weight_dtype: {weight_dtype}, supported_dtype: {unet_weight_dtype}, unet_dtype: {unet_dtype}, "
-        f"manual_cast_dtype: {manual_cast_dtype}, scaled_fp8: {scaled_fp8_dtype}, linear_backend: {linear_backend}"
-    )
     model_config.unet_config["disable_unet_model_creation"] = True
     model = model_config.get_model(new_sd, "")
     model = model.to(offload_device)
 
     sdkeys = list(sd.keys())
     newsdkeys = list(new_sd.keys())
-    print(f"sd keys samples: {len(sdkeys)}, new_sd keys samples: {len(newsdkeys)}")
-    print(f"Load_device: {load_device}, Offload_device: {offload_device}")
-    print(
-        f"unet_config: {model_config.unet_config}, latent_format: {model_config.latent_format}, ksana_model_config:{ksana_model_config}"
-    )
 
     # Add Executor Logic
     unet_config = model_config.unet_config
     del unet_config["disable_unet_model_creation"]
-    manual_cast_dtype = model_config.manual_cast_dtype
 
-    if model_config.custom_operations is None:
-        fp8 = model_config.optimizations.get("fp8", False)
-        operations = pick_operations(
-            unet_config.get("dtype", None), manual_cast_dtype, fp8_optimizations=fp8, scaled_fp8=scaled_fp8_dtype
-        )
-    else:
-        operations = model_config.custom_operations
-    print(f"custom_operations: {model_config.custom_operations}, operations:{operations}")
-    print(f"unet_config: {model_config.unet_config}, diffusion_model_prefix:{diffusion_model_prefix}")
-
-    if model_config.optimizations["fp8"]:
-        ksana_model_config.linear_backend = "fp8_gemm"
+    # set ksana_model_config
     ksana_model_config.weight_dtype = unet_dtype
+    scaled_fp8_dtype = model_config.scaled_fp8
+    if (
+        ksana_model_config.linear_backend == "default"
+        and scaled_fp8_dtype is not None
+        and "float8" in str(scaled_fp8_dtype)
+    ):
+        ksana_model_config.linear_backend = "fp8_gemm"
+
+    print(
+        f"input dtype: {dtype}, weight_dtype: {weight_dtype}, supported_dtype: {unet_weight_dtype}, unet_dtype: {unet_dtype}, "
+        f"manual_cast_dtype: {manual_cast_dtype}, scaled_fp8: {scaled_fp8_dtype}"
+    )
+    print(f"sd keys samples: {len(sdkeys)}, new_sd keys samples: {len(newsdkeys)}")
+    print(f"Load_device: {load_device}, Offload_device: {offload_device}")
+    print(
+        f"unet_config: {model_config.unet_config}, latent_format: {model_config.latent_format}, ksana_model_config:{ksana_model_config}, diffusion_model_prefix:{diffusion_model_prefix}"
+    )
 
     ksana_generator = get_generator(num_gpus=num_gpus)
     ksana_model = ksana_generator.load_diffusion_model_from_comfy(
@@ -126,7 +116,6 @@ def load_diffusion_model_state_dict(
         comfy_model_path=model_path,
         comfy_model_config=unet_config,
         comfy_model_state_dict=new_sd,
-        operations=operations,  # TODO(rockcao): 把operations移动到model的创建
     )
     model.ksana_model = ksana_model
 

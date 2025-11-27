@@ -235,7 +235,7 @@ if CUBLAS_IS_AVAILABLE:
 
 
 # TODO(rockcao): 优化pick逻辑
-def pick_operations(weight_dtype, compute_dtype, load_device=None, fp8_optimizations=False, scaled_fp8=None):
+def pick_operations(weight_dtype, load_device=None, fp8_gemm=False, scaled_fp8=None):
     """
     根据硬件能力和数据类型选择最优的神经网络操作实现。
 
@@ -247,40 +247,30 @@ def pick_operations(weight_dtype, compute_dtype, load_device=None, fp8_optimizat
 
     Args:
         weight_dtype (torch.dtype): 模型权重的数据类型（如 torch.float16, torch.float8_e4m3fn）
-        compute_dtype (torch.dtype): 计算时使用的数据类型，None表示使用weight_dtype
         load_device (torch.device, optional): 模型加载的设备，用于检测硬件FP8支持能力
-        fp8_optimizations (bool, optional): 是否启用FP8优化。默认False
+        fp8_gemm (bool, optional): 是否启用FP8优化。默认False
         scaled_fp8 (torch.dtype, optional): 指定使用带缩放的FP8类型（如torch.float8_e4m3fn）
             如果设置，将强制使用scaled_fp8_ops
 
     Returns:
         class: 返回操作类（BaseOps的子类），包含优化的Linear、Conv等层实现
 
-    Raises:
-        ValueError: 当compute_dtype与weight_dtype不匹配且compute_dtype不为None时
 
     Note:
         - CUBLAS优化仅在FP16且可用时启用
     """
-    fp8_compute = supports_fp8_compute(load_device)
+    support_fp8_compute = supports_fp8_compute(load_device)
 
     if scaled_fp8 is not None:
         return scaled_fp8_ops(
-            fp8_matrix_mult=fp8_compute and fp8_optimizations, scale_input=fp8_optimizations, override_dtype=scaled_fp8
+            fp8_matrix_mult=support_fp8_compute and fp8_gemm, scale_input=fp8_gemm, override_dtype=scaled_fp8
         )
 
-    if fp8_compute and fp8_optimizations:
+    if support_fp8_compute and fp8_gemm:
         return fp8_ops
 
-    if (
-        CUBLAS_IS_AVAILABLE
-        and weight_dtype == torch.float16
-        and (compute_dtype == torch.float16 or compute_dtype is None)
-    ):
+    if CUBLAS_IS_AVAILABLE and weight_dtype == torch.float16:
         logging.info("Using cublas ops")
         return cublas_ops
-
-    if compute_dtype is not None and weight_dtype != compute_dtype:
-        raise ValueError("compute_dtype must be None or equal to weight_dtype")
 
     return BaseOps
