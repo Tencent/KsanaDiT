@@ -1,4 +1,6 @@
 import os
+import torch
+import argparse
 
 # set env before import ksana
 os.environ["KSANA_LOGGER_LEVEL"] = "INFO"
@@ -20,40 +22,51 @@ seed = 1234
 num_gpus = int(os.getenv("WORLD_SIZE", "1"))
 
 
-def run_simple():
-    generator = KsanaGenerator.from_pretrained("./Wan2.2-T2V-A14B", num_gpus=num_gpus)
+def run_simple(model_dir):
+    generator = KsanaGenerator.from_pretrained(f"{model_dir}/Wan2.2-T2V-A14B", num_gpus=num_gpus)
 
     video = generator.generate_video(
         prompt,
         sample_config=KsanaSampleConfig(steps=40),
         runtime_config=KsanaRuntimeConfig(
-            seed=seed, size=(720, 480), frame_num=17, cache_method="DCache", return_frames=True
+            seed=seed,
+            size=(720, 480),
+            frame_num=17,
+            cache_method="DCache",
+            return_frames=True,
+            output_folder="my_videos",
+            save_video=True,
         ),
     )
     if video is not None:
         print("video shape:", video.shape)
 
 
-def run_with_lora():
+def run_with_lora(model_dir):
     generator = KsanaGenerator.from_pretrained(
-        "./Wan2.2-T2V-A14B",
-        lora_dir="./Wan2.2-Lightning/Wan2.2-T2V-A14B-4steps-lora-rank64-Seko-V1",
+        f"{model_dir}/Wan2.2-T2V-A14B",
+        lora_dir=f"{model_dir}/Wan2.2-Lightning/Wan2.2-T2V-A14B-4steps-lora-rank64-Seko-V1",
     )
 
-    # Generate the video
-    generator.generate_video(prompt)
+    generator.generate_video(
+        prompt,
+        runtime_config=KsanaRuntimeConfig(
+            output_folder="my_videos",
+            save_video=True,
+        ),
+    )
 
 
-def run_advanced():
+def run_advanced(model_dir):
     model_config = KsanaModelConfig(
-        weight_dtype="float16",
+        weight_dtype=torch.float16,
         attn_backend="flash_attention",
-        linear_backend="fp8_gemm",
+        # linear_backend="fp8_gemm",
         torch_compile_config=KsanaTorchCompileConfig(),
     )
 
     generator = KsanaGenerator.from_pretrained(
-        "./Wan2.2-T2V-A14B",
+        f"{model_dir}/Wan2.2-T2V-A14B",
         num_gpus=num_gpus,
         model_config=model_config,
         dist_config=KsanaDistributedConfig(),
@@ -80,6 +93,16 @@ def run_advanced():
 
 
 if __name__ == "__main__":
-    run_simple()
-    run_with_lora()
-    run_advanced()
+    parser = argparse.ArgumentParser(description="Wan2.2 视频生成示例")
+    parser.add_argument(
+        "--model_dir",
+        type=str,
+        default="./",
+        help="模型目录路径",
+    )
+
+    args = parser.parse_args()
+
+    run_simple(args.model_dir)
+    run_with_lora(args.model_dir)
+    run_advanced(args.model_dir)

@@ -11,11 +11,13 @@ from ..utils import (  # , ksanaProfiler
     log,
     model_safe_downcast,
     time_range,
+    load_sharded_safetensors,
 )
 from ..utils.const import DEFAULT_RUN_DTYPE
 from .wan import WanModel
 from .wan.configs import WAN2_2_CONFIGS
 from ..config import KsanaModelConfig
+from ksana.operations import pick_operations
 
 
 class KsanaDiffusionModel(ABC):
@@ -55,7 +57,7 @@ class KsanaDiffusionModel(ABC):
         comfy_model_path: str = None,
         comfy_model_config: dict = None,
         comfy_model_state_dict=None,
-        comfy_operations=None,
+        operations=None,
         load_device=None,
         offload_device=None,
         checkpoint_dir=None,
@@ -69,7 +71,7 @@ class KsanaDiffusionModel(ABC):
                 comfy_model_path=comfy_model_path,
                 comfy_model_config=comfy_model_config,
                 comfy_model_state_dict=comfy_model_state_dict,
-                comfy_operations=comfy_operations,
+                operations=operations,
                 load_device=load_device,
                 offload_device=offload_device,
                 checkpoint_dir=checkpoint_dir,
@@ -139,7 +141,7 @@ class KsanaDiffusionModel(ABC):
         comfy_model_path: str = None,
         comfy_model_config: dict = None,
         comfy_model_state_dict=None,
-        comfy_operations=None,
+        operations=None,
         load_device=None,
         offload_device=None,
         checkpoint_dir=None,
@@ -147,46 +149,56 @@ class KsanaDiffusionModel(ABC):
         lora_dir=None,
         shard_fn=None,
     ):
-        # with ksanaProfiler("KsanaDiffusionModel.load_wan_model"):
-        if comfy_model_config is not None and comfy_model_state_dict is not None:
-            log.info(
-                f"load from comfy_model_path:{comfy_model_path}, comfy_model_config:{comfy_model_config}, "
-                f"comfy_operations:{comfy_operations}, load_device:{load_device}, offload_device:{offload_device}"
-            )
-            default_model_config = self.pipeline_config.default_config
-            in_dim = comfy_model_config.get("in_dim", default_model_config.get("in_dim", 16))
-            out_dim = comfy_model_config.get("out_dim", default_model_config.get("out_dim", 16))
-            start = time.time()
-            self.model = WanModel(
-                model_type=self.task_type,
-                patch_size=default_model_config.patch_size,
-                text_len=default_model_config.text_len,
-                in_dim=in_dim,
-                dim=default_model_config.dim,
-                ffn_dim=default_model_config.ffn_dim,
-                freq_dim=default_model_config.freq_dim,
-                out_dim=out_dim,
-                num_heads=default_model_config.num_heads,
-                num_layers=default_model_config.num_layers,
-                window_size=default_model_config.window_size,
-                qk_norm=default_model_config.qk_norm,
-                cross_attn_norm=default_model_config.cross_attn_norm,
-                eps=default_model_config.eps,
-                comfy_operations=comfy_operations,
-                device=offload_device,
-                dtype=self.weight_dtype,
-            )
-            stop1 = time.time()
-            load_result = self.model.load_state_dict(comfy_model_state_dict, strict=False)
-            stop2 = time.time()
-            log.warning(
-                f"load_result: missing keys:{load_result.missing_keys}, unexpected keys:{load_result.unexpected_keys}"
-            )
-            log.info(f"create model takes: {(stop1 - start):.2f}, load states takes {(stop2 - stop1):.2f} seconds")
+        if comfy_model_state_dict is None:
+            # comfy_model_state_dict = load_torch_file(comfy_model_path)  # fp8
+            comfy_model_state_dict = load_sharded_safetensors(f"{checkpoint_dir}/{subfolder}")  # fp16
 
-        else:
-            log.info(f"load from checkpoint_dir:{checkpoint_dir}, subfolder:{subfolder}")
-            self.model = WanModel.from_pretrained(checkpoint_dir, subfolder=subfolder)
+        if operations is None:
+            fp8_optimizations = False
+            scaled_fp8 = None
+            if self.model_config.linear_backend == "fp8_gemm":
+                fp8_optimizations = True
+                scaled_fp8 = torch.float8_e4m3fn
+            operations = pick_operations(
+                self.weight_dtype, None, fp8_optimizations=fp8_optimizations, scaled_fp8=scaled_fp8
+            )
+        if comfy_model_config is None:
+            comfy_model_config = {}
+
+        log.info(
+            f"load from comfy_model_path:{comfy_model_path}, comfy_model_config:{comfy_model_config}, "
+            f"operations:{operations}, load_device:{load_device}, offload_device:{offload_device}"
+        )
+        default_model_config = self.pipeline_config.default_config
+        in_dim = comfy_model_config.get("in_dim", default_model_config.get("in_dim", 16))
+        out_dim = comfy_model_config.get("out_dim", default_model_config.get("out_dim", 16))
+        start = time.time()
+        self.model = WanModel(
+            model_type=self.task_type,
+            patch_size=default_model_config.patch_size,
+            text_len=default_model_config.text_len,
+            in_dim=in_dim,
+            dim=default_model_config.dim,
+            ffn_dim=default_model_config.ffn_dim,
+            freq_dim=default_model_config.freq_dim,
+            out_dim=out_dim,
+            num_heads=default_model_config.num_heads,
+            num_layers=default_model_config.num_layers,
+            window_size=default_model_config.window_size,
+            qk_norm=default_model_config.qk_norm,
+            cross_attn_norm=default_model_config.cross_attn_norm,
+            eps=default_model_config.eps,
+            operations=operations,
+            device=offload_device,
+            dtype=self.weight_dtype,
+        )
+        stop1 = time.time()
+        load_result = self.model.load_state_dict(comfy_model_state_dict, strict=False)
+        stop2 = time.time()
+        log.warning(
+            f"load_result: missing keys:{load_result.missing_keys}, unexpected keys:{load_result.unexpected_keys}"
+        )
+        log.info(f"create model takes: {(stop1 - start):.2f}, load states takes {(stop2 - stop1):.2f} seconds")
 
         log.debug(f"model: {self.model}")
         self.apply_torch_compile(self.model_config.torch_compile_config)

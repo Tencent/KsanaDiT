@@ -88,7 +88,7 @@ class KsanaExecutor(ABC):
         comfy_model_path: str = None,
         comfy_model_config: dict = None,
         comfy_model_state_dict=None,
-        comfy_operations=None,
+        operations=None,
     ):
         self.pipeline = self.create_pipeline(
             dir=comfy_model_path, model_config=model_config, comfy_model_config=comfy_model_config
@@ -101,7 +101,7 @@ class KsanaExecutor(ABC):
             comfy_model_path=comfy_model_path,
             comfy_model_config=comfy_model_config,
             comfy_model_state_dict=comfy_model_state_dict,
-            comfy_operations=comfy_operations,
+            operations=operations,
             shard_fn=self.shard_fn,
             device=load_to_deivce,
             offload_device=self.offload_device,

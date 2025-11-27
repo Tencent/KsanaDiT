@@ -105,7 +105,7 @@ class KsanaX2VPipeline(ABC):
         comfy_model_path: str = None,
         comfy_model_config: dict = None,
         comfy_model_state_dict=None,
-        comfy_operations=None,
+        operations=None,
         device=None,
         offload_device=None,
         shard_fn=None,
@@ -234,7 +234,7 @@ class KsanaX2VPipeline(ABC):
         }
         return KsanaSampleConfig.copy_with_default(sample_config, sample_default_args)
 
-    def create_random_noise_latents(self, latents, runtime_config: KsanaRuntimeConfig, device: torch.device):
+    def create_random_noise_latents(self, latents, runtime_config: KsanaRuntimeConfig, device: torch.device, run_dtype):
         """_summary_
 
         Args:
@@ -271,7 +271,7 @@ class KsanaX2VPipeline(ABC):
             dtype=torch.float32,
             device=device,
             generator=seed_g,
-        ).to(runtime_config.run_dtype)
+        ).to(run_dtype)
         if bs > 1:
             noise = noise.unsqueeze(0).repeat(bs, 1, 1, 1, 1)
         else:
@@ -310,6 +310,10 @@ class KsanaX2VPipeline(ABC):
             f"high_sample_guide_scale: {high_sample_guide_scale}, low_sample_guide_scale: {low_sample_guide_scale}"
         )
         log.debug("latents, positive, negtive:")
+        assert (
+            low_model is None or high_model.weight_dtype == low_model.weight_dtype
+        ), f"high_model.weight_dtype {high_model.weight_dtype}, low_model.weight_dtype {low_model.weight_dtype} should be same"
+        run_dtype = high_model.weight_dtype
         print_recursive(latents, log.debug)
         print_recursive(positive, log.debug)
         print_recursive(negative, log.debug)
@@ -336,16 +340,13 @@ class KsanaX2VPipeline(ABC):
                 low_cache_config,
             )
 
-        latents, seed_g = self.create_random_noise_latents(latents, runtime_config, device)
+        latents, seed_g = self.create_random_noise_latents(latents, runtime_config, device, run_dtype)
         seq_len = self.get_seq_len(latents.shape, default_pipeline_config.patch_size, high_model.sp_size)
 
-        latents = self.cast_to(latents, runtime_config.run_dtype, device)
-        positive = self.cast_to(positive, runtime_config.run_dtype, device)
-        negative = self.cast_to(negative, runtime_config.run_dtype, device)
-        with (
-            torch.amp.autocast("cuda", dtype=runtime_config.run_dtype),
-            torch.no_grad(),
-        ):
+        latents = self.cast_to(latents, run_dtype, device)
+        positive = self.cast_to(positive, run_dtype, device)
+        negative = self.cast_to(negative, run_dtype, device)
+        with torch.no_grad():
             sample_scheduler, _, timesteps = get_sample_scheduler(
                 num_train_timesteps=default_pipeline_config.num_train_timesteps,
                 sampling_steps=sample_config.steps,
@@ -361,7 +362,7 @@ class KsanaX2VPipeline(ABC):
             for iter_id, t in enumerate(tqdm(timesteps)):
                 MemoryProfiler.record_memory(f"before_inference_loop_iter_{iter_id}")
                 # [bs, 16, fi, hi, wi]
-                latent_model_input = latents
+                latent_model_input = latents.to(run_dtype)
                 cfg_scale = high_sample_guide_scale
                 if low_model is not None and boundary is not None and t.item() < boundary:
                     cfg_scale = low_sample_guide_scale
@@ -375,8 +376,9 @@ class KsanaX2VPipeline(ABC):
                     boundary=boundary,
                     offload_device=offload_device,
                 )
-                # run_model = run_model.to(device)
-                run_model = self.cast_to(run_model, runtime_config.run_dtype, device)
+                # NOTE: no need to cast models to run_dtype
+                run_model = run_model.to(device)
+
                 MemoryProfiler.record_memory(f"inference_step_{iter_id}_after_model_switch")
                 run_cache = self.get_run_cache(
                     high_cache=high_cache,

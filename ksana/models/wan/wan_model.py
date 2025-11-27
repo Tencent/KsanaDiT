@@ -85,38 +85,8 @@ def rope_apply(x, grid_sizes, freqs):
     return torch.stack(output).type_as(x)
 
 
-class WanRMSNorm(nn.Module):
-    def __init__(self, dim, eps=1e-5):
-        super().__init__()
-        self.dim = dim
-        self.eps = eps
-        self.weight = nn.Parameter(torch.ones(dim))
-
-    def forward(self, x):
-        r"""
-        Args:
-            x(Tensor): Shape [B, L, C]
-        """
-        return self._norm(x.float()).type_as(x) * self.weight
-
-    def _norm(self, x):
-        return x * torch.rsqrt(x.pow(2).mean(dim=-1, keepdim=True) + self.eps)
-
-
-class WanLayerNorm(nn.LayerNorm):
-    def __init__(self, dim, eps=1e-6, elementwise_affine=False):
-        super().__init__(dim, elementwise_affine=elementwise_affine, eps=eps)
-
-    def forward(self, x):
-        r"""
-        Args:
-            x(Tensor): Shape [B, L, C]
-        """
-        return super().forward(x.float()).type_as(x)
-
-
 class WanSelfAttention(nn.Module):
-    def __init__(self, dim, num_heads, window_size=(-1, -1), qk_norm=True, eps=1e-6, comfy_operation_settings={}):
+    def __init__(self, dim, num_heads, window_size=(-1, -1), qk_norm=True, eps=1e-6, operation_settings={}):
         assert dim % num_heads == 0
         super().__init__()
         self.dim = dim
@@ -127,34 +97,26 @@ class WanSelfAttention(nn.Module):
         self.eps = eps
 
         # layers
-        if comfy_operation_settings:
-            device = comfy_operation_settings.get("device")
-            dtype = comfy_operation_settings.get("dtype")
-            self.q = comfy_operation_settings.get("operations").Linear(dim, dim, device=device, dtype=dtype)
-            self.k = comfy_operation_settings.get("operations").Linear(dim, dim, device=device, dtype=dtype)
-            self.v = comfy_operation_settings.get("operations").Linear(dim, dim, device=device, dtype=dtype)
-            self.o = comfy_operation_settings.get("operations").Linear(dim, dim, device=device, dtype=dtype)
-            self.norm_q = (
-                comfy_operation_settings.get("operations").RMSNorm(
-                    dim, eps=eps, elementwise_affine=True, device=device, dtype=dtype
-                )
-                if qk_norm
-                else nn.Identity()
+        device = operation_settings.get("device")
+        dtype = operation_settings.get("dtype")
+        self.q = operation_settings.get("operations").Linear(dim, dim, device=device, dtype=dtype)
+        self.k = operation_settings.get("operations").Linear(dim, dim, device=device, dtype=dtype)
+        self.v = operation_settings.get("operations").Linear(dim, dim, device=device, dtype=dtype)
+        self.o = operation_settings.get("operations").Linear(dim, dim, device=device, dtype=dtype)
+        self.norm_q = (
+            operation_settings.get("operations").RMSNorm(
+                dim, eps=eps, elementwise_affine=True, device=device, dtype=torch.float32
             )
-            self.norm_k = (
-                comfy_operation_settings.get("operations").RMSNorm(
-                    dim, eps=eps, elementwise_affine=True, device=device, dtype=dtype
-                )
-                if qk_norm
-                else nn.Identity()
+            if qk_norm
+            else nn.Identity()
+        )
+        self.norm_k = (
+            operation_settings.get("operations").RMSNorm(
+                dim, eps=eps, elementwise_affine=True, device=device, dtype=torch.float32
             )
-        else:
-            self.q = nn.Linear(dim, dim)
-            self.k = nn.Linear(dim, dim)
-            self.v = nn.Linear(dim, dim)
-            self.o = nn.Linear(dim, dim)
-            self.norm_q = WanRMSNorm(dim, eps=eps) if qk_norm else nn.Identity()
-            self.norm_k = WanRMSNorm(dim, eps=eps) if qk_norm else nn.Identity()
+            if qk_norm
+            else nn.Identity()
+        )
 
         self.attention = LocalAttentionOp(
             num_heads=num_heads,
@@ -234,7 +196,7 @@ class WanAttentionBlock(nn.Module):
         qk_norm=True,
         cross_attn_norm=False,
         eps=1e-6,
-        comfy_operation_settings={},
+        operation_settings={},
     ):
         super().__init__()
         self.dim = dim
@@ -246,47 +208,33 @@ class WanAttentionBlock(nn.Module):
         self.eps = eps
 
         # layers
-        if comfy_operation_settings:
-            device = comfy_operation_settings.get("device")
-            dtype = comfy_operation_settings.get("dtype")
-            self.norm1 = comfy_operation_settings.get("operations").LayerNorm(
-                dim, eps, elementwise_affine=False, device=device, dtype=dtype
+        device = operation_settings.get("device")
+        dtype = operation_settings.get("dtype")
+        self.norm1 = operation_settings.get("operations").LayerNorm(
+            dim, eps, elementwise_affine=False, device=device, dtype=dtype
+        )
+        self.self_attn = WanSelfAttention(
+            dim, num_heads, window_size, qk_norm, eps, operation_settings=operation_settings
+        )
+        self.norm3 = (
+            operation_settings.get("operations").LayerNorm(
+                dim, eps, elementwise_affine=True, device=device, dtype=torch.float32
             )
-            self.self_attn = WanSelfAttention(
-                dim, num_heads, window_size, qk_norm, eps, comfy_operation_settings=comfy_operation_settings
-            )
-            self.norm3 = (
-                comfy_operation_settings.get("operations").LayerNorm(
-                    dim, eps, elementwise_affine=True, device=device, dtype=dtype
-                )
-                if cross_attn_norm
-                else nn.Identity()
-            )
-            self.cross_attn = WanCrossAttention(
-                dim, num_heads, (-1, -1), qk_norm, eps, comfy_operation_settings=comfy_operation_settings
-            )
-            self.norm2 = comfy_operation_settings.get("operations").LayerNorm(
-                dim, eps, elementwise_affine=False, device=device, dtype=dtype
-            )
-            self.ffn = nn.Sequential(
-                comfy_operation_settings.get("operations").Linear(dim, ffn_dim, device=device, dtype=dtype),
-                nn.GELU(approximate="tanh"),
-                comfy_operation_settings.get("operations").Linear(ffn_dim, dim, device=device, dtype=dtype),
-            )
-            self.modulation = nn.Parameter(torch.empty(1, 6, dim, device=device, dtype=dtype))
-        else:
-            self.norm1 = WanLayerNorm(dim, eps)
-            self.self_attn = WanSelfAttention(dim, num_heads, window_size, qk_norm, eps)
-            self.norm3 = WanLayerNorm(dim, eps, elementwise_affine=True) if cross_attn_norm else nn.Identity()
-            self.cross_attn = WanCrossAttention(dim, num_heads, (-1, -1), qk_norm, eps)
-            self.norm2 = WanLayerNorm(dim, eps)
-            self.ffn = nn.Sequential(
-                nn.Linear(dim, ffn_dim),
-                nn.GELU(approximate="tanh"),
-                nn.Linear(ffn_dim, dim),
-            )
-            # modulation
-            self.modulation = nn.Parameter(torch.randn(1, 6, dim) / dim**0.5)
+            if cross_attn_norm
+            else nn.Identity()
+        )
+        self.cross_attn = WanCrossAttention(
+            dim, num_heads, (-1, -1), qk_norm, eps, operation_settings=operation_settings
+        )
+        self.norm2 = operation_settings.get("operations").LayerNorm(
+            dim, eps, elementwise_affine=False, device=device, dtype=dtype
+        )
+        self.ffn = nn.Sequential(
+            operation_settings.get("operations").Linear(dim, ffn_dim, device=device, dtype=dtype),
+            nn.GELU(approximate="tanh"),
+            operation_settings.get("operations").Linear(ffn_dim, dim, device=device, dtype=dtype),
+        )
+        self.modulation = nn.Parameter(torch.empty(1, 6, dim, device=device, dtype=dtype))
 
     # @nvtx_range
     def forward(
@@ -338,7 +286,7 @@ class WanAttentionBlock(nn.Module):
 
 
 class Head(nn.Module):
-    def __init__(self, dim, out_dim, patch_size, eps=1e-6, comfy_operation_settings={}):
+    def __init__(self, dim, out_dim, patch_size, eps=1e-6, operation_settings={}):
         super().__init__()
         self.dim = dim
         self.out_dim = out_dim
@@ -347,20 +295,14 @@ class Head(nn.Module):
 
         # layers
         out_dim = math.prod(patch_size) * out_dim
-        if comfy_operation_settings:
-            device = comfy_operation_settings.get("device")
-            dtype = comfy_operation_settings.get("dtype")
-            self.norm = comfy_operation_settings.get("operations").LayerNorm(
-                dim, eps, elementwise_affine=False, device=device, dtype=dtype
-            )
-            self.head = comfy_operation_settings.get("operations").Linear(dim, out_dim, device=device, dtype=dtype)
-            # modulation
-            self.modulation = nn.Parameter(torch.empty(1, 2, dim, device=device, dtype=dtype))
-        else:
-            self.norm = WanLayerNorm(dim, eps)
-            self.head = nn.Linear(dim, out_dim)
-            # modulation
-            self.modulation = nn.Parameter(torch.randn(1, 2, dim) / dim**0.5)
+        device = operation_settings.get("device")
+        dtype = operation_settings.get("dtype")
+        self.norm = operation_settings.get("operations").LayerNorm(
+            dim, eps, elementwise_affine=False, device=device, dtype=dtype
+        )
+        self.head = operation_settings.get("operations").Linear(dim, out_dim, device=device, dtype=dtype)
+        # modulation
+        self.modulation = nn.Parameter(torch.empty(1, 2, dim, device=device, dtype=dtype))
 
     def forward(self, x, e):
         r"""
@@ -410,7 +352,7 @@ class WanModel(ModelMixin, ConfigMixin):
         qk_norm=True,
         cross_attn_norm=True,
         eps=1e-6,
-        comfy_operations=None,
+        operations=None,
         device=None,
         dtype=None,
     ):
@@ -471,33 +413,22 @@ class WanModel(ModelMixin, ConfigMixin):
         self.eps = eps
 
         # embeddings
-        if comfy_operations:
-            self.patch_embedding = comfy_operations.Conv3d(
-                in_dim, dim, kernel_size=patch_size, stride=patch_size, device=device, dtype=torch.float32
-            )
-            self.text_embedding = nn.Sequential(
-                comfy_operations.Linear(text_dim, dim, device=device, dtype=dtype),
-                nn.GELU(approximate="tanh"),
-                comfy_operations.Linear(dim, dim, device=device, dtype=dtype),
-            )
-            self.time_embedding = nn.Sequential(
-                comfy_operations.Linear(freq_dim, dim, device=device, dtype=dtype),
-                nn.SiLU(),
-                comfy_operations.Linear(dim, dim, device=device, dtype=dtype),
-            )
-            self.time_projection = nn.Sequential(
-                nn.SiLU(), comfy_operations.Linear(dim, dim * 6, device=device, dtype=dtype)
-            )
-            comfy_operation_settings = {"operations": comfy_operations, "device": device, "dtype": dtype}
-        else:
-            self.patch_embedding = nn.Conv3d(in_dim, dim, kernel_size=patch_size, stride=patch_size)
-            self.text_embedding = nn.Sequential(
-                nn.Linear(text_dim, dim), nn.GELU(approximate="tanh"), nn.Linear(dim, dim)
-            )
-
-            self.time_embedding = nn.Sequential(nn.Linear(freq_dim, dim), nn.SiLU(), nn.Linear(dim, dim))
-            self.time_projection = nn.Sequential(nn.SiLU(), nn.Linear(dim, dim * 6))
-            comfy_operation_settings = None
+        self.patch_embedding = operations.Conv3d(
+            in_dim, dim, kernel_size=patch_size, stride=patch_size, device=device, dtype=torch.float32
+        )
+        self.text_embedding = nn.Sequential(
+            operations.Linear(text_dim, dim, device=device, dtype=dtype),
+            nn.GELU(approximate="tanh"),
+            operations.Linear(dim, dim, device=device, dtype=dtype),
+        )
+        self.time_embedding = nn.Sequential(
+            operations.Linear(freq_dim, dim, device=device, dtype=dtype),
+            nn.SiLU(),
+            operations.Linear(dim, dim, device=device, dtype=dtype),
+        )
+        self.time_projection = nn.Sequential(nn.SiLU(), operations.Linear(dim, dim * 6, device=device, dtype=dtype))
+        operation_settings = {"operations": operations, "device": device, "dtype": dtype}
+        print(f"Comfy operations set with device={device}, dtype={dtype} operations={operations}")
 
         # blocks
         self.blocks = nn.ModuleList(
@@ -510,14 +441,14 @@ class WanModel(ModelMixin, ConfigMixin):
                     qk_norm,
                     cross_attn_norm,
                     eps,
-                    comfy_operation_settings=comfy_operation_settings,
+                    operation_settings=operation_settings,
                 )
                 for _ in range(num_layers)
             ]
         )
 
         # head
-        self.head = Head(dim, out_dim, patch_size, eps, comfy_operation_settings=comfy_operation_settings)
+        self.head = Head(dim, out_dim, patch_size, eps, operation_settings=operation_settings)
 
         # buffers (don't use register_buffer otherwise dtype will be changed in to())
         assert (dim % num_heads) == 0 and (dim // num_heads) % 2 == 0
@@ -531,12 +462,9 @@ class WanModel(ModelMixin, ConfigMixin):
             dim=1,
         )
 
-        # initialize weights
-        if comfy_operations is None:
-            self.init_weights()
-
     def set_keep_in_fp32_modules(self):
         self._keep_in_fp32_modules = [
+            "patch_embedding",
             "time_embedding",
             "time_projection",
             "head",

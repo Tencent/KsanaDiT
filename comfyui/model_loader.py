@@ -9,6 +9,7 @@ from ksana.utils import get_gpu_count, time_range
 from ksana import get_generator
 from ksana.config import KsanaModelConfig
 from ksana.utils.profile import MemoryProfiler
+from ksana.operations import pick_operations
 
 from comfy.model_patcher import ModelPatcher
 
@@ -104,9 +105,10 @@ def load_diffusion_model_state_dict(
     unet_config = model_config.unet_config
     del unet_config["disable_unet_model_creation"]
     manual_cast_dtype = model_config.manual_cast_dtype
+
     if model_config.custom_operations is None:
         fp8 = model_config.optimizations.get("fp8", False)
-        operations = comfy.ops.pick_operations(
+        operations = pick_operations(
             unet_config.get("dtype", None), manual_cast_dtype, fp8_optimizations=fp8, scaled_fp8=scaled_fp8_dtype
         )
     else:
@@ -124,7 +126,7 @@ def load_diffusion_model_state_dict(
         comfy_model_path=model_path,
         comfy_model_config=unet_config,
         comfy_model_state_dict=new_sd,
-        comfy_operations=operations,
+        operations=operations,  # TODO(rockcao): 把operations移动到model的创建
     )
     model.ksana_model = ksana_model
 
