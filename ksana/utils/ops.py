@@ -55,18 +55,9 @@ def cast_bias_weight(s, input=None, dtype=None, device=None, bias_dtype=None):
     bias = None
     non_blocking = device_supports_non_blocking(device)
     if s.bias is not None:
-        has_function = len(s.bias_function) > 0
-        bias = cast_to(s.bias, bias_dtype, device, non_blocking=non_blocking, copy=has_function)
+        bias = cast_to(s.bias, bias_dtype, device, non_blocking=non_blocking)
 
-        if has_function:
-            for f in s.bias_function:
-                bias = f(bias)
-
-    has_function = len(s.weight_function) > 0
-    weight = cast_to(s.weight, dtype, device, non_blocking=non_blocking, copy=has_function)
-    if has_function:
-        for f in s.weight_function:
-            weight = f(weight)
+    weight = cast_to(s.weight, dtype, device, non_blocking=non_blocking)
 
     return weight, bias
 
