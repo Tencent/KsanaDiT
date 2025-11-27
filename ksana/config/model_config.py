@@ -8,19 +8,22 @@ from .torch_compile_config import KsanaTorchCompileConfig
 
 @dataclass()
 class KsanaModelConfig:
-    weight_dtype: torch.dtype | str = field(default="default")
+    run_dtype: torch.dtype | str = field(default=torch.float16)
     linear_backend: str | None = field(default="fp16_gemm")
     attn_backend: str | None = field(default="flash_attention")
     torch_compile_config: KsanaTorchCompileConfig | None = field(default=None)
 
     def __post_init__(self):
-        assert self.weight_dtype in [
+        assert self.run_dtype in [
             torch.float16,
             torch.bfloat16,
             "float16",
             "bfloat16",
-            "default",
-        ], f"weight_dtype {self.weight_dtype} not supported"
+        ], f"run_dtype {self.run_dtype} not supported"
+        if self.run_dtype == "float16":
+            self.run_dtype = torch.float16
+        if self.run_dtype == "bfloat16":
+            self.run_dtype = torch.bfloat16
         assert self.linear_backend in [
             "default",
             "fp8_gemm",

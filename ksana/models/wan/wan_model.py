@@ -428,7 +428,7 @@ class WanModel(ModelMixin, ConfigMixin):
         )
         self.time_projection = nn.Sequential(nn.SiLU(), operations.Linear(dim, dim * 6, device=device, dtype=dtype))
         operation_settings = {"operations": operations, "device": device, "dtype": dtype}
-        print(f"Comfy operations set with device={device}, dtype={dtype} operations={operations}")
+        print(f"operations set with device={device}, dtype={dtype} operations={operations}")
 
         # blocks
         self.blocks = nn.ModuleList(

@@ -235,7 +235,7 @@ if CUBLAS_IS_AVAILABLE:
 
 
 # TODO(rockcao): 优化pick逻辑
-def pick_operations(weight_dtype, load_device=None, fp8_gemm=False, scaled_fp8=None):
+def pick_operations(run_dtype, load_device=None, fp8_gemm=False, scaled_fp8=None):
     """
     根据硬件能力和数据类型选择最优的神经网络操作实现。
 
@@ -246,7 +246,7 @@ def pick_operations(weight_dtype, load_device=None, fp8_gemm=False, scaled_fp8=N
     4. BaseOps - 基础PyTorch操作（默认回退）
 
     Args:
-        weight_dtype (torch.dtype): 模型权重的数据类型（如 torch.float16, torch.float8_e4m3fn）
+        run_dtype (torch.dtype): 模型权重的数据类型（如 torch.float16, torch.float8_e4m3fn）
         load_device (torch.device, optional): 模型加载的设备，用于检测硬件FP8支持能力
         fp8_gemm (bool, optional): 是否启用FP8优化。默认False
         scaled_fp8 (torch.dtype, optional): 指定使用带缩放的FP8类型（如torch.float8_e4m3fn）
@@ -269,7 +269,7 @@ def pick_operations(weight_dtype, load_device=None, fp8_gemm=False, scaled_fp8=N
     if support_fp8_compute and fp8_gemm:
         return fp8_ops
 
-    if CUBLAS_IS_AVAILABLE and weight_dtype == torch.float16:
+    if CUBLAS_IS_AVAILABLE and run_dtype == torch.float16:
         logging.info("Using cublas ops")
         return cublas_ops
 

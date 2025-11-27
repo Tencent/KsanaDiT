@@ -1,4 +1,11 @@
 import threading
+import os
+
+
+def is_dir(path):
+    if path is None or isinstance(path, (list, tuple)):
+        return False
+    return os.path.isdir(path) and os.path.exists(path)
 
 
 def singleton(cls):

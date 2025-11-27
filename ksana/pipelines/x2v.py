@@ -3,7 +3,7 @@ import torch
 
 from dataclasses import dataclass, field
 from ..config import KsanaSampleConfig, KsanaRuntimeConfig, KsanaPipelineConfig, KsanaModelConfig
-from ..utils import log, print_recursive, time_range, MemoryProfiler
+from ..utils import log, print_recursive, time_range, MemoryProfiler, is_dir
 from ..cache import create_cache
 import random
 import sys
@@ -11,6 +11,8 @@ from ..sample_solvers import get_sample_scheduler
 import math
 from ..models import KsanaDiffusionModel, KsanaT5Encoder, KsanaVAE
 from tqdm import tqdm
+
+from typing import Optional
 
 
 @dataclass(frozen=True)
@@ -38,6 +40,7 @@ class KsanaX2VPipeline(ABC):
         self.text_encoder = None
         self.diffusion_model = None
         self.vae = None
+        self.has_lora = False
 
     @abstractmethod
     def load_text_encoder(self, checkpoint_dir, shard_fn=None) -> KsanaT5Encoder:
@@ -48,15 +51,18 @@ class KsanaX2VPipeline(ABC):
         pass
 
     @abstractmethod
-    def load_diffusion_model_from_pretrained(
+    def load_diffusion_model(
         self,
-        checkpoint_dir,
+        model_path,
+        *,
         lora_dir=None,
         model_config: KsanaModelConfig = None,
         dist_config=None,
-        shard_fn=None,
+        comfy_model_config=None,
+        comfy_model_state_dict=None,
         device=None,
         offload_device=None,
+        shard_fn=None,
     ) -> KsanaDiffusionModel | tuple[KsanaDiffusionModel, KsanaDiffusionModel]:
         pass
 
@@ -67,49 +73,49 @@ class KsanaX2VPipeline(ABC):
         else:
             self.diffusion_model.to(offload_device)
 
-    def load_models_from_pretrained(
+    def load_models(
         self,
-        checkpoint_dir,
+        model_path,
+        *,
+        text_checkpoint_dir=None,
+        vae_checkpoint_dir=None,
         lora_dir=None,
-        model_config=None,
+        model_config: KsanaModelConfig = None,
         dist_config=None,
-        shard_fn=None,
         device=None,
         offload_device=None,
-    ):
-        self.text_encoder = self.load_text_encoder(checkpoint_dir, shard_fn)
+        shard_fn=None,
+    ) -> Optional[KsanaDiffusionModel]:
+        if not is_dir(model_path):
+            assert (
+                text_checkpoint_dir is not None
+            ), f"text_checkpoint_dir must be provided when loading from local checkpoint with diffusion model {model_path}"
+            assert (
+                vae_checkpoint_dir is not None
+            ), f"vae_checkpoint_dir must be provided when loading from local checkpoint with diffusion model {model_path}"
+        else:
+            text_checkpoint_dir = model_path
+            vae_checkpoint_dir = model_path
+        # keep lora flag for output name
+        self.has_lora = lora_dir is not None
+
+        self.text_encoder = self.load_text_encoder(text_checkpoint_dir, shard_fn=shard_fn)
         if offload_device:
             self.text_encoder.to(offload_device)
-        self.has_lora = lora_dir is not None
-        self.diffusion_model = self.load_diffusion_model_from_pretrained(
-            checkpoint_dir,
+        self.diffusion_model = self.load_diffusion_model(
+            model_path,
             lora_dir=lora_dir,
             model_config=model_config,
             dist_config=dist_config,
-            shard_fn=shard_fn,
             device=device,
             offload_device=offload_device,
+            shard_fn=shard_fn,
         )
         if offload_device is not None:
             self.offload_diffusion_model_to(offload_device)
-
-        self.vae = self.load_vae(checkpoint_dir, device)
+        self.vae = self.load_vae(vae_checkpoint_dir, device)
         if offload_device is not None:
             self.vae.to(offload_device)
-
-    @abstractmethod
-    def load_diffusion_model_from_comfy(
-        self,
-        model_config: KsanaModelConfig = None,
-        dist_config=None,
-        comfy_model_path: str = None,
-        comfy_model_config: dict = None,
-        comfy_model_state_dict=None,
-        device=None,
-        offload_device=None,
-        shard_fn=None,
-    ):
-        pass
 
     def forward_text_encoder(self, prompt, prompt_negative=None, device=None, offload_device=None):
         default_pipeline_config = self.pipeline_config.default_config
@@ -233,7 +239,9 @@ class KsanaX2VPipeline(ABC):
         }
         return KsanaSampleConfig.copy_with_default(sample_config, sample_default_args)
 
-    def create_random_noise_latents(self, latents, runtime_config: KsanaRuntimeConfig, device: torch.device, run_dtype):
+    def create_random_noise_latents(
+        self, latents, runtime_config: KsanaRuntimeConfig, device: torch.device, dtype: torch.dtype
+    ):
         """_summary_
 
         Args:
@@ -270,7 +278,7 @@ class KsanaX2VPipeline(ABC):
             dtype=torch.float32,
             device=device,
             generator=seed_g,
-        ).to(run_dtype)
+        ).to(dtype)
         if bs > 1:
             noise = noise.unsqueeze(0).repeat(bs, 1, 1, 1, 1)
         else:
@@ -310,9 +318,9 @@ class KsanaX2VPipeline(ABC):
         )
         log.debug("latents, positive, negtive:")
         assert (
-            low_model is None or high_model.weight_dtype == low_model.weight_dtype
-        ), f"high_model.weight_dtype {high_model.weight_dtype}, low_model.weight_dtype {low_model.weight_dtype} should be same"
-        run_dtype = high_model.weight_dtype
+            low_model is None or high_model.run_dtype == low_model.run_dtype
+        ), f"high_model.run_dtype {high_model.run_dtype}, low_model.run_dtype {low_model.run_dtype} should be same"
+        run_dtype = high_model.run_dtype
         print_recursive(latents, log.debug)
         print_recursive(positive, log.debug)
         print_recursive(negative, log.debug)
@@ -375,7 +383,7 @@ class KsanaX2VPipeline(ABC):
                     boundary=boundary,
                     offload_device=offload_device,
                 )
-                # NOTE: no need to cast models to run_dtype
+                # NOTE: DoNOT cast models to run_dtype, it will cause fp8 gemm error
                 run_model = run_model.to(device)
 
                 MemoryProfiler.record_memory(f"inference_step_{iter_id}_after_model_switch")
@@ -414,8 +422,6 @@ class KsanaX2VPipeline(ABC):
 
         del sample_scheduler
 
-        # self.model.to(self.offload_device)
-
         # if offload_model:
         #     gc.collect()
         #     torch.cuda.synchronize()
@@ -423,6 +429,32 @@ class KsanaX2VPipeline(ABC):
         #     dist.barrier()
         log.debug(f"latents shape: {latents.shape}")
         # [bs, 16, fi, hi, wi]
+        return latents
+
+    @time_range
+    def generate_video(
+        self,
+        prompt: str,
+        prompt_negative: str = None,
+        sample_config: KsanaSampleConfig = None,
+        runtime_config: KsanaRuntimeConfig = None,
+        device: torch.device = None,
+        offload_device: torch.device = None,
+    ):
+        text_run_device = torch.device("cpu")  # TODO: maybe run text on cuda self.device
+        positive, negative = self.forward_text_encoder(
+            prompt, prompt_negative, device=text_run_device, offload_device=offload_device
+        )
+        latents = self.forward_diffusion_model(
+            positive,
+            negative,
+            sample_config=sample_config,
+            runtime_config=runtime_config,
+            device=device,
+            offload_device=offload_device,
+        )
+        if runtime_config.offload_model:
+            self.offload_diffusion_model_to(offload_device)
         return latents
 
     @property

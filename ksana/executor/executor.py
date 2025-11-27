@@ -8,7 +8,7 @@ import gc
 
 
 from ..models import KsanaDiffusionModel
-from ..utils import log, time_range, save_video, merge_video_audio
+from ..utils import log, time_range, save_video, merge_video_audio, is_dir
 from ..config import (
     KsanaDistributedConfig,
     KsanaSampleConfig,
@@ -54,8 +54,11 @@ class KsanaExecutor(ABC):
             )
 
         self.shard_fn = partial(shard_model, device_id=self.local_rank) if self.dist_config.dit_fsdp else None
+        self.pipeline = None
 
     def create_pipeline(self, dir, model_config: KsanaModelConfig = None, comfy_model_config=None):
+        if self.pipeline is not None:
+            return self.pipeline
         model_name = os.path.basename(dir)
         model_name, task_type, model_size = KsanaDiffusionModel.get_model_type(model_name, comfy_model_config)
         default_pipeline_config = KsanaDiffusionModel.get_default_pipeline_config(model_name, task_type, model_size)
@@ -68,12 +71,36 @@ class KsanaExecutor(ABC):
         )
         return create_ksana_pipeline(pipeline_config)
 
-    def load_models_from_pretrained(self, checkpoint_dir, lora_dir=None, model_config: KsanaModelConfig = None):
-        self.pipeline = self.create_pipeline(dir=checkpoint_dir, model_config=model_config)
-        # all model load to cpu, how about multi gpus?
-        load_to_deivce = self.device if self.dist_config.use_sp else torch.device("cpu")  # TODO: check me
-        self.pipeline.load_models_from_pretrained(
-            checkpoint_dir=checkpoint_dir,
+    def load_models(
+        self,
+        model_path,
+        *,
+        text_checkpoint_dir=None,
+        vae_checkpoint_dir=None,
+        lora_dir=None,
+        model_config: KsanaModelConfig = None,
+        **kwargs,
+    ):
+        if isinstance(model_path, (list, tuple)) or not is_dir(model_path):
+            if text_checkpoint_dir is None:
+                raise ValueError(
+                    f"text_checkpoint_dir must be provided when loading from local checkpoint with diffusion model {model_path}"
+                )
+            if vae_checkpoint_dir is None:
+                raise ValueError(
+                    f"vae_checkpoint_dir must be provided when loading from local checkpoint with diffusion model {model_path}"
+                )
+        if len(kwargs) > 0:
+            log.warning(f"kwargs {kwargs} are not used")
+        # TODO: find a better way to get model_type, task_type, model_size
+        self.pipeline = self.create_pipeline(
+            dir=model_path if text_checkpoint_dir is None else text_checkpoint_dir, model_config=model_config
+        )
+        load_to_deivce = self.device if self.dist_config.world_size > 1 else self.offload_device
+        return self.pipeline.load_models(
+            model_path=model_path,
+            text_checkpoint_dir=text_checkpoint_dir,
+            vae_checkpoint_dir=vae_checkpoint_dir,
             lora_dir=lora_dir,
             model_config=model_config,
             dist_config=self.dist_config,
@@ -82,27 +109,30 @@ class KsanaExecutor(ABC):
             offload_device=self.offload_device,
         )
 
-    def load_diffusion_model_from_comfy(
+    def load_diffusion_model(
         self,
-        model_config: KsanaModelConfig,
-        comfy_model_path: str = None,
-        comfy_model_config: dict = None,
+        model_path,
+        *,
+        lora_dir=None,
+        model_config: KsanaModelConfig = None,
+        comfy_model_config=None,
         comfy_model_state_dict=None,
-    ):
-        self.pipeline = self.create_pipeline(
-            dir=comfy_model_path, model_config=model_config, comfy_model_config=comfy_model_config
-        )
-
-        load_to_deivce = self.device if self.dist_config.use_sp else torch.device("cpu")  # TODO: check me
-        return self.pipeline.load_diffusion_model_from_comfy(
+        **kwargs,
+    ) -> KsanaDiffusionModel | tuple[KsanaDiffusionModel, KsanaDiffusionModel]:
+        if len(kwargs) > 0:
+            log.warning(f"kwargs {kwargs} are not used")
+        self.pipeline = self.create_pipeline(dir=model_path, model_config=model_config)
+        load_to_deivce = self.device if self.dist_config.world_size > 1 else self.offload_device
+        return self.pipeline.load_diffusion_model(
+            model_path=model_path,
+            lora_dir=lora_dir,
             model_config=model_config,
             dist_config=self.dist_config,
-            comfy_model_path=comfy_model_path,
             comfy_model_config=comfy_model_config,
             comfy_model_state_dict=comfy_model_state_dict,
-            shard_fn=self.shard_fn,
             device=load_to_deivce,
             offload_device=self.offload_device,
+            shard_fn=self.shard_fn,
         )
 
     @time_range
@@ -115,24 +145,19 @@ class KsanaExecutor(ABC):
     ):
         sample_config = sample_config if sample_config else KsanaSampleConfig()
         runtime_config = runtime_config if runtime_config else KsanaRuntimeConfig()
-        text_run_device = torch.device("cpu")  # TODO: maybe run text on cuda self.device
-        positive, negative = self.pipeline.forward_text_encoder(
-            prompt, prompt_negative, device=text_run_device, offload_device=self.offload_device
-        )
-        latents = self.pipeline.forward_diffusion_model(
-            positive,
-            negative,
+        latents = self.pipeline.generate_video(
+            prompt=prompt,
+            prompt_negative=prompt_negative,
             sample_config=sample_config,
             runtime_config=runtime_config,
             device=self.device,
             offload_device=self.offload_device,
         )
-        if runtime_config.offload_model:
-            self.pipeline.offload_diffusion_model_to(self.offload_device)
+        # TODO: multi-cards vae
         videos = self.pipeline.forward_vae(
             latents, local_rank=self.local_rank, device=self.device, offload_device=self.offload_device
         )
-
+        del latents
         if runtime_config.offload_model:
             gc.collect()
             torch.cuda.synchronize()

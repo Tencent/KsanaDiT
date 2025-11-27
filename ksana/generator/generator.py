@@ -37,7 +37,6 @@ class KsanaGenerator(ABC):
 
     def init_executors(self, num_gpus: int = 1, dist_config=None, offload_device=None):
         if num_gpus > 1:
-            dist_config = dist_config if dist_config else KsanaDistributedConfig()
             dist_config = get_ksana_distributed_config_from_torchrun_env(dist_config)
             if dist_config.world_size != num_gpus:
                 # TODO: run with ray
@@ -49,15 +48,14 @@ class KsanaGenerator(ABC):
         else:
             self.executors = KsanaExecutor(dist_config=KsanaDistributedConfig())
 
-    def set_executor(self, executor):
-        self.executors = executor
-
-    @classmethod
-    def from_pretrained(
-        cls,
-        checkpoint_dir,
+    @staticmethod
+    def from_models(
+        model_path,
+        *,
+        text_checkpoint_dir=None,
+        vae_checkpoint_dir=None,
+        num_gpus: int = 1,
         lora_dir=None,
-        num_gpus=1,
         model_config: KsanaModelConfig = None,
         dist_config: KsanaDistributedConfig = None,
         offload_device="cpu",
@@ -67,27 +65,35 @@ class KsanaGenerator(ABC):
         Load a pre-trained model.
         """
         model_config = model_config or KsanaModelConfig()
-        if len(kwargs) > 0:
-            log.warning(f"kwargs {kwargs} are not used")
+        dist_config = dist_config or KsanaDistributedConfig()
         generator = get_generator(num_gpus=num_gpus, dist_config=dist_config, offload_device=offload_device)
-        generator.load_models_from_pretrained(checkpoint_dir, lora_dir=lora_dir, model_config=model_config)
+        generator.load_models(
+            model_path,
+            text_checkpoint_dir=text_checkpoint_dir,
+            vae_checkpoint_dir=vae_checkpoint_dir,
+            lora_dir=lora_dir,
+            model_config=model_config,
+            **kwargs,
+        )
         return generator
 
-    def load_models_from_pretrained(self, checkpoint_dir, lora_dir=None, model_config: KsanaModelConfig = None):
+    def load_models(self, model_path, **kwargs):
+        assert self.executors is not None, "executors is not initialized"
         if hasattr(self.executors, "__iter__"):
             for executor in self.executors:
-                executor.load_models_from_pretrained(checkpoint_dir, lora_dir=lora_dir, model_config=model_config)
+                executor.load_models(model_path, **kwargs)
         else:
-            self.executors.load_models_from_pretrained(checkpoint_dir, lora_dir=lora_dir, model_config=model_config)
+            self.executors.load_models(model_path, **kwargs)
 
-    def load_diffusion_model_from_comfy(self, model_config: KsanaModelConfig, **kwargs):
+    def load_diffusion_model(self, model_path, **kwargs):
+        assert self.executors is not None, "executors is not initialized"
         if hasattr(self.executors, "__iter__"):
             # TODO: how to return multiple ksana_model
             res = []
             for executor in self.executors:
-                res.append(executor.load_diffusion_model_from_comfy(model_config=model_config, **kwargs))
+                res.append(executor.load_diffusion_model(model_path, **kwargs))
         else:
-            res = self.executors.load_diffusion_model_from_comfy(model_config=model_config, **kwargs)
+            res = self.executors.load_diffusion_model(model_path, **kwargs)
         return res
 
     # def clean(self):

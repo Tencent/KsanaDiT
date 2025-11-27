@@ -3,8 +3,6 @@ from dataclasses import dataclass, field
 
 @dataclass(frozen=True)
 class KsanaDistributedConfig:
-    # num_gpus: int = field(default=1, metadata={"help": "number of total gpus, only used as input args"})
-
     world_size: int = field(default=1, metadata={"help": "total number of gpus"})
     num_nodes: int = field(default=1, metadata={"help": "total number of nodes"})
     node_rank: int = field(default=0, metadata={"help": "current node rank id"})
