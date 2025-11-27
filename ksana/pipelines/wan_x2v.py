@@ -86,6 +86,8 @@ class KsanaWanX2VPipeline(KsanaX2VPipeline):
             )
             high_noise_model.load(
                 checkpoint_dir=checkpoint_dir,
+                # TODO(rockcao): 从外面传入
+                comfy_model_path="/group/40164/ai-draw/models_prod/diffusion_models/wan2.2_t2v_high_noise_14B_fp8_scaled.safetensors",
                 subfolder=self.pipeline_config.default_config.high_noise_checkpoint,
                 lora_dir=high_lora_dir,
                 shard_fn=shard_fn,
@@ -100,6 +102,8 @@ class KsanaWanX2VPipeline(KsanaX2VPipeline):
             )
             low_noise_model.load(
                 checkpoint_dir=checkpoint_dir,
+                # TODO(rockcao): 从外面传入
+                comfy_model_path="/group/40164/ai-draw/models_prod/diffusion_models/wan2.2_t2v_low_noise_14B_fp8_scaled.safetensors",
                 subfolder=self.pipeline_config.default_config.low_noise_checkpoint,
                 lora_dir=low_lora_dir,
                 shard_fn=shard_fn,
@@ -124,7 +128,7 @@ class KsanaWanX2VPipeline(KsanaX2VPipeline):
         comfy_model_path: str = None,
         comfy_model_config: dict = None,
         comfy_model_state_dict=None,
-        comfy_operations=None,
+        operations=None,
         device=None,
         offload_device=None,
         shard_fn=None,
@@ -134,7 +138,7 @@ class KsanaWanX2VPipeline(KsanaX2VPipeline):
             comfy_model_path=comfy_model_path,
             comfy_model_config=comfy_model_config,
             comfy_model_state_dict=comfy_model_state_dict,
-            comfy_operations=comfy_operations,
+            operations=operations,
             load_device=device,
             offload_device=offload_device,
             shard_fn=shard_fn,

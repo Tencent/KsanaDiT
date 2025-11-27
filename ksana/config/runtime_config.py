@@ -1,5 +1,3 @@
-import torch
-
 from dataclasses import dataclass, field
 from easydict import EasyDict
 
@@ -17,7 +15,6 @@ class KsanaRuntimeConfig:
     size: tuple[int, int] | None = field(default=None)
     frame_num: int | None = field(default=None)
     seed: int | None = field(default=None)
-    run_dtype: torch.dtype | None = field(default=None)
     offload_model: bool | None = field(default=DEFAULT_OFFLOAD_MODEL)
     boundary: float | None = field(default=None)
 
@@ -38,7 +35,6 @@ class KsanaRuntimeConfig:
             size=default.get("size", None) if input_config.size is None else input_config.size,
             frame_num=default.get("frame_num", None) if input_config.frame_num is None else input_config.frame_num,
             seed=input_config.seed,
-            run_dtype=default.get("param_dtype", None) if input_config.run_dtype is None else input_config.run_dtype,
             offload_model=input_config.offload_model,
             boundary=default.get("boundary", None) if input_config.boundary is None else input_config.boundary,
             return_frames=input_config.return_frames,
