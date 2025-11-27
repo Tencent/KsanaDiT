@@ -32,7 +32,7 @@ def load_diffusion_model_state_dict(
         sd = temp_sd
 
     parameters = comfy.utils.calculate_parameters(sd)
-    weight_dtype = comfy.utils.weight_dtype(sd)
+    sd_dtype = comfy.utils.weight_dtype(sd)
 
     load_device = mm.get_torch_device()
     model_config = model_detection.model_config_from_unet(sd, "")
@@ -62,13 +62,13 @@ def load_diffusion_model_state_dict(
     offload_device = mm.unet_offload_device()
     unet_weight_dtype = list(model_config.supported_inference_dtypes)
     if model_config.scaled_fp8 is not None:
-        weight_dtype = None
+        sd_dtype = None
 
     if dtype is None:
         unet_dtype = mm.unet_dtype(
             model_params=parameters,
             supported_dtypes=unet_weight_dtype,
-            weight_dtype=weight_dtype,
+            weight_dtype=sd_dtype,
         )
     else:
         unet_dtype = dtype
@@ -91,7 +91,7 @@ def load_diffusion_model_state_dict(
     del unet_config["disable_unet_model_creation"]
 
     # set ksana_model_config
-    ksana_model_config.weight_dtype = unet_dtype
+    ksana_model_config.run_dtype = unet_dtype
     scaled_fp8_dtype = model_config.scaled_fp8
     if (
         ksana_model_config.linear_backend == "default"
@@ -101,7 +101,7 @@ def load_diffusion_model_state_dict(
         ksana_model_config.linear_backend = "fp8_gemm"
 
     print(
-        f"input dtype: {dtype}, weight_dtype: {weight_dtype}, supported_dtype: {unet_weight_dtype}, unet_dtype: {unet_dtype}, "
+        f"input dtype: {dtype}, sd_weight_dtype: {sd_dtype}, supported_dtype: {unet_weight_dtype}, unet_dtype: {unet_dtype}, "
         f"manual_cast_dtype: {manual_cast_dtype}, scaled_fp8: {scaled_fp8_dtype}"
     )
     print(f"sd keys samples: {len(sdkeys)}, new_sd keys samples: {len(newsdkeys)}")
@@ -111,16 +111,16 @@ def load_diffusion_model_state_dict(
     )
 
     ksana_generator = get_generator(num_gpus=num_gpus)
-    ksana_model = ksana_generator.load_diffusion_model_from_comfy(
+    ksana_model = ksana_generator.load_diffusion_model(
+        model_path=model_path,
         model_config=ksana_model_config,
-        comfy_model_path=model_path,
         comfy_model_config=unet_config,
         comfy_model_state_dict=new_sd,
     )
     model.ksana_model = ksana_model
 
     if load_ori_weights:
-        model.load_model_weights(new_sd, "")
+        model.comfy_load_model_weights(new_sd, "")
         left_over = sd.keys()
         if len(left_over) > 0:
             print("left over keys in unet: {}".format(left_over))
@@ -155,11 +155,11 @@ class KsanaModelLoaderNode:
                 "model_name": (folder_paths.get_filename_list("diffusion_models"),),
             },
             "optional": {
-                # attn_backend dtype > linear_backend dtye > weight_dtype
-                "weight_dtype": (
-                    ["default", "float16", "bfloat16"],
-                    {"default": "default"},
-                    {"tooltip": "weight dtype of running model"},
+                # attn_backend dtype > linear_backend dtype > run_dtype
+                "run_dtype": (
+                    ["float16", "bfloat16"],
+                    {"default": "float16"},
+                    {"tooltip": "dtype of running model"},
                 ),
                 "linear_backend": (
                     ["default", "fp8_gemm", "fp16_gemm"],
@@ -188,7 +188,7 @@ class KsanaModelLoaderNode:
     def load_model(
         self,
         model_name,
-        weight_dtype="default",
+        run_dtype="float16",
         linear_backend="default",
         attn_backend="default",
         num_gpus=1,
@@ -199,12 +199,12 @@ class KsanaModelLoaderNode:
         mm.soft_empty_cache()
 
         if linear_backend == "fp8_gemm":
-            weight_dtype_has_fp8 = "float8" in weight_dtype.lower() or "fp8" in weight_dtype.lower()
-            if weight_dtype != "default" and (not weight_dtype_has_fp8):
+            run_dtype_has_fp8 = "float8" in run_dtype.lower() or "fp8" in run_dtype.lower()
+            if run_dtype != "default" and (not run_dtype_has_fp8):
                 logging.warning(
-                    f" weight_dtype {weight_dtype} can not use fp8_gemm linear_backend, will use weight_dtype back to default"
+                    f" run_dtype {run_dtype} can not use fp8_gemm linear_backend, will use run_dtype back to default"
                 )
-                weight_dtype = "default"
+                run_dtype = "float16"
                 linear_backend = "default"
 
         if num_gpus > 1:
@@ -215,7 +215,7 @@ class KsanaModelLoaderNode:
                 num_gpus = get_gpu_count()
 
         model_config = KsanaModelConfig(
-            weight_dtype=weight_dtype,
+            run_dtype=run_dtype,
             linear_backend=linear_backend,
             attn_backend=attn_backend,
             torch_compile_config=torch_compile_args,

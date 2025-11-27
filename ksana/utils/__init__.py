@@ -1,7 +1,7 @@
 from .env import KSANA_LOGGER_LEVEL, KSANA_MEMORY_PROFILER
 
 from .logger import log, init_logging
-from .utils import singleton
+from .utils import singleton, is_dir
 from .debug import print_recursive
 from .profile import ksanaProfiler, time_range, nvtx_range, MemoryProfiler
 from .media import save_video, merge_video_audio
@@ -17,6 +17,7 @@ __all__ = [
     KSANA_MEMORY_PROFILER,
     init_logging,
     singleton,
+    is_dir,
     print_recursive,
     ksanaProfiler,
     MemoryProfiler,

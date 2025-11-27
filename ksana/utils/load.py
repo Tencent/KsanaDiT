@@ -1,7 +1,7 @@
 import torch
 import safetensors
 
-
+from .logger import log
 from pathlib import Path
 
 
@@ -63,7 +63,7 @@ def load_sharded_safetensors(model_dir, device=None):
     # 加载所有文件并合并
     state_dict = {}
     for file_path in safetensors_files:
-        print(f"Loading {file_path.name}...")
+        log.debug(f"Loading {file_path.name}...")
         shard_dict = load_torch_file(str(file_path), device=device)
         state_dict.update(shard_dict)
 

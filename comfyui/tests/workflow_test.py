@@ -33,7 +33,7 @@ def modify_workflow_params(api_prompt: dict, params: dict) -> dict:
     支持的节点类型和参数映射:
         - KsanaGeneratorNode: steps
         - EmptyHunyuanLatentVideo: width, height, length (从 params["frames"] 获取)
-        - KsanaModelLoaderNode: model_name, weight_dtype, linear_backend, attn_backend
+        - KsanaModelLoaderNode: model_name, run_dtype, linear_backend, attn_backend
         - CLIPLoader: clip_name
     """
     for _, node_data in api_prompt.items():
@@ -68,8 +68,8 @@ def modify_workflow_params(api_prompt: dict, params: dict) -> dict:
             elif "low_noise" in model_name and params.get("dit_low_model_name"):
                 inputs["model_name"] = params["dit_low_model_name"]
 
-            if params.get("weight_dtype") and "weight_dtype" in inputs:
-                inputs["weight_dtype"] = params["weight_dtype"]
+            if params.get("run_dtype") and "run_dtype" in inputs:
+                inputs["run_dtype"] = params["run_dtype"]
             if params.get("linear_backend") and "linear_backend" in inputs:
                 inputs["linear_backend"] = params["linear_backend"]
             if params.get("attn_backend") and "attn_backend" in inputs:
@@ -177,10 +177,10 @@ def create_argument_parser():
         help="Text encoder 模型名称（例如: umt5_xxl_fp16.safetensors）",
     )
     parser.add_argument(
-        "--weight_dtype",
+        "--run_dtype",
         type=str,
         default=None,
-        choices=["default", "float16", "bfloat16"],
+        choices=["float16", "bfloat16"],
         help="weight dtype of running model",
     )
     parser.add_argument(

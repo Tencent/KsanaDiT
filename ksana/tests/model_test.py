@@ -1,6 +1,4 @@
-import os
-
-os.environ["CUDA_VISIBLE_DEVICES"] = "2,3"
+# os.environ["CUDA_VISIBLE_DEVICES"] = "0,1"
 
 import unittest
 from ksana import KsanaGenerator
@@ -28,7 +26,7 @@ class TestKsana(unittest.TestCase):
 
     def test_simple(self):
         print("-----------------test_simple-----------------")
-        generator = KsanaGenerator.from_pretrained("./Wan2.2-T2V-A14B")
+        generator = KsanaGenerator.from_models("./Wan2.2-T2V-A14B")
         video = generator.generate_video(
             prompt,
             sample_config=KsanaSampleConfig(steps=TEST_STEPS),
@@ -43,10 +41,31 @@ class TestKsana(unittest.TestCase):
         mean = video.cpu().abs().mean().item()
         self.assertAlmostEqual(mean, 0.6659602522850037, places=TEST_EPS_PLACE)
 
+    def test_larger_seq(self):
+        print("-----------------test_larger_seq-----------------")
+        generator = KsanaGenerator.from_models(
+            "./Wan2.2-T2V-A14B/high_noise_model.safetensors",
+            text_checkpoint_dir="./Wan2.2-T2V-A14B",
+            vae_checkpoint_dir="./Wan2.2-T2V-A14B",
+        )
+        video = generator.generate_video(
+            prompt,
+            sample_config=KsanaSampleConfig(steps=1),
+            runtime_config=KsanaRuntimeConfig(
+                seed=SEED,
+                size=(1280, 720),
+                frame_num=81,
+                return_frames=True,
+                save_video=False,
+            ),
+        )
+        mean = video.cpu().abs().mean().item()
+        self.assertAlmostEqual(mean, 0.6659602522850037, places=TEST_EPS_PLACE)
+
     def test_cache(self):
         # TODO: step 1 can not test cache, real test cache logical,
         print("-----------------test_cache-----------------")
-        generator = KsanaGenerator.from_pretrained("./Wan2.2-T2V-A14B")
+        generator = KsanaGenerator.from_models("./Wan2.2-T2V-A14B")
         video = generator.generate_video(
             prompt,
             sample_config=KsanaSampleConfig(steps=TEST_STEPS),
@@ -64,7 +83,7 @@ class TestKsana(unittest.TestCase):
 
     def test_lora(self):
         print("-----------------test_lora-----------------")
-        generator = KsanaGenerator.from_pretrained(
+        generator = KsanaGenerator.from_models(
             "./Wan2.2-T2V-A14B", lora_dir="./Wan2.2-Lightning/Wan2.2-T2V-A14B-4steps-lora-rank64-Seko-V1"
         )
         video = generator.generate_video(
@@ -84,10 +103,10 @@ class TestKsana(unittest.TestCase):
     def test_torch_compile(self):
         print("-----------------test_torch_compile-----------------")
         model_config = KsanaModelConfig(
-            weight_dtype=TEST_DTYPE,
+            run_dtype=TEST_DTYPE,
             torch_compile_config=KsanaTorchCompileConfig(),
         )
-        generator = KsanaGenerator.from_pretrained("./Wan2.2-T2V-A14B", model_config=model_config)
+        generator = KsanaGenerator.from_models("./Wan2.2-T2V-A14B", model_config=model_config)
 
         video = generator.generate_video(
             prompt,
@@ -106,10 +125,10 @@ class TestKsana(unittest.TestCase):
     def test_lora_torch_compile(self):
         print("-----------------test_lora_torch_compile-----------------")
         model_config = KsanaModelConfig(
-            weight_dtype=TEST_DTYPE,
+            run_dtype=TEST_DTYPE,
             torch_compile_config=KsanaTorchCompileConfig(),
         )
-        generator = KsanaGenerator.from_pretrained(
+        generator = KsanaGenerator.from_models(
             "./Wan2.2-T2V-A14B",
             lora_dir="./Wan2.2-Lightning/Wan2.2-T2V-A14B-4steps-lora-rank64-Seko-V1",
             model_config=model_config,

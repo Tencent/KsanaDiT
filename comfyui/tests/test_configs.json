@@ -8,9 +8,8 @@
     "dit_high_model_name": "wan2.2_t2v_high_noise_14B_fp8_scaled.safetensors",
     "dit_low_model_name": "wan2.2_t2v_low_noise_14B_fp8_scaled.safetensors",
     "text_model_name": "umt5_xxl_fp8_e4m3fn_scaled.safetensors",
-    "weight_dtype": "default",
     "linear_backend": "fp8_gemm",
-    "attn_backend": "default",
+    "attn_backend": "flash_attention",
     "expect_values": {
       "mean": 0.4937195
     }
@@ -21,6 +20,7 @@
     "width": 720,
     "height": 480,
     "frames": 20,
+    "attn_backend": "sage_attention",
     "expect_values": {
       "mean": 0.5088274
     }

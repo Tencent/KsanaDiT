@@ -1,10 +1,12 @@
 from .x2v import KsanaX2VPipeline, KsanaDefaultArgs
 import os
-from ..models import KsanaDiffusionModel, KsanaT5Encoder, KsanaVAE
+from ..models import KsanaWanModel, KsanaT5Encoder, KsanaVAE
 from dataclasses import dataclass, field
 from ..cache import DCacheConfig
 from ..config import KsanaSampleConfig, KsanaRuntimeConfig, KsanaPipelineConfig, KsanaModelConfig
 from ..utils.profile import time_range
+from ..utils.logger import log
+from ..utils import is_dir
 
 
 @dataclass(frozen=True)
@@ -65,76 +67,25 @@ class KsanaWanX2VPipeline(KsanaX2VPipeline):
         return self.vae
 
     @time_range
-    def load_diffusion_model_from_pretrained(
+    def load_one_diffusion_model(
         self,
-        checkpoint_dir,
+        model_path,
+        *,
         lora_dir=None,
         model_config: KsanaModelConfig = None,
         dist_config=None,
-        shard_fn=None,
-        device=None,
-        offload_device=None,
-    ):
-        if lora_dir is not None:
-            self.default_args = WanLightLoraDefaultArgs()
-        if self.pipeline_config.model_name == "wan2.2":
-            high_noise_model = KsanaDiffusionModel(model_config, self.pipeline_config, dist_config)
-            high_lora_dir = (
-                os.path.join(lora_dir, self.pipeline_config.default_config.high_noise_lora_checkpoint)
-                if lora_dir is not None
-                else None
-            )
-            high_noise_model.load(
-                checkpoint_dir=checkpoint_dir,
-                # TODO(rockcao): 从外面传入
-                comfy_model_path="/group/40164/ai-draw/models_prod/diffusion_models/wan2.2_t2v_high_noise_14B_fp8_scaled.safetensors",
-                subfolder=self.pipeline_config.default_config.high_noise_checkpoint,
-                lora_dir=high_lora_dir,
-                shard_fn=shard_fn,
-            )
-            if offload_device is not None:
-                high_noise_model.to(offload_device)
-            low_noise_model = KsanaDiffusionModel(model_config, self.pipeline_config, dist_config)
-            low_lora_dir = (
-                os.path.join(lora_dir, self.pipeline_config.default_config.low_noise_lora_checkpoint)
-                if lora_dir is not None
-                else None
-            )
-            low_noise_model.load(
-                checkpoint_dir=checkpoint_dir,
-                # TODO(rockcao): 从外面传入
-                comfy_model_path="/group/40164/ai-draw/models_prod/diffusion_models/wan2.2_t2v_low_noise_14B_fp8_scaled.safetensors",
-                subfolder=self.pipeline_config.default_config.low_noise_checkpoint,
-                lora_dir=low_lora_dir,
-                shard_fn=shard_fn,
-            )
-            if offload_device is not None:
-                low_noise_model.to(offload_device)
-            self.model = (high_noise_model, low_noise_model)
-        else:
-            self.model = KsanaDiffusionModel(model_config, self.pipeline_config, dist_config)
-            self.model.load(
-                checkpoint_dir=checkpoint_dir,
-                lora_dir=lora_dir,
-                shard_fn=shard_fn,
-            )
-        return self.model
-
-    @time_range
-    def load_diffusion_model_from_comfy(
-        self,
-        model_config: KsanaModelConfig = None,
-        dist_config=None,
-        comfy_model_path: str = None,
-        comfy_model_config: dict = None,
+        comfy_model_config=None,
         comfy_model_state_dict=None,
         device=None,
         offload_device=None,
         shard_fn=None,
     ):
-        model = KsanaDiffusionModel(model_config, self.pipeline_config, dist_config)
+        if lora_dir is not None:
+            self.default_args = WanLightLoraDefaultArgs()
+        model = KsanaWanModel(model_config, self.pipeline_config, dist_config)
         model.load(
-            comfy_model_path=comfy_model_path,
+            model_path=model_path,
+            lora_dir=lora_dir,
             comfy_model_config=comfy_model_config,
             comfy_model_state_dict=comfy_model_state_dict,
             load_device=device,
@@ -142,6 +93,65 @@ class KsanaWanX2VPipeline(KsanaX2VPipeline):
             shard_fn=shard_fn,
         )
         return model
+
+    @time_range
+    def load_diffusion_model(
+        self,
+        model_path,
+        *,
+        lora_dir=None,
+        model_config: KsanaModelConfig = None,
+        comfy_model_config=None,
+        comfy_model_state_dict=None,
+        dist_config=None,
+        device=None,
+        offload_device=None,
+        shard_fn=None,
+    ):
+        log.info(f"load_model_path_or_files: {model_path}")
+        load_model_path_or_files = model_path
+        if isinstance(model_path, (list, tuple)):
+            for file in model_path:
+                assert file.endswith(".safetensors"), f"model_path must be a safetensors file, but got {file}"
+        elif is_dir(model_path):
+            if self.pipeline_config.model_name == "wan2.2":
+                load_model_path_or_files = [
+                    os.path.join(model_path, self.pipeline_config.default_config.high_noise_checkpoint),
+                    os.path.join(model_path, self.pipeline_config.default_config.low_noise_checkpoint),
+                ]
+        else:
+            assert os.path.isfile(model_path), f"model_path must be a safetensors file, but got {model_path}"
+
+        if hasattr(load_model_path_or_files, "__iter__"):
+            res = []
+            for one in load_model_path_or_files:
+                one_model = self.load_one_diffusion_model(
+                    model_path=one,
+                    lora_dir=lora_dir,
+                    model_config=model_config,
+                    comfy_model_config=comfy_model_config,
+                    comfy_model_state_dict=comfy_model_state_dict,
+                    dist_config=dist_config,
+                    shard_fn=shard_fn,
+                    device=device,
+                    offload_device=offload_device,
+                )
+                if offload_device is not None:
+                    one_model = one_model.to(offload_device)
+                res.append(one_model)
+            return res
+        else:
+            return self.load_diffusion_model(
+                model_path=load_model_path_or_files,
+                lora_dir=lora_dir,
+                model_config=model_config,
+                comfy_model_config=comfy_model_config,
+                comfy_model_state_dict=comfy_model_state_dict,
+                dist_config=dist_config,
+                shard_fn=shard_fn,
+                device=device,
+                offload_device=offload_device,
+            )
 
     def process_input_cache(self, cache_method):
         high_cache_config = None
@@ -176,7 +186,7 @@ class KsanaWanX2VPipeline(KsanaX2VPipeline):
         high_cache_config, low_cache_config = self.process_input_cache(runtime_config.cache_method)
 
         latents = self.generate_video_with_tensors(
-            model=self.model,
+            model=self.diffusion_model,
             positive=positive,
             negative=negative,
             latents=None,
