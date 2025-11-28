@@ -7,6 +7,7 @@ import time
 import urllib.error
 from typing import Optional
 
+# TODO(qian): add seed to test_configs.json not deps on workflow.json
 
 from test_utils import (
     start_server,
