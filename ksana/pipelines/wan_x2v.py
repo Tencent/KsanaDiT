@@ -71,7 +71,7 @@ class KsanaWanX2VPipeline(KsanaX2VPipeline):
         self,
         model_path,
         *,
-        lora_dir=None,
+        lora_file=None,
         model_config: KsanaModelConfig = None,
         dist_config=None,
         comfy_model_config=None,
@@ -80,12 +80,12 @@ class KsanaWanX2VPipeline(KsanaX2VPipeline):
         offload_device=None,
         shard_fn=None,
     ):
-        if lora_dir is not None:
+        if lora_file is not None:
             self.default_args = WanLightLoraDefaultArgs()
         model = KsanaWanModel(model_config, self.pipeline_config, dist_config)
         model.load(
             model_path=model_path,
-            lora_dir=lora_dir,
+            lora_file=lora_file,
             comfy_model_config=comfy_model_config,
             comfy_model_state_dict=comfy_model_state_dict,
             load_device=device,
@@ -110,24 +110,40 @@ class KsanaWanX2VPipeline(KsanaX2VPipeline):
     ):
         log.info(f"load_model_path_or_files: {model_path}")
         load_model_path_or_files = model_path
+        load_lora_files = lora_dir
+
+        # three cases:
+        # 1. [local load] model_path is a list of safetensors files used in load fp8 safetensors
+        # 2. [local load] model_path is a dir, used to compatibale with from_pretrain checkpoint
+        # 3. [comfy load] model_path is a safetensors file
         if isinstance(model_path, (list, tuple)):
             for file in model_path:
-                assert file.endswith(".safetensors"), f"model_path must be a safetensors file, but got {file}"
+                assert os.path.isfile(
+                    file
+                ), f"model_path must be list of files or {file} not exist, model_path:{model_path}"
         elif is_dir(model_path):
             if self.pipeline_config.model_name == "wan2.2":
                 load_model_path_or_files = [
                     os.path.join(model_path, self.pipeline_config.default_config.high_noise_checkpoint),
                     os.path.join(model_path, self.pipeline_config.default_config.low_noise_checkpoint),
                 ]
+            if lora_dir is not None:
+                load_lora_files = [
+                    os.path.join(lora_dir, self.pipeline_config.default_config.high_noise_lora_checkpoint),
+                    os.path.join(lora_dir, self.pipeline_config.default_config.low_noise_lora_checkpoint),
+                ]
         else:
-            assert os.path.isfile(model_path), f"model_path must be a safetensors file, but got {model_path}"
+            if not os.path.isfile(model_path):
+                raise ValueError(f"model_path {model_path} not exist, or file must be a safetensors file")
 
-        if hasattr(load_model_path_or_files, "__iter__"):
+        if isinstance(load_model_path_or_files, (list, tuple)):
             res = []
-            for one in load_model_path_or_files:
+            for i in range(len(load_model_path_or_files)):
+                one_model_path = load_model_path_or_files[i]
+                one_lora_file = load_lora_files[i] if load_lora_files is not None else None
                 one_model = self.load_one_diffusion_model(
-                    model_path=one,
-                    lora_dir=lora_dir,
+                    model_path=one_model_path,
+                    lora_file=one_lora_file,
                     model_config=model_config,
                     comfy_model_config=comfy_model_config,
                     comfy_model_state_dict=comfy_model_state_dict,
@@ -141,9 +157,9 @@ class KsanaWanX2VPipeline(KsanaX2VPipeline):
                 res.append(one_model)
             return res
         else:
-            return self.load_diffusion_model(
+            return self.load_one_diffusion_model(
                 model_path=load_model_path_or_files,
-                lora_dir=lora_dir,
+                lora_file=load_lora_files,
                 model_config=model_config,
                 comfy_model_config=comfy_model_config,
                 comfy_model_state_dict=comfy_model_state_dict,
@@ -198,4 +214,6 @@ class KsanaWanX2VPipeline(KsanaX2VPipeline):
             offload_device=offload_device,
         )
         del positive, negative
+
+        self.offload_diffusion_model_to(runtime_config.offload_model, offload_device)
         return latents

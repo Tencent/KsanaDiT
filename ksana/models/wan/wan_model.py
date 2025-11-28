@@ -310,8 +310,6 @@ class Head(nn.Module):
             x(Tensor): Shape [B, L1, C]
             e(Tensor): Shape [B, L1, C]
         """
-        # use comfy.model_management.cast_to
-        # with torch.amp.autocast("cuda", dtype=torch.float32):
         if e.ndim < 3:
             e = (self.modulation.unsqueeze(0) + e.unsqueeze(1)).chunk(2, dim=1)
         else:
@@ -428,7 +426,6 @@ class WanModel(ModelMixin, ConfigMixin):
         )
         self.time_projection = nn.Sequential(nn.SiLU(), operations.Linear(dim, dim * 6, device=device, dtype=dtype))
         operation_settings = {"operations": operations, "device": device, "dtype": dtype}
-        print(f"operations set with device={device}, dtype={dtype} operations={operations}")
 
         # blocks
         self.blocks = nn.ModuleList(

@@ -48,7 +48,7 @@ class KsanaDiffusionModel(ABC):
         self,
         model_path,
         *,
-        lora_dir=None,
+        lora_file=None,
         model_config: KsanaModelConfig = None,
         comfy_model_config=None,
         comfy_model_state_dict=None,
@@ -215,24 +215,22 @@ class KsanaWanModel(KsanaDiffusionModel):
 
     def load(
         self,
-        model_path,
-        lora_dir=None,
+        model_path: str,
+        lora_file=None,
         comfy_model_config: dict = None,
         comfy_model_state_dict=None,
         load_device=None,
         offload_device=None,
         shard_fn=None,
     ):
+        if not (os.path.isfile(model_path) or is_dir(model_path)):
+            raise ValueError(f"model_path {model_path} must be a file or dir")
         if comfy_model_state_dict is None:
-            if os.path.isfile(model_path):
-                assert model_path.lower().endswith(
-                    ".safetensors"
-                ), f"model_path must end with .safetensors, but got {model_path}"
-                comfy_model_state_dict = load_torch_file(model_path, device=load_device)
-            elif is_dir(model_path):
-                comfy_model_state_dict = load_sharded_safetensors(f"{model_path}")
-            else:
-                raise ValueError(f"model_path {model_path} is not a file or dir")
+            comfy_model_state_dict = (
+                load_sharded_safetensors(f"{model_path}")
+                if is_dir(model_path)
+                else load_torch_file(model_path, device=load_device)
+            )
 
         fp8_gemm, scaled_fp8 = (
             (True, torch.float8_e4m3fn) if self.model_config.linear_backend == "fp8_gemm" else (False, None)
@@ -241,7 +239,7 @@ class KsanaWanModel(KsanaDiffusionModel):
         if comfy_model_config is None:
             comfy_model_config = {}
         log.info(
-            f"load from model_path:{model_path}, lora_dir:{lora_dir}, comfy_model_config:{comfy_model_config}, "
+            f"load from model_path:{model_path}, lora_file:{lora_file}, comfy_model_config:{comfy_model_config}, "
             f"operations:{operations}, load_device:{load_device}, offload_device:{offload_device}"
         )
         default_model_config = self.pipeline_config.default_config
@@ -267,28 +265,31 @@ class KsanaWanModel(KsanaDiffusionModel):
             device=offload_device,
             dtype=self.run_dtype,
         )
+        log.debug(f"model: {self.model}")
+        # TODO: use with time_range
         stop1 = time.time()
         load_result = self.model.load_state_dict(comfy_model_state_dict, strict=False)
         stop2 = time.time()
-        log.warning(
-            f"load_result: missing keys:{load_result.missing_keys}, unexpected keys:{load_result.unexpected_keys}"
-        )
+        if load_result.missing_keys or load_result.unexpected_keys:
+            log.warning(
+                f"load_result: missing keys:{load_result.missing_keys}, unexpected keys:{load_result.unexpected_keys}"
+            )
         log.info(f"create model takes: {(stop1 - start):.2f}, load states takes {(stop2 - stop1):.2f} seconds")
-        log.debug(f"model: {self.model}")
-        self.apply_torch_compile(self.model_config.torch_compile_config)
 
         self.model.eval().requires_grad_(False)
         self.model = self.prepare_distributed_model(
             model=self.model, use_sp=self.dist_config.use_sp, dit_fsdp=self.dist_config.dit_fsdp, shard_fn=shard_fn
         )
 
-        if lora_dir:
-            log.info(f"load lora from {lora_dir}")
+        if lora_file:
+            log.info(f"load lora from {lora_file}")
             self.model.set_keep_in_fp32_modules()
-            self.model = load_and_merge_lora_weight_from_safetensors(self.model, lora_dir)
+            self.model = load_and_merge_lora_weight_from_safetensors(self.model, lora_file)
             model_safe_downcast(
                 self.model,
                 dtype=self.run_dtype,
                 keep_in_fp32_modules=[],
                 keep_in_fp32_parameters=self.model._keep_in_fp32_params,
             )
+        # Note: apply torch compile should be after all weight loading and merging
+        self.apply_torch_compile(self.model_config.torch_compile_config)

@@ -66,7 +66,9 @@ class KsanaX2VPipeline(ABC):
     ) -> KsanaDiffusionModel | tuple[KsanaDiffusionModel, KsanaDiffusionModel]:
         pass
 
-    def offload_diffusion_model_to(self, offload_device):
+    def offload_diffusion_model_to(self, offload_model: bool, offload_device):
+        if not offload_model or offload_device is None:
+            return
         if hasattr(self.diffusion_model, "__iter__"):
             for module in self.diffusion_model:
                 module.to(offload_device)
@@ -112,12 +114,12 @@ class KsanaX2VPipeline(ABC):
             shard_fn=shard_fn,
         )
         if offload_device is not None:
-            self.offload_diffusion_model_to(offload_device)
+            self.offload_diffusion_model_to(True, offload_device)
         self.vae = self.load_vae(vae_checkpoint_dir, device)
         if offload_device is not None:
             self.vae.to(offload_device)
 
-    def forward_text_encoder(self, prompt, prompt_negative=None, device=None, offload_device=None):
+    def forward_text_encoder(self, prompt, prompt_negative=None, device=None, offload_device=None, offload_model=False):
         default_pipeline_config = self.pipeline_config.default_config
         prompt_positive = prompt
         prompt_negative = prompt_negative if prompt_negative is not None else default_pipeline_config.sample_neg_prompt
@@ -134,7 +136,7 @@ class KsanaX2VPipeline(ABC):
         if prompt_negative is not None:
             negative = self.text_encoder.forward([prompt_negative])[0]
             negative = negative.unsqueeze(0)
-        if offload_device is not None and offload_device != device:
+        if offload_model and offload_device is not None and offload_device != device:
             self.text_encoder.to(offload_device)
 
         return positive, negative
@@ -147,14 +149,17 @@ class KsanaX2VPipeline(ABC):
     def forward_diffusion_model(self, positive, negative, device=None, offload_device=None, **kwargs):
         pass
 
-    def forward_vae(self, latents, local_rank, device=None, offload_device=None):
+    def forward_vae(self, latents, local_rank, device=None, offload_device=None, offload_model=False):
         # TODO: support multi gpu
         if local_rank != 0:
             return
+        # TODO: estimate vae memory usage to check whether neeed to offload diffusion model
+        self.offload_diffusion_model_to(True, offload_device)
+
         if self.vae.device != device:
             self.vae.to(device)
         videos = self.vae.decode(latents)[0]
-        if offload_device is not None and offload_device != device:
+        if offload_model and offload_device is not None and offload_device != device:
             self.vae.to(offload_device)
         del latents
         log.info(f"Generated video shape: {videos.shape}")
@@ -441,9 +446,14 @@ class KsanaX2VPipeline(ABC):
         device: torch.device = None,
         offload_device: torch.device = None,
     ):
+        log.info("start generate video")
         text_run_device = torch.device("cpu")  # TODO: maybe run text on cuda self.device
         positive, negative = self.forward_text_encoder(
-            prompt, prompt_negative, device=text_run_device, offload_device=offload_device
+            prompt,
+            prompt_negative,
+            device=text_run_device,
+            offload_device=offload_device,
+            offload_model=runtime_config.offload_model,
         )
         latents = self.forward_diffusion_model(
             positive,
@@ -453,8 +463,6 @@ class KsanaX2VPipeline(ABC):
             device=device,
             offload_device=offload_device,
         )
-        if runtime_config.offload_model:
-            self.offload_diffusion_model_to(offload_device)
         return latents
 
     @property

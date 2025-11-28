@@ -136,15 +136,13 @@ class KsanaExecutor(ABC):
         )
 
     @time_range
-    def generate_video(
+    def generate_one_video(
         self,
         prompt: str,
         prompt_negative: str = None,
         sample_config: KsanaSampleConfig = None,
         runtime_config: KsanaRuntimeConfig = None,
     ):
-        sample_config = sample_config if sample_config else KsanaSampleConfig()
-        runtime_config = runtime_config if runtime_config else KsanaRuntimeConfig()
         latents = self.pipeline.generate_video(
             prompt=prompt,
             prompt_negative=prompt_negative,
@@ -155,7 +153,11 @@ class KsanaExecutor(ABC):
         )
         # TODO: multi-cards vae
         videos = self.pipeline.forward_vae(
-            latents, local_rank=self.local_rank, device=self.device, offload_device=self.offload_device
+            latents,
+            local_rank=self.local_rank,
+            device=self.device,
+            offload_device=self.offload_device,
+            offload_model=runtime_config.offload_model,
         )
         del latents
         if runtime_config.offload_model:
@@ -170,6 +172,37 @@ class KsanaExecutor(ABC):
             dist.destroy_process_group()
         if runtime_config.return_frames and self.dist_config.rank_id == 0:
             return videos
+
+    @time_range
+    def generate_video(
+        self,
+        prompt,
+        prompt_negative: str = None,
+        *,
+        sample_config: KsanaSampleConfig = None,
+        runtime_config: KsanaRuntimeConfig = None,
+    ):
+        sample_config = sample_config if sample_config else KsanaSampleConfig()
+        runtime_config = runtime_config if runtime_config else KsanaRuntimeConfig()
+        if isinstance(prompt, (list, tuple)):
+            # TODO: support bs > 1 inside
+            res = []
+            for i in range(len(prompt)):
+                one_prompt = prompt[i]
+                one_negative = prompt_negative[i] if isinstance(prompt_negative, (tuple, list)) else prompt_negative
+                res.append(
+                    self.generate_one_video(
+                        one_prompt,
+                        prompt_negative=one_negative,
+                        sample_config=sample_config,
+                        runtime_config=runtime_config,
+                    )
+                )
+            return res
+        else:
+            return self.generate_one_video(
+                prompt, prompt_negative=prompt_negative, sample_config=sample_config, runtime_config=runtime_config
+            )
 
     @time_range
     def generate_video_with_tensors(self, model, positive, negative, **kwargs):
