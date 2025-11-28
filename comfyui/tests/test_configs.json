@@ -4,7 +4,7 @@
     "steps": 1,
     "width": 720,
     "height": 480,
-    "frames": 17,
+    "frames": 3,
     "dit_high_model_name": "wan2.2_t2v_high_noise_14B_fp8_scaled.safetensors",
     "dit_low_model_name": "wan2.2_t2v_low_noise_14B_fp8_scaled.safetensors",
     "text_model_name": "umt5_xxl_fp8_e4m3fn_scaled.safetensors",
@@ -17,9 +17,12 @@
   {
     "workflow_path": "../workflows/wan2.2_fp16.json",
     "steps": 1,
-    "width": 720,
-    "height": 480,
-    "frames": 20,
+    "width": 1280,
+    "height": 720,
+    "frames": 1,
+    "dit_high_model_name": "wan2.2_t2v_high_noise_14B_fp16.safetensors",
+    "dit_low_model_name": "wan2.2_t2v_low_noise_14B_fp16.safetensors",
+    "text_model_name": "umt5_xxl_fp8_e4m3fn_scaled.safetensors",
     "attn_backend": "sage_attention",
     "expect_values": {
       "mean": 0.5088274
@@ -30,7 +33,7 @@
     "steps": 1,
     "width": 720,
     "height": 480,
-    "frames": 10,
+    "frames": 3,
     "dit_high_model_name": "wan2.2_t2v_high_noise_14B_fp8_scaled.safetensors",
     "dit_low_model_name": "wan2.2_t2v_low_noise_14B_fp8_scaled.safetensors",
     "text_model_name": "umt5_xxl_fp8_e4m3fn_scaled.safetensors",
