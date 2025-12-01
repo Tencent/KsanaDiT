@@ -3,27 +3,26 @@ set -xe
 
 BK_CI_GIT_REPO_HEAD_COMMIT_ID=$1
 
-sudo su - mqq
+# sudo su - mqq
 source /data/miniconda3/etc/profile.d/conda.sh
 conda activate env-novelai
 
 echo "BK_CI_GIT_REPO_HEAD_COMMIT_ID: ${BK_CI_GIT_REPO_HEAD_COMMIT_ID} "
 sudo chown mqq:mqq -R /ci_workspace/
 sudo chown mqq:mqq -R /data/ComfyUI/
-sudo chown mqq:mqq -R /root/.cache/
+# sudo chown mqq:mqq -R /root/.cache/
 
 cd /ci_workspace
-if [ ! -d /data/ComfyUI/custom_nodes/KsanaDiT ]; then
-  rm -rf /data/ComfyUI/custom_nodes/KsanaDiT
-  mkdir -p /data/ComfyUI/custom_nodes/
-  cd /data/ComfyUI/custom_nodes/
+rm -rf /data/ComfyUI/custom_nodes/KsanaDiT
+mkdir -p /data/ComfyUI/custom_nodes/
+cd /data/ComfyUI/custom_nodes/
 
-  tar xf /ci_workspace/${BK_CI_GIT_REPO_HEAD_COMMIT_ID}.tgz -C /data/ComfyUI/custom_nodes/
-  mv ${BK_CI_GIT_REPO_HEAD_COMMIT_ID} KsanaDiT
-  sudo chown mqq:mqq -R KsanaDiT/
-fi
+tar xf /ci_workspace/${BK_CI_GIT_REPO_HEAD_COMMIT_ID}.tgz -C /data/ComfyUI/custom_nodes/
+mv ${BK_CI_GIT_REPO_HEAD_COMMIT_ID} KsanaDiT
+sudo chown mqq:mqq -R KsanaDiT/
 
 cd /data/ComfyUI/custom_nodes/KsanaDiT
+
 ln -sf /dockerdata/models/comfy_models /data/ComfyUI/custom_nodes/KsanaDiT/
 ln -sf /dockerdata/models/Wan2.2-Lightning /data/ComfyUI/custom_nodes/KsanaDiT/
 ln -sf /dockerdata/models/Wan2.2-T2V-A14B /data/ComfyUI/custom_nodes/KsanaDiT/

@@ -7,9 +7,9 @@
     "frames": 9,
     "dit_high_model_name": "wan2.2_t2v_high_noise_14B_fp16.safetensors",
     "dit_low_model_name": "wan2.2_t2v_low_noise_14B_fp16.safetensors",
-    "text_model_name": "umt5_xxl_fp16.safetensors.safetensors",
+    "text_model_name": "umt5_xxl_fp16.safetensors",
     "expect_values": {
-      "mean": 0.5133173
+      "mean": 0.5341557
     }
   },
   {
