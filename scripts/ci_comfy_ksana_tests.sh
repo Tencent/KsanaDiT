@@ -10,6 +10,7 @@ conda activate env-novelai
 echo "BK_CI_GIT_REPO_HEAD_COMMIT_ID: ${BK_CI_GIT_REPO_HEAD_COMMIT_ID} "
 sudo chown mqq:mqq -R /ci_workspace/
 sudo chown mqq:mqq -R /data/ComfyUI/
+sudo chown mqq:mqq -R /root/.cache/
 
 cd /ci_workspace
 if [ ! -d /data/ComfyUI/custom_nodes/KsanaDiT ]; then
@@ -27,7 +28,7 @@ ln -sf /dockerdata/models/comfy_models /data/ComfyUI/custom_nodes/KsanaDiT/
 ln -sf /dockerdata/models/Wan2.2-Lightning /data/ComfyUI/custom_nodes/KsanaDiT/
 ln -sf /dockerdata/models/Wan2.2-T2V-A14B /data/ComfyUI/custom_nodes/KsanaDiT/
 
-mkdir -p /data/stable-diffusion-webui
+# mkdir -p /data/stable-diffusion-webui
 # ln -s /dockerdata/models/comfy_models /data/stable-diffusion-webui/models
 
 # pip install numpy==1.26.4
@@ -37,7 +38,7 @@ unset http_proxy https_proxy HTTP_PROXY HTTPS_PROXY
 
 ./scripts/install_dev.sh
 cd comfyui/tests
-# export CUDA_VISIBLE_DEVICES=0,1
+export CUDA_VISIBLE_DEVICES=0
 python workflow_test.py --workflows-file ./test_configs.json
 
 # export CUDA_VISIBLE_DEVICES=0,1
