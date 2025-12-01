@@ -127,6 +127,13 @@ def test_workflow(workflow_path: str, params: dict, expect_values: Optional[dict
             logger.error(error_content, e)
         return False
 
+    except Exception as e:
+        logger.error(f"✗ 测试失败: {e}")
+        import traceback
+
+        traceback.print_exc()
+        return False
+
 
 def create_argument_parser():
     parser = argparse.ArgumentParser(
@@ -296,6 +303,7 @@ def main():
         import traceback
 
         traceback.print_exc()
+        assert False, "测试失败"
 
     finally:
         if server_process:
