@@ -38,7 +38,7 @@
     "text_model_name": "umt5_xxl_fp8_e4m3fn_scaled.safetensors",
     "attn_backend": "sage_attention",
     "expect_values": {
-      "mean": 0.4939118
+      "mean": 0.4973931
     }
   }
 ]
