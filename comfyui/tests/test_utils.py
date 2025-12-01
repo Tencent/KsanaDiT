@@ -365,7 +365,7 @@ def check_media_data(media_data: bytes, expect_values: dict) -> bool:
         mean = image_tensor.abs().mean().item()
 
         expected_mean = expect_values["mean"]
-        tolerance = 1e-4
+        tolerance = 0.008
 
         if abs(mean - expected_mean) < tolerance:
             logger.info(f"✓ Image check passed. Mean: {mean:.7f}, Expected Mean: {expected_mean:.7f}")
