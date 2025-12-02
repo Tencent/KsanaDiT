@@ -6,7 +6,7 @@ import os
 import torch
 import torch.distributed as dist
 
-from ..distributed import sp_attn_forward, sp_dit_forward
+from ..distributed import sp_attn_forward
 from ..utils import (  # , ksanaProfiler
     load_and_merge_lora_weight_from_safetensors,
     log,
@@ -19,12 +19,12 @@ from ..utils import (  # , ksanaProfiler
 from ..utils.load import load_torch_file
 from .wan import WanModel
 from .wan.configs import WAN2_2_CONFIGS
-from ..config import KsanaModelConfig
+from ..config import KsanaModelConfig, KsanaDistributedConfig
 from ksana.operations import pick_operations
 
 
 class KsanaDiffusionModel(ABC):
-    def __init__(self, model_config: KsanaModelConfig, pipeline_config, dist_config):
+    def __init__(self, model_config: KsanaModelConfig, pipeline_config, dist_config: KsanaDistributedConfig):
         self.model_name = pipeline_config.model_name
         self.task_type = pipeline_config.task_type
         self.model_size = pipeline_config.model_size
@@ -34,13 +34,13 @@ class KsanaDiffusionModel(ABC):
 
         if self.dist_config.ulysses_size > 1:
             assert (
-                self.self.pipeline_config.default_config.num_heads % self.dist_config.ulysses_size == 0
-            ), f"`{self.self.pipeline_config.default_config.num_heads=}` cannot be divided evenly by `{self.dist_config.ulysses_size=}`."
+                self.pipeline_config.default_config.num_heads % self.dist_config.ulysses_size == 0
+            ), f"`{self.pipeline_config.default_config.num_heads}` cannot be divided evenly by `{self.dist_config.ulysses_size}`."
         if dist_config.use_sp:
             self.sp_size = dist_config.world_size
         else:
             self.sp_size = 1
-        log.info(f"KsanaDiffusionModel init with {self.model_config}")
+        log.info(f"KsanaDiffusionModel init with {self.model_config} {self.dist_config}")
 
     @abstractmethod
     @time_range
@@ -59,6 +59,7 @@ class KsanaDiffusionModel(ABC):
     ):
         pass
 
+    @time_range
     def apply_torch_compile(self, torch_compile_config=None):
         if torch_compile_config is None:
             return
@@ -117,7 +118,6 @@ class KsanaDiffusionModel(ABC):
         if use_sp:
             for block in model.blocks:
                 block.self_attn.forward = types.MethodType(sp_attn_forward, block.self_attn)
-            model.forward = types.MethodType(sp_dit_forward, model)
 
         if dist.is_initialized():
             dist.barrier()
@@ -264,6 +264,7 @@ class KsanaWanModel(KsanaDiffusionModel):
             operations=operations,
             device=offload_device,
             dtype=self.run_dtype,
+            sp_size=self.dist_config.ulysses_size,
         )
         log.debug(f"model: {self.model}")
         # TODO: use with time_range

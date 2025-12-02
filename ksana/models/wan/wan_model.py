@@ -9,7 +9,8 @@ import torch.cuda.nvtx as nvtx
 
 from ksana.attention import AttentionBackendEnum, LocalAttentionOp
 from ksana.cache import KsanaCache
-from ksana.utils import time_range
+from ksana.utils import time_range, gather_forward, get_rank
+
 
 # import ipdb
 
@@ -353,6 +354,7 @@ class WanModel(ModelMixin, ConfigMixin):
         operations=None,
         device=None,
         dtype=None,
+        sp_size=1,
     ):
         r"""
         Initialize the diffusion model backbone.
@@ -388,6 +390,8 @@ class WanModel(ModelMixin, ConfigMixin):
                 Enable cross-attention normalization
             eps (`float`, *optional*, defaults to 1e-6):
                 Epsilon value for normalization layers
+            sp_size (`int`, *optional*, defaults to 1):
+                Sequence parallelism size
         """
 
         super().__init__()
@@ -409,6 +413,8 @@ class WanModel(ModelMixin, ConfigMixin):
         self.qk_norm = qk_norm
         self.cross_attn_norm = cross_attn_norm
         self.eps = eps
+
+        self.sp_size = sp_size
 
         # embeddings
         self.patch_embedding = operations.Conv3d(
@@ -564,6 +570,9 @@ class WanModel(ModelMixin, ConfigMixin):
         context = self.text_embedding(padded_context)
         nvtx.range_pop()
 
+        if self.sp_size > 1:
+            x = torch.chunk(x, self.sp_size, dim=1)[get_rank()]
+
         # arguments
         kwargs = dict(
             e=e0,  # [bs, seqlen, 6, 5120]
@@ -609,7 +618,8 @@ class WanModel(ModelMixin, ConfigMixin):
         # head
         # [bs, seqlen, 5120] => [bs, seqlen, 64], e:[bs, seqlen, freq_dim=>self.dim:5120]
         x = self.head(x, e)
-
+        if self.sp_size > 1:
+            x = gather_forward(x, dim=1)
         # unpatchify
         # TODO: support bs > 1
         # [1, seqlen, 64] => [16, fi, hi, wi]
