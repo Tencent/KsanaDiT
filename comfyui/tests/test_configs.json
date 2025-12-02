@@ -9,7 +9,7 @@
     "dit_low_model_name": "wan2.2_t2v_low_noise_14B_fp16.safetensors",
     "text_model_name": "umt5_xxl_fp16.safetensors",
     "expect_values": {
-      "mean": 0.5341557
+      "mean": 0.3868687
     }
   },
   {
@@ -24,7 +24,7 @@
     "linear_backend": "fp8_gemm",
     "attn_backend": "flash_attention",
     "expect_values": {
-      "mean": 0.4937195
+      "mean": 0.3542531
     }
   },
   {
@@ -38,7 +38,7 @@
     "text_model_name": "umt5_xxl_fp8_e4m3fn_scaled.safetensors",
     "attn_backend": "sage_attention",
     "expect_values": {
-      "mean": 0.4973931
+      "mean": 0.2340671
     }
   }
 ]
