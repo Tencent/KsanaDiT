@@ -23,7 +23,7 @@ from typing import Optional, Tuple
 from io import BytesIO
 import torch
 import numpy
-from PIL import Image
+from PIL import Image, ImageSequence
 
 import websocket
 
@@ -358,14 +358,24 @@ def check_media_data(media_data: bytes, expect_values: dict) -> bool:
 
     try:
         pil_image = Image.open(BytesIO(media_data))
-        if pil_image.format == "GIF":
-            pil_image.seek(0)
 
-        image_tensor = torch.from_numpy(numpy.array(pil_image).astype(numpy.float32) / 255.0)
+        frames = []
+        if pil_image.format == "GIF":
+            for frame in ImageSequence.Iterator(pil_image):
+                frames.append(numpy.array(frame.convert("RGB"), dtype=numpy.float32))
+        else:
+            if pil_image.mode not in ("RGB", "RGBA"):
+                pil_image = pil_image.convert("RGB")
+            elif pil_image.mode == "RGBA":
+                pil_image = pil_image.convert("RGB")
+            frames.append(numpy.array(pil_image, dtype=numpy.float32))
+
+        image_array = numpy.stack(frames, axis=0)
+        image_tensor = torch.from_numpy(image_array / 255.0)
         mean = image_tensor.abs().mean().item()
 
         expected_mean = expect_values["mean"]
-        tolerance = 0.008
+        tolerance = 1e-4
 
         if abs(mean - expected_mean) < tolerance:
             logger.info(f"✓ Image check passed. Mean: {mean:.7f}, Expected Mean: {expected_mean:.7f}")
