@@ -11,6 +11,7 @@ def distributed_attention(
     v,
     seq_lens,
     window_size=(-1, -1),
+    attn_func=flash_attention,
 ):
     """
     Performs distributed attention based on DeepSpeed Ulysses attention mechanism.
@@ -33,7 +34,7 @@ def distributed_attention(
     v = all_to_all(v, scatter_dim=2, gather_dim=1)
 
     # apply attention
-    x = flash_attention(
+    x = attn_func(
         q,
         k,
         v,

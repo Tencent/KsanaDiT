@@ -167,9 +167,6 @@ class KsanaExecutor(ABC):
         if runtime_config.save_video:
             self.save_video(videos, self.get_save_path(runtime_config.output_folder, prompt))
 
-        if dist.is_initialized():
-            dist.barrier()
-            dist.destroy_process_group()
         if runtime_config.return_frames and self.dist_config.rank_id == 0:
             return videos
 
@@ -198,11 +195,16 @@ class KsanaExecutor(ABC):
                         runtime_config=runtime_config,
                     )
                 )
-            return res
         else:
-            return self.generate_one_video(
+            res = self.generate_one_video(
                 prompt, prompt_negative=prompt_negative, sample_config=sample_config, runtime_config=runtime_config
             )
+
+        if dist.is_initialized():
+            dist.barrier()
+            dist.destroy_process_group()
+
+        return res
 
     @time_range
     def generate_video_with_tensors(self, model, positive, negative, **kwargs):

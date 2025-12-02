@@ -3,6 +3,7 @@
 import torch
 import torch.nn as nn
 from safetensors import safe_open
+from .profile import time_range
 
 
 def model_safe_downcast(
@@ -85,6 +86,7 @@ def load_and_merge_lora_weight(
     return model
 
 
+@time_range
 def load_and_merge_lora_weight_from_safetensors(
     model: nn.Module,
     lora_weight_path: str,
