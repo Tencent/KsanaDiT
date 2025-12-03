@@ -2,10 +2,10 @@ from abc import ABC
 
 import torch
 import os
-
-from datetime import datetime
 import gc
-
+from datetime import datetime
+import torch.distributed as dist
+from functools import partial
 
 from ..models import KsanaDiffusionModel
 from ..utils import log, time_range, save_video, merge_video_audio, is_dir
@@ -18,11 +18,9 @@ from ..config import (
 )
 
 from ..utils.logger import init_logging
-import torch.distributed as dist
 
 from ..pipelines import create_ksana_pipeline
 
-from functools import partial
 from ..distributed import shard_model
 
 
@@ -32,29 +30,40 @@ class KsanaExecutor(ABC):
     和模型有关的配置信息不放在Executor中，而是放在KsanaPipeline中
     """
 
-    model = None
-
-    def __init__(self, dist_config: KsanaDistributedConfig = None, offload_device: str = "cpu"):
+    def __init__(self, device_id: int = 0, offload_device: str = "cpu"):
         """
         Initialize the executor.
         """
-        self.dist_config = dist_config
-        self.local_rank = self.dist_config.local_rank
-        self.device = torch.device(f"cuda:{self.local_rank}")
+        self.device_id = device_id
+        self.rank_id = device_id
+        self.world_size = 1
+        self.device = torch.device(f"cuda:{self.device_id}")
         self.offload_device = torch.device(offload_device)
+        torch.cuda.set_device(self.device)
+        self.pipeline = None
+        self.shard_fn = None
+        self.dist_config = KsanaDistributedConfig(num_gpus=1, use_sp=False, dit_fsdp=False, ulysses_size=1)
+        log.info(f"create executor with device_id {self.device_id}, offload_device {self.offload_device}")
+        init_logging()
 
-        init_logging(self.local_rank)
-        if self.dist_config.world_size > 1:
-            torch.cuda.set_device(self.local_rank)
+    def init_torch_dist_group(self, rank_id, dist_config: KsanaDistributedConfig):
+        """r initialize sequence parallel group."""
+        self.dist_config = dist_config
+        if dist_config.num_gpus <= 1:
+            return
+        self.rank_id = rank_id
+        self.world_size = dist_config.num_gpus
+        if not dist.is_initialized():
             dist.init_process_group(
                 backend="nccl",
                 init_method="env://",
-                rank=self.dist_config.rank_id,
-                world_size=self.dist_config.world_size,
+                rank=rank_id,
+                device_id=self.device,
+                world_size=dist_config.num_gpus,
             )
-
-        self.shard_fn = partial(shard_model, device_id=self.local_rank) if self.dist_config.dit_fsdp else None
-        self.pipeline = None
+        log.info(f"init distributed group with rank_id {self.rank_id}, world_size {self.world_size}")
+        init_logging(rank_id)
+        self.shard_fn = partial(shard_model, device_id=self.device_id) if self.dist_config.dit_fsdp else None
 
     def create_pipeline(self, dir, model_config: KsanaModelConfig = None, comfy_model_config=None):
         if self.pipeline is not None:
@@ -96,7 +105,7 @@ class KsanaExecutor(ABC):
         self.pipeline = self.create_pipeline(
             dir=model_path if text_checkpoint_dir is None else text_checkpoint_dir, model_config=model_config
         )
-        load_to_deivce = self.device if self.dist_config.world_size > 1 else self.offload_device
+        load_to_deivce = self.device if self.dist_config.num_gpus > 1 else self.offload_device
         return self.pipeline.load_models(
             model_path=model_path,
             text_checkpoint_dir=text_checkpoint_dir,
@@ -122,7 +131,7 @@ class KsanaExecutor(ABC):
         if len(kwargs) > 0:
             log.warning(f"kwargs {kwargs} are not used")
         self.pipeline = self.create_pipeline(dir=model_path, model_config=model_config)
-        load_to_deivce = self.device if self.dist_config.world_size > 1 else self.offload_device
+        load_to_deivce = self.device if self.dist_config.num_gpus > 1 else self.offload_device
         return self.pipeline.load_diffusion_model(
             model_path=model_path,
             lora_dir=lora_dir,
@@ -154,7 +163,7 @@ class KsanaExecutor(ABC):
         # TODO: multi-cards vae
         videos = self.pipeline.forward_vae(
             latents,
-            local_rank=self.local_rank,
+            local_rank=self.rank_id,
             device=self.device,
             offload_device=self.offload_device,
             offload_model=runtime_config.offload_model,
@@ -167,7 +176,7 @@ class KsanaExecutor(ABC):
         if runtime_config.save_video:
             self.save_video(videos, self.get_save_path(runtime_config.output_folder, prompt))
 
-        if runtime_config.return_frames and self.dist_config.rank_id == 0:
+        if runtime_config.return_frames and self.rank_id == 0:
             return videos
 
     @time_range
@@ -200,10 +209,6 @@ class KsanaExecutor(ABC):
                 prompt, prompt_negative=prompt_negative, sample_config=sample_config, runtime_config=runtime_config
             )
 
-        if dist.is_initialized():
-            dist.barrier()
-            dist.destroy_process_group()
-
         return res
 
     @time_range
@@ -223,12 +228,12 @@ class KsanaExecutor(ABC):
         formatted_prompt = prompt_text.replace(" ", "_").replace("/", "_")[:30]
         suffix = ".mp4"
         save_file = (
-            f"{self.pipeline.save_name}_{self.dist_config.world_size}cards_{formatted_time}_{formatted_prompt}" + suffix
+            f"{self.pipeline.save_name}_{self.dist_config.num_gpus}cards_{formatted_time}_{formatted_prompt}" + suffix
         )
         return os.path.join(output_folder, save_file)
 
     def save_video(self, video, save_file):
-        if self.dist_config.rank_id != 0:
+        if self.rank_id != 0:
             return
         log.info(f"Saving generated video to {save_file}")
         os.makedirs(os.path.dirname(save_file), exist_ok=True)

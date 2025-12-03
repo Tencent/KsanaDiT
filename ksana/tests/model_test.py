@@ -1,6 +1,3 @@
-# import os
-# os.environ["CUDA_VISIBLE_DEVICES"] = "1"
-
 import unittest
 from ksana import KsanaGenerator
 from ksana.config import (
@@ -8,6 +5,7 @@ from ksana.config import (
     KsanaTorchCompileConfig,
     KsanaRuntimeConfig,
     KsanaSampleConfig,
+    KsanaDistributedConfig,
 )
 import torch
 
@@ -30,6 +28,25 @@ class TestKsana(unittest.TestCase):
     def test_simple(self):
         print("-----------------test_simple-----------------")
         generator = KsanaGenerator.from_models("./Wan2.2-T2V-A14B")
+        videos = generator.generate_video(
+            prompts,
+            sample_config=KsanaSampleConfig(steps=TEST_STEPS),
+            runtime_config=KsanaRuntimeConfig(
+                seed=SEED,
+                size=TEST_SIZE,
+                frame_num=TEST_FRAME_NUM,
+                return_frames=True,
+                save_video=True,
+            ),
+        )
+        mean0 = videos[0].cpu().abs().mean().item()
+        mean1 = videos[1].cpu().abs().mean().item()
+        self.assertAlmostEqual(mean0, 0.22557629644870758, places=TEST_EPS_PLACE)
+        self.assertAlmostEqual(mean1, 0.24775567650794983, places=TEST_EPS_PLACE)
+
+    def test_simple_gpus(self):
+        print("-----------------test_simple_gpus-----------------")
+        generator = KsanaGenerator.from_models("./Wan2.2-T2V-A14B", dist_config=KsanaDistributedConfig(num_gpus=2))
         videos = generator.generate_video(
             prompts,
             sample_config=KsanaSampleConfig(steps=TEST_STEPS),

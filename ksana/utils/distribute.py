@@ -1,44 +1,37 @@
 import torch.distributed as dist
 import torch
-from ..config import KsanaDistributedConfig
 import os
 
+import socket
+from contextlib import closing
 
-def get_ksana_distributed_config_from_torchrun_env(dist_config=KsanaDistributedConfig()) -> KsanaDistributedConfig:
 
+def get_free_port():
+    with closing(socket.socket(socket.AF_INET, socket.SOCK_STREAM)) as s:
+        s.bind(("", 0))
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        return s.getsockname()[1]
+
+
+def is_launched_by_torchrun() -> bool:
+    required_vars = ["RANK", "WORLD_SIZE", "LOCAL_RANK", "MASTER_ADDR"]
+    return all(var in os.environ for var in required_vars)
+
+
+def get_torchrun_env() -> tuple:
     world_size = int(os.getenv("WORLD_SIZE", 1))
-    num_nodes = int(os.getenv("NUM_NODES", 1))
-    node_rank = int(os.getenv("NODE_RANK", 0))
     rank_id = int(os.getenv("RANK", 0))
-
     local_rank = int(os.getenv("LOCAL_RANK", 0))
     local_world_size = int(os.getenv("LOCAL_WORLD_SIZE", world_size))
-
-    master_addr = os.getenv("MASTER_ADDR", "localhost")
-    master_port = int(os.getenv("MASTER_PORT", 29500))
-
-    return KsanaDistributedConfig(
-        world_size=world_size,
-        num_nodes=num_nodes,
-        node_rank=node_rank,
-        rank_id=rank_id,
-        local_world_size=local_world_size,
-        local_rank=local_rank,
-        master_addr=master_addr,
-        master_port=master_port,
-        use_sp=dist_config.use_sp,
-        dit_fsdp=dist_config.dit_fsdp,
-        ulysses_size=dist_config.ulysses_size,
-    )
+    # num_nodes = int(os.getenv("NUM_NODES", 1))
+    # node_rank = int(os.getenv("NODE_RANK", 0))
+    # master_addr = os.getenv("MASTER_ADDR", "localhost")
+    # master_port = int(os.getenv("MASTER_PORT", 29500))
+    return world_size, rank_id, local_rank, local_world_size
 
 
-def init_distributed_group():
-    """r initialize sequence parallel group."""
-    if not dist.is_initialized():
-        dist.init_process_group(backend="nccl")
-
-
-def get_rank():
+def get_rank_id():
+    """get rank in total world size"""
     return dist.get_rank()
 
 

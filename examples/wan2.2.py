@@ -2,9 +2,7 @@ import os
 import torch
 import argparse
 
-# set env before import ksana
 os.environ["KSANA_LOGGER_LEVEL"] = "INFO"
-# os.environ["CUDA_VISIBLE_DEVICES"] = "2,3"
 
 from ksana import KsanaGenerator
 from ksana.config import (
@@ -22,11 +20,12 @@ prompts = [
 ]
 
 SEED = 1234
-num_gpus = int(os.getenv("WORLD_SIZE", "1"))
 
 
-def run_simple(model_dir):
-    generator = KsanaGenerator.from_models(f"{model_dir}/Wan2.2-T2V-A14B", num_gpus=num_gpus)
+def run_simple(args):
+    generator = KsanaGenerator.from_models(
+        f"{args.model_dir}/Wan2.2-T2V-A14B", dist_config=KsanaDistributedConfig(num_gpus=args.num_gpus)
+    )
 
     video = generator.generate_video(
         prompts[0],
@@ -42,13 +41,15 @@ def run_simple(model_dir):
     print("video shape:", video.shape)
 
 
-def run_fp8_models(model_dir):
-    low_noise_model_path = f"{model_dir}/comfy_models/diffusion_models/wan2.2_t2v_low_noise_14B_fp8_scaled.safetensors"
-    high_noise_model_path = (
-        f"{model_dir}/comfy_models/diffusion_models/wan2.2_t2v_high_noise_14B_fp8_scaled.safetensors"
+def run_fp8_models(args):
+    low_noise_model_path = (
+        f"{args.model_dir}/comfy_models/diffusion_models/wan2.2_t2v_low_noise_14B_fp8_scaled.safetensors"
     )
-    text_dir = f"{model_dir}/Wan2.2-T2V-A14B"
-    vae_dir = f"{model_dir}/Wan2.2-T2V-A14B"
+    high_noise_model_path = (
+        f"{args.model_dir}/comfy_models/diffusion_models/wan2.2_t2v_high_noise_14B_fp8_scaled.safetensors"
+    )
+    text_dir = f"{args.model_dir}/Wan2.2-T2V-A14B"
+    vae_dir = f"{args.model_dir}/Wan2.2-T2V-A14B"
 
     model_config = KsanaModelConfig(
         run_dtype=torch.float16,
@@ -61,7 +62,7 @@ def run_fp8_models(model_dir):
         (high_noise_model_path, low_noise_model_path),  # high go first
         text_checkpoint_dir=text_dir,
         vae_checkpoint_dir=vae_dir,
-        num_gpus=num_gpus,
+        dist_config=KsanaDistributedConfig(num_gpus=args.num_gpus),
         model_config=model_config,
     )
 
@@ -79,48 +80,17 @@ def run_fp8_models(model_dir):
     print("video shape:", video.shape)
 
 
-def run_with_lora(model_dir):
+def run_with_lora(args):
     generator = KsanaGenerator.from_models(
-        f"{model_dir}/Wan2.2-T2V-A14B",
-        lora_dir=f"{model_dir}/Wan2.2-Lightning/Wan2.2-T2V-A14B-4steps-lora-rank64-Seko-V1",
+        f"{args.model_dir}/Wan2.2-T2V-A14B",
+        lora_dir=f"{args.model_dir}/Wan2.2-Lightning/Wan2.2-T2V-A14B-4steps-lora-rank64-Seko-V1",
+        dist_config=KsanaDistributedConfig(num_gpus=args.num_gpus),
     )
 
     generator.generate_video(prompts, runtime_config=KsanaRuntimeConfig(seed=SEED))
 
 
-def run_with_lora_in_distributed_mode(model_dir):
-    model_config = KsanaModelConfig(
-        run_dtype=torch.float16,
-        attn_backend="flash_attention",
-        torch_compile_config=KsanaTorchCompileConfig(),
-    )
-
-    dist_config = KsanaDistributedConfig(
-        world_size=num_gpus,
-        use_sp=True,
-        dit_fsdp=False,
-        ulysses_size=num_gpus,
-    )
-
-    generator = KsanaGenerator.from_models(
-        f"{model_dir}/Wan2.2-T2V-A14B",
-        lora_dir=f"{model_dir}/Wan2.2-Lightning/Wan2.2-T2V-A14B-4steps-lora-rank64-Seko-V1",
-        model_config=model_config,
-        num_gpus=num_gpus,
-        dist_config=dist_config,
-    )
-
-    generator.generate_video(
-        prompts[0],
-        runtime_config=KsanaRuntimeConfig(
-            seed=SEED,
-            output_folder="distributed_videos",
-            save_video=True,
-        ),
-    )
-
-
-def run_advanced(model_dir):
+def run_advanced(args):
     model_config = KsanaModelConfig(
         run_dtype=torch.float16,
         attn_backend="flash_attention",
@@ -128,10 +98,11 @@ def run_advanced(model_dir):
         torch_compile_config=KsanaTorchCompileConfig(),
     )
     generator = KsanaGenerator.from_models(
-        f"{model_dir}/Wan2.2-T2V-A14B",
-        num_gpus=num_gpus,
+        f"{args.model_dir}/Wan2.2-T2V-A14B",
         model_config=model_config,
-        dist_config=KsanaDistributedConfig(),
+        dist_config=KsanaDistributedConfig(
+            num_gpus=args.num_gpus,
+        ),
     )
 
     runtime_config = KsanaRuntimeConfig(
@@ -155,6 +126,13 @@ def run_advanced(model_dir):
 
 
 if __name__ == "__main__":
+    """examples:
+    - single card run:
+        python examples/wan2.2.py
+    - run with multi-gpus has two ways:
+        - CUDA_VISIBLE_DEVICES=4,5 python examples/wan2.2.py --num_gpus=2
+        - CUDA_VISIBLE_DEVICES=4,5 torchrun --nproc_per_node=2 examples/wan2.2.py --num_gpus=2
+    """
     parser = argparse.ArgumentParser(description="Wan2.2 视频生成示例")
     parser.add_argument(
         "--model_dir",
@@ -162,12 +140,16 @@ if __name__ == "__main__":
         default="./",
         help="模型目录路径",
     )
+    parser.add_argument(
+        "--num_gpus",
+        type=int,
+        default=1,
+        help="使用的 GPU 数量",
+    )
 
     args = parser.parse_args()
 
-    run_simple(args.model_dir)
-    run_fp8_models(args.model_dir)
-    run_with_lora(args.model_dir)
-    run_advanced(args.model_dir)
-    # run with torchrun: torchrun --nproc_per_node=2 examples/wan2.2.py
-    # run_with_lora_in_distributed_mode(args.model_dir)
+    run_simple(args)
+    # run_fp8_models(args)
+    run_with_lora(args)
+    run_advanced(args)
