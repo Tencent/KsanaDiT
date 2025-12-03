@@ -41,6 +41,6 @@ export CUDA_VISIBLE_DEVICES=0
 python workflow_test.py --workflows-file ./test_configs.json
 
 # export CUDA_VISIBLE_DEVICES=0,1
-# python workflow_test.py --workflows-file ./test_configs.json --num_gpus 2
+# python workflow_test.py --workflows-file ./test_configs.json --gpus 1,2
 
 #  python workflow_test.py --workflows-file ./test_configs.json --no-server

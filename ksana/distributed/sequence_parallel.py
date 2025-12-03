@@ -2,7 +2,7 @@
 import torch
 
 from .ulysses import distributed_attention
-from ..utils import get_rank, get_world_size
+from ..utils import get_rank_id, get_world_size
 
 
 def pad_freqs(original_tensor, target_len):
@@ -42,7 +42,7 @@ def rope_apply(x, grid_sizes, freqs):
 
         # apply rotary embedding
         sp_size = get_world_size()
-        sp_rank = get_rank()
+        sp_rank = get_rank_id()
         freqs_i = pad_freqs(freqs_i, s * sp_size)
         s_per_rank = s
         freqs_i_rank = freqs_i[(sp_rank * s_per_rank) : ((sp_rank + 1) * s_per_rank), :, :]

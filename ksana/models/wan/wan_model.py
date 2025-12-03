@@ -9,10 +9,8 @@ import torch.cuda.nvtx as nvtx
 
 from ksana.attention import AttentionBackendEnum, LocalAttentionOp
 from ksana.cache import KsanaCache
-from ksana.utils import time_range, gather_forward, get_rank
+from ksana.utils import time_range, gather_forward, get_rank_id
 
-
-# import ipdb
 
 __all__ = ["WanModel"]
 
@@ -571,7 +569,7 @@ class WanModel(ModelMixin, ConfigMixin):
         nvtx.range_pop()
 
         if self.sp_size > 1:
-            x = torch.chunk(x, self.sp_size, dim=1)[get_rank()]
+            x = torch.chunk(x, self.sp_size, dim=1)[get_rank_id()]
 
         # arguments
         kwargs = dict(

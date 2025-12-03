@@ -7,7 +7,7 @@ import comfy.model_management as mm
 
 from ksana.utils import get_gpu_count, time_range
 from ksana import get_generator
-from ksana.config import KsanaModelConfig
+from ksana.config import KsanaModelConfig, KsanaDistributedConfig
 from ksana.utils.profile import MemoryProfiler
 
 from comfy.model_patcher import ModelPatcher
@@ -110,7 +110,7 @@ def load_diffusion_model_state_dict(
         f"unet_config: {model_config.unet_config}, latent_format: {model_config.latent_format}, ksana_model_config:{ksana_model_config}, diffusion_model_prefix:{diffusion_model_prefix}"
     )
 
-    ksana_generator = get_generator(num_gpus=num_gpus)
+    ksana_generator = get_generator(dist_config=KsanaDistributedConfig(num_gpus=num_gpus))
     ksana_model = ksana_generator.load_diffusion_model(
         model_path=model_path,
         model_config=ksana_model_config,

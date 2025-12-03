@@ -37,7 +37,7 @@ class KsanaDiffusionModel(ABC):
                 self.pipeline_config.default_config.num_heads % self.dist_config.ulysses_size == 0
             ), f"`{self.pipeline_config.default_config.num_heads}` cannot be divided evenly by `{self.dist_config.ulysses_size}`."
         if dist_config.use_sp:
-            self.sp_size = dist_config.world_size
+            self.sp_size = dist_config.num_gpus
         else:
             self.sp_size = 1
         log.info(f"KsanaDiffusionModel init with {self.model_config} {self.dist_config}")
@@ -52,7 +52,6 @@ class KsanaDiffusionModel(ABC):
         model_config: KsanaModelConfig = None,
         comfy_model_config=None,
         comfy_model_state_dict=None,
-        dist_config=None,
         device=None,
         offload_device=None,
         shard_fn=None,

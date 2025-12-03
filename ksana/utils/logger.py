@@ -16,7 +16,7 @@ log.setLevel(ksana_log_lvl)
 log.propagate = False
 
 
-def init_logging(rank_id: int):
+def init_logging(rank_id: int = 0):
     """
     Initialize logging for the current process.
     only log on rank 0 of world_size
