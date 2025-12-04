@@ -7,7 +7,7 @@ from diffusers.configuration_utils import ConfigMixin, register_to_config
 from diffusers.models.modeling_utils import ModelMixin
 import torch.cuda.nvtx as nvtx
 
-from ksana.attention import AttentionBackendEnum, LocalAttentionOp
+from ksana.operations.attention import AttentionBackendEnum
 from ksana.cache import KsanaCache
 from ksana.utils import time_range, gather_forward, get_rank_id
 
@@ -117,7 +117,7 @@ class WanSelfAttention(nn.Module):
             else nn.Identity()
         )
 
-        self.attention = LocalAttentionOp(
+        self.attention = operation_settings.get("operations").Attn(
             num_heads=num_heads,
             head_size=self.head_dim,
             causal=False,

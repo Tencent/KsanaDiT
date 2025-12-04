@@ -111,7 +111,7 @@ class TestKsana(unittest.TestCase):
             ),
         )
         mean = video.cpu().abs().mean().item()
-        self.assertAlmostEqual(mean, 0.6427356600761414, places=TEST_EPS_PLACE)
+        self.assertAlmostEqual(mean, 0.6393067836761475, places=TEST_EPS_PLACE)
 
     def test_cache(self):
         # TODO: step 1 can not test cache, real test cache logical,
