@@ -3,11 +3,11 @@
 import argparse
 import json
 import logging
+import os
 import time
 import urllib.error
 from typing import Optional
 
-# TODO(qian): add seed to test_configs.json not deps on workflow.json
 
 from test_utils import (
     start_server,
@@ -32,7 +32,7 @@ def modify_workflow_params(api_prompt: dict, params: dict) -> dict:
         params: 包含参数的字典
 
     支持的节点类型和参数映射:
-        - KsanaGeneratorNode: steps
+        - KsanaGeneratorNode: steps, seed
         - EmptyHunyuanLatentVideo: width, height, length (从 params["frames"] 获取)
         - KsanaModelLoaderNode: model_name, run_dtype, linear_backend, attn_backend
         - CLIPLoader: clip_name
@@ -44,10 +44,12 @@ def modify_workflow_params(api_prompt: dict, params: dict) -> dict:
         if not inputs:
             continue
 
-        # KsanaGeneratorNode: 修改 steps
+        # KsanaGeneratorNode: 修改 steps 和 seed
         if class_type == "KsanaGeneratorNode":
             if "steps" in params and "steps" in inputs:
                 inputs["steps"] = params["steps"]
+            if "seed" in params and params["seed"] is not None and "seed" in inputs:
+                inputs["seed"] = params["seed"]
 
         # EmptyHunyuanLatentVideo: 修改 width, height, length
         elif class_type == "EmptyHunyuanLatentVideo":
@@ -164,6 +166,7 @@ def create_argument_parser():
     parser.add_argument("--width", type=int, default=720, help="视频宽度 (默认: 720)")
     parser.add_argument("--height", type=int, default=480, help="视频高度 (默认: 480)")
     parser.add_argument("--frames", type=int, default=17, help="视频帧数 (默认: 17)")
+    parser.add_argument("--seed", type=int, default=None, help="随机种子 (默认: None，不修改)")
 
     # 模型名称参数
     parser.add_argument(
@@ -206,6 +209,14 @@ def create_argument_parser():
         help="attention backend",
     )
 
+    # GPU 参数
+    parser.add_argument(
+        "--gpus",
+        type=str,
+        default="0",
+        help="指定使用的 GPU，用逗号分隔（例如: 0,1）(默认: 0)",
+    )
+
     # 多个 workflow 参数
     parser.add_argument(
         "--workflows-file",
@@ -246,6 +257,10 @@ def main():
     server_process = None
 
     try:
+        # 设置 CUDA_VISIBLE_DEVICES（在启动 server 之前）
+        os.environ["CUDA_VISIBLE_DEVICES"] = args.gpus
+        logger.info(f"设置 CUDA_VISIBLE_DEVICES = {args.gpus}")
+
         # 开始计时
         logger.info("=" * 60)
         logger.info("开始执行测试...")
@@ -260,6 +275,7 @@ def main():
         # 运行所有 workflow
         all_success = True
         for i, config in enumerate(workflow_configs, 1):
+            config["seed"] = args.seed
             logger.info("=" * 60)
             logger.info(f"执行 workflow [{i}/{len(workflow_configs)}]")
             logger.info(f"配置: {config}")

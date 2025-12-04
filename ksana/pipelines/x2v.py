@@ -213,7 +213,7 @@ class KsanaX2VPipeline(ABC):
             high_sample_guide_scale = sample_config.cfg_scale[1]
         else:
             raise ValueError(f"sample_config.cfg_scale {sample_config.cfg_scale} not supported")
-        assert sample_config.denoise == 1.0, f"only support denoise ==1.0 yet, but got {sample_config.denoise}"
+        assert sample_config.denoise > 0.0, f"denoise <= 0.0 is not supported, got {sample_config.denoise}"
         return high_model, low_model, high_sample_guide_scale, low_sample_guide_scale
 
     def prepare_sample_default_args(self, sample_config: KsanaSampleConfig):
@@ -365,7 +365,9 @@ class KsanaX2VPipeline(ABC):
                 sample_solver=sample_config.solver,
                 device=device,
                 shift=sample_config.shift,
+                denoise=sample_config.denoise,
             )
+
             arg_c = {"phase": "cond", "context": positive, "seq_len": seq_len}
             arg_null = {"phase": "uncond", "context": negative, "seq_len": seq_len}
             log.debug(f"timesteps: {timesteps}, boundary:{boundary}, seq_len:{seq_len}")

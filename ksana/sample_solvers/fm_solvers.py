@@ -16,14 +16,20 @@ from diffusers.schedulers.scheduling_utils import (
 )
 from diffusers.utils import deprecate, is_scipy_available
 from diffusers.utils.torch_utils import randn_tensor
+from ..utils.sample_solver import get_sigmas_with_denoise, apply_sigma_shift
 
 if is_scipy_available():
     pass
 
 
-def get_sampling_sigmas(sampling_steps, shift):
-    sigma = np.linspace(1, 0, sampling_steps + 1)[:sampling_steps]
-    sigma = shift * sigma / (1 + (shift - 1) * sigma)
+def get_sampling_sigmas(sampling_steps, shift, denoise=1.0):
+    sigma = get_sigmas_with_denoise(
+        steps=sampling_steps,
+        denoise=denoise,
+        start=1.0,
+        end=0.0,
+    )
+    sigma = apply_sigma_shift(sigma, shift, use_dynamic_shifting=False)
 
     return sigma
 
@@ -176,13 +182,11 @@ class FlowDPMSolverMultistepScheduler(SchedulerMixin, ConfigMixin):
 
         # setable values
         self.num_inference_steps = None
+        # Initialize with full training schedule to get sigma_max and sigma_min
         alphas = np.linspace(1, 1 / num_train_timesteps, num_train_timesteps)[::-1].copy()
-        sigmas = 1.0 - alphas
-        sigmas = torch.from_numpy(sigmas).to(dtype=torch.float32)
-
-        if not use_dynamic_shifting:
-            # when use_dynamic_shifting is True, we apply the timestep shifting on the fly based on the image resolution
-            sigmas = shift * sigmas / (1 + (shift - 1) * sigmas)  # pyright: ignore
+        base_sigmas = 1.0 - alphas
+        base_sigmas = apply_sigma_shift(base_sigmas, shift, use_dynamic_shifting)
+        sigmas = torch.from_numpy(base_sigmas).to(dtype=torch.float32)
 
         self.sigmas = sigmas
         self.timesteps = sigmas * num_train_timesteps
@@ -229,6 +233,7 @@ class FlowDPMSolverMultistepScheduler(SchedulerMixin, ConfigMixin):
         sigmas: Optional[List[float]] = None,
         mu: Optional[Union[float, None]] = None,
         shift: Optional[Union[float, None]] = None,
+        denoise: float = 1.0,
     ):
         """
         Sets the discrete timesteps used for the diffusion chain (to be run before inference).
@@ -237,20 +242,27 @@ class FlowDPMSolverMultistepScheduler(SchedulerMixin, ConfigMixin):
                 Total number of the spacing of the time steps.
             device (`str` or `torch.device`, *optional*):
                 The device to which the timesteps should be moved to. If `None`, the timesteps are not moved.
+            denoise (`float`, *optional*, defaults to 1.0):
+                Denoise strength. 1.0 means full denoising, 0.5 means half denoising.
         """
 
         if self.config.use_dynamic_shifting and mu is None:
             raise ValueError(" you have to pass a value for `mu` when `use_dynamic_shifting` is set to be `True`")
 
         if sigmas is None:
-            sigmas = np.linspace(self.sigma_max, self.sigma_min, num_inference_steps + 1).copy()[:-1]  # pyright: ignore
+            sigmas = get_sigmas_with_denoise(
+                steps=num_inference_steps,
+                denoise=denoise,
+                start=self.sigma_max,
+                end=self.sigma_min,
+            )
 
         if self.config.use_dynamic_shifting:
             sigmas = self.time_shift(mu, 1.0, sigmas)  # pyright: ignore
         else:
             if shift is None:
                 shift = self.config.shift
-            sigmas = shift * sigmas / (1 + (shift - 1) * sigmas)  # pyright: ignore
+            sigmas = apply_sigma_shift(sigmas, shift, self.config.use_dynamic_shifting)
 
         if self.config.final_sigmas_type == "sigma_min":
             sigma_last = ((1 - self.alphas_cumprod[0]) / self.alphas_cumprod[0]) ** 0.5
