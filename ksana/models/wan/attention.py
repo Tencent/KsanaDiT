@@ -3,7 +3,8 @@ import torch
 
 from typing import Any
 
-from ksana.attention import AttentionBackendEnum, get_attn_backend
+from ksana.operations.attention import AttentionBackendEnum, get_attn_backend
+
 
 __all__ = [
     "flash_attention",

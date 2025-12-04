@@ -24,6 +24,15 @@ class AttentionBackendEnum(str, Enum):
     TORCH_SDPA = "TORCH_SDPA"
     SAGE_ATTN = "SAGE_ATTN"
 
+    @classmethod
+    def from_string(cls, value: str) -> "AttentionBackendEnum":
+        """字符串转枚举的智能方法"""
+        if value == "flash_attention":
+            return cls.FLASH_ATTN
+        elif value == "sage_attention":
+            return cls.SAGE_ATTN
+        return cls(value.upper())
+
 
 def backend_name_to_enum(name: str | None) -> Optional[AttentionBackendEnum]:
     if name is None:

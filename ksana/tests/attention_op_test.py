@@ -2,9 +2,8 @@ import unittest
 import torch
 import torch.nn.functional as F
 
-from ksana.attention import AttentionBackendEnum, LocalAttentionOp
-from ksana.attention.backends.flash_attn import FlashAttentionBackend
-from ksana.attention.backends.sage_attn import SageAttentionBackend
+from ksana.operations import AttentionBackendEnum, pick_attn_op, FlashAttentionBackend, SageAttentionBackend
+
 
 B, L, H, D = 2, 32, 64, 128  # batch, seq_len, num_heads, head_dim
 
@@ -51,13 +50,12 @@ class TestLocalAttentionOpBackends(unittest.TestCase):
 
         # Set deterministic seed for reproducible logs
         torch.manual_seed(0)
-
-        attn = LocalAttentionOp(
+        attn = pick_attn_op(backend=AttentionBackendEnum.TORCH_SDPA)
+        attn = attn(
             num_heads=H,
             head_size=D,
             causal=False,
             supported_attention_backends=(AttentionBackendEnum.TORCH_SDPA,),
-            forced_backend=AttentionBackendEnum.TORCH_SDPA,
         )
 
         out = attn(q, k, v)
@@ -77,13 +75,12 @@ class TestLocalAttentionOpBackends(unittest.TestCase):
         q, k, v = _make_inputs(device=device, dtype=torch.float16)
 
         torch.manual_seed(0)
-
-        attn = LocalAttentionOp(
+        attn = pick_attn_op(backend=AttentionBackendEnum.FLASH_ATTN)
+        attn = attn(
             num_heads=H,
             head_size=D,
             causal=False,
             supported_attention_backends=(AttentionBackendEnum.FLASH_ATTN,),
-            forced_backend=AttentionBackendEnum.FLASH_ATTN,
         )
 
         out = attn(q, k, v)
@@ -105,13 +102,12 @@ class TestLocalAttentionOpBackends(unittest.TestCase):
         q, k, v = _make_inputs(device=device, dtype=torch.float16)
 
         torch.manual_seed(0)
-
-        attn = LocalAttentionOp(
+        attn = pick_attn_op(backend=AttentionBackendEnum.SAGE_ATTN)
+        attn = attn(
             num_heads=H,
             head_size=D,
             causal=False,
             supported_attention_backends=(AttentionBackendEnum.SAGE_ATTN,),
-            forced_backend=AttentionBackendEnum.SAGE_ATTN,
         )
 
         out = attn(q, k, v)
@@ -137,12 +133,12 @@ class TestLocalAttentionOpBackends(unittest.TestCase):
         # Baseline with PyTorch SDPA on the same device / dtype
         ref = _sdpa_reference(q, k, v, causal=False)
 
-        attn = LocalAttentionOp(
+        attn = pick_attn_op(backend=AttentionBackendEnum.FLASH_ATTN)
+        attn = attn(
             num_heads=H,
             head_size=D,
             causal=False,
             supported_attention_backends=(AttentionBackendEnum.FLASH_ATTN,),
-            forced_backend=AttentionBackendEnum.FLASH_ATTN,
         )
         out = attn(q, k, v)
 
@@ -170,12 +166,12 @@ class TestLocalAttentionOpBackends(unittest.TestCase):
         # Baseline with PyTorch SDPA on the same device / dtype
         ref = _sdpa_reference(q, k, v, causal=False)
 
-        attn = LocalAttentionOp(
+        attn = pick_attn_op(backend=AttentionBackendEnum.SAGE_ATTN)
+        attn = attn(
             num_heads=H,
             head_size=D,
             causal=False,
             supported_attention_backends=(AttentionBackendEnum.SAGE_ATTN,),
-            forced_backend=AttentionBackendEnum.SAGE_ATTN,
         )
         out = attn(q, k, v)
 

@@ -20,7 +20,7 @@ from ..utils.load import load_torch_file
 from .wan import WanModel
 from .wan.configs import WAN2_2_CONFIGS
 from ..config import KsanaModelConfig, KsanaDistributedConfig
-from ksana.operations import pick_operations
+from ksana.operations import build_ops, AttentionBackendEnum
 
 
 class KsanaDiffusionModel(ABC):
@@ -234,7 +234,13 @@ class KsanaWanModel(KsanaDiffusionModel):
         fp8_gemm, scaled_fp8 = (
             (True, torch.float8_e4m3fn) if self.model_config.linear_backend == "fp8_gemm" else (False, None)
         )
-        operations = pick_operations(self.run_dtype, fp8_gemm=fp8_gemm, scaled_fp8=scaled_fp8)
+
+        operations = build_ops(
+            self.run_dtype,
+            backend=AttentionBackendEnum.from_string(self.model_config.attn_backend),
+            fp8_gemm=fp8_gemm,
+            scaled_fp8=scaled_fp8,
+        )
         if comfy_model_config is None:
             comfy_model_config = {}
         log.info(
