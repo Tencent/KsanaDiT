@@ -1,11 +1,11 @@
 # from lightning and diffuers
 
-import numpy as np
 import torch
 
 # pyright: ignore
 from diffusers import FlowMatchEulerDiscreteScheduler  # pyright: ignore
 from torch import Tensor
+from ..utils.sample_solver import get_timesteps_with_denoise, apply_sigma_shift
 
 
 def unsqueeze_to_ndim(in_tensor: Tensor, tgt_n_dim: int):
@@ -15,14 +15,6 @@ def unsqueeze_to_ndim(in_tensor: Tensor, tgt_n_dim: int):
     if in_tensor.ndim < tgt_n_dim:
         in_tensor = in_tensor[(...,) + (None,) * (tgt_n_dim - in_tensor.ndim)]
     return in_tensor
-
-
-def get_timesteps(num_steps, max_steps: int = 1000):
-    return np.linspace(max_steps, 0, num_steps + 1, dtype=np.float32)
-
-
-def timestep_shift(timesteps, shift: float = 1.0):
-    return shift * timesteps / (1 + (shift - 1) * timesteps)
 
 
 class EulerScheduler(FlowMatchEulerDiscreteScheduler):
@@ -40,12 +32,18 @@ class EulerScheduler(FlowMatchEulerDiscreteScheduler):
 
     def set_shift(self, shift: float = 1.0):
         self.sigmas = self.timesteps_ori / self.num_train_timesteps
-        self.sigmas = timestep_shift(self.sigmas, shift=shift)
+        self.sigmas = apply_sigma_shift(self.sigmas, shift)
         self.timesteps = self.sigmas * self.num_train_timesteps
         self._shift = shift
 
-    def set_timesteps(self, num_inference_steps: int, device: torch.device | str | int | None = None):
-        timesteps = get_timesteps(num_steps=num_inference_steps, max_steps=self.num_train_timesteps)
+    def set_timesteps(
+        self, num_inference_steps: int, device: torch.device | str | int | None = None, denoise: float = 1.0
+    ):
+        timesteps = get_timesteps_with_denoise(
+            num_steps=num_inference_steps,
+            max_steps=self.num_train_timesteps,
+            denoise=denoise,
+        )
         self.timesteps = torch.from_numpy(timesteps).to(dtype=torch.float32, device=device or self.device)
         self.timesteps_ori = self.timesteps.clone()
         self.set_shift(self._shift)

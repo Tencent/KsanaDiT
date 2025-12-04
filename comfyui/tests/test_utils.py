@@ -155,7 +155,7 @@ def convert_workflow_to_api(
     if not PLAYWRIGHT_AVAILABLE:
         raise ImportError(
             "需要安装 playwright 才能转换普通 workflow。\n"
-            "请运行：pip install playwright && playwright install chromium"
+            "请运行：pip install playwright && playwright install firefox"
         )
 
     # 读取 workflow 文件
@@ -163,9 +163,9 @@ def convert_workflow_to_api(
         workflow_data = f.read()
 
     with sync_playwright() as p:
-        # 启动无头浏览器
-        logger.info("启动无头浏览器...")
-        browser = p.chromium.launch(headless=True)
+        # 启动无头浏览器 (使用 Firefox 避免 --no-sandbox 问题)
+        logger.info("启动无头浏览器 (Firefox)...")
+        browser = p.firefox.launch(headless=True)
         context = browser.new_context()
         page = context.new_page()
 
