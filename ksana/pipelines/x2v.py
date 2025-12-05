@@ -307,6 +307,7 @@ class KsanaX2VPipeline(ABC):
         low_cache_config=None,
         device=None,
         offload_device=None,
+        comfyui_progress_callback=None,
     ):
         """_summary_
 
@@ -373,6 +374,7 @@ class KsanaX2VPipeline(ABC):
             log.debug(f"timesteps: {timesteps}, boundary:{boundary}, seq_len:{seq_len}")
             # timesteps: tensor([999, 997, ...])
             MemoryProfiler.record_memory("before_inference_loop")
+            total_steps = len(timesteps)
             for iter_id, t in enumerate(tqdm(timesteps)):
                 MemoryProfiler.record_memory(f"before_inference_loop_iter_{iter_id}")
                 # [bs, 16, fi, hi, wi]
@@ -421,6 +423,8 @@ class KsanaX2VPipeline(ABC):
                 )
                 latents = temp_x0 if sample_config.solver == "euler" else temp_x0[0]
                 MemoryProfiler.record_memory(f"inference_step_{iter_id}_after_sample_scheduler")
+                if comfyui_progress_callback is not None:
+                    comfyui_progress_callback(iter_id + 1, total_steps)
 
             if high_cache is not None:
                 high_cache.show_cache_rate()

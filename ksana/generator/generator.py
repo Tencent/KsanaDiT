@@ -189,6 +189,9 @@ class KsanaGenerator(ABC):
             res = ray.get(res_futures)
         else:
             res = self.executors.generate_video_with_tensors(
-                model=model, positive=positive, negative=negative, **kwargs
+                model=model,
+                positive=positive,
+                negative=negative,
+                **kwargs,
             )
         return res
