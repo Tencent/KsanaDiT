@@ -50,8 +50,7 @@ class KsanaDiffusionModel(ABC):
         *,
         lora_file=None,
         model_config: KsanaModelConfig = None,
-        comfy_model_config=None,
-        comfy_model_state_dict=None,
+        input_model_config=None,
         device=None,
         offload_device=None,
         shard_fn=None,
@@ -163,7 +162,7 @@ class KsanaDiffusionModel(ABC):
             raise ValueError(f"model_name {model_name} not supported")
 
     @staticmethod
-    def get_model_type(full_model_name: str, comfy_model_config: dict = None):
+    def get_model_type(full_model_name: str):
         """
         Get the model type from the state dict.
         model_name: wan2.2, wan2.1
@@ -172,16 +171,11 @@ class KsanaDiffusionModel(ABC):
         return (model_name, model_type, model_size)
         """
         choise = ["t2v", "s2v", "i2v", "ti2v"]
-        model_type = None if comfy_model_config is None else comfy_model_config.get("model_type", None)
         lower_model_name = full_model_name.lower()
-        if model_type is not None:
-            if model_type not in choise:
-                raise ValueError(f"model_type {model_type} not in {choise}")
-        else:
-            for t in choise:
-                if t in lower_model_name:
-                    model_type = t
-                    break
+        for t in choise:
+            if t in lower_model_name:
+                model_type = t
+                break
         model_name = None
         wan22 = ["wan2.2", "wan22", "wan2_2"]
         for k in wan22:
@@ -216,20 +210,31 @@ class KsanaWanModel(KsanaDiffusionModel):
         self,
         model_path: str,
         lora_file=None,
-        comfy_model_config: dict = None,
-        comfy_model_state_dict=None,
+        input_model_config: dict = None,
         load_device=None,
         offload_device=None,
         shard_fn=None,
     ):
         if not (os.path.isfile(model_path) or is_dir(model_path)):
             raise ValueError(f"model_path {model_path} must be a file or dir")
-        if comfy_model_state_dict is None:
-            comfy_model_state_dict = (
-                load_sharded_safetensors(f"{model_path}")
-                if is_dir(model_path)
-                else load_torch_file(model_path, device=load_device)
-            )
+        model_state_dict = (
+            load_sharded_safetensors(f"{model_path}")
+            if is_dir(model_path)
+            else load_torch_file(model_path, device=load_device)
+        )
+        # TODO(rock): get weight dtype from model_state_dict and judge linear_backend is fp8_gemm or not
+        # scaled_fp8_dtype = model_config.scaled_fp8
+        # if (
+        #     ksana_model_config.linear_backend == "default"
+        #     and scaled_fp8_dtype is not None
+        #     and "float8" in str(scaled_fp8_dtype)
+        # ):
+        #     print("linear_backend will use fp8_gemm")
+        #     ksana_model_config.linear_backend = "fp8_gemm"
+        # weight_dtype = next(iter(model_state_dict.values())).dtype
+        # if weight_dtype != fp8
+        #     log.warning(f"weight_dtype {weight_dtype} is not fp8, will use fp16_gemm linear_backend")
+        #     self.model_config.linear_backend = "fp16_gemm"
 
         fp8_gemm, scaled_fp8 = (
             (True, torch.float8_e4m3fn) if self.model_config.linear_backend == "fp8_gemm" else (False, None)
@@ -241,15 +246,23 @@ class KsanaWanModel(KsanaDiffusionModel):
             fp8_gemm=fp8_gemm,
             scaled_fp8=scaled_fp8,
         )
-        if comfy_model_config is None:
-            comfy_model_config = {}
         log.info(
-            f"load from model_path:{model_path}, lora_file:{lora_file}, comfy_model_config:{comfy_model_config}, "
+            f"load from model_path:{model_path}, lora_file:{lora_file}, input_model_config:{input_model_config}, "
             f"operations:{operations}, load_device:{load_device}, offload_device:{offload_device}"
         )
+        if input_model_config is None:
+            input_model_config = {}
         default_model_config = self.pipeline_config.default_config
-        in_dim = comfy_model_config.get("in_dim", default_model_config.get("in_dim", 16))
-        out_dim = comfy_model_config.get("out_dim", default_model_config.get("out_dim", 16))
+        in_dim = default_model_config.get("in_dim", 16)
+        out_dim = default_model_config.get("out_dim", 16)
+        in_dim = (
+            input_model_config.get("in_dim", in_dim) if input_model_config.get("in_dim", None) is not None else in_dim
+        )
+        out_dim = (
+            input_model_config.get("out_dim", out_dim)
+            if input_model_config.get("out_dim", None) is not None
+            else out_dim
+        )
         start = time.time()
         self.model = WanModel(
             model_type=self.task_type,
@@ -272,9 +285,9 @@ class KsanaWanModel(KsanaDiffusionModel):
             sp_size=self.dist_config.ulysses_size,
         )
         log.debug(f"model: {self.model}")
-        # TODO: use with time_range
+        # TODO(TJ): use with time_range
         stop1 = time.time()
-        load_result = self.model.load_state_dict(comfy_model_state_dict, strict=False)
+        load_result = self.model.load_state_dict(model_state_dict, strict=False)
         stop2 = time.time()
         if load_result.missing_keys or load_result.unexpected_keys:
             log.warning(

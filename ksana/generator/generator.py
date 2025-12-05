@@ -88,22 +88,28 @@ class KsanaGenerator(ABC):
         return generator
 
     def load_models(self, model_path, **kwargs):
+        """
+        Load models from model_path.
+        """
         if self.executors is None:
             raise RuntimeError("executors is not initialized")
         if self.is_ray:
             func_futures = [executor.load_models.remote(model_path, **kwargs) for executor in self.executors]
-            funcs_res = ray.get(func_futures)
-            res = self.get_ray_res(funcs_res)  # noqa: F841
+            ray.get(func_futures)
         else:
             self.executors.load_models(model_path, **kwargs)
 
     def load_diffusion_model(self, model_path, **kwargs):
         assert self.executors is not None, "executors is not initialized"
         if self.is_ray:
+            comfy_bar_callback = kwargs.pop("comfy_bar_callback", None)
+            if comfy_bar_callback is not None:
+                log.info("comfy_bar_callback is not support at ray gpus, skip it")
             func_futures = [executor.load_diffusion_model.remote(model_path, **kwargs) for executor in self.executors]
             funcs_res = ray.get(func_futures)
-            return self.get_ray_res(funcs_res)
-            # TODO: ray model support comfy
+            # note all gpus return the same model keys, so just return any result
+            any_rank_id = 0
+            return funcs_res[any_rank_id]
         else:
             return self.executors.load_diffusion_model(model_path, **kwargs)
 
@@ -151,49 +157,50 @@ class KsanaGenerator(ABC):
                 )
                 for executor in self.executors
             ]
-            funcs_res = ray.get(func_futures)
-            res = self.get_ray_res(funcs_res)
+            res = self.get_rank0_res(ray.get(func_futures))
         else:
+            rank_0_id = 0
             res = self.executors.generate_video(
                 prompt=prompt,
                 prompt_negative=prompt_negative,
                 sample_config=sample_config,
                 runtime_config=runtime_config,
-            )
+            ).get(rank_0_id)
 
         return res
 
-    def get_ray_res(self, ray_res: list):
-        res = None
+    def get_rank0_res(self, ray_res: list):
+        """
+        input : [{rank_id_1: [None, None, ...]}, {rank_id_0: [tensor, tensor, ...]}] or [{rank_id_1: None}, {rank_id_0: tensor}]
+        return [tensor, tensor, ...] or tensor
+        """
         for r in ray_res:
             if r is None:
                 continue
-            if isinstance(r, (list, tuple)):
-                rank_id_res = []
-                for item in r:
-                    if item is not None:
-                        rank_id_res.append(item)
-                if rank_id_res:
-                    res = rank_id_res
-                    break
-            else:
-                if rank_id_res is not None:
-                    res = rank_id_res
-                    break
-        return res
+            res = r.get(0, None)
+            if res is None:
+                continue
+            if isinstance(res, (list, tuple)):
+                if not all(res):
+                    raise ValueError(f"rank 0 res has None: {res}")
+            return res
 
     def generate_video_with_tensors(self, model, positive, negative, **kwargs):
         if self.is_ray:
-            res_futures = [
+            comfy_bar_callback = kwargs.pop("comfy_bar_callback", None)
+            if comfy_bar_callback is not None:
+                log.info("comfy_bar_callback is not support at ray gpus, skip it")
+            func_futures = [
                 executor.generate_video_with_tensors.remote(model=model, positive=positive, negative=negative, **kwargs)
                 for executor in self.executors
             ]
-            res = ray.get(res_futures)
+            gpus_res = ray.get(func_futures)
+            log.debug(f"gpus_res: {gpus_res}")
+            res = self.get_rank0_res(gpus_res)
         else:
+            rank_0_id = 0
             res = self.executors.generate_video_with_tensors(
-                model=model,
-                positive=positive,
-                negative=negative,
-                **kwargs,
-            )
+                model=model, positive=positive, negative=negative, **kwargs
+            ).get(rank_0_id)
+
         return res
