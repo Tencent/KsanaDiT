@@ -65,11 +65,11 @@ class KsanaExecutor(ABC):
         init_logging(rank_id)
         self.shard_fn = partial(shard_model, device_id=self.device_id) if self.dist_config.dit_fsdp else None
 
-    def create_pipeline(self, dir, model_config: KsanaModelConfig = None, comfy_model_config=None):
+    def create_pipeline(self, dir, model_config: KsanaModelConfig = None):
         if self.pipeline is not None:
             return self.pipeline
         model_name = os.path.basename(dir)
-        model_name, task_type, model_size = KsanaDiffusionModel.get_model_type(model_name, comfy_model_config)
+        model_name, task_type, model_size = KsanaDiffusionModel.get_model_type(model_name)
         default_pipeline_config = KsanaDiffusionModel.get_default_pipeline_config(model_name, task_type, model_size)
         pipeline_config = KsanaPipelineConfig(
             model_name=model_name,
@@ -79,6 +79,15 @@ class KsanaExecutor(ABC):
             model_config=model_config,
         )
         return create_ksana_pipeline(pipeline_config)
+
+    def clean_models(self):
+        """
+        Clean models loaded by this executor.
+        """
+        if self.pipeline is None:
+            return
+        self.pipeline.clean_models()
+        self.pipeline = None
 
     def load_models(
         self,
@@ -90,6 +99,7 @@ class KsanaExecutor(ABC):
         model_config: KsanaModelConfig = None,
         **kwargs,
     ):
+        self.clean_models()
         if isinstance(model_path, (list, tuple)) or not is_dir(model_path):
             if text_checkpoint_dir is None:
                 raise ValueError(
@@ -124,24 +134,29 @@ class KsanaExecutor(ABC):
         *,
         lora_dir=None,
         model_config: KsanaModelConfig = None,
-        comfy_model_config=None,
-        comfy_model_state_dict=None,
+        input_model_config=None,
+        comfy_bar_callback=None,
         **kwargs,
-    ) -> KsanaDiffusionModel | tuple[KsanaDiffusionModel, KsanaDiffusionModel]:
+    ):
+        self.clean_models()
         if len(kwargs) > 0:
             log.warning(f"kwargs {kwargs} are not used")
-        self.pipeline = self.create_pipeline(dir=model_path, model_config=model_config)
+        dir_path = model_path
+        if isinstance(model_path, (list, tuple)):
+            # only create one pipeline for both model
+            dir_path = model_path[0]
+        self.pipeline = self.create_pipeline(dir=dir_path, model_config=model_config)
         load_to_deivce = self.device if self.dist_config.num_gpus > 1 else self.offload_device
         return self.pipeline.load_diffusion_model(
             model_path=model_path,
             lora_dir=lora_dir,
             model_config=model_config,
             dist_config=self.dist_config,
-            comfy_model_config=comfy_model_config,
-            comfy_model_state_dict=comfy_model_state_dict,
+            input_model_config=input_model_config,
             device=load_to_deivce,
             offload_device=self.offload_device,
             shard_fn=self.shard_fn,
+            comfy_bar_callback=comfy_bar_callback,
         )
 
     @time_range
@@ -209,11 +224,11 @@ class KsanaExecutor(ABC):
                 prompt, prompt_negative=prompt_negative, sample_config=sample_config, runtime_config=runtime_config
             )
 
-        return res
+        return {self.rank_id: res}
 
     @time_range
     def generate_video_with_tensors(self, model, positive, negative, **kwargs):
-        return self.pipeline.generate_video_with_tensors(
+        latents = self.pipeline.generate_video_with_tensors(
             model=model,
             positive=positive,
             negative=negative,
@@ -221,6 +236,9 @@ class KsanaExecutor(ABC):
             offload_device=self.offload_device,
             **kwargs,
         )
+        # only resturn latents on rank 0, since all rank have the same latents
+        res = latents if self.rank_id == 0 else None
+        return {self.rank_id: res}
 
     # TODO: move save to generator, outside executors
     def get_save_path(self, output_folder, prompt_text):

@@ -8,6 +8,8 @@ from ..utils.profile import time_range
 from ..utils.logger import log
 from ..utils import is_dir
 
+from ..models.model_key import KsanaModelKey
+
 
 @dataclass(frozen=True)
 class Wan2_2DefaultArgs(KsanaDefaultArgs):
@@ -51,20 +53,22 @@ class KsanaWanX2VPipeline(KsanaX2VPipeline):
         ], f"model_size {self.pipeline_config.model_size} is not supported"
 
     def load_text_encoder(self, checkpoint_dir, shard_fn):
-        self.text_encoder = KsanaT5Encoder(
+        text_encoder = KsanaT5Encoder(
             self.pipeline_config.default_config, checkpoint_dir=checkpoint_dir, shard_fn=shard_fn
         )
-        return self.text_encoder
+        self.update_model(KsanaModelKey.T5TextEncoder, text_encoder)
+        return KsanaModelKey.T5TextEncoder
 
     def load_vae(self, checkpoint_dir, device):
         vae_type = "wan2_1" if self.pipeline_config.task_type == "t2v" else "wan2_2"
-        self.vae = KsanaVAE(
+        vae = KsanaVAE(
             vae_type=vae_type,
             default_pipeline_config=self.pipeline_config.default_config,
             checkpoint_dir=checkpoint_dir,
             device=device,
         )
-        return self.vae
+        self.update_model(KsanaModelKey.VAE, vae)
+        return KsanaModelKey.VAE
 
     @time_range
     def load_one_diffusion_model(
@@ -74,8 +78,7 @@ class KsanaWanX2VPipeline(KsanaX2VPipeline):
         lora_file=None,
         model_config: KsanaModelConfig = None,
         dist_config=None,
-        comfy_model_config=None,
-        comfy_model_state_dict=None,
+        input_model_config=None,
         device=None,
         offload_device=None,
         shard_fn=None,
@@ -86,8 +89,7 @@ class KsanaWanX2VPipeline(KsanaX2VPipeline):
         model.load(
             model_path=model_path,
             lora_file=lora_file,
-            comfy_model_config=comfy_model_config,
-            comfy_model_state_dict=comfy_model_state_dict,
+            input_model_config=input_model_config,
             load_device=device,
             offload_device=offload_device,
             shard_fn=shard_fn,
@@ -101,13 +103,13 @@ class KsanaWanX2VPipeline(KsanaX2VPipeline):
         *,
         lora_dir=None,
         model_config: KsanaModelConfig = None,
-        comfy_model_config=None,
-        comfy_model_state_dict=None,
+        input_model_config=None,
         dist_config=None,
         device=None,
         offload_device=None,
         shard_fn=None,
-    ):
+        comfy_bar_callback=None,
+    ) -> KsanaModelKey | tuple[KsanaModelKey, KsanaModelKey]:
         log.info(f"load_model_path_or_files: {model_path}")
         load_model_path_or_files = model_path
         load_lora_files = lora_dir
@@ -137,7 +139,7 @@ class KsanaWanX2VPipeline(KsanaX2VPipeline):
                 raise ValueError(f"model_path {model_path} not exist, or file must be a safetensors file")
 
         if isinstance(load_model_path_or_files, (list, tuple)):
-            res = []
+            model_keys = (KsanaModelKey.Wan2_2_HIGH, KsanaModelKey.Wan2_2_LOW)
             for i in range(len(load_model_path_or_files)):
                 one_model_path = load_model_path_or_files[i]
                 one_lora_file = load_lora_files[i] if load_lora_files is not None else None
@@ -145,29 +147,33 @@ class KsanaWanX2VPipeline(KsanaX2VPipeline):
                     model_path=one_model_path,
                     lora_file=one_lora_file,
                     model_config=model_config,
-                    comfy_model_config=comfy_model_config,
-                    comfy_model_state_dict=comfy_model_state_dict,
+                    input_model_config=input_model_config,
                     dist_config=dist_config,
                     shard_fn=shard_fn,
                     device=device,
                     offload_device=offload_device,
                 )
+                self.update_model(model_keys[i], one_model)
                 if offload_device is not None:
                     one_model = one_model.to(offload_device)
-                res.append(one_model)
-            return res
+                if comfy_bar_callback is not None:
+                    comfy_bar_callback()
+            return model_keys
         else:
-            return self.load_one_diffusion_model(
+            one_model = self.load_one_diffusion_model(
                 model_path=load_model_path_or_files,
                 lora_file=load_lora_files,
                 model_config=model_config,
-                comfy_model_config=comfy_model_config,
-                comfy_model_state_dict=comfy_model_state_dict,
+                input_model_config=input_model_config,
                 dist_config=dist_config,
                 shard_fn=shard_fn,
                 device=device,
                 offload_device=offload_device,
             )
+            self.update_model(KsanaModelKey.Wan2_2_HIGH, one_model)
+            if comfy_bar_callback is not None:
+                comfy_bar_callback()
+            return KsanaModelKey.Wan2_2_HIGH
 
     def process_input_cache(self, cache_method):
         high_cache_config = None
@@ -202,7 +208,7 @@ class KsanaWanX2VPipeline(KsanaX2VPipeline):
         high_cache_config, low_cache_config = self.process_input_cache(runtime_config.cache_method)
 
         latents = self.generate_video_with_tensors(
-            model=self.diffusion_model,
+            model=self.diffusion_model_key,
             positive=positive,
             negative=negative,
             latents=None,
@@ -215,5 +221,5 @@ class KsanaWanX2VPipeline(KsanaX2VPipeline):
         )
         del positive, negative
 
-        self.offload_diffusion_model_to(runtime_config.offload_model, offload_device)
+        self.offload_diffusion_model_to(offload_device, runtime_config.offload_model)
         return latents

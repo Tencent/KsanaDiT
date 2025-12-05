@@ -11,6 +11,7 @@ from ksana.config import KsanaModelConfig, KsanaDistributedConfig
 from ksana.utils.profile import MemoryProfiler
 
 from comfy.model_patcher import ModelPatcher
+from comfy.utils import ProgressBar
 
 
 class CustomModelPatcher(ModelPatcher):
@@ -18,12 +19,10 @@ class CustomModelPatcher(ModelPatcher):
         super().__init__(model, load_device, offload_device, size, weight_inplace_update)
 
 
-def load_diffusion_model_state_dict(
-    model_path, num_gpus, ksana_model_config: KsanaModelConfig, load_ori_weights=False
-):  # load unet in diffusers or regular format
+def comfy_model_preprocess(model_path, load_ori_weights=False):
+    # load unet in diffusers or regular format
+    # TODO: remove this load_torch_file, to avoid loading twice
     sd = comfy.utils.load_torch_file(model_path)
-
-    dtype = None
 
     # Allow loading unets from checkpoint files
     diffusion_model_prefix = model_detection.unet_prefix_from_state_dict(sd)
@@ -64,14 +63,11 @@ def load_diffusion_model_state_dict(
     if model_config.scaled_fp8 is not None:
         sd_dtype = None
 
-    if dtype is None:
-        unet_dtype = mm.unet_dtype(
-            model_params=parameters,
-            supported_dtypes=unet_weight_dtype,
-            weight_dtype=sd_dtype,
-        )
-    else:
-        unet_dtype = dtype
+    unet_dtype = mm.unet_dtype(
+        model_params=parameters,
+        supported_dtypes=unet_weight_dtype,
+        weight_dtype=sd_dtype,
+    )
     manual_cast_dtype = mm.unet_manual_cast(unet_dtype, load_device, model_config.supported_inference_dtypes)
     assert (
         manual_cast_dtype is None or manual_cast_dtype == unet_dtype
@@ -90,35 +86,16 @@ def load_diffusion_model_state_dict(
     unet_config = model_config.unet_config
     del unet_config["disable_unet_model_creation"]
 
-    # set ksana_model_config
-    ksana_model_config.run_dtype = unet_dtype
-    scaled_fp8_dtype = model_config.scaled_fp8
-    if (
-        ksana_model_config.linear_backend == "default"
-        and scaled_fp8_dtype is not None
-        and "float8" in str(scaled_fp8_dtype)
-    ):
-        print("linear_backend will use fp8_gemm")
-        ksana_model_config.linear_backend = "fp8_gemm"
-
     print(
-        f"input dtype: {dtype}, sd_weight_dtype: {sd_dtype}, supported_dtype: {unet_weight_dtype}, unet_dtype: {unet_dtype}, "
-        f"manual_cast_dtype: {manual_cast_dtype}, scaled_fp8: {scaled_fp8_dtype}"
+        f"sd_weight_dtype: {sd_dtype}, supported_dtype: {unet_weight_dtype}, unet_dtype: {unet_dtype}, "
+        f"manual_cast_dtype: {manual_cast_dtype}"
     )
     print(f"sd keys samples: {len(sdkeys)}, new_sd keys samples: {len(newsdkeys)}")
     print(f"Load_device: {load_device}, Offload_device: {offload_device}")
     print(
-        f"unet_config: {model_config.unet_config}, latent_format: {model_config.latent_format}, ksana_model_config:{ksana_model_config}, diffusion_model_prefix:{diffusion_model_prefix}"
+        f"unet_config: {model_config.unet_config}, latent_format: {model_config.latent_format}, diffusion_model_prefix:{diffusion_model_prefix}"
     )
-
-    ksana_generator = get_generator(dist_config=KsanaDistributedConfig(num_gpus=num_gpus))
-    ksana_model = ksana_generator.load_diffusion_model(
-        model_path=model_path,
-        model_config=ksana_model_config,
-        comfy_model_config=unet_config,
-        comfy_model_state_dict=new_sd,
-    )
-    model.ksana_model = ksana_model
+    assert model.model_config == model_config, "comfy_model.model_config != model_config"
 
     if load_ori_weights:
         model.comfy_load_model_weights(new_sd, "")
@@ -133,19 +110,63 @@ def load_diffusion_model_state_dict(
             module_mem += t.nelement() * torch.tensor([], dtype=unet_dtype).element_size()
         return module_mem
 
-    return CustomModelPatcher(model, load_device=load_device, offload_device=offload_device, size=sd_size(sd))
+    unet_size = sd_size(sd)
+    del sd, new_sd
+    return model, unet_dtype, load_device, offload_device, unet_size
 
 
 @time_range
-def load_diffusion_model(model_name, num_gpus, ksana_model_config: KsanaModelConfig):
-    model_path = folder_paths.get_full_path("diffusion_models", model_name)
-    model = load_diffusion_model_state_dict(
-        model_path, num_gpus=num_gpus, ksana_model_config=ksana_model_config, load_ori_weights=False
+def load_comfy_model_from_name(
+    model_name: list, num_gpus, ksana_model_config: KsanaModelConfig, comfy_bar_callback=None
+):
+    high, low = model_name
+    high_model_path = folder_paths.get_full_path("diffusion_models", high)
+    low_model_path = None
+    if low is not None:
+        low_model_path = folder_paths.get_full_path("diffusion_models", low)
+
+    comfy_model, unet_dtype, load_device, offload_device, sd_size = comfy_model_preprocess(
+        high_model_path, load_ori_weights=False
     )
+    comfy_model_config = comfy_model.model_config
+
+    print(f"ksana_model_config: {ksana_model_config}")
+    # set ksana_model_config
+    if unet_dtype != ksana_model_config.run_dtype:
+        print(
+            f"[warn] ksana_model_config.run_dtype: {ksana_model_config.run_dtype}, comfy_model_config.default_dtype: {comfy_model_config.default_dtype}"
+        )
+        ksana_model_config.run_dtype = unet_dtype
+
+    scaled_fp8_dtype = comfy_model_config.scaled_fp8
+    print(f"scaled_fp8_dtype: {scaled_fp8_dtype}")
+    if (
+        ksana_model_config.linear_backend == "default"
+        and scaled_fp8_dtype is not None
+        and "float8" in str(scaled_fp8_dtype)
+    ):
+        print("linear_backend will use fp8_gemm")
+        ksana_model_config.linear_backend = "fp8_gemm"
+
+    ksana_generator = get_generator(dist_config=KsanaDistributedConfig(num_gpus=num_gpus))
+
+    # only need in_dim and out_dim yet
+    input_model_config = dict()
+    input_model_config["in_dim"] = comfy_model_config.unet_config["in_dim"]
+    input_model_config["out_dim"] = comfy_model_config.unet_config["out_dim"]
+    ksana_model = ksana_generator.load_diffusion_model(
+        model_path=(high_model_path, low_model_path) if low_model_path is not None else high_model_path,
+        model_config=ksana_model_config,
+        input_model_config=input_model_config,
+        comfy_bar_callback=comfy_bar_callback,
+    )
+    comfy_model.ksana_model = ksana_model
+
+    model = CustomModelPatcher(comfy_model, load_device=load_device, offload_device=offload_device, size=sd_size)
 
     if model is None:
-        logging.error("ERROR UNSUPPORTED MODEL {}".format(model_path))
-        raise RuntimeError("ERROR: Could not detect model type of: {}".format(model_path))
+        logging.error(f"ERROR UNSUPPORTED MODEL {high_model_path}, {low_model_path}")
+        raise RuntimeError(f"ERROR: Could not detect model type of: {high_model_path}, {low_model_path}")
     return model
 
 
@@ -217,16 +238,6 @@ class KsanaModelLoaderNode:
         mm.cleanup_models()
         mm.soft_empty_cache()
 
-        if linear_backend == "fp8_gemm":
-            # TODO: run_dtype do not have default
-            run_dtype_has_fp8 = "float8" in run_dtype.lower() or "fp8" in run_dtype.lower()
-            if run_dtype != "default" and (not run_dtype_has_fp8):
-                logging.warning(
-                    f" run_dtype {run_dtype} can not use fp8_gemm linear_backend, will use run_dtype back to default"
-                )
-                run_dtype = "float16"
-                linear_backend = "default"
-
         num_gpus = get_gpu_count() if num_gpus == "default" else int(num_gpus)
 
         model_config = KsanaModelConfig(
@@ -235,20 +246,23 @@ class KsanaModelLoaderNode:
             attn_backend=attn_backend,
             torch_compile_config=torch_compile_args,
         )
+        comfyui_progress_bar = ProgressBar(1 if low_noise_model_name == "Empty" else 2)
 
-        MemoryProfiler.record_memory(f"before_load_{model_name}")
-        high_model = load_diffusion_model(model_name, num_gpus=num_gpus, ksana_model_config=model_config)
-        MemoryProfiler.record_memory(f"after_load_{model_name}")
-        low_model = None
-        if low_noise_model_name is not None and low_noise_model_name != "Empty":
-            MemoryProfiler.record_memory(f"before_load_{low_noise_model_name}")
-            low_model = load_diffusion_model(low_noise_model_name, num_gpus=num_gpus, ksana_model_config=model_config)
-            MemoryProfiler.record_memory(f"after_load_{low_noise_model_name}")
-        print(f"high_model: {high_model}, low_model: {low_model}")
+        def comfy_bar_callback():
+            comfyui_progress_bar.update(1)
+
+        MemoryProfiler.record_memory(f"before_load_{model_name}, {low_noise_model_name}")
+        model = load_comfy_model_from_name(
+            [model_name, low_noise_model_name],
+            num_gpus=num_gpus,
+            ksana_model_config=model_config,
+            comfy_bar_callback=comfy_bar_callback,
+        )
+        MemoryProfiler.record_memory(f"after_load_{model_name}, {low_noise_model_name}")
         return (
             {
-                "high_noise_model": high_model,
-                "low_noise_model": low_model,
+                "model": model,
+                "run_dtype": model_config.run_dtype,
                 "boundary": model_boundary,
             },
         )
