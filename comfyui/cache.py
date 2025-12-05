@@ -22,6 +22,7 @@ class KsanaDCacheNode:
                 "fast_force_calc_every_n_step": ("INT", {"default": 1}),
                 "slow_force_calc_every_n_step": ("INT", {"default": 5}),
                 "name": ("STRING", {"default": ""}),
+                "offload": ("BOOLEAN", {"default": False}),
             }
         }
 
@@ -41,14 +42,16 @@ class KsanaDCacheNode:
         fast_force_calc_every_n_step,
         slow_force_calc_every_n_step,
         name=None,
+        offload=False,
     ):
         return (
             DCacheConfig(
-                fast_degree,
-                slow_degree,
-                fast_force_calc_every_n_step,
-                slow_force_calc_every_n_step,
                 name=name,
+                fast_degree=fast_degree,
+                slow_degree=slow_degree,
+                fast_force_calc_every_n_step=fast_force_calc_every_n_step,
+                slow_force_calc_every_n_step=slow_force_calc_every_n_step,
+                offload=offload,
             ),
         )
 

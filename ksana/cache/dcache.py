@@ -115,19 +115,19 @@ class DCache(KsanaCache):
         self.total_in_cache_cnt[phase] += 1
         if (
             self.config.slow_degree < self.cur_degree <= self.config.fast_degree
-            and self.cnt_continuous_cached[phase] >= self.config.fast_force_calc_every_n_steps
+            and self.cnt_continuous_cached[phase] >= self.config.fast_force_calc_every_n_step
         ):
             log.debug(
-                f"[NOT use cache] phase {phase} timestep {current_timestep}, by every {self.config.fast_force_calc_every_n_steps} steps"
+                f"[NOT use cache] phase {phase} timestep {current_timestep}, by every {self.config.fast_force_calc_every_n_step} steps"
             )
             self.cnt_continuous_cached[phase] = 0
             return None
         if (
             self.cur_degree <= self.config.slow_degree
-            and self.cnt_continuous_cached[phase] >= self.config.slow_force_calc_every_n_steps
+            and self.cnt_continuous_cached[phase] >= self.config.slow_force_calc_every_n_step
         ):
             log.debug(
-                f"[NOT use cache] phase {phase} timestep {current_timestep}, by every {self.config.slow_force_calc_every_n_steps} steps"
+                f"[NOT use cache] phase {phase} timestep {current_timestep}, by every {self.config.slow_force_calc_every_n_step} steps"
             )
             self.cnt_continuous_cached[phase] = 0
             return None
@@ -138,17 +138,31 @@ class DCache(KsanaCache):
         self.prev_diff[phase] = cur_diff
         return cur_diff
 
+    @_dynamo_disable
+    def offload_to_cpu(self):
+        if self.prev_diff is not None:
+            for phase in self.prev_diff:
+                if self.prev_diff[phase] is not None:
+                    self.prev_diff[phase] = self.prev_diff[phase].to("cpu")
+
     # def post_cacheprocess(self, phase: str, current_timestep: int, current_x_diff):
     #     self.prev_diff[phase] = current_x_diff
 
     @_dynamo_disable()
+    def clone_input_x(self, current_timestep: int, current_x_input) -> bool:
+        return current_x_input.clone().to("cpu") if self.config.offload else current_x_input.clone()
+
+    @_dynamo_disable()
     def update_states(self, phase: str, current_timestep: int, current_x_input, current_x_output):
+        current_x_output = current_x_output.clone().to("cpu") if self.config.offload else current_x_output
         self.prev_diff[phase] = current_x_output - current_x_input
+        del current_x_input
 
     @_dynamo_disable()
     def show_cache_rate(self):
         if self.need_compile_cache:
             return
+        self.offload_to_cpu()
         cond_in_cache_total = self.total_in_cache_cnt["cond"]
         cond_cached_total = self.total_cached_cnt["cond"]
         cond_total = self.total_cnt["cond"]
@@ -157,8 +171,8 @@ class DCache(KsanaCache):
         uncond_total = self.total_cnt["uncond"]
         log.info(
             f"DCache {self.name} fast degree {self.config.fast_degree}, slow degree {self.config.slow_degree}, "
-            f"fast force compute every {self.config.fast_force_calc_every_n_steps} steps in cache, "
-            f"slow force compute every {self.config.slow_force_calc_every_n_steps} steps in cache, "
+            f"fast force compute every {self.config.fast_force_calc_every_n_step} steps in cache, "
+            f"slow force compute every {self.config.slow_force_calc_every_n_step} steps in cache, "
             f"cond(in cache rate {(100 * cond_in_cache_total/ (cond_total + 1e-8)): .2f}%, "
             f"cached rate {(100 * cond_cached_total / (cond_total + 1e-8)): .2f}%), "
             f"uncond(in cache rate {(100 * uncond_in_cache_total / (uncond_total + 1e-8)): .2f}%, "

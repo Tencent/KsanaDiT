@@ -1,0 +1,3 @@
+[submodule "comfyui/workflows"]
+	path = comfyui/workflows
+	url = https://git.woa.com/venus-aigc/KsanaDiT_comfyui_examples

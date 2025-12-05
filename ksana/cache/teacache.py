@@ -13,5 +13,11 @@ class TeaCache(KsanaCache):
     def try_get_prev_cache(self, current_x_input, current_timestep: int):
         return
 
+    def clone_input_x(self, current_timestep: int, x):
+        return x.clone()
+
     def update_states(self, current_timestep: int, current_x_input, current_x_output):
+        return
+
+    def offload_to_cpu(self):
         return

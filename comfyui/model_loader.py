@@ -98,6 +98,7 @@ def load_diffusion_model_state_dict(
         and scaled_fp8_dtype is not None
         and "float8" in str(scaled_fp8_dtype)
     ):
+        print("linear_backend will use fp8_gemm")
         ksana_model_config.linear_backend = "fp8_gemm"
 
     print(
@@ -136,7 +137,8 @@ def load_diffusion_model_state_dict(
 
 
 @time_range
-def load_diffusion_model(model_path, num_gpus, ksana_model_config: KsanaModelConfig):
+def load_diffusion_model(model_name, num_gpus, ksana_model_config: KsanaModelConfig):
+    model_path = folder_paths.get_full_path("diffusion_models", model_name)
     model = load_diffusion_model_state_dict(
         model_path, num_gpus=num_gpus, ksana_model_config=ksana_model_config, load_ori_weights=False
     )
@@ -171,7 +173,22 @@ class KsanaModelLoaderNode:
                     {"default": "flash_attention"},
                     {"tooltip": "attention backend"},
                 ),
-                "num_gpus": ("INT", {"default": 1}),
+                "low_noise_model_name": (
+                    folder_paths.get_filename_list("diffusion_models") + ["Empty"],
+                    {"default": "Empty"},
+                ),
+                "model_boundary": (
+                    "FLOAT",
+                    {
+                        "default": 0.875,
+                        "min": 0,
+                        "max": 1.0,
+                        "step": 0.001,
+                        "round": 0.01,
+                        "tooltip": "The boundary value used for high and low timesteps.",
+                    },
+                ),
+                "num_gpus": (["default", "1"], {"default": "default"}),
                 "torch_compile_args": ("KSANACOMPILEARGS", {"default": None}),
             },
         }
@@ -191,7 +208,9 @@ class KsanaModelLoaderNode:
         run_dtype="float16",
         linear_backend="default",
         attn_backend="default",
-        num_gpus=1,
+        num_gpus="default",
+        low_noise_model_name="Empty",
+        model_boundary=None,
         torch_compile_args=None,
     ):
         mm.unload_all_models()
@@ -199,6 +218,7 @@ class KsanaModelLoaderNode:
         mm.soft_empty_cache()
 
         if linear_backend == "fp8_gemm":
+            # TODO: run_dtype do not have default
             run_dtype_has_fp8 = "float8" in run_dtype.lower() or "fp8" in run_dtype.lower()
             if run_dtype != "default" and (not run_dtype_has_fp8):
                 logging.warning(
@@ -207,12 +227,7 @@ class KsanaModelLoaderNode:
                 run_dtype = "float16"
                 linear_backend = "default"
 
-        if num_gpus > 1:
-            if num_gpus > get_gpu_count():
-                logging.warning(
-                    f"num_gpus {num_gpus} is larger than gpu count {get_gpu_count()}, will use gpu count {get_gpu_count()}"
-                )
-                num_gpus = get_gpu_count()
+        num_gpus = get_gpu_count() if num_gpus == "default" else int(num_gpus)
 
         model_config = KsanaModelConfig(
             run_dtype=run_dtype,
@@ -221,13 +236,19 @@ class KsanaModelLoaderNode:
             torch_compile_config=torch_compile_args,
         )
 
-        num_gpus = get_gpu_count()
-        if num_gpus != 1:
-            raise RuntimeError(f"only one GPU supported yet, but got {num_gpus}")
-
-        model_path = folder_paths.get_full_path("diffusion_models", model_name)
-        print(f"Start to load diffusion model {model_name}: {model_path} with {num_gpus} gpus")
         MemoryProfiler.record_memory(f"before_load_{model_name}")
-        model = load_diffusion_model(model_path, num_gpus=num_gpus, ksana_model_config=model_config)
+        high_model = load_diffusion_model(model_name, num_gpus=num_gpus, ksana_model_config=model_config)
         MemoryProfiler.record_memory(f"after_load_{model_name}")
-        return (model,)
+        low_model = None
+        if low_noise_model_name is not None and low_noise_model_name != "Empty":
+            MemoryProfiler.record_memory(f"before_load_{low_noise_model_name}")
+            low_model = load_diffusion_model(low_noise_model_name, num_gpus=num_gpus, ksana_model_config=model_config)
+            MemoryProfiler.record_memory(f"after_load_{low_noise_model_name}")
+        print(f"high_model: {high_model}, low_model: {low_model}")
+        return (
+            {
+                "high_noise_model": high_model,
+                "low_noise_model": low_model,
+                "boundary": model_boundary,
+            },
+        )
