@@ -1,5 +1,6 @@
 import comfy
 import comfy.model_management as mm
+from comfy.utils import ProgressBar
 from ksana import get_generator
 from ksana.config import KsanaSampleConfig, KsanaRuntimeConfig
 from ksana.utils.profile import MemoryProfiler
@@ -254,6 +255,11 @@ class KsanaGeneratorNode:
             device=device,
         )
 
+        comfyui_progress_bar = ProgressBar(steps)
+
+        def comfyui_progress_callback(step, total):
+            comfyui_progress_bar.update_absolute(step, total)
+
         # TODO: maybe need to latent_format process_in for positive/negative?
         low_model = low_model.model.ksana_model if low_model is not None else None
         samples = ksana_generator.generate_video_with_tensors(
@@ -274,6 +280,7 @@ class KsanaGeneratorNode:
             ),
             high_cache_config=high_cache_config,
             low_cache_config=low_cache_config,
+            comfyui_progress_callback=comfyui_progress_callback,
         )
         MemoryProfiler.record_memory("after_ksana_generator_generate_video_with_tensors")
         if len(samples.shape) == 4:
