@@ -50,6 +50,7 @@ def modify_workflow_params(api_prompt: dict, params: dict) -> dict:
                 inputs["steps"] = params["steps"]
             if "seed" in params and params["seed"] is not None and "seed" in inputs:
                 inputs["seed"] = params["seed"]
+                inputs["control_after_generate"] = "fixed"
 
         # EmptyHunyuanLatentVideo: 修改 width, height, length
         elif class_type == "EmptyHunyuanLatentVideo":
@@ -151,7 +152,7 @@ def create_argument_parser():
 注意:
   如果使用普通格式 workflow，需要安装 playwright:
     pip install playwright
-    playwright install chromium
+    playwright install firefox
         """,
     )
 
@@ -159,7 +160,7 @@ def create_argument_parser():
     parser.add_argument(
         "--workflow_path",
         type=str,
-        default="../workflows/wan2.2_fp16.json",
+        default="../workflows/wan2.2_fp8_scaled.json",
         help="workflow 文件路径（支持普通格式和 API 格式，自动识别）",
     )
     parser.add_argument("--steps", type=int, default=2, help="采样步数 (默认: 2)")

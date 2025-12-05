@@ -9,8 +9,16 @@ class KsanaCache(ABC):
         self.timestep_end = None
 
     @abstractmethod
+    def offload_to_cpu(self):
+        pass
+
+    @abstractmethod
     def can_use_cache(self, current_x_input, current_timestep: int) -> bool:
         pass
+
+    @abstractmethod
+    def clone_input_x(self, current_timestep: int, x):
+        return x.clone()
 
     @abstractmethod
     def try_get_prev_cache(self, current_x_input, current_timestep: int):

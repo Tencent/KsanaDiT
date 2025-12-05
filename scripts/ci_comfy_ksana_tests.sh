@@ -31,16 +31,13 @@ ln -sf /dockerdata/models/Wan2.2-T2V-A14B /data/ComfyUI/custom_nodes/KsanaDiT/
 # ln -s /dockerdata/models/comfy_models /data/stable-diffusion-webui/models
 
 # pip install numpy==1.26.4
-# pip install playwright && playwright install chromium
+# pip install playwright && playwright install firefox
 
 unset http_proxy https_proxy HTTP_PROXY HTTPS_PROXY
 
 ./scripts/install_dev.sh
 cd comfyui/tests
-export CUDA_VISIBLE_DEVICES=0
-python workflow_test.py --workflows-file ./test_configs.json
-
-# export CUDA_VISIBLE_DEVICES=0,1
-# python workflow_test.py --workflows-file ./test_configs.json --gpus 1,2
+python workflow_test.py --workflows-file ./test_configs.json --gpus 0 --seed 321
+# python workflow_test.py --workflows-file ./test_configs.json --gpus 0,1
 
 #  python workflow_test.py --workflows-file ./test_configs.json --no-server

@@ -194,6 +194,7 @@ class KsanaX2VPipeline(ABC):
         if timestep_id >= boundary:
             return high_cache
         else:
+            high_cache.offload_to_cpu()
             return low_cache
 
     def valid_args(self, model, sample_config):

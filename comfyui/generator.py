@@ -88,21 +88,6 @@ class KsanaGeneratorNode:
                 ),
             },
             "optional": {
-                "low_model": (
-                    "KSANAMODEL",
-                    {"tooltip": "The model used for denoising the input latent."},
-                ),
-                "boundary": (
-                    "FLOAT",
-                    {
-                        "default": 0.875,
-                        "min": 0,
-                        "max": 1.0,
-                        "step": 0.001,
-                        "round": 0.01,
-                        "tooltip": "The boundary value used for high and low timesteps.",
-                    },
-                ),
                 "low_sample_guide_scale": (
                     "FLOAT",
                     {
@@ -237,19 +222,20 @@ class KsanaGeneratorNode:
         sample_guide_scale,
         sample_shift,
         denoise=1.0,
-        low_model=None,
-        boundary=None,
         low_sample_guide_scale=None,
         high_cache_config=None,
         low_cache_config=None,
     ):
+        high_model = model.get("high_noise_model")
+        low_model = model.get("low_noise_model")
+        boundary = model.get("boundary")
         ksana_generator = get_generator()
         MemoryProfiler.record_memory("before_ksana_generator_generate_video_with_tensors")
 
         latent_shape = latent_image["samples"].shape
         device = mm.get_torch_device()
         self._prepare_memory_for_ksana_models(
-            high_model=model.model.ksana_model,
+            high_model=high_model.model.ksana_model,
             low_model=low_model.model.ksana_model if low_model is not None else None,
             latent_shape=latent_shape,
             device=device,
@@ -263,7 +249,7 @@ class KsanaGeneratorNode:
         # TODO: maybe need to latent_format process_in for positive/negative?
         low_model = low_model.model.ksana_model if low_model is not None else None
         samples = ksana_generator.generate_video_with_tensors(
-            model=(model.model.ksana_model, low_model),
+            model=(high_model.model.ksana_model, low_model),
             positive=positive[0][0],
             negative=negative[0][0],
             latents=latent_image["samples"],  # [1, 16, 5, h/, w/]
@@ -285,6 +271,6 @@ class KsanaGeneratorNode:
         MemoryProfiler.record_memory("after_ksana_generator_generate_video_with_tensors")
         if len(samples.shape) == 4:
             samples = samples.unsqueeze(0)
-        samples = model.model.model_config.latent_format.process_out(samples)
+        samples = high_model.model.model_config.latent_format.process_out(samples)
         # out = latent_image.copy()
         return ({"samples": samples},)

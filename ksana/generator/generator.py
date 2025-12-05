@@ -29,7 +29,7 @@ class KsanaGenerator(ABC):
         """
         log.info(f"Initializing KsanaGenerator with dist_config: {dist_config}, offload_device: {offload_device}")
         self.num_gpus = dist_config.num_gpus
-        self.is_ray = False
+        self._is_ray = False
         self.init_executors(dist_config=dist_config, offload_device=offload_device)
 
     def init_executors(self, dist_config: KsanaDistributedConfig = None, offload_device=None):
@@ -57,7 +57,7 @@ class KsanaGenerator(ABC):
                 future = executor.init_torch_dist_group.remote(rank_id, dist_config)
                 init_futures.append(future)
             ray.get(init_futures)
-            self.is_ray = True
+            self._is_ray = True
 
     @staticmethod
     def from_models(
@@ -102,11 +102,14 @@ class KsanaGenerator(ABC):
         if self.is_ray:
             func_futures = [executor.load_diffusion_model.remote(model_path, **kwargs) for executor in self.executors]
             funcs_res = ray.get(func_futures)
-            res = self.get_ray_res(funcs_res)
+            return self.get_ray_res(funcs_res)
             # TODO: ray model support comfy
         else:
-            res = self.executors.load_diffusion_model(model_path, **kwargs)
-        return res
+            return self.executors.load_diffusion_model(model_path, **kwargs)
+
+    @property
+    def is_ray(self):
+        return self._is_ray and ray.is_initialized()
 
     def __del__(self):
 
@@ -122,7 +125,6 @@ class KsanaGenerator(ABC):
             dist.broadcast_object_list([prompt, seed], src=0)
             if prompt_negative is not None:
                 dist.broadcast_object_list(prompt_negative, src=0)
-        # TODO: ray way to broadcast prompt
 
     def generate_video(
         self,

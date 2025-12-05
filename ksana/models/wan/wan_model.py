@@ -600,10 +600,10 @@ class WanModel(ModelMixin, ConfigMixin):
                 x_diff = cache.try_get_prev_cache(phase, x, timestep)
                 use_cache = x_diff is not None
             if use_cache:
-                x = x + x_diff
+                x = x + x_diff.to(x.device)
                 # cache.post_cacheprocess(phase, timestep, x_diff)
             else:
-                x_ori = x.clone()
+                x_ori = cache.clone_input_x(timestep, x)
                 # nvtx.range_push("blocks")
                 for block in self.blocks:
                     # x: [bs, seqlen, 5120]

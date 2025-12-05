@@ -176,15 +176,15 @@ class KsanaWanX2VPipeline(KsanaX2VPipeline):
             high_cache_config = DCacheConfig(
                 fast_degree=70,
                 slow_degree=35,
-                fast_force_calc_every_n_steps=1,
-                slow_force_calc_every_n_steps=5,
+                fast_force_calc_every_n_step=1,
+                slow_force_calc_every_n_step=5,
                 name="high_dcache",
             )
             low_cache_config = DCacheConfig(
                 fast_degree=65,
                 slow_degree=25,
-                fast_force_calc_every_n_steps=2,
-                slow_force_calc_every_n_steps=4,
+                fast_force_calc_every_n_step=2,
+                slow_force_calc_every_n_step=4,
                 name="low_dcache",
             )
         return high_cache_config, low_cache_config
