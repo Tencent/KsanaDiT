@@ -8,6 +8,9 @@
     "attn_backend": "flash_attention",
     "expect_values": {
       "mean": 0.3868687
+    },
+    "gpus_expect_values": {
+      "mean": 0.3870537
     }
   },
   {
@@ -19,6 +22,9 @@
     "linear_backend": "fp8_gemm",
     "attn_backend": "flash_attention",
     "expect_values": {
+      "mean": 0.3542531
+    },
+    "gpus_expect_values": {
       "mean": 0.3542531
     }
   },
@@ -32,6 +38,9 @@
     "attn_backend": "sage_attention",
     "expect_values": {
       "mean": 0.3633195
+    },
+    "gpus_expect_values": {
+      "mean": 0.3614670
     }
   },
   {
@@ -43,6 +52,9 @@
     "attn_backend": "sage_attention",
     "expect_values": {
       "mean": 0.2317124
+    },
+    "gpus_expect_values": {
+      "mean": 0.2320217
     }
   }
 ]

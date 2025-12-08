@@ -261,6 +261,7 @@ def main():
         # 设置 CUDA_VISIBLE_DEVICES（在启动 server 之前）
         os.environ["CUDA_VISIBLE_DEVICES"] = args.gpus
         logger.info(f"设置 CUDA_VISIBLE_DEVICES = {args.gpus}")
+        num_gpus = len(args.gpus.split(","))
 
         # 开始计时
         logger.info("=" * 60)
@@ -284,7 +285,7 @@ def main():
 
             # 运行测试
             workflow_start_time = time.time()
-            expect_values = config.get("expect_values")
+            expect_values = config.get("gpus_expect_values") if num_gpus > 1 else config.get("expect_values")
             success = test_workflow(workflow_path=config["workflow_path"], params=config, expect_values=expect_values)
             workflow_elapsed = time.time() - workflow_start_time
 
