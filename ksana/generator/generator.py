@@ -65,7 +65,7 @@ class KsanaGenerator(ABC):
         *,
         text_checkpoint_dir=None,
         vae_checkpoint_dir=None,
-        lora_dir=None,
+        lora: None | str | list[list[dict], list[dict]] = None,
         model_config: KsanaModelConfig = None,
         dist_config: KsanaDistributedConfig = None,
         offload_device="cpu",
@@ -81,7 +81,7 @@ class KsanaGenerator(ABC):
             model_path,
             text_checkpoint_dir=text_checkpoint_dir,
             vae_checkpoint_dir=vae_checkpoint_dir,
-            lora_dir=lora_dir,
+            lora=lora,
             model_config=model_config,
             **kwargs,
         )

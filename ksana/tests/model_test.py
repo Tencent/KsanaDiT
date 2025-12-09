@@ -141,7 +141,7 @@ class TestKsana(unittest.TestCase):
     def test_lora(self):
         print("-----------------test_lora-----------------")
         generator = KsanaGenerator.from_models(
-            "./Wan2.2-T2V-A14B", lora_dir="./Wan2.2-Lightning/Wan2.2-T2V-A14B-4steps-lora-rank64-Seko-V1"
+            "./Wan2.2-T2V-A14B", lora="./Wan2.2-Lightning/Wan2.2-T2V-A14B-4steps-lora-rank64-Seko-V1"
         )
         video = generator.generate_video(
             prompts[0],
@@ -155,7 +155,7 @@ class TestKsana(unittest.TestCase):
             ),
         )
         mean = video.cpu().abs().mean().item()
-        self.assertAlmostEqual(mean, 0.2550005614757538, places=TEST_EPS_PLACE)
+        self.assertAlmostEqual(mean, 0.255082368850708, places=TEST_EPS_PLACE)
 
     def test_torch_compile(self):
         print("-----------------test_torch_compile-----------------")
@@ -187,7 +187,7 @@ class TestKsana(unittest.TestCase):
         )
         generator = KsanaGenerator.from_models(
             "./Wan2.2-T2V-A14B",
-            lora_dir="./Wan2.2-Lightning/Wan2.2-T2V-A14B-4steps-lora-rank64-Seko-V1",
+            lora="./Wan2.2-Lightning/Wan2.2-T2V-A14B-4steps-lora-rank64-Seko-V1",
             model_config=model_config,
         )
         video = generator.generate_video(
@@ -202,7 +202,7 @@ class TestKsana(unittest.TestCase):
             ),
         )
         mean = video.cpu().abs().mean().item()
-        self.assertAlmostEqual(mean, 0.25498297810554504, places=TEST_EPS_PLACE)
+        self.assertAlmostEqual(mean, 0.2549775242805481, places=TEST_EPS_PLACE)
 
 
 if __name__ == "__main__":

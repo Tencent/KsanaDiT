@@ -83,7 +83,7 @@ def run_fp8_models(args):
 def run_with_lora(args):
     generator = KsanaGenerator.from_models(
         f"{args.model_dir}/Wan2.2-T2V-A14B",
-        lora_dir=f"{args.model_dir}/Wan2.2-Lightning/Wan2.2-T2V-A14B-4steps-lora-rank64-Seko-V1",
+        lora=f"{args.model_dir}/Wan2.2-Lightning/Wan2.2-T2V-A14B-4steps-lora-rank64-Seko-V1",
         dist_config=KsanaDistributedConfig(num_gpus=args.num_gpus),
     )
 

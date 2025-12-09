@@ -80,7 +80,7 @@ class KsanaX2VPipeline(ABC):
         self,
         model_path,
         *,
-        lora_dir=None,
+        lora: None | str | list[list[dict], list[dict]] = None,
         model_config: KsanaModelConfig = None,
         dist_config=None,
         input_model_config=None,
@@ -105,12 +105,12 @@ class KsanaX2VPipeline(ABC):
         *,
         text_checkpoint_dir=None,
         vae_checkpoint_dir=None,
-        lora_dir=None,
         model_config: KsanaModelConfig = None,
         dist_config=None,
         device=None,
         offload_device=None,
         shard_fn=None,
+        lora: None | str | list[list[dict], list[dict]] = None,
     ):
         if not is_dir(model_path):
             assert (
@@ -123,14 +123,14 @@ class KsanaX2VPipeline(ABC):
             text_checkpoint_dir = model_path
             vae_checkpoint_dir = model_path
         # keep lora flag for output name
-        self.has_lora = lora_dir is not None
+        self.has_lora = lora is not None
 
         self.text_encoder_key = self.load_text_encoder(text_checkpoint_dir, shard_fn=shard_fn)
         if offload_device:
             self.get_model(self.text_encoder_key).to(offload_device)
         self.diffusion_model_key = self.load_diffusion_model(
             model_path,
-            lora_dir=lora_dir,
+            lora=lora,
             model_config=model_config,
             dist_config=dist_config,
             device=device,

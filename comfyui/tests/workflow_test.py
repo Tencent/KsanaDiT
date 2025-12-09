@@ -84,6 +84,10 @@ def modify_workflow_params(api_prompt: dict, params: dict) -> dict:
             if params.get("text_model_name") and "clip_name" in inputs:
                 inputs["clip_name"] = params["text_model_name"]
 
+        elif class_type == "KsanaLoraSelectNode":
+            if params.get("lora_model_name"):
+                inputs["lora"] = params["lora_model_name"]
+
     return api_prompt
 
 

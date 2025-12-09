@@ -95,7 +95,7 @@ class KsanaExecutor(ABC):
         *,
         text_checkpoint_dir=None,
         vae_checkpoint_dir=None,
-        lora_dir=None,
+        lora: None | str | list[list[dict], list[dict]] = None,
         model_config: KsanaModelConfig = None,
         **kwargs,
     ):
@@ -120,7 +120,7 @@ class KsanaExecutor(ABC):
             model_path=model_path,
             text_checkpoint_dir=text_checkpoint_dir,
             vae_checkpoint_dir=vae_checkpoint_dir,
-            lora_dir=lora_dir,
+            lora=lora,
             model_config=model_config,
             dist_config=self.dist_config,
             shard_fn=self.shard_fn,
@@ -132,7 +132,7 @@ class KsanaExecutor(ABC):
         self,
         model_path,
         *,
-        lora_dir=None,
+        lora: None | str | list[list[dict], list[dict]] = None,
         model_config: KsanaModelConfig = None,
         input_model_config=None,
         comfy_bar_callback=None,
@@ -149,7 +149,7 @@ class KsanaExecutor(ABC):
         load_to_deivce = self.device if self.dist_config.num_gpus > 1 else self.offload_device
         return self.pipeline.load_diffusion_model(
             model_path=model_path,
-            lora_dir=lora_dir,
+            lora=lora,
             model_config=model_config,
             dist_config=self.dist_config,
             input_model_config=input_model_config,
