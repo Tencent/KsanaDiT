@@ -1,22 +1,16 @@
 import time
 import types
 from abc import ABC, abstractmethod
-import os
 
 import torch
 import torch.distributed as dist
 
 from ..distributed import sp_attn_forward
 from ..utils import (  # , ksanaProfiler
-    load_and_merge_lora_weight_from_safetensors,
     log,
-    model_safe_downcast,
     time_range,
-    load_sharded_safetensors,
-    is_dir,
 )
 
-from ..utils.load import load_torch_file
 from .wan import WanModel
 from .wan.configs import WAN2_2_CONFIGS
 from ..config import KsanaModelConfig, KsanaDistributedConfig
@@ -46,9 +40,8 @@ class KsanaDiffusionModel(ABC):
     @time_range
     def load(
         self,
-        model_path,
+        model_state_dict: dict,
         *,
-        lora_file=None,
         model_config: KsanaModelConfig = None,
         input_model_config=None,
         device=None,
@@ -208,20 +201,12 @@ class KsanaWanModel(KsanaDiffusionModel):
 
     def load(
         self,
-        model_path: str,
-        lora_file=None,
+        model_state_dict: dict,
         input_model_config: dict = None,
         load_device=None,
         offload_device=None,
         shard_fn=None,
     ):
-        if not (os.path.isfile(model_path) or is_dir(model_path)):
-            raise ValueError(f"model_path {model_path} must be a file or dir")
-        model_state_dict = (
-            load_sharded_safetensors(f"{model_path}")
-            if is_dir(model_path)
-            else load_torch_file(model_path, device=load_device)
-        )
         # TODO(rock): get weight dtype from model_state_dict and judge linear_backend is fp8_gemm or not
         # scaled_fp8_dtype = model_config.scaled_fp8
         # if (
@@ -236,19 +221,14 @@ class KsanaWanModel(KsanaDiffusionModel):
         #     log.warning(f"weight_dtype {weight_dtype} is not fp8, will use fp16_gemm linear_backend")
         #     self.model_config.linear_backend = "fp16_gemm"
 
-        fp8_gemm, scaled_fp8 = (
-            (True, torch.float8_e4m3fn) if self.model_config.linear_backend == "fp8_gemm" else (False, None)
-        )
-
         operations = build_ops(
             self.run_dtype,
-            backend=AttentionBackendEnum.from_string(self.model_config.attn_backend),
-            fp8_gemm=fp8_gemm,
-            scaled_fp8=scaled_fp8,
+            model_state_dict,
+            attn_backend=AttentionBackendEnum.from_string(self.model_config.attn_backend),
+            linear_backend=self.model_config.linear_backend,
         )
         log.info(
-            f"load from model_path:{model_path}, lora_file:{lora_file}, input_model_config:{input_model_config}, "
-            f"operations:{operations}, load_device:{load_device}, offload_device:{offload_device}"
+            f"input_model_config:{input_model_config}, operations:{operations}, load_device:{load_device}, offload_device:{offload_device}"
         )
         if input_model_config is None:
             input_model_config = {}
@@ -300,15 +280,5 @@ class KsanaWanModel(KsanaDiffusionModel):
             model=self.model, use_sp=self.dist_config.use_sp, dit_fsdp=self.dist_config.dit_fsdp, shard_fn=shard_fn
         )
 
-        if lora_file:
-            log.info(f"load lora from {lora_file}")
-            self.model.set_keep_in_fp32_modules()
-            self.model = load_and_merge_lora_weight_from_safetensors(self.model, lora_file)
-            model_safe_downcast(
-                self.model,
-                dtype=self.run_dtype,
-                keep_in_fp32_modules=[],
-                keep_in_fp32_parameters=self.model._keep_in_fp32_params,
-            )
         # Note: apply torch compile should be after all weight loading and merging
         self.apply_torch_compile(self.model_config.torch_compile_config)

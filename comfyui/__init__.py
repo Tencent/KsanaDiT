@@ -13,6 +13,7 @@ try:
     from .model_loader import KsanaModelLoaderNode
     from .generator import KsanaGeneratorNode
     from .torch_compile import KsanaTorchCompileNode
+    from .lora import KsanaLoraSelectMultiNode, KsanaLoraSelectNode, KsanaLoraCombineNode
 
     NODE_CLASS_MAPPINGS = {
         "KsanaDCacheNode": KsanaDCacheNode,
@@ -23,6 +24,9 @@ try:
         "KsanaModelLoaderNode": KsanaModelLoaderNode,
         "KsanaGeneratorNode": KsanaGeneratorNode,
         "KsanaTorchCompileNode": KsanaTorchCompileNode,
+        "KsanaLoraSelectMultiNode": KsanaLoraSelectMultiNode,
+        "KsanaLoraSelectNode": KsanaLoraSelectNode,
+        "KsanaLoraCombineNode": KsanaLoraCombineNode,
     }
 
     NODE_DISPLAY_NAME_MAPPINGS = {
@@ -34,6 +38,9 @@ try:
         "KsanaModelLoaderNode": "KsanaDit Model Loader",
         "KsanaGeneratorNode": "KsanaDit Generator",
         "KsanaTorchCompileNode": "KsanaDiT Torch Compile Node",
+        "KsanaLoraSelectMultiNode": "KsanaDit Lora Select Multi Node",
+        "KsanaLoraSelectNode": "KsanaDit Lora Select Node",
+        "KsanaLoraCombineNode": "KsanaDit Lora Combine Node",
     }
 except Exception as e:
     print(f"import错误: {str(e)}")

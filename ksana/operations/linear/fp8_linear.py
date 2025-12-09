@@ -8,9 +8,8 @@ from ksana.utils import (
 
 
 def fp8_linear(self, input):
-    # TODO(rockcao): support fp8e5m2
     dtype = self.weight.dtype
-    if dtype not in [torch.float8_e4m3fn]:
+    if dtype not in [torch.float8_e4m3fn, torch.float8_e5m2]:
         return None
 
     tensor_2d = False
@@ -29,12 +28,19 @@ def fp8_linear(self, input):
         if scale_weight is None:
             scale_weight = torch.ones((), device=input.device, dtype=torch.float32)
 
+        # always e4m3fn because e5m2 * e5m2 is not supported
+        fixed_input_dtype_after_scale = torch.float8_e4m3fn
         if scale_input is None:
             scale_input = torch.ones((), device=input.device, dtype=torch.float32)
             input = torch.clamp(input, min=-448, max=448, out=input)
-            input = input.reshape(-1, input_shape[2]).to(dtype).contiguous()
+            input = input.reshape(-1, input_shape[2]).to(fixed_input_dtype_after_scale).contiguous()
         else:
-            input = (input * (1.0 / scale_input).to(input_dtype)).reshape(-1, input_shape[2]).to(dtype).contiguous()
+            input = (
+                (input * (1.0 / scale_input).to(input_dtype))
+                .reshape(-1, input_shape[2])
+                .to(fixed_input_dtype_after_scale)
+                .contiguous()
+            )
 
         if bias is not None:
             o = torch._scaled_mm(input, w, out_dtype=input_dtype, bias=bias, scale_a=scale_input, scale_b=scale_weight)

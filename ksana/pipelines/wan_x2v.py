@@ -7,6 +7,7 @@ from ..config import KsanaSampleConfig, KsanaRuntimeConfig, KsanaPipelineConfig,
 from ..utils.profile import time_range
 from ..utils.logger import log
 from ..utils import is_dir
+from ..utils.lora import merge_lora, build_loras_list
 
 from ..models.model_key import KsanaModelKey
 
@@ -73,22 +74,18 @@ class KsanaWanX2VPipeline(KsanaX2VPipeline):
     @time_range
     def load_one_diffusion_model(
         self,
-        model_path,
         *,
-        lora_file=None,
         model_config: KsanaModelConfig = None,
         dist_config=None,
+        model_state_dict=None,
         input_model_config=None,
         device=None,
         offload_device=None,
         shard_fn=None,
     ):
-        if lora_file is not None:
-            self.default_args = WanLightLoraDefaultArgs()
         model = KsanaWanModel(model_config, self.pipeline_config, dist_config)
         model.load(
-            model_path=model_path,
-            lora_file=lora_file,
+            model_state_dict=model_state_dict,
             input_model_config=input_model_config,
             load_device=device,
             offload_device=offload_device,
@@ -101,7 +98,7 @@ class KsanaWanX2VPipeline(KsanaX2VPipeline):
         self,
         model_path,
         *,
-        lora_dir=None,
+        lora: None | str | list[list[dict], list[dict]] = None,
         model_config: KsanaModelConfig = None,
         input_model_config=None,
         dist_config=None,
@@ -110,9 +107,22 @@ class KsanaWanX2VPipeline(KsanaX2VPipeline):
         shard_fn=None,
         comfy_bar_callback=None,
     ) -> KsanaModelKey | tuple[KsanaModelKey, KsanaModelKey]:
+
         log.info(f"load_model_path_or_files: {model_path}")
         load_model_path_or_files = model_path
-        load_lora_files = lora_dir
+
+        list_of_loras_list = lora
+        if isinstance(lora, str):
+            lora_dir = lora
+            list_of_loras_list = []
+            list_of_loras_list.append(
+                build_loras_list(os.path.join(lora_dir, self.pipeline_config.default_config.high_noise_lora_checkpoint))
+            )
+            list_of_loras_list.append(
+                build_loras_list(os.path.join(lora_dir, self.pipeline_config.default_config.low_noise_lora_checkpoint))
+            )
+        if list_of_loras_list is not None:
+            self.default_args = WanLightLoraDefaultArgs()
 
         # three cases:
         # 1. [local load] model_path is a list of safetensors files used in load fp8 safetensors
@@ -129,11 +139,6 @@ class KsanaWanX2VPipeline(KsanaX2VPipeline):
                     os.path.join(model_path, self.pipeline_config.default_config.high_noise_checkpoint),
                     os.path.join(model_path, self.pipeline_config.default_config.low_noise_checkpoint),
                 ]
-            if lora_dir is not None:
-                load_lora_files = [
-                    os.path.join(lora_dir, self.pipeline_config.default_config.high_noise_lora_checkpoint),
-                    os.path.join(lora_dir, self.pipeline_config.default_config.low_noise_lora_checkpoint),
-                ]
         else:
             if not os.path.isfile(model_path):
                 raise ValueError(f"model_path {model_path} not exist, or file must be a safetensors file")
@@ -142,11 +147,11 @@ class KsanaWanX2VPipeline(KsanaX2VPipeline):
             model_keys = (KsanaModelKey.Wan2_2_HIGH, KsanaModelKey.Wan2_2_LOW)
             for i in range(len(load_model_path_or_files)):
                 one_model_path = load_model_path_or_files[i]
-                one_lora_file = load_lora_files[i] if load_lora_files is not None else None
+                loras_list = list_of_loras_list[i] if list_of_loras_list is not None else None
+                model_state_dict = merge_lora(one_model_path, loras_list)
                 one_model = self.load_one_diffusion_model(
-                    model_path=one_model_path,
-                    lora_file=one_lora_file,
                     model_config=model_config,
+                    model_state_dict=model_state_dict,
                     input_model_config=input_model_config,
                     dist_config=dist_config,
                     shard_fn=shard_fn,
@@ -160,11 +165,12 @@ class KsanaWanX2VPipeline(KsanaX2VPipeline):
                     comfy_bar_callback()
             return model_keys
         else:
+            loras_list = list_of_loras_list[0] if list_of_loras_list is not None else None
+            model_state_dict = merge_lora(load_model_path_or_files, loras_list)
             one_model = self.load_one_diffusion_model(
-                model_path=load_model_path_or_files,
-                lora_file=load_lora_files,
                 model_config=model_config,
                 input_model_config=input_model_config,
+                model_state_dict=model_state_dict,
                 dist_config=dist_config,
                 shard_fn=shard_fn,
                 device=device,

@@ -5,7 +5,7 @@ import logging
 import torch
 import comfy.model_management as mm
 
-from ksana.utils import get_gpu_count, time_range
+from ksana.utils import get_gpu_count, time_range, log
 from ksana import get_generator
 from ksana.config import KsanaModelConfig, KsanaDistributedConfig
 from ksana.utils.profile import MemoryProfiler
@@ -117,7 +117,11 @@ def comfy_model_preprocess(model_path, load_ori_weights=False):
 
 @time_range
 def load_comfy_model_from_name(
-    model_name: list, num_gpus, ksana_model_config: KsanaModelConfig, comfy_bar_callback=None
+    model_name: list,
+    num_gpus,
+    ksana_model_config: KsanaModelConfig,
+    comfy_bar_callback=None,
+    lora=None,
 ):
     high, low = model_name
     high_model_path = folder_paths.get_full_path("diffusion_models", high)
@@ -127,7 +131,7 @@ def load_comfy_model_from_name(
 
     comfy_model, unet_dtype, load_device, offload_device, sd_size = comfy_model_preprocess(
         high_model_path, load_ori_weights=False
-    )
+    )  # 为什么只有high, 为了拿config?
     comfy_model_config = comfy_model.model_config
 
     print(f"ksana_model_config: {ksana_model_config}")
@@ -159,6 +163,7 @@ def load_comfy_model_from_name(
         model_config=ksana_model_config,
         input_model_config=input_model_config,
         comfy_bar_callback=comfy_bar_callback,
+        lora=lora,
     )
     comfy_model.ksana_model = ksana_model
 
@@ -211,6 +216,7 @@ class KsanaModelLoaderNode:
                 ),
                 "num_gpus": (["default", "1"], {"default": "default"}),
                 "torch_compile_args": ("KSANACOMPILEARGS", {"default": None}),
+                "lora": ("KSANALORA", {"default": None}),
             },
         }
 
@@ -233,6 +239,7 @@ class KsanaModelLoaderNode:
         low_noise_model_name="Empty",
         model_boundary=None,
         torch_compile_args=None,
+        lora=None,
     ):
         mm.unload_all_models()
         mm.cleanup_models()
@@ -251,12 +258,24 @@ class KsanaModelLoaderNode:
         def comfy_bar_callback():
             comfyui_progress_bar.update(1)
 
+        high_model_loras_list = []
+        low_model_loras_list = []
+        if lora is not None and isinstance(lora, list) and len(lora) > 0:
+            if isinstance(lora[0], list):  # case when lora = [[high_model_loras], [low_model_loras]]
+                high_model_loras_list = lora[0]
+                if len(lora) > 1:
+                    low_model_loras_list = lora[1]
+            else:  # case when lora = [high_model_loras]
+                high_model_loras_list = lora
+        log.info(f"high_model_loras_list: {high_model_loras_list}, low_model_loras_list: {low_model_loras_list}")
+
         MemoryProfiler.record_memory(f"before_load_{model_name}, {low_noise_model_name}")
         model = load_comfy_model_from_name(
             [model_name, low_noise_model_name],
             num_gpus=num_gpus,
             ksana_model_config=model_config,
             comfy_bar_callback=comfy_bar_callback,
+            lora=[high_model_loras_list, low_model_loras_list],
         )
         MemoryProfiler.record_memory(f"after_load_{model_name}, {low_noise_model_name}")
         return (

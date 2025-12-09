@@ -100,10 +100,10 @@ class Ops:
 
 def build_ops(
     run_dtype,
-    backend: AttentionBackendEnum = AttentionBackendEnum.FLASH_ATTN,
+    state_dict,
+    linear_backend: str,
+    attn_backend: AttentionBackendEnum = AttentionBackendEnum.FLASH_ATTN,
     load_device=None,
-    fp8_gemm=False,
-    scaled_fp8=None,
 ):
     ops = Ops()
     ops.register("Conv1d", Conv1d)
@@ -115,7 +115,7 @@ def build_ops(
     ops.register("ConvTranspose2d", ConvTranspose2d)
     ops.register("ConvTranspose1d", ConvTranspose1d)
     ops.register("Embedding", Embedding)
-    ops.register("Linear", pick_linear(run_dtype, load_device, fp8_gemm, scaled_fp8))
-    ops.register("Attn", pick_attn_op(backend))
+    ops.register("Linear", pick_linear(run_dtype, state_dict, linear_backend, load_device))
+    ops.register("Attn", pick_attn_op(attn_backend))
 
     return ops
