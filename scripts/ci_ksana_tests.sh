@@ -21,9 +21,9 @@ mv ${BK_CI_GIT_REPO_HEAD_COMMIT_ID} KsanaDiT
 sudo chown mqq:mqq -R KsanaDiT/
 
 cd /data/ComfyUI/custom_nodes/KsanaDiT
-ln -sf /dockerdata/models/comfy_models /data/ComfyUI/custom_nodes/KsanaDiT/
-ln -sf /dockerdata/models/Wan2.2-Lightning /data/ComfyUI/custom_nodes/KsanaDiT/
-ln -sf /dockerdata/models/Wan2.2-T2V-A14B /data/ComfyUI/custom_nodes/KsanaDiT/
+ln -sf /dockerdata/ci-models/comfy_models /data/ComfyUI/custom_nodes/KsanaDiT/
+ln -sf /dockerdata/ci-models/Wan2.2-Lightning /data/ComfyUI/custom_nodes/KsanaDiT/
+ln -sf /dockerdata/ci-models/Wan2.2-T2V-A14B /data/ComfyUI/custom_nodes/KsanaDiT/
 
 ./scripts/install_dev.sh
 export CUDA_VISIBLE_DEVICES=0,1
