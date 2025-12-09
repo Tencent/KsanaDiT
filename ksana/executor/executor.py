@@ -80,13 +80,13 @@ class KsanaExecutor(ABC):
         )
         return create_ksana_pipeline(pipeline_config)
 
-    def clean_models(self):
+    def clear_models(self):
         """
         Clean models loaded by this executor.
         """
         if self.pipeline is None:
             return
-        self.pipeline.clean_models()
+        self.pipeline.clear_models()
         self.pipeline = None
 
     def load_models(
@@ -99,7 +99,7 @@ class KsanaExecutor(ABC):
         model_config: KsanaModelConfig = None,
         **kwargs,
     ):
-        self.clean_models()
+        self.clear_models()
         if isinstance(model_path, (list, tuple)) or not is_dir(model_path):
             if text_checkpoint_dir is None:
                 raise ValueError(
@@ -138,7 +138,7 @@ class KsanaExecutor(ABC):
         comfy_bar_callback=None,
         **kwargs,
     ):
-        self.clean_models()
+        self.clear_models()
         if len(kwargs) > 0:
             log.warning(f"kwargs {kwargs} are not used")
         dir_path = model_path
@@ -198,8 +198,8 @@ class KsanaExecutor(ABC):
     def generate_video(
         self,
         prompt,
-        prompt_negative: str = None,
         *,
+        prompt_negative: str = None,
         sample_config: KsanaSampleConfig = None,
         runtime_config: KsanaRuntimeConfig = None,
     ):

@@ -150,6 +150,6 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     run_simple(args)
-    # run_fp8_models(args)
+    run_fp8_models(args)
     run_with_lora(args)
     run_advanced(args)

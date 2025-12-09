@@ -1,8 +1,9 @@
-from enum import Enum
+from enum import Enum, auto, unique
 
 
+@unique
 class KsanaModelKey(Enum):
-    T5TextEncoder = "T5TextEncoder"
-    VAE = "VAE"
-    Wan2_2_HIGH = "Wan2_2_HIGH"
-    Wan2_2_LOW = "Wan2_2_LOW"
+    T5TextEncoder = auto()
+    VAE = auto()
+    Wan2_2_HIGH = auto()
+    Wan2_2_LOW = auto()

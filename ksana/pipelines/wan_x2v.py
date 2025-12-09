@@ -57,7 +57,7 @@ class KsanaWanX2VPipeline(KsanaX2VPipeline):
         text_encoder = KsanaT5Encoder(
             self.pipeline_config.default_config, checkpoint_dir=checkpoint_dir, shard_fn=shard_fn
         )
-        self.update_model(KsanaModelKey.T5TextEncoder, text_encoder)
+        self.model_pool.update_model(KsanaModelKey.T5TextEncoder, text_encoder)
         return KsanaModelKey.T5TextEncoder
 
     def load_vae(self, checkpoint_dir, device):
@@ -68,7 +68,7 @@ class KsanaWanX2VPipeline(KsanaX2VPipeline):
             checkpoint_dir=checkpoint_dir,
             device=device,
         )
-        self.update_model(KsanaModelKey.VAE, vae)
+        self.model_pool.update_model(KsanaModelKey.VAE, vae)
         return KsanaModelKey.VAE
 
     @time_range
@@ -158,7 +158,7 @@ class KsanaWanX2VPipeline(KsanaX2VPipeline):
                     device=device,
                     offload_device=offload_device,
                 )
-                self.update_model(model_keys[i], one_model)
+                self.model_pool.update_model(model_keys[i], one_model)
                 if offload_device is not None:
                     one_model = one_model.to(offload_device)
                 if comfy_bar_callback is not None:
@@ -176,7 +176,7 @@ class KsanaWanX2VPipeline(KsanaX2VPipeline):
                 device=device,
                 offload_device=offload_device,
             )
-            self.update_model(KsanaModelKey.Wan2_2_HIGH, one_model)
+            self.model_pool.update_model(KsanaModelKey.Wan2_2_HIGH, one_model)
             if comfy_bar_callback is not None:
                 comfy_bar_callback()
             return KsanaModelKey.Wan2_2_HIGH
