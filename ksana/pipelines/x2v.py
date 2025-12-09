@@ -13,6 +13,7 @@ from ..cache import create_cache
 from ..sample_solvers import get_sample_scheduler
 
 from ..models.model_key import KsanaModelKey
+from ..models.model_pool import get_model_pool
 
 
 @dataclass(frozen=True)
@@ -37,27 +38,12 @@ class KsanaX2VPipeline(ABC):
         self.pipeline_config = pipeline_config
         self.default_args = KsanaDefaultArgs()
 
-        # Note: only pass model_key, do NOT pass model itself
-        self.loaded_models = {}
+        # Note: only save model_key, do NOT pass model itself
+        self.model_pool = get_model_pool()
         self.text_encoder_key = None
         self.vae_key = None
         self.diffusion_model_key = None
         self.has_lora = False
-
-    def update_model(self, model_key: str, model, allow_exist=False):
-        # TODO(TJ): make update_model as decorator with parameters
-        if model_key in self.loaded_models and not allow_exist:
-            log.error(f"model_key {model_key} has been loaded")
-            raise RuntimeError(f"model_key {model_key} has been loaded")
-        self.loaded_models[model_key] = model
-
-    def get_model(self, model_key: str):
-        if model_key is None:
-            return None
-        if model_key not in self.loaded_models:
-            log.error(f"model_key {model_key} has not been loaded")
-            raise RuntimeError(f"model_key {model_key} has not been loaded")
-        return self.loaded_models.get(model_key, None)
 
     @abstractmethod
     def load_text_encoder(self, checkpoint_dir, shard_fn=None) -> KsanaModelKey:
@@ -67,9 +53,8 @@ class KsanaX2VPipeline(ABC):
     def load_vae(self, checkpoint_dir, device) -> KsanaModelKey:
         pass
 
-    def clean_models(self):
-        self.loaded_models.clear()
-        self.loaded_models = {}
+    def clear_models(self):
+        self.model_pool.clear()
         self.text_encoder_key = None
         self.vae_key = None
         self.diffusion_model_key = None
@@ -95,9 +80,9 @@ class KsanaX2VPipeline(ABC):
             return
         if hasattr(self.diffusion_model_key, "__iter__"):
             for one_model_key in self.diffusion_model_key:
-                self.get_model(one_model_key).to(offload_device)
+                self.model_pool.get_model(one_model_key).to(offload_device)
         else:
-            self.get_model(self.diffusion_model_key).to(offload_device)
+            self.model_pool.get_model(self.diffusion_model_key).to(offload_device)
 
     def load_models(
         self,
@@ -127,7 +112,7 @@ class KsanaX2VPipeline(ABC):
 
         self.text_encoder_key = self.load_text_encoder(text_checkpoint_dir, shard_fn=shard_fn)
         if offload_device:
-            self.get_model(self.text_encoder_key).to(offload_device)
+            self.model_pool.get_model(self.text_encoder_key).to(offload_device)
         self.diffusion_model_key = self.load_diffusion_model(
             model_path,
             lora=lora,
@@ -141,7 +126,7 @@ class KsanaX2VPipeline(ABC):
             self.offload_diffusion_model_to(offload_device)
         self.vae_key = self.load_vae(vae_checkpoint_dir, device)
         if offload_device is not None:
-            self.get_model(self.vae_key).to(offload_device)
+            self.model_pool.get_model(self.vae_key).to(offload_device)
 
     def forward_text_encoder(self, prompt, prompt_negative=None, device=None, offload_device=None, offload_model=False):
         default_pipeline_config = self.pipeline_config.default_config
@@ -149,7 +134,7 @@ class KsanaX2VPipeline(ABC):
         prompt_negative = prompt_negative if prompt_negative is not None else default_pipeline_config.sample_neg_prompt
 
         assert device is not None
-        text_encoder = self.get_model(self.text_encoder_key)
+        text_encoder = self.model_pool.get_model(self.text_encoder_key)
         if text_encoder.device != device:
             text_encoder.to(device)
         # TODO: maybe batch prompt for text encoder
@@ -180,7 +165,7 @@ class KsanaX2VPipeline(ABC):
         # TODO: estimate vae memory usage to check whether neeed to offload diffusion model
         self.offload_diffusion_model_to(offload_device)
 
-        vae_model = self.get_model(self.vae_key)
+        vae_model = self.model_pool.get_model(self.vae_key)
         if vae_model.device != device:
             vae_model.to(device)
         videos = vae_model.decode(latents)[0]
@@ -241,8 +226,8 @@ class KsanaX2VPipeline(ABC):
             raise ValueError(f"sample_config.cfg_scale {sample_config.cfg_scale} not supported")
         assert sample_config.denoise > 0.0, f"denoise <= 0.0 is not supported, got {sample_config.denoise}"
         return (
-            self.get_model(high_model_key),
-            self.get_model(low_model_key),
+            self.model_pool.get_model(high_model_key),
+            self.model_pool.get_model(low_model_key),
             high_sample_guide_scale,
             low_sample_guide_scale,
         )
@@ -294,7 +279,7 @@ class KsanaX2VPipeline(ABC):
         if latents is None:
             size = runtime_config.size
             frame_num = runtime_config.frame_num
-            vae_model = self.get_model(self.vae_key)
+            vae_model = self.model_pool.get_model(self.vae_key)
             target_shape = (
                 vae_model.z_dim,
                 (frame_num - 1) // vae_model.vae_stride[0] + 1,
@@ -465,11 +450,6 @@ class KsanaX2VPipeline(ABC):
 
         del sample_scheduler
 
-        # if offload_model:
-        #     gc.collect()
-        #     torch.cuda.synchronize()
-        # if dist.is_initialized():
-        #     dist.barrier()
         log.debug(f"latents shape: {latents.shape}")
         # [bs, 16, fi, hi, wi]
         return latents
@@ -495,7 +475,7 @@ class KsanaX2VPipeline(ABC):
         )
         latents = self.forward_diffusion_model(
             positive,
-            negative,
+            negative=negative,
             sample_config=sample_config,
             runtime_config=runtime_config,
             device=device,

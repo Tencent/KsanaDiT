@@ -76,9 +76,11 @@ class Timer:
     def __exit__(self, exc_type, exc_val, exc_tb):
         end_time = time.perf_counter()
         if self.start_time is not None:
-            elapsed = end_time - self.start_time
-            self.print_func(f"[{self.name}] takes {elapsed:.6f} s")
+            self.timer(end_time - self.start_time)
         return False
+
+    def timer(self, elapsed):
+        self.print_func(f"[{self.name}] takes {elapsed:.6f} s")
 
     def __call__(self, func: Callable):
         """

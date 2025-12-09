@@ -135,6 +135,7 @@ class KsanaGenerator(ABC):
     def generate_video(
         self,
         prompt: str,
+        *,
         prompt_negative: str = None,
         sample_config: KsanaSampleConfig = None,
         runtime_config: KsanaRuntimeConfig = None,
