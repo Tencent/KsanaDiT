@@ -3,11 +3,13 @@ from pyinstrument import Profiler
 import cProfile
 from .logger import log
 import time
+import functools
 import pstats
 import torch
 import os
 import csv
 from .env import KSANA_MEMORY_PROFILER
+from typing import Callable, Optional, Union
 
 global g_cprofiler
 g_cprofiler = cProfile.Profile()
@@ -58,73 +60,75 @@ class ksanaProfiler:
             f.write(self.profiler.output_html())
 
 
-# TODO: implement time_range decorator
-# class time_range:
-#     def __init__(self, func_or_name=None, print_func=log.info):
-#         """
-#         :param func_or_name: 可以是被装饰的函数（无参装饰器用法），
-#                              也可以是任务名称（有参装饰器用法或with用法）
-#         :param print_func: 用于输出信息的函数，默认为 print，可以传入 logger.info 等
-#         """
-#         self.print_func = print_func
-#         self.start_time = None
-#         self.func = None
-#         self.name = "Task"
+class Timer:
+    default_name = "Task"
 
-#         # 逻辑判断：区分是 @Timer 还是 @Timer(...) / with Timer(...)
-#         if callable(func_or_name):
-#             # 情况 1: @Timer (无括号，func_or_name 是被装饰的函数)
-#             self.func = func_or_name
-#             self.name = func_or_name.__name__
-#             # 让 Timer 实例看起来像原函数（保留元数据）
-#             functools.update_wrapper(self, func_or_name)
-#         elif func_or_name is not None:
-#             # 情况 2: @Timer('name') 或 with Timer('name')
-#             self.name = func_or_name
+    def __init__(self, name: str = None, print_func: Callable[[str], None] = log.info):
+        """support with and call"""
+        self.name = name if name else self.default_name
+        self.print_func = print_func
+        self.start_time = None
 
-#     def __enter__(self):
-#         """上下文管理器入口"""
-#         self.start_time = time.perf_counter()
-#         return self
+    def __enter__(self):
+        self.start_time = time.perf_counter()
+        return self
 
-#     def __exit__(self, exc_type, exc_val, exc_tb):
-#         """上下文管理器出口"""
-#         end_time = time.perf_counter()
-#         elapsed = end_time - self.start_time
-#         self.print_func(f"[{self.name}] takes {elapsed:.6f} s")
-#         return False
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        end_time = time.perf_counter()
+        if self.start_time is not None:
+            elapsed = end_time - self.start_time
+            self.print_func(f"[{self.name}] takes {elapsed:.6f} s")
+        return False
 
-#     def __call__(self, *args, **kwargs):
-#         """装饰器入口"""
-#         # 场景 A: 之前已经是 @Timer (无参)，self.func 已经保存了函数
-#         if self.func:
-#             # 直接执行包裹逻辑
-#             with self:
-#                 return self.func(*args, **kwargs)
+    def __call__(self, func: Callable):
+        """
+        被装饰器调用入口
+        """
 
-#         # 场景 B: 之前是 @Timer(...) (有参)，现在传入的是被装饰的函数
-#         # 此时 args[0] 应该是被装饰的函数
-#         func = args[0]
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            # 调用 __enter__ 和 __exit__ 实现计时
+            with self:
+                return func(*args, **kwargs)
 
-#         @functools.wraps(func)
-#         def wrapper(*w_args, **w_kwargs):
-#             if self.name == "Task":
-#                 self.name = func.__name__
-#             with self:
-#                 return func(*w_args, **w_kwargs)
-
-#         return wrapper
+        return wrapper
 
 
-def time_range(func):
-    def wrapped_fn(*args, **kwargs):
-        start = time.time()
-        ret_val = func(*args, **kwargs)
-        stop = time.time()
-        log.info(f"FUNC[{func.__qualname__}] takes {(stop - start):.2f} seconds")
-        return ret_val
+def time_range(func_or_name: Optional[Union[Callable, str]] = None, print_func: Callable[[str], None] = log.info):
+    """
+    support both no-args and args decorator, and with statement.
 
-    return wrapped_fn
+        usage1:
+            @time_range
+            def func(self, *args, **kwargs):
+                pass
+        usage2:
+            @time_range("new_time_func_name", log.info)
+            def func(self, *args, **kwargs):
+                pass
+        usage3:
+            with time_range():
+                some function call
+        usage4:
+            with time_range("new_time_func_name", print):
+                some function call
+    """
+    if func_or_name is None or isinstance(func_or_name, str):
+        # 情况 1 & 2: with time_range() / with time_range('name')
+        # 情况 3: @time_range('name') (有参装饰器)
+
+        # 返回 Timer 实例本身。如果是装饰器，Python 会调用它的 __call__
+        name = func_or_name if isinstance(func_or_name, str) else Timer.default_name
+        return Timer(name=name, print_func=print_func)
+    elif callable(func_or_name):
+        # 情况 4: @time_range (无参装饰器)
+        # 此时 time_range(func) 被调用，func_or_name 是函数。
+        # 1. 创建一个 Timer 实例 (Timer 的 __init__ 返回 None，安全)
+        timer = Timer(name=func_or_name.__name__, print_func=print_func)
+        # 2. 调用实例的 __call__ 方法，返回 wrapper 函数来替换原函数
+        return timer(func_or_name)
+    else:
+        raise TypeError("Invalid argument type for time_range")
 
 
 class nvtx_range:
