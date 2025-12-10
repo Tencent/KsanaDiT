@@ -33,7 +33,6 @@ unset http_proxy https_proxy HTTP_PROXY HTTPS_PROXY
 
 ./scripts/install_dev.sh
 cd comfyui/tests
-pkill -f raylet
+# pkill -f raylet
 python workflow_test.py --workflows-file ./test_configs.json --gpus 0 --seed 321
-
 python workflow_test.py --workflows-file ./test_configs.json --gpus 0,1 --seed 321
