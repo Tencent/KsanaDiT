@@ -26,5 +26,8 @@ ln -sf /dockerdata/ci-models/Wan2.2-Lightning /data/ComfyUI/custom_nodes/KsanaDi
 ln -sf /dockerdata/ci-models/Wan2.2-T2V-A14B /data/ComfyUI/custom_nodes/KsanaDiT/
 
 ./scripts/install_dev.sh
+pkill -f pytest
+pkill -f workflow_test
+pkill -f raylet
 export CUDA_VISIBLE_DEVICES=0,1
 pytest -s -v ksana/tests/
