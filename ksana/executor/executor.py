@@ -22,6 +22,7 @@ from ..utils.logger import init_logging
 from ..pipelines import create_ksana_pipeline
 
 from ..distributed import shard_model
+from ..models.model_pool import KsanaModelPool
 
 
 class KsanaExecutor(ABC):
@@ -41,6 +42,8 @@ class KsanaExecutor(ABC):
         self.offload_device = torch.device(offload_device)
         torch.cuda.set_device(self.device)
         self.pipeline = None
+        # Note: each executor has its own model pool
+        self.model_pool = KsanaModelPool()
         self.shard_fn = None
         self.dist_config = KsanaDistributedConfig(num_gpus=1, use_sp=False, dit_fsdp=False, ulysses_size=1)
         log.info(f"create executor with device_id {self.device_id}, offload_device {self.offload_device}")
@@ -86,6 +89,7 @@ class KsanaExecutor(ABC):
         """
         if self.pipeline is None:
             return
+        self.model_pool.clear()
         self.pipeline.clear_models()
         self.pipeline = None
 
@@ -116,7 +120,7 @@ class KsanaExecutor(ABC):
             dir=model_path if text_checkpoint_dir is None else text_checkpoint_dir, model_config=model_config
         )
         load_to_deivce = self.device if self.dist_config.num_gpus > 1 else self.offload_device
-        return self.pipeline.load_models(
+        key_to_model_pair_list = self.pipeline.load_models(
             model_path=model_path,
             text_checkpoint_dir=text_checkpoint_dir,
             vae_checkpoint_dir=vae_checkpoint_dir,
@@ -127,6 +131,7 @@ class KsanaExecutor(ABC):
             device=load_to_deivce,
             offload_device=self.offload_device,
         )
+        self.model_pool.update_models(key_to_model_pair_list)
 
     def load_diffusion_model(
         self,
@@ -147,7 +152,7 @@ class KsanaExecutor(ABC):
             dir_path = model_path[0]
         self.pipeline = self.create_pipeline(dir=dir_path, model_config=model_config)
         load_to_deivce = self.device if self.dist_config.num_gpus > 1 else self.offload_device
-        return self.pipeline.load_diffusion_model(
+        diffusion_model_tuple_list = self.pipeline.load_diffusion_model(
             model_path=model_path,
             lora=lora,
             model_config=model_config,
@@ -158,6 +163,9 @@ class KsanaExecutor(ABC):
             shard_fn=self.shard_fn,
             comfy_bar_callback=comfy_bar_callback,
         )
+        self.model_pool.update_models(diffusion_model_tuple_list)
+        diffusion_model_key_list = [diffusion_model_keys for diffusion_model_keys, _ in diffusion_model_tuple_list]
+        return diffusion_model_key_list
 
     @time_range
     def generate_one_video(
@@ -167,9 +175,20 @@ class KsanaExecutor(ABC):
         sample_config: KsanaSampleConfig = None,
         runtime_config: KsanaRuntimeConfig = None,
     ):
-        latents = self.pipeline.generate_video(
-            prompt=prompt,
+        text_run_device = torch.device("cpu")  # TODO: maybe run text on cuda self.device
+        positive, negative = self.pipeline.forward_text_encoder(
+            self.model_pool,
+            prompt,
             prompt_negative=prompt_negative,
+            device=text_run_device,
+            offload_device=self.offload_device,
+            offload_model=runtime_config.offload_model,
+        )
+
+        latents = self.pipeline.forward_diffusion_models(
+            model_pool=self.model_pool,
+            positive=positive,
+            negative=negative,
             sample_config=sample_config,
             runtime_config=runtime_config,
             device=self.device,
@@ -177,7 +196,8 @@ class KsanaExecutor(ABC):
         )
         # TODO: multi-cards vae
         videos = self.pipeline.forward_vae(
-            latents,
+            model_pool=self.model_pool,
+            latents=latents,
             local_rank=self.rank_id,
             device=self.device,
             offload_device=self.offload_device,
@@ -227,9 +247,12 @@ class KsanaExecutor(ABC):
         return {self.rank_id: res}
 
     @time_range
-    def generate_video_with_tensors(self, model, positive, negative, **kwargs):
-        latents = self.pipeline.generate_video_with_tensors(
-            model=model,
+    def forward_diffusion_models_with_tensors(self, model_keys, positive, negative, **kwargs):
+        diffusion_models = self.model_pool.get_models(
+            model_keys if isinstance(model_keys, (list, tuple)) else [model_keys]
+        )
+        latents = self.pipeline.forward_diffusion_models_with_tensors(
+            diffusion_models=diffusion_models,
             positive=positive,
             negative=negative,
             device=self.device,

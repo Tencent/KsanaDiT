@@ -159,8 +159,8 @@ class KsanaGeneratorNode:
             comfyui_progress_bar.update_absolute(step, total)
 
         # TODO: maybe need to latent_format process_in for positive/negative?
-        samples = ksana_generator.generate_video_with_tensors(
-            model=comfy_model.model.ksana_model,
+        samples = ksana_generator.forward_diffusion_models_with_tensors(
+            model_keys=comfy_model.model.ksana_model,
             positive=positive[0][0],
             negative=negative[0][0],
             latents=latent_image["samples"],  # [1, 16, 5, h/, w/]

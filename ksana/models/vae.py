@@ -1,11 +1,11 @@
 import os
-from abc import ABC
 
 import torch
 from .wan import Wan2_1_VAE, Wan2_2_VAE
+from .base_model import KsanaModel
 
 
-class KsanaVAE(ABC):
+class KsanaVAE(KsanaModel):
     def __init__(self, vae_type, default_pipeline_config, checkpoint_dir, device, dtype=torch.float):
         default_pipeline_config = default_pipeline_config
         self.device = device
