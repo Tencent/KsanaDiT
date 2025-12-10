@@ -1,7 +1,7 @@
 from abc import ABC
 import torch.distributed as dist
 import ray
-
+import atexit
 from ..executor import KsanaExecutor, RayKsanaExecutor
 from ..utils import log, singleton
 from ..utils.distribute import get_torchrun_env, is_launched_by_torchrun, get_gpu_count
@@ -31,6 +31,7 @@ class KsanaGenerator(ABC):
         self.num_gpus = dist_config.num_gpus
         self._is_ray = False
         self.init_executors(dist_config=dist_config, offload_device=offload_device)
+        atexit.register(self.cleanup)
 
     def init_executors(self, dist_config: KsanaDistributedConfig = None, offload_device=None):
         if dist_config.num_gpus == 1:
@@ -117,13 +118,12 @@ class KsanaGenerator(ABC):
     def is_ray(self):
         return self._is_ray and ray.is_initialized()
 
-    def __del__(self):
-
+    def cleanup(self):
         if dist.is_initialized():
             dist.barrier()
             dist.destroy_process_group()
 
-        if ray.is_initialized():
+        if self.is_ray:
             ray.shutdown()
 
     def broadcast_input_args(self, prompt, seed, prompt_negative=None):
@@ -186,13 +186,15 @@ class KsanaGenerator(ABC):
                     raise ValueError(f"rank 0 res has None: {res}")
             return res
 
-    def generate_video_with_tensors(self, model, positive, negative, **kwargs):
+    def forward_diffusion_models_with_tensors(self, model_keys, positive, negative, **kwargs):
         if self.is_ray:
             comfy_bar_callback = kwargs.pop("comfy_bar_callback", None)
             if comfy_bar_callback is not None:
                 log.info("comfy_bar_callback is not support at ray gpus, skip it")
             func_futures = [
-                executor.generate_video_with_tensors.remote(model=model, positive=positive, negative=negative, **kwargs)
+                executor.forward_diffusion_models_with_tensors.remote(
+                    model_keys=model_keys, positive=positive, negative=negative, **kwargs
+                )
                 for executor in self.executors
             ]
             gpus_res = ray.get(func_futures)
@@ -200,8 +202,8 @@ class KsanaGenerator(ABC):
             res = self.get_rank0_res(gpus_res)
         else:
             rank_0_id = 0
-            res = self.executors.generate_video_with_tensors(
-                model=model, positive=positive, negative=negative, **kwargs
+            res = self.executors.forward_diffusion_models_with_tensors(
+                model_keys=model_keys, positive=positive, negative=negative, **kwargs
             ).get(rank_0_id)
 
         return res

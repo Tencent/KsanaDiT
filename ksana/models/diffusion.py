@@ -1,6 +1,6 @@
 import time
 import types
-from abc import ABC, abstractmethod
+from abc import abstractmethod
 
 import torch
 import torch.distributed as dist
@@ -15,9 +15,10 @@ from .wan import WanModel
 from .wan.configs import WAN2_2_CONFIGS
 from ..config import KsanaModelConfig, KsanaDistributedConfig
 from ksana.operations import build_ops, AttentionBackendEnum
+from .base_model import KsanaModel
 
 
-class KsanaDiffusionModel(ABC):
+class KsanaDiffusionModel(KsanaModel):
     def __init__(self, model_config: KsanaModelConfig, pipeline_config, dist_config: KsanaDistributedConfig):
         self.model_name = pipeline_config.model_name
         self.task_type = pipeline_config.task_type

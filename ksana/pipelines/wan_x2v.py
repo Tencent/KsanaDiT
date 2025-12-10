@@ -3,13 +3,14 @@ import os
 from ..models import KsanaWanModel, KsanaT5Encoder, KsanaVAE
 from dataclasses import dataclass, field
 from ..cache import DCacheConfig
-from ..config import KsanaSampleConfig, KsanaRuntimeConfig, KsanaPipelineConfig, KsanaModelConfig
+from ..config import KsanaPipelineConfig, KsanaModelConfig
 from ..utils.profile import time_range
 from ..utils.logger import log
 from ..utils import is_dir
 from ..utils.lora import merge_lora, build_loras_list
 
 from ..models.model_key import KsanaModelKey
+from ..models.base_model import KsanaModel
 
 
 @dataclass(frozen=True)
@@ -57,8 +58,7 @@ class KsanaWanX2VPipeline(KsanaX2VPipeline):
         text_encoder = KsanaT5Encoder(
             self.pipeline_config.default_config, checkpoint_dir=checkpoint_dir, shard_fn=shard_fn
         )
-        self.model_pool.update_model(KsanaModelKey.T5TextEncoder, text_encoder)
-        return KsanaModelKey.T5TextEncoder
+        return (KsanaModelKey.T5TextEncoder, text_encoder)
 
     def load_vae(self, checkpoint_dir, device):
         vae_type = "wan2_1" if self.pipeline_config.task_type == "t2v" else "wan2_2"
@@ -68,8 +68,7 @@ class KsanaWanX2VPipeline(KsanaX2VPipeline):
             checkpoint_dir=checkpoint_dir,
             device=device,
         )
-        self.model_pool.update_model(KsanaModelKey.VAE, vae)
-        return KsanaModelKey.VAE
+        return (KsanaModelKey.VAE, vae)
 
     @time_range
     def load_one_diffusion_model(
@@ -91,6 +90,8 @@ class KsanaWanX2VPipeline(KsanaX2VPipeline):
             offload_device=offload_device,
             shard_fn=shard_fn,
         )
+        if offload_device is not None:
+            model = model.to(offload_device)
         return model
 
     @time_range
@@ -106,7 +107,7 @@ class KsanaWanX2VPipeline(KsanaX2VPipeline):
         offload_device=None,
         shard_fn=None,
         comfy_bar_callback=None,
-    ) -> KsanaModelKey | tuple[KsanaModelKey, KsanaModelKey]:
+    ) -> list[tuple[KsanaModelKey, KsanaModel]]:
 
         log.info(f"load_model_path_or_files: {model_path}")
         load_model_path_or_files = model_path
@@ -145,6 +146,7 @@ class KsanaWanX2VPipeline(KsanaX2VPipeline):
 
         if isinstance(load_model_path_or_files, (list, tuple)):
             model_keys = (KsanaModelKey.Wan2_2_HIGH, KsanaModelKey.Wan2_2_LOW)
+            res = []
             for i in range(len(load_model_path_or_files)):
                 one_model_path = load_model_path_or_files[i]
                 loras_list = list_of_loras_list[i] if list_of_loras_list is not None else None
@@ -158,12 +160,10 @@ class KsanaWanX2VPipeline(KsanaX2VPipeline):
                     device=device,
                     offload_device=offload_device,
                 )
-                self.model_pool.update_model(model_keys[i], one_model)
-                if offload_device is not None:
-                    one_model = one_model.to(offload_device)
+                res.append((model_keys[i], one_model))
                 if comfy_bar_callback is not None:
                     comfy_bar_callback()
-            return model_keys
+            return res
         else:
             loras_list = list_of_loras_list[0] if list_of_loras_list is not None else None
             model_state_dict = merge_lora(load_model_path_or_files, loras_list)
@@ -176,10 +176,9 @@ class KsanaWanX2VPipeline(KsanaX2VPipeline):
                 device=device,
                 offload_device=offload_device,
             )
-            self.model_pool.update_model(KsanaModelKey.Wan2_2_HIGH, one_model)
             if comfy_bar_callback is not None:
                 comfy_bar_callback()
-            return KsanaModelKey.Wan2_2_HIGH
+            return [(KsanaModelKey.Wan2_2_HIGH, one_model)]
 
     def process_input_cache(self, cache_method):
         high_cache_config = None
@@ -200,32 +199,3 @@ class KsanaWanX2VPipeline(KsanaX2VPipeline):
                 name="low_dcache",
             )
         return high_cache_config, low_cache_config
-
-    def forward_diffusion_model(
-        self,
-        positive,
-        negative,
-        sample_config: KsanaSampleConfig,
-        runtime_config: KsanaRuntimeConfig,
-        device=None,
-        offload_device=None,
-    ):
-        runtime_config = KsanaRuntimeConfig.copy_with_default(runtime_config, self.pipeline_config.default_config)
-        high_cache_config, low_cache_config = self.process_input_cache(runtime_config.cache_method)
-
-        latents = self.generate_video_with_tensors(
-            model=self.diffusion_model_key,
-            positive=positive,
-            negative=negative,
-            latents=None,
-            sample_config=self.prepare_sample_default_args(sample_config),
-            runtime_config=runtime_config,
-            high_cache_config=high_cache_config,
-            low_cache_config=low_cache_config,
-            device=device,
-            offload_device=offload_device,
-        )
-        del positive, negative
-
-        self.offload_diffusion_model_to(offload_device, runtime_config.offload_model)
-        return latents

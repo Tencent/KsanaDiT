@@ -1,12 +1,12 @@
 import os
-from abc import ABC
 
 import torch
 
 from .wan import T5EncoderModel
+from .base_model import KsanaModel
 
 
-class KsanaT5Encoder(ABC):
+class KsanaT5Encoder(KsanaModel):
     def __init__(self, default_pipeline_config, checkpoint_dir, shard_fn):
         default_pipeline_config = default_pipeline_config
         self.device = torch.device("cpu")
