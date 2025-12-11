@@ -46,6 +46,13 @@ class KsanaGeneratorNode:
                         "tooltip": "The random seed used for creating the noise.",
                     },
                 ),
+                "scheduler": (
+                    comfy.samplers.KSampler.SCHEDULERS,
+                    {
+                        "default": "simple",
+                        "tooltip": "The scheduler controls how noise is gradually removed to form the image.",
+                    },
+                ),
                 "solver_name": (
                     comfy.samplers.KSampler.SAMPLERS,
                     {
@@ -135,6 +142,7 @@ class KsanaGeneratorNode:
         latent_image,
         steps,
         seed,
+        scheduler,
         solver_name,
         sample_guide_scale,
         sample_shift,
