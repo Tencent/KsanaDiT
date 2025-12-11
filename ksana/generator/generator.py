@@ -182,7 +182,8 @@ class KsanaGenerator(ABC):
             if res is None:
                 continue
             if isinstance(res, (list, tuple)):
-                if not all(res):
+                has_none = [x is None for x in res]
+                if any(has_none):
                     raise ValueError(f"rank 0 res has None: {res}")
             return res
 
