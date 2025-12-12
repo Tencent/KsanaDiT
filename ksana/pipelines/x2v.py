@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 import torch
+from torch.nn.utils.rnn import pad_sequence
 
 from tqdm import tqdm
 import math
@@ -11,6 +12,7 @@ from ..config import KsanaSampleConfig, KsanaRuntimeConfig, KsanaPipelineConfig,
 from ..utils import log, print_recursive, time_range, MemoryProfiler, is_dir
 from ..cache import create_cache
 from ..sample_solvers import get_sample_scheduler
+from ..scheduler import KsanaScheduler
 
 from ..models.model_key import KsanaModelKey
 from ..models.model_pool import KsanaModelPool
@@ -38,6 +40,7 @@ class KsanaX2VPipeline(ABC):
         """
         self.pipeline_config = pipeline_config
         self.default_args = KsanaDefaultArgs()
+        self.scheduler = KsanaScheduler(pipeline_config)
 
         # Note: only save model_key, do NOT pass model itself
         self.text_encoder_key = None
@@ -126,28 +129,35 @@ class KsanaX2VPipeline(ABC):
     def forward_text_encoder(
         self,
         model_pool: KsanaModelPool,
-        prompt,
-        prompt_negative=None,
+        prompts_positive,
+        prompts_negative=None,
         device=None,
         offload_device=None,
         offload_model=False,
     ):
         text_encoder = model_pool.get_model(self.text_encoder_key)
-        default_pipeline_config = self.pipeline_config.default_config
-        prompt_positive = prompt
-        prompt_negative = prompt_negative if prompt_negative is not None else default_pipeline_config.sample_neg_prompt
+        bs = len(prompts_positive)
+        assert bs > 0, "prompts must not be empty"
+        default_neg_prompt = self.pipeline_config.default_config.sample_neg_prompt
+        prompts_negative = prompts_negative if prompts_negative is not None else [default_neg_prompt] * bs
+        assert len(prompts_positive) == len(
+            prompts_negative
+        ), f"The number of negative prompts ({len(prompts_negative)}) must match the number of positive prompts ({bs})."
 
         assert device is not None
         if text_encoder.device != device:
             text_encoder.to(device)
-        # TODO: maybe batch prompt for text encoder
-        positive = text_encoder.forward([prompt_positive])[0]
-        # [1, text_tokens, dim]
-        positive = positive.unsqueeze(0)
-        negative = None
-        if prompt_negative is not None:
-            negative = text_encoder.forward([prompt_negative])[0]
-            negative = negative.unsqueeze(0)
+
+        all_prompts = prompts_positive + prompts_negative
+        all_embeddings_list = text_encoder.forward(all_prompts)
+
+        # TODO(qiannan): self.text_encoder.forward tokenizer的时候是填充到相同长度了，但是返回是裁剪了，所以如果返回不裁剪，就不需要pad了
+        # Pad the combined list of tensors to the max length in the entire batch.
+        all_padded_embeddings = pad_sequence(all_embeddings_list, batch_first=True, padding_value=0.0)
+
+        # Split the padded tensor back into positive and negative parts.
+        positive, negative = torch.chunk(all_padded_embeddings, 2, dim=0)
+
         if offload_model and offload_device is not None and offload_device != device:
             text_encoder.to(offload_device)
 
@@ -166,11 +176,11 @@ class KsanaX2VPipeline(ABC):
         vae_model = model_pool.get_model(self.vae_key)
         if vae_model.device != device:
             vae_model.to(device)
-        videos = vae_model.decode(latents)[0]
+        videos = vae_model.decode(latents)
         if offload_model and offload_device is not None and offload_device != device:
             vae_model.to(offload_device)
         del latents
-        log.info(f"Generated video shape: {videos.shape}")
+        log.info(f"Generated video count: {len(videos)}, first video shape: {videos[0].shape if videos else 'empty'}")
         return videos
 
     def use_cfg(self, cfg_scale: float, eps: float = 1e-6):
@@ -204,6 +214,137 @@ class KsanaX2VPipeline(ABC):
         else:
             high_cache.offload_to_cpu()
             return low_cache
+
+    def _run_inference_loop(
+        self,
+        positive_batch: torch.Tensor,
+        negative_batch: torch.Tensor,
+        latents_batch: torch.Tensor,
+        combine_cond_uncond: bool,
+        seq_len: int,
+        timesteps: torch.Tensor,
+        run_dtype: torch.dtype,
+        guide_scales: tuple[float, float],  # (high_sample_guide_scale, low_sample_guide_scale)
+        models: tuple,  # (high_model, low_model)
+        sample_scheduler_step_func,
+        sample_config_solver_name: str,
+        seed_g: torch.Generator,
+        device: torch.device,
+        boundary: float = None,
+        offload_device: torch.device = None,
+        cache_configs: tuple = None,  # (high_cache_config, low_cache_config)
+        bar_info_callback: tuple = None,  # (bar_info, comfy_bar_callback)
+    ) -> torch.Tensor:
+        """运行推理循环处理单个batch"""
+
+        high_sample_guide_scale, low_sample_guide_scale = guide_scales
+        high_model, low_model = models
+        high_cache_config, low_cache_config = cache_configs if cache_configs else (None, None)
+        bar_info, comfy_bar_callback = bar_info_callback if bar_info_callback else (None, None)
+
+        # 每次重新创建cache
+        low_cache = None
+        high_cache = None
+        if high_cache_config is not None:
+            high_cache = create_cache(
+                f"{high_model.model_name}-high",
+                high_model.task_type,
+                high_model.model_size,
+                high_cache_config,
+            )
+        if low_cache_config is not None and low_model is not None:
+            low_cache = create_cache(
+                f"{low_model.model_name}-low",
+                low_model.task_type,
+                low_model.model_size,
+                low_cache_config,
+            )
+
+        batch_size_current = positive_batch.shape[0]
+
+        arg_cond = {"phase": "cond", "context": positive_batch, "seq_len": seq_len}
+        arg_uncond = {"phase": "uncond", "context": negative_batch, "seq_len": seq_len}
+        arg_batch = None
+        if combine_cond_uncond:
+            arg_batch = {
+                "phase": "batch",
+                "context": torch.cat([positive_batch, negative_batch], dim=0),
+                "seq_len": seq_len,
+            }
+
+        total_steps = len(timesteps)
+        for iter_id, t in enumerate(tqdm(timesteps)):
+            MemoryProfiler.record_memory(f"before_inference_loop_iter_{iter_id}")
+
+            latent_model_input = latents_batch.to(run_dtype)
+            cfg_scale = high_sample_guide_scale
+            if low_model is not None and boundary is not None and t.item() < boundary:
+                cfg_scale = low_sample_guide_scale
+
+            timestep = t.repeat(batch_size_current)
+            timestep_id = t.item()
+
+            run_model = self.get_run_model(
+                high_model=high_model,
+                low_model=low_model,
+                timestep_id=timestep_id,
+                boundary=boundary,
+                offload_device=offload_device,
+            )
+            run_model = run_model.to(device)
+
+            MemoryProfiler.record_memory(f"inference_step_{iter_id}_after_model_switch")
+            run_cache = self.get_run_cache(
+                high_cache=high_cache,
+                low_cache=low_cache,
+                timestep_id=timestep_id,
+                boundary=boundary,
+            )
+
+            if self.use_cfg(cfg_scale):
+                if combine_cond_uncond:
+                    # latent: [bs, 16, fi, hi, wi] => [2*bs, 16, fi, hi, wi]
+                    latent_batch = torch.cat([latent_model_input, latent_model_input], dim=0)
+                    # timestep: [bs] => [2*bs]
+                    timestep_batch = torch.cat([timestep, timestep], dim=0)
+                    noise_pred_batch = run_model.forward(x=latent_batch, t=timestep_batch, cache=run_cache, **arg_batch)
+                    # 分离结果: [2*bs, 16, fi, hi, wi] => 2 x [bs, 16, fi, hi, wi]
+                    noise_pred_cond, noise_pred_uncond = noise_pred_batch.chunk(2, dim=0)
+                else:
+                    noise_pred_uncond = run_model.forward(
+                        x=latent_model_input, t=timestep, cache=run_cache, **arg_uncond
+                    )
+                    noise_pred_cond = run_model.forward(x=latent_model_input, t=timestep, cache=run_cache, **arg_cond)
+                noise_pred = noise_pred_uncond + cfg_scale * (noise_pred_cond - noise_pred_uncond)
+            else:
+                noise_pred = run_model.forward(x=latent_model_input, t=timestep, cache=run_cache, **arg_cond)
+
+            temp_x0 = sample_scheduler_step_func(
+                noise_pred,
+                t,
+                latents_batch,
+                return_dict=False,
+                generator=seed_g,
+            )
+            latents_batch = temp_x0 if sample_config_solver_name == "euler" else temp_x0[0]
+            MemoryProfiler.record_memory(f"inference_step_{iter_id}_after_sample_scheduler")
+            if comfy_bar_callback is not None:
+                if bar_info is not None:
+                    batch_step_offset, global_total_steps = bar_info
+                    # 当前全局步骤 = batch起始步骤 + 当前batch内步骤
+                    global_current_step = batch_step_offset + (iter_id + 1)
+                    comfy_bar_callback(global_current_step, global_total_steps)
+                else:
+                    # 兼容原有逻辑
+                    comfy_bar_callback(iter_id + 1, total_steps)
+
+        # 显示cache统计信息
+        if high_cache is not None:
+            high_cache.show_cache_rate()
+        if low_cache is not None:
+            low_cache.show_cache_rate()
+
+        return latents_batch
 
     def valid_args(self, diffusion_models: list[KsanaModel], sample_config):
         high_model = diffusion_models
@@ -263,7 +404,7 @@ class KsanaX2VPipeline(ABC):
     ):
         """
         Args:
-            return tensor shape :[bs, z_dim, f, h, w]
+            return tensor shape :[bs, z_dim, f, h, w] (5D tensor for batch)
         """
         seed = (
             runtime_config.seed
@@ -274,19 +415,19 @@ class KsanaX2VPipeline(ABC):
         seed_g.manual_seed(seed)
         bs = target_shape[0]
         target_shape = target_shape[1:]
-        noise = torch.randn(
-            target_shape[0],
-            target_shape[1],
-            target_shape[2],
-            target_shape[3],
-            dtype=torch.float32,
-            device=device,
-            generator=seed_g,
-        ).to(dtype)
-        if bs > 1:
-            noise = noise.unsqueeze(0).repeat(bs, 1, 1, 1, 1)
-        else:
-            noise = noise.unsqueeze(0)
+        latents_list = []
+        for _ in range(bs):
+            single_noise = torch.randn(
+                target_shape[0],
+                target_shape[1],
+                target_shape[2],
+                target_shape[3],
+                dtype=torch.float32,
+                device=device,
+                generator=seed_g,
+            ).to(dtype)
+            latents_list.append(single_noise)
+        noise = torch.stack(latents_list, dim=0)
         return noise, seed_g
 
     def get_seq_len(self, target_shape, patch_size: list[int], sp_size: int):
@@ -336,23 +477,7 @@ class KsanaX2VPipeline(ABC):
 
         default_pipeline_config = self.pipeline_config.default_config
         boundary = None if low_model is None else runtime_config.boundary * default_pipeline_config.num_train_timesteps
-
-        low_cache = None
-        high_cache = None
-        if high_cache_config is not None:
-            high_cache = create_cache(
-                f"{high_model.model_name}-high",
-                high_model.task_type,
-                high_model.model_size,
-                high_cache_config,
-            )
-        if low_cache_config is not None and low_model is not None:
-            low_cache = create_cache(
-                f"{low_model.model_name}-low",
-                low_model.task_type,
-                low_model.model_size,
-                low_cache_config,
-            )
+        batch_size = positive.shape[0]
 
         # TODO: consider image input
         if latents is not None:
@@ -365,9 +490,8 @@ class KsanaX2VPipeline(ABC):
             assert (
                 self.vae_z_dim is not None and self.vae_stride is not None
             ), f"self.vae_z_dim {self.vae_z_dim}, self.vae_stride {self.vae_stride}"
-            bs = 1 if latents is None else latents.shape[0]
             target_shape = (
-                bs,
+                batch_size,
                 self.vae_z_dim,
                 (frame_num - 1) // self.vae_stride[0] + 1,
                 size[1] // self.vae_stride[1],
@@ -381,79 +505,62 @@ class KsanaX2VPipeline(ABC):
         latents = self.cast_to(latents, run_dtype, device)
         positive = self.cast_to(positive, run_dtype, device)
         negative = self.cast_to(negative, run_dtype, device)
-        with torch.no_grad():
-            sample_scheduler, _, timesteps = get_sample_scheduler(
-                num_train_timesteps=default_pipeline_config.num_train_timesteps,
-                sampling_steps=sample_config.steps,
-                sample_solver=sample_config.solver,
-                device=device,
-                shift=sample_config.shift,
-                denoise=sample_config.denoise,
-            )
+        sample_scheduler_kwargs = dict(
+            num_train_timesteps=default_pipeline_config.num_train_timesteps,
+            sampling_steps=sample_config.steps,
+            sample_solver=sample_config.solver,
+            device=device,
+            shift=sample_config.shift,
+            denoise=sample_config.denoise,
+        )
 
-            arg_c = {"phase": "cond", "context": positive, "seq_len": seq_len}
-            arg_null = {"phase": "uncond", "context": negative, "seq_len": seq_len}
-            log.debug(f"timesteps: {timesteps}, boundary:{boundary}, seq_len:{seq_len}")
-            # timesteps: tensor([999, 997, ...])
-            MemoryProfiler.record_memory("before_inference_loop")
-            total_steps = len(timesteps)
-            for iter_id, t in enumerate(tqdm(timesteps)):
-                MemoryProfiler.record_memory(f"before_inference_loop_iter_{iter_id}")
-                # [bs, 16, fi, hi, wi]
-                latent_model_input = latents.to(run_dtype)
-                cfg_scale = high_sample_guide_scale
-                if low_model is not None and boundary is not None and t.item() < boundary:
-                    cfg_scale = low_sample_guide_scale
-                timestep = [t]
-                timestep = torch.stack(timestep)  # [tensor] => tensor([])
-                timestep_id = t.item()
-                run_model = self.get_run_model(
-                    high_model=high_model,
-                    low_model=low_model,
-                    timestep_id=timestep_id,
+        with torch.no_grad():
+            # 构建动态批处理策略
+            batch_strategy = self.scheduler.build_batch_strategy(latents.shape, batch_size, run_dtype, device)
+
+            # 计算全局进度信息
+            total_steps_per_batch = sample_config.steps
+            global_total_steps = len(batch_strategy) * total_steps_per_batch
+
+            # 使用动态batch处理
+            for batch_idx, strategy_item in enumerate(batch_strategy):
+                pos_batch = positive[strategy_item.start : strategy_item.end]
+                neg_batch = negative[strategy_item.start : strategy_item.end]
+                latent_batch = latents[strategy_item.start : strategy_item.end]
+                log.info(
+                    f"start = {strategy_item.start}, end = {strategy_item.end} combine = {strategy_item.combine_cond_uncond}"
+                )
+                MemoryProfiler.record_memory(f"batch_{strategy_item.start}-{strategy_item.end}_before_inference_loop")
+
+                # 计算当前batch的起始步骤偏移
+                batch_step_offset = batch_idx * total_steps_per_batch
+                bar_info = (batch_step_offset, global_total_steps)
+
+                batch_sample_scheduler, _, batch_timesteps = get_sample_scheduler(**sample_scheduler_kwargs)
+                log.info(f"batch timesteps: {batch_timesteps}, boundary:{boundary}, seq_len:{seq_len}")
+
+                processed_latents = self._run_inference_loop(
+                    positive_batch=pos_batch,
+                    negative_batch=neg_batch,
+                    latents_batch=latent_batch,
+                    combine_cond_uncond=strategy_item.combine_cond_uncond,
+                    seq_len=seq_len,
+                    timesteps=batch_timesteps,
+                    run_dtype=run_dtype,
+                    guide_scales=(high_sample_guide_scale, low_sample_guide_scale),
+                    models=(high_model, low_model),
+                    sample_scheduler_step_func=batch_sample_scheduler.step,
+                    sample_config_solver_name=sample_config.solver,
+                    seed_g=seed_g,
+                    device=device,
                     boundary=boundary,
                     offload_device=offload_device,
+                    cache_configs=(high_cache_config, low_cache_config),
+                    bar_info_callback=(bar_info, comfy_bar_callback),
                 )
-                # NOTE: DoNOT cast models to run_dtype, it will cause fp8 gemm error
-                run_model = run_model.to(device)
+                MemoryProfiler.record_memory(f"batch_{strategy_item.start}-{strategy_item.end}_after_inference_loop")
 
-                MemoryProfiler.record_memory(f"inference_step_{iter_id}_after_model_switch")
-                run_cache = self.get_run_cache(
-                    high_cache=high_cache,
-                    low_cache=low_cache,
-                    timestep_id=timestep_id,
-                    boundary=boundary,
-                )
-                # TODO: concat cond and uncond context to forward once
-                # arg_c["context"] = [torch.cat([positive, negative], dim=0)]
-
-                # [bs, 16, fi, hi, wi] => [bs, 16, fi, hi, wi]
-                noise_pred_cond = run_model.forward(x=latent_model_input, t=timestep, cache=run_cache, **arg_c)
-                if self.use_cfg(cfg_scale):
-                    noise_pred_uncond = run_model.forward(x=latent_model_input, t=timestep, cache=run_cache, **arg_null)
-                    noise_pred = noise_pred_uncond + cfg_scale * (noise_pred_cond - noise_pred_uncond)
-                else:
-                    noise_pred = noise_pred_cond
-
-                # [bs, 16, fi, hi, wi] => [bs, 16, fi, hi, wi]
-                temp_x0 = sample_scheduler.step(
-                    noise_pred,
-                    t,
-                    latents,
-                    return_dict=False,
-                    generator=seed_g,
-                )
-                latents = temp_x0 if sample_config.solver == "euler" else temp_x0[0]
-                MemoryProfiler.record_memory(f"inference_step_{iter_id}_after_sample_scheduler")
-                if comfy_bar_callback is not None:
-                    comfy_bar_callback(iter_id + 1, total_steps)
-
-            if high_cache is not None:
-                high_cache.show_cache_rate()
-            if low_cache is not None:
-                low_cache.show_cache_rate()
-
-        del sample_scheduler
+                latents[strategy_item.start : strategy_item.end] = processed_latents
 
         log.debug(f"latents shape: {latents.shape}")
         # [bs, 16, fi, hi, wi]

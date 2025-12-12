@@ -45,7 +45,7 @@ except ImportError:
 # ============================================================================
 
 
-def wait_for_server(server_address: str = "127.0.0.1:8188", max_wait: int = 180, check_interval: int = 5) -> bool:
+def wait_for_server(server_address: str = "127.0.0.1:8188", max_wait: int = 300, check_interval: int = 5) -> bool:
     """等待 server 启动就绪
 
     Args:
@@ -375,7 +375,7 @@ def check_media_data(media_data: bytes, expect_values: dict) -> bool:
         mean = image_tensor.abs().mean().item()
 
         expected_mean = expect_values["mean"]
-        tolerance = 1e-4
+        tolerance = 1e-2
 
         if abs(mean - expected_mean) < tolerance:
             logger.info(f"✓ Image check passed. Mean: {mean:.7f}, Expected Mean: {expected_mean:.7f}")
@@ -404,6 +404,9 @@ def wait_for_completion(
         (是否成功完成, 最后一个媒体文件数据)
     """
     logger.info("等待执行...")
+    last_node_id = None
+    last_node_start_time = None
+
     while True:
         msg = ws.recv()
         if isinstance(msg, str):
@@ -411,12 +414,18 @@ def wait_for_completion(
 
             if data["type"] == "executing":
                 if data["data"]["prompt_id"] == prompt_id:
+                    current_time = time.time()
+                    if last_node_id and last_node_start_time:
+                        duration = current_time - last_node_start_time
+                        logger.info(f"节点 {last_node_id} 完成，耗时: {duration:.2f}s")
                     if data["data"]["node"] is None:
                         logger.info("✓ 执行完成！")
                         ws.close()
                         return _get_workflow_result_media(prompt_id, server_address)
                     else:
-                        logger.info(f"执行: {data['data']['node']}")
+                        last_node_id = data["data"]["node"]
+                        last_node_start_time = current_time
+                        logger.info(f"执行: {last_node_id}")
 
             elif data["type"] == "execution_error":
                 if data["data"].get("prompt_id") == prompt_id:

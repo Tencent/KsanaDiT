@@ -525,10 +525,13 @@ class WanModel(ModelMixin, ConfigMixin):
         # embeddings
         # [bs, 16, fi, hi, wi] => [bs, 5120, f, h, w]
         x = self.patch_embedding(x.float()).to(x.dtype)
-        grid_sizes = torch.stack([torch.tensor(x.shape[2:], dtype=torch.long)])  # => [f, h, w]
+        bs = x.shape[0]
+        # grid_sizes: 支持 batch - 所有样本共享相同的 grid (假设 batch 内尺寸相同)
+        grid_sizes = torch.tensor(x.shape[2:], dtype=torch.long, device=device).unsqueeze(0).expand(bs, -1)
         # [bs, 5120, f*h*w] => [bs, f*h*w, 5120]
         x = x.flatten(2).transpose(1, 2)
-        seq_lens = torch.tensor([x.shape[1]], dtype=torch.long)  # seqlen
+        # seq_lens: 支持 batch
+        seq_lens = torch.full((bs,), x.shape[1], dtype=torch.int32, device=x.device)
         assert seq_lens.max() <= seq_len
         x = torch.cat(
             [x, x.new_zeros(x.size(0), seq_len - x.size(1), x.size(2))], dim=1
@@ -536,7 +539,8 @@ class WanModel(ModelMixin, ConfigMixin):
 
         # time embeddings
         nvtx.range_push("time_embedding")
-        timestep = t.item()  # TODO: support bs > 1
+        # 取第一个 timestep，因为一个batch里的timestamp都是一样的
+        timestep = t[0].item() if t.numel() > 1 else t.item()
 
         bs = t.size(0)  # batch size
         if t.dim() == 1:
@@ -574,8 +578,8 @@ class WanModel(ModelMixin, ConfigMixin):
         # arguments
         kwargs = dict(
             e=e0,  # [bs, seqlen, 6, 5120]
-            seq_lens=seq_lens,  # [seqlen]
-            grid_sizes=grid_sizes,  # [[f, h, w]]
+            seq_lens=seq_lens,  # [bs]
+            grid_sizes=grid_sizes,  # [bs, 3]
             freqs=self.freqs,  # [1024, 64]
             context=context,  # [bs, text_len:512, 5120]
             context_lens=context_lens,
@@ -620,11 +624,8 @@ class WanModel(ModelMixin, ConfigMixin):
             x = gather_forward(x, dim=1)
         # unpatchify
         # TODO: support bs > 1
-        # [1, seqlen, 64] => [16, fi, hi, wi]
+        # [bs, seqlen, 64] => [bs, 16, fi, hi, wi]
         x = self.unpatchify(x, grid_sizes)
-        x = x[0].unsqueeze(0)
-
-        # => [bs, 16, fi, hi, wi]
         return x
 
     def unpatchify(self, x, grid_sizes):
@@ -644,13 +645,17 @@ class WanModel(ModelMixin, ConfigMixin):
         """
 
         c = self.out_dim
-        out = []
-        for u, v in zip(x, grid_sizes.tolist()):
-            u = u[: math.prod(v)].view(*v, *self.patch_size, c)
-            u = torch.einsum("fhwpqrc->cfphqwr", u)
-            u = u.reshape(c, *[i * j for i, j in zip(v, self.patch_size)])
-            out.append(u)
-        return out
+        b = x.shape[0]  # batch size
+        # grid_sizes: [bs, 3] => [f, h, w]
+        grid_sizes = grid_sizes[0].tolist() if grid_sizes.dim() > 1 else grid_sizes.tolist()
+        # 1. 取前prod(grid_sizes)个patch，reshape为[B, F_patches, H_patches, W_patches, p_f, p_h, p_w, C_out]
+        u = x[:, : math.prod(grid_sizes)].view(b, *grid_sizes, *self.patch_size, c)
+        # 2. 维度重排：从[B, F_patches, H_patches, W_patches, p_f, p_h, p_w, C_out]
+        # 转为[B, C_out, F_patches, p_f, H_patches, p_h, W_patches, p_w]
+        u = torch.einsum("bfhwpqrc->bcfphqwr", u)
+        # 3. 重塑为[B, C_out, F_patches * p_f, H_patches * p_h, W_patches * p_w]
+        u = u.reshape(b, c, *[i * j for i, j in zip(grid_sizes, self.patch_size)])
+        return u
 
     @time_range
     def init_weights(self):

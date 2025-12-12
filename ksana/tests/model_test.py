@@ -42,10 +42,10 @@ class TestKsana(unittest.TestCase):
         mean0 = videos[0].cpu().abs().mean().item()
         mean1 = videos[1].cpu().abs().mean().item()
         with self.subTest(msg="Mean 0 Check"):
-            self.assertAlmostEqual(mean0, 0.6555444598197937, places=TEST_EPS_PLACE)
+            self.assertAlmostEqual(mean0, 0.6556175947189331, places=TEST_EPS_PLACE)
 
         with self.subTest(msg="Mean 1 Check"):
-            self.assertAlmostEqual(mean1, 0.4276517629623413, places=TEST_EPS_PLACE)
+            self.assertAlmostEqual(mean1, 0.44206780195236206, places=TEST_EPS_PLACE)
 
     def test_simple_gpus(self):
         print("-----------------test_simple_gpus-----------------")
@@ -63,17 +63,33 @@ class TestKsana(unittest.TestCase):
         )
         mean0 = videos[0].cpu().abs().mean().item()
         mean1 = videos[1].cpu().abs().mean().item()
+        videos = generator.generate_video(
+            prompts[0],
+            sample_config=KsanaSampleConfig(steps=TEST_STEPS),
+            runtime_config=KsanaRuntimeConfig(
+                seed=SEED,
+                size=TEST_SIZE,
+                frame_num=TEST_FRAME_NUM,
+                return_frames=True,
+                save_video=True,
+            ),
+        )
+        # TODO: check the value
+        mean2 = videos[0].cpu().abs().mean().item()
         with self.subTest(msg="Mean 0 Check"):
-            self.assertAlmostEqual(mean0, 0.6555444598197937, places=TEST_EPS_PLACE)
+            self.assertAlmostEqual(mean0, 0.6556175947189331, places=TEST_EPS_PLACE)
 
         with self.subTest(msg="Mean 1 Check"):
-            self.assertAlmostEqual(mean1, 0.4276517629623413, places=TEST_EPS_PLACE)
+            self.assertAlmostEqual(mean1, 0.44206780195236206, places=TEST_EPS_PLACE)
 
-    def test_larger_seq(self):
-        print("-----------------test_larger_seq-----------------")
+        with self.subTest(msg="Mean 2 Check"):
+            self.assertAlmostEqual(mean2, 0.7039813995361328, places=TEST_EPS_PLACE)
+
+    def test_larger_seq_batch(self):
+        print("-----------------test_larger_seq_batch-----------------")
         generator = KsanaGenerator.from_models("./Wan2.2-T2V-A14B")
-        video = generator.generate_video(
-            prompts[0],
+        videos = generator.generate_video(
+            prompts,
             sample_config=KsanaSampleConfig(steps=TEST_STEPS),
             runtime_config=KsanaRuntimeConfig(
                 seed=SEED,
@@ -83,8 +99,13 @@ class TestKsana(unittest.TestCase):
                 save_video=False,
             ),
         )
-        mean = video.cpu().abs().mean().item()
-        self.assertAlmostEqual(mean, 0.5367064476013184, places=TEST_EPS_PLACE)
+        mean0 = videos[0].cpu().abs().mean().item()
+        mean1 = videos[1].cpu().abs().mean().item()
+        with self.subTest(msg="Mean 0 Check"):
+            self.assertAlmostEqual(mean0, 0.5367064476013184, places=TEST_EPS_PLACE)
+
+        with self.subTest(msg="Mean 1 Check"):
+            self.assertAlmostEqual(mean1, 0.24088804423809052, places=TEST_EPS_PLACE)
 
     def test_fp8(self):
         print("-----------------test_fp8-----------------")
@@ -117,7 +138,7 @@ class TestKsana(unittest.TestCase):
             ),
         )
         mean = video.cpu().abs().mean().item()
-        self.assertAlmostEqual(mean, 0.6393067836761475, places=TEST_EPS_PLACE)
+        self.assertAlmostEqual(mean, 0.6448575854301453, places=TEST_EPS_PLACE)
 
     def test_cache(self):
         # TODO: step 1 can not test cache, real test cache logical,
@@ -136,7 +157,7 @@ class TestKsana(unittest.TestCase):
             ),
         )
         mean = video.cpu().abs().mean().item()
-        self.assertAlmostEqual(mean, 0.6555444598197937, places=TEST_EPS_PLACE)
+        self.assertAlmostEqual(mean, 0.6556134819984436, places=TEST_EPS_PLACE)
 
     def test_lora(self):
         print("-----------------test_lora-----------------")
@@ -177,7 +198,7 @@ class TestKsana(unittest.TestCase):
             ),
         )
         mean = video.cpu().abs().mean().item()
-        self.assertAlmostEqual(mean, 0.6557731032371521, places=TEST_EPS_PLACE)
+        self.assertAlmostEqual(mean, 0.6559773683547974, places=TEST_EPS_PLACE)
 
     def test_lora_torch_compile(self):
         print("-----------------test_lora_torch_compile-----------------")
@@ -202,7 +223,7 @@ class TestKsana(unittest.TestCase):
             ),
         )
         mean = video.cpu().abs().mean().item()
-        self.assertAlmostEqual(mean, 0.2549775242805481, places=TEST_EPS_PLACE)
+        self.assertAlmostEqual(mean, 0.25497761368751526, places=TEST_EPS_PLACE)
 
 
 if __name__ == "__main__":
