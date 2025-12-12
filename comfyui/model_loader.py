@@ -281,8 +281,8 @@ class KsanaModelLoaderNode:
         return (
             {
                 "model": model,
+                "model_name": model_name,  # TODO:  need remove
                 "run_dtype": model_config.run_dtype,
                 "boundary": model_boundary,
-                "high_model_name": model_name,
             },
         )
