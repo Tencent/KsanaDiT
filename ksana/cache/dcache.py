@@ -61,11 +61,11 @@ class DCache(KsanaCache):
         self.degree_func = np.poly1d(coeffs)
         self.need_compile_cache = False
 
-        self.prev_diff = {"cond": None, "uncond": None}
-        self.cnt_continuous_cached = {"cond": 0, "uncond": 0}
-        self.total_in_cache_cnt = {"cond": 0, "uncond": 0}
-        self.total_cached_cnt = {"cond": 0, "uncond": 0}
-        self.total_cnt = {"cond": 0, "uncond": 0}
+        self.prev_diff = {"cond": None, "uncond": None, "batch": None}
+        self.cnt_continuous_cached = {"cond": 0, "uncond": 0, "batch": 0}
+        self.total_in_cache_cnt = {"cond": 0, "uncond": 0, "batch": 0}
+        self.total_cached_cnt = {"cond": 0, "uncond": 0, "batch": 0}
+        self.total_cnt = {"cond": 0, "uncond": 0, "batch": 0}
 
     def __str__(self):
         return (

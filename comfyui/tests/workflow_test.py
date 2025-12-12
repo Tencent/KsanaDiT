@@ -273,14 +273,15 @@ def main():
         test_start_time = time.time()
 
         # 启动 server（如果需要）
-        if not args.no_server:
-            server_process = start_server()
-        else:
-            logger.info("跳过启动 server（使用已有 server）")
+        # if not args.no_server:
+        #     server_process = start_server()
+        # else:
+        #     logger.info("跳过启动 server（使用已有 server）")
 
         # 运行所有 workflow
         all_success = True
         for i, config in enumerate(workflow_configs, 1):
+            server_process = start_server()
             config["seed"] = args.seed
             logger.info("=" * 60)
             logger.info(f"执行 workflow [{i}/{len(workflow_configs)}]")
@@ -299,6 +300,7 @@ def main():
                 logger.error(f"✗ Workflow [{i}/{len(workflow_configs)}] 失败! 耗时: {workflow_elapsed:.2f} 秒")
                 all_success = False
                 # break  # 如果一个失败，停止执行后续的
+            stop_server(server_process)
 
         # 计算总耗时
         elapsed_seconds = time.time() - test_start_time

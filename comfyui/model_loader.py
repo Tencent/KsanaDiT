@@ -283,5 +283,6 @@ class KsanaModelLoaderNode:
                 "model": model,
                 "run_dtype": model_config.run_dtype,
                 "boundary": model_boundary,
+                "high_model_name": model_name,
             },
         )

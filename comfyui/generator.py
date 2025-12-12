@@ -5,6 +5,13 @@ from ksana import get_generator
 from ksana.config import KsanaSampleConfig, KsanaRuntimeConfig
 from ksana.utils.profile import MemoryProfiler
 from ksana.utils import log
+from ksana.models.diffusion import KsanaDiffusionModel
+from ksana.utils.memory import (
+    estimate_ksana_model_memory,
+    get_available_memory,
+    MODEL_SIZE_MAP,
+    MEMORY_USAGE_FACTOR_MAP,
+)
 
 ONE_GB = 1024**3
 
@@ -124,15 +131,26 @@ class KsanaGeneratorNode:
     CATEGORY = "ksana"
     DESCRIPTION = "Uses the provided model, positive and negative conditioning to denoise the latent image."
 
-    def _prepare_memory_for_ksana_models(self, model, latent_shape, run_dtype, device):
+    def _prepare_memory_for_ksana_models(self, high_model_name_str, latent_shape, run_dtype, device):
         try:
-            # TODO(qian):  estimate needed memory by latent_shape, dtype, and model
-            total_memory_required = 45 * 1024 * 1024 * 1024
-            mm.free_memory(total_memory_required, device, keep_loaded=[])
-            final_free_mem = mm.get_free_memory(device)
-            log.debug(f"Final free memory: {final_free_mem / (1024*1024):.1f} MB")
+            model_name, task_type, model_size = KsanaDiffusionModel.get_model_type(high_model_name_str)
+
+            model_weight_memory = MODEL_SIZE_MAP.get(model_size)
+            if model_weight_memory is None:
+                raise ValueError(f"Unknown model size: {model_size}")
+
+            memory_usage_factor = MEMORY_USAGE_FACTOR_MAP.get((model_name, task_type, model_size), 1.0)
+
+            total_memory_required, _ = estimate_ksana_model_memory(
+                model_weight_memory, latent_shape, run_dtype, memory_usage_factor
+            )
+            available_memory = get_available_memory(device)
+            if available_memory < total_memory_required:
+                mm.free_memory(total_memory_required, device, keep_loaded=[])
+
+            log.debug(f"Final free memory: {get_available_memory(device) / (1024*1024):.1f} MB")
         except Exception as e:
-            log.warning(f"Failed to prepare memory for KsanaDiT models: {e}")
+            raise RuntimeError(f"Failed to prepare memory for KsanaDiT models: {e}")
 
     def run(
         self,
@@ -159,7 +177,9 @@ class KsanaGeneratorNode:
 
         latent_shape = latent_image["samples"].shape
         device = mm.get_torch_device()
-        self._prepare_memory_for_ksana_models(model, latent_shape=latent_shape, run_dtype=run_dtype, device=device)
+        self._prepare_memory_for_ksana_models(
+            model.get("high_model_name"), latent_shape=latent_shape, run_dtype=run_dtype, device=device
+        )
 
         comfyui_progress_bar = ProgressBar(steps)
 

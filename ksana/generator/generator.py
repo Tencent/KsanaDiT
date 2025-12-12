@@ -126,26 +126,27 @@ class KsanaGenerator(ABC):
         if self.is_ray:
             ray.shutdown()
 
-    def broadcast_input_args(self, prompt, seed, prompt_negative=None):
+    def broadcast_input_args(self, prompts, seed, prompts_negative=None):
         if dist.is_initialized():
-            dist.broadcast_object_list([prompt, seed], src=0)
-            if prompt_negative is not None:
-                dist.broadcast_object_list(prompt_negative, src=0)
+            dist.broadcast_object_list([prompts, seed], src=0)
+            if prompts_negative is not None:
+                dist.broadcast_object_list(prompts_negative, src=0)
 
     def generate_video(
         self,
-        prompt: str,
+        prompt: str | list[str],
         *,
-        prompt_negative: str = None,
+        prompt_negative: str | list[str] = None,
         sample_config: KsanaSampleConfig = None,
         runtime_config: KsanaRuntimeConfig = None,
         **kwargs,
     ):
         if len(kwargs) > 0:
             log.warning(f"kwargs {kwargs} are not used")
+        single_prompt = isinstance(prompt, str)
         if self.num_gpus > 1:
             self.broadcast_input_args(
-                prompt, runtime_config.seed if runtime_config else None, prompt_negative=prompt_negative
+                prompt, runtime_config.seed if runtime_config else None, prompts_negative=prompt_negative
             )
 
         if self.is_ray:
@@ -168,6 +169,8 @@ class KsanaGenerator(ABC):
                 runtime_config=runtime_config,
             ).get(rank_0_id)
 
+        if single_prompt:
+            return res[0] if res else None
         return res
 
     def get_rank0_res(self, ray_res: list):

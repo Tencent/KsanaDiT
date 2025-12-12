@@ -167,19 +167,42 @@ class KsanaExecutor(ABC):
         diffusion_model_key_list = [diffusion_model_keys for diffusion_model_keys, _ in diffusion_model_tuple_list]
         return diffusion_model_key_list
 
+    def _valid_prompts(self, prompt, target_len=None):
+        if prompt is None:
+            return None
+        if isinstance(prompt, str):
+            prompts = [prompt]
+        elif isinstance(prompt, (list, tuple)):
+            prompts = list(prompt)
+        else:
+            raise TypeError(f"prompt must be str or list[str], got {type(prompt)}")
+        if len(prompts) == 0:
+            raise ValueError("prompt must not be empty")
+        if target_len is not None:
+            if len(prompts) == 1:
+                prompts = prompts * target_len
+            elif len(prompts) != target_len:
+                raise ValueError(f"prompt length ({len(prompts)}) must match target length ({target_len})")
+        return prompts
+
     @time_range
-    def generate_one_video(
+    def generate_video(
         self,
-        prompt: str,
-        prompt_negative: str = None,
+        prompt: str | list[str],
+        *,
+        prompt_negative: str | list[str] = None,
         sample_config: KsanaSampleConfig = None,
         runtime_config: KsanaRuntimeConfig = None,
     ):
+        sample_config = sample_config if sample_config else KsanaSampleConfig()
+        runtime_config = runtime_config if runtime_config else KsanaRuntimeConfig()
         text_run_device = torch.device("cpu")  # TODO: maybe run text on cuda self.device
+        prompts_list = self._valid_prompts(prompt)
+        prompts_negative_list = self._valid_prompts(prompt_negative, len(prompts_list))
         positive, negative = self.pipeline.forward_text_encoder(
             self.model_pool,
-            prompt,
-            prompt_negative=prompt_negative,
+            prompts_list,
+            prompts_negative=prompts_negative_list,
             device=text_run_device,
             offload_device=self.offload_device,
             offload_model=runtime_config.offload_model,
@@ -209,41 +232,13 @@ class KsanaExecutor(ABC):
             torch.cuda.synchronize()
         # TODO: move save to generator, outside executors
         if runtime_config.save_video:
-            self.save_video(videos, self.get_save_path(runtime_config.output_folder, prompt))
+            for _, (video, prompt_text) in enumerate(zip(videos, prompts_list)):
+                save_path = self.get_save_path(runtime_config.output_folder, prompt_text)
+                self.save_video(video, save_path)
 
+        res = []
         if runtime_config.return_frames and self.rank_id == 0:
-            return videos
-
-    @time_range
-    def generate_video(
-        self,
-        prompt,
-        *,
-        prompt_negative: str = None,
-        sample_config: KsanaSampleConfig = None,
-        runtime_config: KsanaRuntimeConfig = None,
-    ):
-        sample_config = sample_config if sample_config else KsanaSampleConfig()
-        runtime_config = runtime_config if runtime_config else KsanaRuntimeConfig()
-        if isinstance(prompt, (list, tuple)):
-            # TODO: support bs > 1 inside
-            res = []
-            for i in range(len(prompt)):
-                one_prompt = prompt[i]
-                one_negative = prompt_negative[i] if isinstance(prompt_negative, (tuple, list)) else prompt_negative
-                res.append(
-                    self.generate_one_video(
-                        one_prompt,
-                        prompt_negative=one_negative,
-                        sample_config=sample_config,
-                        runtime_config=runtime_config,
-                    )
-                )
-        else:
-            res = self.generate_one_video(
-                prompt, prompt_negative=prompt_negative, sample_config=sample_config, runtime_config=runtime_config
-            )
-
+            res = videos
         return {self.rank_id: res}
 
     @time_range
