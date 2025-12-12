@@ -131,9 +131,10 @@ class KsanaGeneratorNode:
     CATEGORY = "ksana"
     DESCRIPTION = "Uses the provided model, positive and negative conditioning to denoise the latent image."
 
-    def _prepare_memory_for_ksana_models(self, high_model_name_str, latent_shape, run_dtype, device):
+    def _prepare_memory_for_ksana_models(self, model_name_str, latent_shape, run_dtype, device):
         try:
-            model_name, task_type, model_size = KsanaDiffusionModel.get_model_type(high_model_name_str)
+            # TODO：use model key
+            model_name, task_type, model_size = KsanaDiffusionModel.get_model_type(model_name_str)
 
             model_weight_memory = MODEL_SIZE_MAP.get(model_size)
             if model_weight_memory is None:
@@ -178,7 +179,7 @@ class KsanaGeneratorNode:
         latent_shape = latent_image["samples"].shape
         device = mm.get_torch_device()
         self._prepare_memory_for_ksana_models(
-            model.get("high_model_name"), latent_shape=latent_shape, run_dtype=run_dtype, device=device
+            model.get("model_name"), latent_shape=latent_shape, run_dtype=run_dtype, device=device
         )
 
         comfyui_progress_bar = ProgressBar(steps)

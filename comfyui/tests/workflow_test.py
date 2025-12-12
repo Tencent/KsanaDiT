@@ -262,23 +262,20 @@ def main():
     server_process = None
 
     try:
-        # 设置 CUDA_VISIBLE_DEVICES（在启动 server 之前）
         os.environ["CUDA_VISIBLE_DEVICES"] = args.gpus
         logger.info(f"设置 CUDA_VISIBLE_DEVICES = {args.gpus}")
         num_gpus = len(args.gpus.split(","))
 
-        # 开始计时
         logger.info("=" * 60)
         logger.info("开始执行测试...")
         test_start_time = time.time()
 
-        # 启动 server（如果需要）
+        # TODO: 后面改成启动一次，执行多个workflow，现在主要是多卡的情况之下多个workflow会卡住。
         # if not args.no_server:
         #     server_process = start_server()
         # else:
         #     logger.info("跳过启动 server（使用已有 server）")
 
-        # 运行所有 workflow
         all_success = True
         for i, config in enumerate(workflow_configs, 1):
             server_process = start_server()
@@ -288,7 +285,6 @@ def main():
             logger.info(f"配置: {config}")
             logger.info("=" * 60)
 
-            # 运行测试
             workflow_start_time = time.time()
             expect_values = config.get("gpus_expect_values") if num_gpus > 1 else config.get("expect_values")
             success = test_workflow(workflow_path=config["workflow_path"], params=config, expect_values=expect_values)
@@ -299,7 +295,7 @@ def main():
             else:
                 logger.error(f"✗ Workflow [{i}/{len(workflow_configs)}] 失败! 耗时: {workflow_elapsed:.2f} 秒")
                 all_success = False
-                # break  # 如果一个失败，停止执行后续的
+                break
             stop_server(server_process)
 
         # 计算总耗时
