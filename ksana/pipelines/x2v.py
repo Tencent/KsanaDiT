@@ -47,6 +47,7 @@ class KsanaX2VPipeline(ABC):
         self.vae_key = None
         self.diffusion_model_keys = None
         self.has_lora = False
+        self.model_load_warm_up_done = False
 
     @abstractmethod
     def load_text_encoder(self, checkpoint_dir, shard_fn=None) -> tuple[KsanaModelKey, KsanaModel]:
@@ -126,6 +127,7 @@ class KsanaX2VPipeline(ABC):
             vae_model.to(offload_device)
         return [(self.text_encoder_key, text_encoder), (self.vae_key, vae_model), *diffusion_model_tuple_list]
 
+    @time_range
     def forward_text_encoder(
         self,
         model_pool: KsanaModelPool,
@@ -167,6 +169,7 @@ class KsanaX2VPipeline(ABC):
     def process_input_cache(self, cache_method):
         pass
 
+    @time_range
     def forward_vae(
         self, model_pool: KsanaModelPool, latents, local_rank, device=None, offload_device=None, offload_model=False
     ):
@@ -193,17 +196,26 @@ class KsanaX2VPipeline(ABC):
             src = src.to(device)
         return src
 
-    def get_run_model(self, high_model, low_model, timestep_id: int, boundary: float, offload_device=None):
+    def get_run_model(self, high_model, low_model, timestep_id: int, boundary: float, device=None, offload_device=None):
         if low_model is None:
             return high_model
         assert boundary is not None, "boundary must be provided when low_model is not None"
-        if timestep_id >= boundary:
+        assert device is not None, "device must be provided"
+
+        # 判断应该使用哪个模型
+        use_high = timestep_id >= boundary
+
+        if use_high:
             if low_model.device != offload_device:
                 low_model.to(offload_device)
+            if high_model.device != device:
+                high_model.to(device)
             return high_model
         else:
             if high_model.device != offload_device:
                 high_model.to(offload_device)
+            if low_model.device != device:
+                low_model.to(device)
             return low_model
 
     def get_run_cache(self, high_cache, low_cache, timestep_id, boundary):
@@ -289,9 +301,9 @@ class KsanaX2VPipeline(ABC):
                 low_model=low_model,
                 timestep_id=timestep_id,
                 boundary=boundary,
+                device=device,
                 offload_device=offload_device,
             )
-            run_model = run_model.to(device)
 
             MemoryProfiler.record_memory(f"inference_step_{iter_id}_after_model_switch")
             run_cache = self.get_run_cache(
@@ -435,6 +447,20 @@ class KsanaX2VPipeline(ABC):
         return math.ceil((h * w) / (patch_size[1] * patch_size[2]) * f / sp_size) * sp_size
 
     @time_range
+    def model_load_warm_up(self, high_model, low_model, device, offload_device):
+        if self.model_load_warm_up_done:
+            return
+        high_model.to(offload_device)
+        if low_model:
+            low_model.to(offload_device)
+        # NOTE: preallocate pinned memory at warm up stage to avoid CPU OOM when merging lora
+        for model in [high_model, low_model]:
+            if model:
+                model.load_warm_up(device, offload_device)
+
+        self.model_load_warm_up_done = True
+
+    @time_range
     def forward_diffusion_models_with_tensors(
         self,
         diffusion_models: list[KsanaModel],
@@ -469,6 +495,9 @@ class KsanaX2VPipeline(ABC):
             low_model is None or high_model.run_dtype == low_model.run_dtype
         ), f"high_model.run_dtype {high_model.run_dtype}, low_model.run_dtype {low_model.run_dtype} should be same"
         run_dtype = high_model.run_dtype
+
+        self.model_load_warm_up(high_model, low_model, device, offload_device)
+
         print_recursive(latents, log.debug)
         print_recursive(positive, log.debug)
         print_recursive(negative, log.debug)
@@ -537,8 +566,9 @@ class KsanaX2VPipeline(ABC):
                 bar_info = (batch_step_offset, global_total_steps)
 
                 batch_sample_scheduler, _, batch_timesteps = get_sample_scheduler(**sample_scheduler_kwargs)
-                log.info(f"batch timesteps: {batch_timesteps}, boundary:{boundary}, seq_len:{seq_len}")
-
+                log.info(
+                    f"batch timesteps: {batch_timesteps}, boundary:{boundary}, seq_len:{seq_len}, latents_batch: {latent_batch.shape}"
+                )
                 processed_latents = self._run_inference_loop(
                     positive_batch=pos_batch,
                     negative_batch=neg_batch,

@@ -5,40 +5,10 @@ from .logger import log
 from pathlib import Path
 
 
-def load_torch_file(ckpt, safe_load=True, device=None, return_metadata=False):
+def load_torch_file(ckpt, device=None):
     if device is None:
         device = torch.device("cpu")
-    metadata = None
-    if ckpt.lower().endswith(".safetensors") or ckpt.lower().endswith(".sft"):
-        try:
-            with safetensors.safe_open(ckpt, framework="pt", device=device.type) as f:
-                sd = {}
-                for k in f.keys():
-                    tensor = f.get_tensor(k)
-                    # if DISABLE_MMAP:  # TODO: Not sure if this is the best way to bypass the mmap issues
-                    #     tensor = tensor.to(device=device, copy=True)
-                    sd[k] = tensor
-                if return_metadata:
-                    metadata = f.metadata()
-        except Exception as e:
-            if len(e.args) > 0:
-                message = e.args[0]
-                if "HeaderTooLarge" in message:
-                    raise ValueError(
-                        "{}\n\nFile path: {}\n\nThe safetensors file is corrupt or invalid. Make sure this is actually a safetensors file and not a ckpt or pt or other filetype.".format(
-                            message, ckpt
-                        )
-                    )
-                if "MetadataIncompleteBuffer" in message:
-                    raise ValueError(
-                        "{}\n\nFile path: {}\n\nThe safetensors file is corrupt/incomplete. Check the file size and make sure you have copied/downloaded it correctly.".format(
-                            message, ckpt
-                        )
-                    )
-            raise e
-    else:
-        raise ValueError(f"Only safetensors files are supported, but got: {ckpt}")
-    return (sd, metadata) if return_metadata else sd
+    return safetensors.torch.load_file(ckpt, device=str(device))
 
 
 def load_sharded_safetensors(model_dir, device=None):
@@ -68,3 +38,67 @@ def load_sharded_safetensors(model_dir, device=None):
         state_dict.update(shard_dict)
 
     return state_dict
+
+
+def load_torch_files(file_list, device=None):
+    state_dict = {}
+    for file_path in file_list:
+        log.info(f"Loading {file_path}...")
+        shard_dict = load_torch_file(str(file_path), device=device)
+        state_dict.update(shard_dict)
+
+    return state_dict
+
+
+def batch_safetensors_by_size(model_dir, max_batch_size_gb=32):
+    """
+    将 safetensors 文件按大小分组,每组不超过指定大小
+
+    Args:
+        model_dir: 包含 .safetensors 文件的目录
+        max_batch_size_gb: 每组文件的最大大小(GB),默认32GB
+
+    Returns:
+        list of list: 分组后的文件列表,每个内部列表的文件总大小不超过 max_batch_size_gb
+    """
+    model_dir = Path(model_dir)
+
+    # 查找所有 safetensors 文件并获取大小
+    safetensors_files = sorted(model_dir.glob("*.safetensors"))
+
+    if not safetensors_files:
+        return []
+
+    # 获取文件大小信息 [(file_path, size_in_bytes), ...]
+    files_with_size = [(f, f.stat().st_size) for f in safetensors_files]
+
+    # 按大小分组
+    max_batch_size_bytes = max_batch_size_gb * 1024**3  # 转换为字节
+    batches = []
+    current_batch = []
+    current_batch_size = 0
+
+    for file_path, file_size in files_with_size:
+        # 如果单个文件就超过限制,单独成组
+        if file_size > max_batch_size_bytes:
+            if current_batch:
+                batches.append(current_batch)
+                current_batch = []
+                current_batch_size = 0
+            batches.append([file_path])
+            continue
+
+        # 如果加入当前文件会超过限制,开始新组
+        if current_batch_size + file_size > max_batch_size_bytes:
+            batches.append(current_batch)
+            current_batch = [file_path]
+            current_batch_size = file_size
+        else:
+            current_batch.append(file_path)
+            current_batch_size += file_size
+
+    # 添加最后一组
+    if current_batch:
+        batches.append(current_batch)
+
+    return batches

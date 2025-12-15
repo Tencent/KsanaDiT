@@ -5,8 +5,9 @@ import torch.nn as nn
 import os
 
 from .profile import time_range
-from .load import load_sharded_safetensors, load_torch_file
+from .load import load_torch_file, batch_safetensors_by_size, load_torch_files
 from .logger import log
+from .distribute import get_rank_id
 from .utils import is_dir
 
 
@@ -127,23 +128,38 @@ def build_loras_list(lora_path: str, strength=1.0):
 
 
 @time_range
-def merge_lora(model_sd_or_path: dict | str, loras_list, load_device=None):
-    if not isinstance(model_sd_or_path, dict):
-        if not (os.path.isfile(model_sd_or_path) or is_dir(model_sd_or_path)):
-            raise ValueError(f"model_path {model_sd_or_path} must be a file or dir")
-        model_sd = (
-            load_sharded_safetensors(f"{model_sd_or_path}")
-            if is_dir(model_sd_or_path)
-            else load_torch_file(model_sd_or_path, device=load_device)
-        )
-    else:
-        model_sd = model_sd_or_path
+def merge_lora(model_path: str, loras_list, device=None):
+    sd = {}
 
-    if loras_list is None:
-        return model_sd
-    for lora in loras_list:
-        log.info(f"start to merge lora: {lora['path']}")
-        lora_sd = load_torch_file(lora["path"], device=load_device)
-        model_sd = merge_lora_weight(model_sd, lora_sd, strength=lora["strength"])
-        del lora_sd
-    return model_sd
+    need_merge = loras_list is not None and len(loras_list) > 0
+    if not need_merge:
+        device = "cpu"
+        loras_list = []
+
+    # TODO(rockcao): support merge lora on gpu
+    device = "cpu"
+
+    log.info(f"merge_lora on rank {get_rank_id()} via device {device}")
+
+    if os.path.isfile(model_path):
+        files_list = [[model_path]]
+    elif is_dir(model_path):
+        # group files by size to reduce memory usage
+        files_list = batch_safetensors_by_size(model_path)
+    else:
+        raise ValueError(f"model_path {model_path} is not a file or dir")
+
+    for files in files_list:
+        base_sd = load_torch_files(files, device=device)
+
+        for lora in loras_list:
+            log.info(f"start to merge lora: {lora['path']}")
+            lora_sd = load_torch_file(lora["path"], device=device)
+            base_sd = merge_lora_weight(base_sd, lora_sd, strength=lora["strength"])
+            del lora_sd
+
+        log.debug("start to offload to cpu")
+        for key, value in base_sd.items():
+            value.data = value.to("cpu")
+        sd.update(base_sd)
+    return sd

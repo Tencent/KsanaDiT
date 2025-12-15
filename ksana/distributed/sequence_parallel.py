@@ -51,7 +51,7 @@ def rope_apply(x, grid_sizes, freqs):
 
         # append to collection
         output.append(x_i)
-    return torch.stack(output).float()
+    return torch.stack(output).type_as(x)
 
 
 def sp_attn_forward(self, x, seq_lens, grid_sizes, freqs):
