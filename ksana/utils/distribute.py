@@ -32,6 +32,8 @@ def get_torchrun_env() -> tuple:
 
 def get_rank_id():
     """get rank in total world size"""
+    if not dist.is_initialized():
+        return 0
     return dist.get_rank()
 
 
