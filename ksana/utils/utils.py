@@ -1,11 +1,29 @@
 import threading
 import os
+from typing import Optional
 
 
 def is_dir(path):
     if path is None or isinstance(path, (list, tuple)):
         return False
     return os.path.isdir(path) and os.path.exists(path)
+
+
+def any_key_in_str(key_list: list[str], full_str: str) -> Optional[int]:
+    """find if any key in key_list is in full_str
+    Args:
+        key_list (list[str]): list of keys to check
+        full_str (str): full string to check
+
+    Returns:
+        int: index of the first key in key_list that is in full_str, None if not found
+    """
+    idx = 0
+    for key in key_list:
+        if full_str.find(key) != -1:
+            return idx
+        idx += 1
+    return None
 
 
 def singleton(cls):

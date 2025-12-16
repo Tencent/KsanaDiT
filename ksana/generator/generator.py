@@ -114,6 +114,17 @@ class KsanaGenerator(ABC):
         else:
             return self.executors.load_diffusion_model(model_path, **kwargs)
 
+    def load_vae_model(self, model_path, **kwargs):
+        assert self.executors is not None, "executors is not initialized"
+        if self.is_ray:
+            func_futures = [executor.load_vae_model.remote(model_path, **kwargs) for executor in self.executors]
+            funcs_res = ray.get(func_futures)
+            # note all gpus return the same model keys, so just return any result
+            any_rank_id = 0
+            return funcs_res[any_rank_id]
+        else:
+            return self.executors.load_vae_model(model_path, **kwargs)
+
     @property
     def is_ray(self):
         return self._is_ray and ray.is_initialized()
@@ -136,6 +147,8 @@ class KsanaGenerator(ABC):
         self,
         prompt: str | list[str],
         *,
+        img_path: str | list[str] = None,
+        end_img_path: str | list[str] = None,
         prompt_negative: str | list[str] = None,
         sample_config: KsanaSampleConfig = None,
         runtime_config: KsanaRuntimeConfig = None,
@@ -153,6 +166,8 @@ class KsanaGenerator(ABC):
             func_futures = [
                 executor.generate_video.remote(
                     prompt=prompt,
+                    img_path=img_path,
+                    end_img_path=end_img_path,
                     prompt_negative=prompt_negative,
                     sample_config=sample_config,
                     runtime_config=runtime_config,
@@ -164,6 +179,8 @@ class KsanaGenerator(ABC):
             rank_0_id = 0
             res = self.executors.generate_video(
                 prompt=prompt,
+                img_path=img_path,
+                end_img_path=end_img_path,
                 prompt_negative=prompt_negative,
                 sample_config=sample_config,
                 runtime_config=runtime_config,

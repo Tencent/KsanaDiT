@@ -510,10 +510,9 @@ class WanModel(ModelMixin, ConfigMixin):
             Tensor:
                 Denoised video tensor with shape [B, C_out, F, H / 8, W / 8]
         """
-        # ipdb.set_trace()
-
-        if self.model_type == "i2v":
-            assert y is not None
+        # x [bs, 16, f, h, w], y [bs, 20, f, h, w]
+        if self.model_type == "i2v" and y is None:
+            raise ValueError("y must be provided for i2v model")
         # params
         device = self.patch_embedding.weight.device
         if self.freqs.device != device:
@@ -521,7 +520,8 @@ class WanModel(ModelMixin, ConfigMixin):
 
         if y is not None:
             # x = [torch.cat([u, v], dim=0) for u, v in zip(x, y)]
-            x = torch.cat([x, y], dim=0)
+            # print(f"-------x.shape: {x.shape}, {x.dtype} y.shape: {y.shape}, {y.dtype}")
+            x = torch.cat([x, y.to(x.dtype)], dim=1)
         # embeddings
         # [bs, 16, fi, hi, wi] => [bs, 5120, f, h, w]
         x = self.patch_embedding(x.float()).to(x.dtype)
@@ -554,6 +554,7 @@ class WanModel(ModelMixin, ConfigMixin):
         # [bs, freq_dim] => [bs, one, freq_dim]
         e = e.unflatten(0, (bs, one))
         # [bs, one, freq_dim=>self.dim:5120]
+        # print(f"-------e.shape: {e.dtype}, {x.dtype}")
         e = self.time_embedding(e.to(x.dtype))
         # [bs, one, 5120] => [bs, one, 6*5120]
         e0 = self.time_projection(e)

@@ -128,10 +128,10 @@ def run_advanced(args):
 if __name__ == "__main__":
     """examples:
     - single card run:
-        python examples/wan2.2.py
+        python examples/wan/wan2.2_t2v.py
     - run with multi-gpus has two ways:
-        - CUDA_VISIBLE_DEVICES=4,5 python examples/wan2.2.py --num_gpus=2
-        - CUDA_VISIBLE_DEVICES=4,5 torchrun --nproc_per_node=2 examples/wan2.2.py --num_gpus=2
+        - CUDA_VISIBLE_DEVICES=4,5 python examples/wan/wan2.2_t2v.py --num_gpus=2
+        - CUDA_VISIBLE_DEVICES=4,5 torchrun --nproc_per_node=2 examples/wan/wan2.2_t2v.py --num_gpus=2
     """
     parser = argparse.ArgumentParser(description="Wan2.2 视频生成示例")
     parser.add_argument(

@@ -624,10 +624,10 @@ class Wan2_1_VAE:
 
     def encode(self, videos):
         """
-        videos: A list of videos each with shape [C, T, H, W].
+        videos:  videos each with shape [bs, C, T, H, W].
         """
         with amp.autocast(dtype=self.dtype):
-            return [self.model.encode(u.unsqueeze(0), self.scale).float().squeeze(0) for u in videos]
+            return self.model.encode(videos, self.scale).float()
 
     # @nvtx_range
     def decode(self, zs):

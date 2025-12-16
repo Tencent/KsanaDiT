@@ -1,4 +1,3 @@
-import time
 import types
 from abc import abstractmethod
 
@@ -6,16 +5,16 @@ import torch
 import torch.distributed as dist
 
 from ..distributed import sp_attn_forward
-from ..utils import (  # , ksanaProfiler
-    log,
-    time_range,
-)
+from ..utils import log, time_range
+
 
 from .wan import WanModel
 from .wan.configs import WAN2_2_CONFIGS
 from ..config import KsanaModelConfig, KsanaDistributedConfig
 from ksana.operations import build_ops, AttentionBackendEnum
 from .base_model import KsanaModel
+from ..utils.utils import any_key_in_str
+from ..models.model_key import KsanaModelKey, WAN2_2, WAN2_1, X2V_TYPES
 
 
 class KsanaDiffusionModel(KsanaModel):
@@ -87,6 +86,10 @@ class KsanaDiffusionModel(KsanaModel):
         log.info(
             f"Unified pinned buffer allocated successfully, total: {total_memory_gb:.2f} GB across {len(dtype_groups)} dtype(s)"
         )
+
+    @abstractmethod
+    def get_model_key(self) -> KsanaModelKey:
+        pass
 
     @abstractmethod
     @time_range
@@ -288,11 +291,15 @@ class KsanaDiffusionModel(KsanaModel):
 
     @staticmethod
     def get_default_pipeline_config(model_name, task_type, model_size):
-        if model_name == "wan2.2":
+        if model_name in WAN2_2:
             config_type = f"{task_type}-{model_size}"
             return WAN2_2_CONFIGS[config_type]
         else:
             raise ValueError(f"model_name {model_name} not supported")
+
+    @property
+    def full_model_name(self):
+        return f"{self.model_name}_{self.task_type}_{self.model_size}"
 
     @staticmethod
     def get_model_type(full_model_name: str):
@@ -303,21 +310,20 @@ class KsanaDiffusionModel(KsanaModel):
         model_size: A14B, 5B. etc.
         return (model_name, model_type, model_size)
         """
-        choise = ["t2v", "s2v", "i2v", "ti2v"]
         lower_model_name = full_model_name.lower()
-        for t in choise:
-            if t in lower_model_name:
-                model_type = t
-                break
+        idx = any_key_in_str(X2V_TYPES, lower_model_name)
         model_name = None
-        wan22 = ["wan2.2", "wan22", "wan2_2"]
-        for k in wan22:
-            if k in lower_model_name:
-                model_name = "wan2.2"
-                break
+        if idx is None:
+            raise RuntimeError(f"can not detect model_type:{X2V_TYPES} from model_name:{full_model_name}")
+        else:
+            model_type = X2V_TYPES[idx]
+        if any_key_in_str(WAN2_2, lower_model_name) is not None:
+            model_name = WAN2_2[0]
+        else:
+            raise RuntimeError(f"can not detect model_name:{WAN2_2} from model_name:{full_model_name}")
 
         model_size = None
-        if model_name == "wan2.2":
+        if model_name == WAN2_2[0]:
             if "14b" in lower_model_name:
                 model_size = "A14B"
             elif "5b" in lower_model_name:
@@ -328,7 +334,7 @@ class KsanaDiffusionModel(KsanaModel):
             elif "1.3b" in lower_model_name or "1_3b" in lower_model_name:
                 model_size = "1.3B"
         else:
-            raise ValueError(f"can not detect model_size from model_name:{model_name}, model_name:{model_name}")
+            raise RuntimeError(f"can not detect model_size from model_name:{model_name}, model_name:{model_name}")
 
         log.info(f"model_name:{model_name}, task_type: {model_type}, model_size: {model_size}")
         return model_name, model_type, model_size
@@ -338,6 +344,25 @@ class KsanaWanModel(KsanaDiffusionModel):
     """
     Wan model class for Ksana diffusion models.
     """
+
+    def get_model_key(self, is_high: bool = True) -> KsanaModelKey:
+        if self.model_name in WAN2_2:
+            if self.task_type == "t2v":
+                if self.model_size == "A14B":
+                    return KsanaModelKey.Wan2_2_T2V_14B_HIGH if is_high else KsanaModelKey.Wan2_2_T2V_14B_LOW
+                else:
+                    raise RuntimeError(f"model_size {self.model_size} is not in {self.model_name} {self.task_type} yet")
+            elif self.task_type == "i2v":
+                if self.model_size == "A14B":
+                    return KsanaModelKey.Wan2_2_I2V_14B_HIGH if is_high else KsanaModelKey.Wan2_2_I2V_14B_LOW
+                else:
+                    raise RuntimeError(f"model_size {self.model_size} is not in {self.model_name} {self.task_type} yet")
+            else:
+                raise ValueError(f"task_type {self.task_type} is not in supported list {X2V_TYPES} yet")
+        elif self.model_name in WAN2_1:
+            raise ValueError(f"model_name {self.model_name} not supported")
+        else:
+            raise ValueError(f"model_name {self.model_name} not supported")
 
     def load(
         self,
@@ -367,13 +392,12 @@ class KsanaWanModel(KsanaDiffusionModel):
             attn_backend=AttentionBackendEnum.from_string(self.model_config.attn_backend),
             linear_backend=self.model_config.linear_backend,
         )
-        log.info(
-            f"input_model_config:{input_model_config}, operations:{operations}, load_device:{load_device}, offload_device:{offload_device}"
-        )
+        log.info(f"input_model_config:{input_model_config}, load_device:{load_device}, offload_device:{offload_device}")
         if input_model_config is None:
             input_model_config = {}
         default_model_config = self.pipeline_config.default_config
-        in_dim = default_model_config.get("in_dim", 16)
+        default_in_dim = 36 if self.task_type == "i2v" else 16
+        in_dim = default_model_config.get("in_dim", default_in_dim)
         out_dim = default_model_config.get("out_dim", 16)
         in_dim = (
             input_model_config.get("in_dim", in_dim) if input_model_config.get("in_dim", None) is not None else in_dim
@@ -383,37 +407,35 @@ class KsanaWanModel(KsanaDiffusionModel):
             if input_model_config.get("out_dim", None) is not None
             else out_dim
         )
-        start = time.time()
-        self.model = WanModel(
-            model_type=self.task_type,
-            patch_size=default_model_config.patch_size,
-            text_len=default_model_config.text_len,
-            in_dim=in_dim,
-            dim=default_model_config.dim,
-            ffn_dim=default_model_config.ffn_dim,
-            freq_dim=default_model_config.freq_dim,
-            out_dim=out_dim,
-            num_heads=default_model_config.num_heads,
-            num_layers=default_model_config.num_layers,
-            window_size=default_model_config.window_size,
-            qk_norm=default_model_config.qk_norm,
-            cross_attn_norm=default_model_config.cross_attn_norm,
-            eps=default_model_config.eps,
-            operations=operations,
-            device=offload_device,
-            dtype=self.run_dtype,
-            sp_size=self.dist_config.ulysses_size,
-        )
+        log.info(f"in_dim:{in_dim}, out_dim:{out_dim}")
+        with time_range(f"create_model_{self.full_model_name}"):
+            self.model = WanModel(
+                model_type=self.task_type,
+                patch_size=default_model_config.patch_size,
+                text_len=default_model_config.text_len,
+                in_dim=in_dim,
+                dim=default_model_config.dim,
+                ffn_dim=default_model_config.ffn_dim,
+                freq_dim=default_model_config.freq_dim,
+                out_dim=out_dim,
+                num_heads=default_model_config.num_heads,
+                num_layers=default_model_config.num_layers,
+                window_size=default_model_config.window_size,
+                qk_norm=default_model_config.qk_norm,
+                cross_attn_norm=default_model_config.cross_attn_norm,
+                eps=default_model_config.eps,
+                operations=operations,
+                device=offload_device,
+                dtype=self.run_dtype,
+                sp_size=self.dist_config.ulysses_size,
+            )
         log.debug(f"model: {self.model}")
-        # TODO(TJ): use with time_range
-        stop1 = time.time()
-        load_result = self.model.load_state_dict(model_state_dict, strict=False)
-        stop2 = time.time()
+        with time_range("load_state_dict"):
+            load_result = self.model.load_state_dict(model_state_dict, strict=False)
         if load_result.missing_keys or load_result.unexpected_keys:
             log.warning(
                 f"load_result: missing keys:{load_result.missing_keys}, unexpected keys:{load_result.unexpected_keys}"
             )
-        log.info(f"create model takes: {(stop1 - start):.2f}, load states takes {(stop2 - stop1):.2f} seconds")
 
         self.model.eval().requires_grad_(False)
         self.model = self.prepare_distributed_model(
