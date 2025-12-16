@@ -12,8 +12,8 @@ class KsanaRuntimeConfig:
     size: tuple[int, int] = field(default=None): target image or video image size
     """
 
-    size: tuple[int, int] | None = field(default=None)
-    frame_num: int | None = field(default=None)
+    size: tuple[int, int] | None = field(default=None, metadata={"help": "width and height of target size"})
+    frame_num: int | None = field(default=None, metadata={"help": "number of frames to generate"})
     seed: int | None = field(default=None)
     offload_model: bool | None = field(default=DEFAULT_OFFLOAD_MODEL)
     boundary: float | None = field(default=None)

@@ -4,6 +4,7 @@ import torch
 
 from .wan import T5EncoderModel
 from .base_model import KsanaModel
+from .model_key import KsanaModelKey
 
 
 class KsanaT5Encoder(KsanaModel):
@@ -28,3 +29,6 @@ class KsanaT5Encoder(KsanaModel):
         if self.device != device:
             self.model.to(device)
         self.device = device
+
+    def get_model_key(self) -> KsanaModelKey:
+        return KsanaModelKey.T5TextEncoder

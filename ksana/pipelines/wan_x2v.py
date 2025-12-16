@@ -9,7 +9,7 @@ from ..utils.logger import log
 from ..utils import is_dir
 from ..utils.lora import merge_lora, build_loras_list
 
-from ..models.model_key import KsanaModelKey
+from ..models.model_key import KsanaModelKey, WAN2_2, WAN2_1, X2V_TYPES
 from ..models.base_model import KsanaModel
 
 
@@ -35,20 +35,17 @@ class KsanaWanX2VPipeline(KsanaX2VPipeline):
             pipeline_config (KsanaPipelineConfig): pipeline config
         """
         super().__init__(pipeline_config)
-        assert pipeline_config.model_name in [
-            "wan2.2",
-            "wan2.1",
-        ], f"model_name must be 'wan2.2' or 'wan2.1', but got {pipeline_config.model_name}"
+        assert (
+            pipeline_config.model_name in WAN2_2 + WAN2_1
+        ), f"model_name must be 'wan2.2' or 'wan2.1', but got {pipeline_config.model_name}"
         assert pipeline_config.model_config is not None, "model_config must be provided"
         assert pipeline_config.default_config is not None, "default_config must be provided"
-        assert pipeline_config.model_name == "wan2.2", f"model_name {pipeline_config.model_name} is not supported"
+        assert pipeline_config.model_name in WAN2_2, f"model_name {pipeline_config.model_name} is not supported"
         self.default_args = Wan2_2DefaultArgs()  # more could be 2.1 args when support more model versions
 
-        assert self.pipeline_config.task_type in [
-            "t2v",
-            "t2i",
-            "v2v",
-        ], f"task_type {self.pipeline_config.task_type} is not supported"
+        assert (
+            self.pipeline_config.task_type in X2V_TYPES
+        ), f"task_type {self.pipeline_config.task_type} is not supported"
         assert self.pipeline_config.model_size in [
             "A14B",
             "5B",
@@ -58,17 +55,14 @@ class KsanaWanX2VPipeline(KsanaX2VPipeline):
         text_encoder = KsanaT5Encoder(
             self.pipeline_config.default_config, checkpoint_dir=checkpoint_dir, shard_fn=shard_fn
         )
-        return (KsanaModelKey.T5TextEncoder, text_encoder)
+        return (text_encoder.get_model_key(), text_encoder)
 
     def load_vae(self, checkpoint_dir, device):
-        vae_type = "wan2_1" if self.pipeline_config.task_type == "t2v" else "wan2_2"
-        vae = KsanaVAE(
-            vae_type=vae_type,
-            default_pipeline_config=self.pipeline_config.default_config,
-            checkpoint_dir=checkpoint_dir,
-            device=device,
-        )
-        return (KsanaModelKey.VAE, vae)
+        model_path = os.path.join(checkpoint_dir, self.pipeline_config.default_config.vae_checkpoint)
+        # wan2.2 vae use 2.1 vae at t2v and i2v
+        vae_type = WAN2_1[0] if self.pipeline_config.task_type in ["t2v", "i2v"] else WAN2_2[0]
+        vae = KsanaVAE(model_path=model_path, vae_type=vae_type, device=device)
+        return (vae.key, vae)
 
     @time_range
     def load_one_diffusion_model(
@@ -145,7 +139,7 @@ class KsanaWanX2VPipeline(KsanaX2VPipeline):
                 raise ValueError(f"model_path {model_path} not exist, or file must be a safetensors file")
 
         if isinstance(load_model_path_or_files, (list, tuple)):
-            model_keys = (KsanaModelKey.Wan2_2_HIGH, KsanaModelKey.Wan2_2_LOW)
+            is_high = [True, False]
             res = []
             for i in range(len(load_model_path_or_files)):
                 one_model_path = load_model_path_or_files[i]
@@ -160,7 +154,8 @@ class KsanaWanX2VPipeline(KsanaX2VPipeline):
                     device=device,
                     offload_device=offload_device,
                 )
-                res.append((model_keys[i], one_model))
+                model_key = one_model.get_model_key(is_high[i])
+                res.append((model_key, one_model))
                 if comfy_bar_callback is not None:
                     comfy_bar_callback()
             return res
@@ -178,7 +173,7 @@ class KsanaWanX2VPipeline(KsanaX2VPipeline):
             )
             if comfy_bar_callback is not None:
                 comfy_bar_callback()
-            return [(KsanaModelKey.Wan2_2_HIGH, one_model)]
+            return [(one_model.get_model_key(), one_model)]
 
     def process_input_cache(self, cache_method):
         high_cache_config = None

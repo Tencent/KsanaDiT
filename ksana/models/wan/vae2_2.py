@@ -983,11 +983,14 @@ class Wan2_2_VAE:
         )
 
     def encode(self, videos):
+        """
+        videos shape [bs, c, h, w]
+        """
         try:
             if not isinstance(videos, list):
                 raise TypeError("videos should be a list")
             with amp.autocast(dtype=self.dtype):
-                return [self.model.encode(u.unsqueeze(0), self.scale).float().squeeze(0) for u in videos]
+                return self.model.encode(videos, self.scale).float()
         except TypeError as e:
             logging.info(e)
             return None

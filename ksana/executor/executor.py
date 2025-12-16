@@ -6,6 +6,7 @@ import gc
 from datetime import datetime
 import torch.distributed as dist
 from functools import partial
+from PIL import Image
 
 from ..models import KsanaDiffusionModel
 from ..utils import log, time_range, save_video, merge_video_audio, is_dir
@@ -23,6 +24,8 @@ from ..pipelines import create_ksana_pipeline
 
 from ..distributed import shard_model
 from ..models.model_pool import KsanaModelPool
+from ..models import KsanaVAE
+import torchvision.transforms.functional as tvtf
 
 
 class KsanaExecutor(ABC):
@@ -104,7 +107,9 @@ class KsanaExecutor(ABC):
         **kwargs,
     ):
         self.clear_models()
-        if isinstance(model_path, (list, tuple)) or not is_dir(model_path):
+        if not is_dir(model_path) and not isinstance(model_path, (list, tuple)):
+            raise ValueError(f"model_path {model_path} is not exist, or not a directory")
+        if isinstance(model_path, (list, tuple)):
             if text_checkpoint_dir is None:
                 raise ValueError(
                     f"text_checkpoint_dir must be provided when loading from local checkpoint with diffusion model {model_path}"
@@ -167,6 +172,16 @@ class KsanaExecutor(ABC):
         diffusion_model_key_list = [diffusion_model_keys for diffusion_model_keys, _ in diffusion_model_tuple_list]
         return diffusion_model_key_list
 
+    def load_vae_model(self, model_path, **kwargs):
+        if len(kwargs) > 0:
+            log.warning(f"kwargs {kwargs} are not in used")
+        vae = KsanaVAE(
+            model_path=model_path,
+            device=self.offload_device,
+        )
+        self.model_pool.update_models([(vae.get_model_key(), vae)])
+        return vae.get_model_key()
+
     def _valid_prompts(self, prompt, target_len=None):
         if prompt is None:
             return None
@@ -185,11 +200,38 @@ class KsanaExecutor(ABC):
                 raise ValueError(f"prompt length ({len(prompts)}) must match target length ({target_len})")
         return prompts
 
+    def load_image(self, img_paths: list[str], target_len, device) -> torch.Tensor:
+        if img_paths is None:
+            return None
+        log.info(f"load input image: {img_paths}")
+        if len(img_paths) != 1 and len(img_paths) != target_len:
+            raise ValueError(
+                f"img_path length ({len(img_paths)}) must match prompt list length ({target_len}) or only one image"
+            )
+        imgs = []
+        shape = None
+        for one_path in img_paths:
+            img = Image.open(one_path).convert("RGB")
+            if shape is None:
+                shape = img.size
+            elif img.size != shape:
+                # Note: if img is a list, then all image shapes must be the same
+                # otherwise the latents shape are not equal for batching
+                raise ValueError(f"all images {img_paths} should have the same shape, but got {img.size} and {shape}")
+            img = tvtf.to_tensor(img).sub_(0.5).div_(0.5).to(device)
+            imgs.append(img.unsqueeze(0))
+        if len(imgs) == 1:
+            return imgs[0]
+        else:
+            return torch.cat(imgs, dim=0)
+
     @time_range
     def generate_video(
         self,
         prompt: str | list[str],
         *,
+        img_path: str | list[str] = None,
+        end_img_path: str | list[str] = None,
         prompt_negative: str | list[str] = None,
         sample_config: KsanaSampleConfig = None,
         runtime_config: KsanaRuntimeConfig = None,
@@ -199,6 +241,7 @@ class KsanaExecutor(ABC):
         text_run_device = torch.device("cpu")  # TODO: maybe run text on cuda self.device
         prompts_list = self._valid_prompts(prompt)
         prompts_negative_list = self._valid_prompts(prompt_negative, len(prompts_list))
+
         positive, negative = self.pipeline.forward_text_encoder(
             self.model_pool,
             prompts_list,
@@ -208,17 +251,47 @@ class KsanaExecutor(ABC):
             offload_model=runtime_config.offload_model,
         )
 
+        # encode img if have
+        img_latents = None
+        if img_path is not None:
+            if not isinstance(img_path, (list, tuple)):
+                img_path = [img_path]
+            img_batch = self.load_image(img_path, len(prompts_list), device=self.offload_device)
+            if end_img_path is not None:
+                if not isinstance(end_img_path, (list, tuple)):
+                    end_img_path = [end_img_path]
+                if len(end_img_path) != len(img_path):
+                    raise ValueError(
+                        f"end_img_path length ({len(end_img_path)}) must match start_img_path length ({len(img_path)})"
+                    )
+                end_img_batch = self.load_image(end_img_path, len(prompts_list), device=self.offload_device)
+            else:
+                end_img_batch = None
+
+            img_latents = self.pipeline.forward_vae_encode(
+                self.model_pool,
+                start_img=img_batch,
+                end_img=end_img_batch,
+                target_f=runtime_config.frame_num,
+                target_h=runtime_config.size[1],
+                target_w=runtime_config.size[0],
+                device=self.device,
+                target_batch_size=len(prompts_list),
+            )
+            log.info(f"img_latent shape: {img_latents.shape}")
+
         latents = self.pipeline.forward_diffusion_models(
             model_pool=self.model_pool,
             positive=positive,
             negative=negative,
+            img_latents=img_latents,
             sample_config=sample_config,
             runtime_config=runtime_config,
             device=self.device,
             offload_device=self.offload_device,
         )
         # TODO: multi-cards vae
-        videos = self.pipeline.forward_vae(
+        videos = self.pipeline.forward_vae_decode(
             model_pool=self.model_pool,
             latents=latents,
             local_rank=self.rank_id,

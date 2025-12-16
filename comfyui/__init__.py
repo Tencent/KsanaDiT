@@ -11,6 +11,7 @@ try:
         KsanaMagCacheNode,
     )
     from .model_loader import KsanaModelLoaderNode
+    from .vae import KsanaVAELoaderNode, KsanaVAEEncodeNode
     from .generator import KsanaGeneratorNode
     from .torch_compile import KsanaTorchCompileNode
     from .lora import KsanaLoraSelectMultiNode, KsanaLoraSelectNode, KsanaLoraCombineNode
@@ -22,6 +23,8 @@ try:
         "KsanaMagCacheNode": KsanaMagCacheNode,
         "KsanaDebugNode": KsanaDebugNode,
         "KsanaModelLoaderNode": KsanaModelLoaderNode,
+        "KsanaVAELoaderNode": KsanaVAELoaderNode,
+        "KsanaVAEEncodeNode": KsanaVAEEncodeNode,
         "KsanaGeneratorNode": KsanaGeneratorNode,
         "KsanaTorchCompileNode": KsanaTorchCompileNode,
         "KsanaLoraSelectMultiNode": KsanaLoraSelectMultiNode,
@@ -36,6 +39,8 @@ try:
         "KsanaMagCacheNode": "KsanaDit MagCache Node",
         "KsanaDebugNode": "KsanaDit Debug Node",
         "KsanaModelLoaderNode": "KsanaDit Model Loader",
+        "KsanaVAELoaderNode": "KsanaDit VAE Loader",
+        "KsanaVAEEncodeNode": "KsanaDit Image To Video Latent",
         "KsanaGeneratorNode": "KsanaDit Generator",
         "KsanaTorchCompileNode": "KsanaDiT Torch Compile Node",
         "KsanaLoraSelectMultiNode": "KsanaDit Lora Select Multi Node",

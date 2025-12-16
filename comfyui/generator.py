@@ -192,7 +192,7 @@ class KsanaGeneratorNode:
             model_keys=comfy_model.model.ksana_model,
             positive=positive[0][0],
             negative=negative[0][0],
-            latents=latent_image["samples"],  # [1, 16, 5, h/, w/]
+            img_latents=latent_image["samples"],  # [1, 16, 5, h/, w/]
             sample_config=KsanaSampleConfig(
                 steps=steps,
                 cfg_scale=(sample_guide_scale, low_sample_guide_scale),
