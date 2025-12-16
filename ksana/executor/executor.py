@@ -231,7 +231,7 @@ class KsanaExecutor(ABC):
             gc.collect()
             torch.cuda.synchronize()
         # TODO: move save to generator, outside executors
-        if runtime_config.save_video:
+        if runtime_config.save_video and self.rank_id == 0:
             for _, (video, prompt_text) in enumerate(zip(videos, prompts_list)):
                 save_path = self.get_save_path(runtime_config.output_folder, prompt_text)
                 self.save_video(video, save_path)

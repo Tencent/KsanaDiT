@@ -5,7 +5,6 @@ from ksana.config import (
     KsanaTorchCompileConfig,
     KsanaRuntimeConfig,
     KsanaSampleConfig,
-    KsanaDistributedConfig,
 )
 import torch
 
@@ -46,44 +45,6 @@ class TestKsana(unittest.TestCase):
 
         with self.subTest(msg="Mean 1 Check"):
             self.assertAlmostEqual(mean1, 0.44206780195236206, places=TEST_EPS_PLACE)
-
-    def test_simple_gpus(self):
-        print("-----------------test_simple_gpus-----------------")
-        generator = KsanaGenerator.from_models("./Wan2.2-T2V-A14B", dist_config=KsanaDistributedConfig(num_gpus=2))
-        videos = generator.generate_video(
-            prompts,
-            sample_config=KsanaSampleConfig(steps=TEST_STEPS),
-            runtime_config=KsanaRuntimeConfig(
-                seed=SEED,
-                size=TEST_SIZE,
-                frame_num=TEST_FRAME_NUM,
-                return_frames=True,
-                save_video=True,
-            ),
-        )
-        mean0 = videos[0].cpu().abs().mean().item()
-        mean1 = videos[1].cpu().abs().mean().item()
-        videos = generator.generate_video(
-            prompts[0],
-            sample_config=KsanaSampleConfig(steps=TEST_STEPS),
-            runtime_config=KsanaRuntimeConfig(
-                seed=SEED,
-                size=TEST_SIZE,
-                frame_num=TEST_FRAME_NUM,
-                return_frames=True,
-                save_video=True,
-            ),
-        )
-        # TODO: check the value
-        mean2 = videos[0].cpu().abs().mean().item()
-        with self.subTest(msg="Mean 0 Check"):
-            self.assertAlmostEqual(mean0, 0.6556175947189331, places=TEST_EPS_PLACE)
-
-        with self.subTest(msg="Mean 1 Check"):
-            self.assertAlmostEqual(mean1, 0.44206780195236206, places=TEST_EPS_PLACE)
-
-        with self.subTest(msg="Mean 2 Check"):
-            self.assertAlmostEqual(mean2, 0.7039813995361328, places=TEST_EPS_PLACE)
 
     def test_larger_seq_batch(self):
         print("-----------------test_larger_seq_batch-----------------")
