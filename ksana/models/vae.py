@@ -16,21 +16,21 @@ class KsanaVAE(KsanaModel):
                 dtype=dtype,
                 device=device,
             )
-            self.key = KsanaModelKey.VAE_WAN2_1
+            self._key = KsanaModelKey.VAE_WAN2_1
         elif vae_type in WAN2_2:
             self.model = Wan2_2_VAE(
                 vae_pth=model_path,
                 dtype=dtype,
                 device=device,
             )
-            self.key = KsanaModelKey.VAE_WAN2_2
+            self._key = KsanaModelKey.VAE_WAN2_2
         else:
             raise ValueError(f"model_name {self.model_name} not supported")
 
         self.z_dim = self.model.model.z_dim
 
     def get_model_key(self) -> KsanaModelKey:
-        return self.key
+        return self._key
 
     @staticmethod
     def get_model_type_from_path(model_path: str):

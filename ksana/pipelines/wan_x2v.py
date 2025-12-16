@@ -9,7 +9,7 @@ from ..utils.logger import log
 from ..utils import is_dir
 from ..utils.lora import merge_lora, build_loras_list
 
-from ..models.model_key import KsanaModelKey, WAN2_2, WAN2_1, X2V_TYPES
+from ..models.model_key import WAN2_2, WAN2_1, X2V_TYPES
 from ..models.base_model import KsanaModel
 
 
@@ -55,14 +55,13 @@ class KsanaWanX2VPipeline(KsanaX2VPipeline):
         text_encoder = KsanaT5Encoder(
             self.pipeline_config.default_config, checkpoint_dir=checkpoint_dir, shard_fn=shard_fn
         )
-        return (text_encoder.get_model_key(), text_encoder)
+        return text_encoder
 
     def load_vae(self, checkpoint_dir, device):
         model_path = os.path.join(checkpoint_dir, self.pipeline_config.default_config.vae_checkpoint)
         # wan2.2 vae use 2.1 vae at t2v and i2v
         vae_type = WAN2_1[0] if self.pipeline_config.task_type in ["t2v", "i2v"] else WAN2_2[0]
-        vae = KsanaVAE(model_path=model_path, vae_type=vae_type, device=device)
-        return (vae.key, vae)
+        return KsanaVAE(model_path=model_path, vae_type=vae_type, device=device)
 
     @time_range
     def load_one_diffusion_model(
@@ -101,7 +100,7 @@ class KsanaWanX2VPipeline(KsanaX2VPipeline):
         offload_device=None,
         shard_fn=None,
         comfy_bar_callback=None,
-    ) -> list[tuple[KsanaModelKey, KsanaModel]]:
+    ) -> list[KsanaModel]:
 
         log.info(f"load_model_path_or_files: {model_path}")
         load_model_path_or_files = model_path
@@ -154,8 +153,8 @@ class KsanaWanX2VPipeline(KsanaX2VPipeline):
                     device=device,
                     offload_device=offload_device,
                 )
-                model_key = one_model.get_model_key(is_high[i])
-                res.append((model_key, one_model))
+                one_model.set_as_high_or_low(is_high[i])
+                res.append(one_model)
                 if comfy_bar_callback is not None:
                     comfy_bar_callback()
             return res
@@ -173,7 +172,7 @@ class KsanaWanX2VPipeline(KsanaX2VPipeline):
             )
             if comfy_bar_callback is not None:
                 comfy_bar_callback()
-            return [(one_model.get_model_key(), one_model)]
+            return [one_model]
 
     def process_input_cache(self, cache_method):
         high_cache_config = None

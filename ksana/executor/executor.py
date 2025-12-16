@@ -24,6 +24,7 @@ from ..pipelines import create_ksana_pipeline
 
 from ..distributed import shard_model
 from ..models.model_pool import KsanaModelPool
+from ..models.model_key import KsanaModelKey
 from ..models import KsanaVAE
 import torchvision.transforms.functional as tvtf
 
@@ -125,7 +126,7 @@ class KsanaExecutor(ABC):
             dir=model_path if text_checkpoint_dir is None else text_checkpoint_dir, model_config=model_config
         )
         load_to_deivce = self.device if self.dist_config.num_gpus > 1 else self.offload_device
-        key_to_model_pair_list = self.pipeline.load_models(
+        model_list = self.pipeline.load_models(
             model_path=model_path,
             text_checkpoint_dir=text_checkpoint_dir,
             vae_checkpoint_dir=vae_checkpoint_dir,
@@ -136,7 +137,7 @@ class KsanaExecutor(ABC):
             device=load_to_deivce,
             offload_device=self.offload_device,
         )
-        self.model_pool.update_models(key_to_model_pair_list)
+        self.model_pool.update_models(model_list)
 
     def load_diffusion_model(
         self,
@@ -157,7 +158,7 @@ class KsanaExecutor(ABC):
             dir_path = model_path[0]
         self.pipeline = self.create_pipeline(dir=dir_path, model_config=model_config)
         load_to_deivce = self.device if self.dist_config.num_gpus > 1 else self.offload_device
-        diffusion_model_tuple_list = self.pipeline.load_diffusion_model(
+        diffusion_model_list = self.pipeline.load_diffusion_model(
             model_path=model_path,
             lora=lora,
             model_config=model_config,
@@ -168,18 +169,18 @@ class KsanaExecutor(ABC):
             shard_fn=self.shard_fn,
             comfy_bar_callback=comfy_bar_callback,
         )
-        self.model_pool.update_models(diffusion_model_tuple_list)
-        diffusion_model_key_list = [diffusion_model_keys for diffusion_model_keys, _ in diffusion_model_tuple_list]
+        self.model_pool.update_models(diffusion_model_list)
+        diffusion_model_key_list = [one_model.get_model_key() for one_model in diffusion_model_list]
         return diffusion_model_key_list
 
-    def load_vae_model(self, model_path, **kwargs):
+    def load_vae_model(self, model_path, **kwargs) -> KsanaModelKey:
         if len(kwargs) > 0:
             log.warning(f"kwargs {kwargs} are not in used")
         vae = KsanaVAE(
             model_path=model_path,
             device=self.offload_device,
         )
-        self.model_pool.update_models([(vae.get_model_key(), vae)])
+        self.model_pool.update_model(vae)
         return vae.get_model_key()
 
     def _valid_prompts(self, prompt, target_len=None):

@@ -520,7 +520,6 @@ class WanModel(ModelMixin, ConfigMixin):
 
         if y is not None:
             # x = [torch.cat([u, v], dim=0) for u, v in zip(x, y)]
-            # print(f"-------x.shape: {x.shape}, {x.dtype} y.shape: {y.shape}, {y.dtype}")
             x = torch.cat([x, y.to(x.dtype)], dim=1)
         # embeddings
         # [bs, 16, fi, hi, wi] => [bs, 5120, f, h, w]
@@ -554,7 +553,6 @@ class WanModel(ModelMixin, ConfigMixin):
         # [bs, freq_dim] => [bs, one, freq_dim]
         e = e.unflatten(0, (bs, one))
         # [bs, one, freq_dim=>self.dim:5120]
-        # print(f"-------e.shape: {e.dtype}, {x.dtype}")
         e = self.time_embedding(e.to(x.dtype))
         # [bs, one, 5120] => [bs, one, 6*5120]
         e0 = self.time_projection(e)
@@ -624,7 +622,6 @@ class WanModel(ModelMixin, ConfigMixin):
         if self.sp_size > 1:
             x = gather_forward(x, dim=1)
         # unpatchify
-        # TODO: support bs > 1
         # [bs, seqlen, 64] => [bs, 16, fi, hi, wi]
         x = self.unpatchify(x, grid_sizes)
         return x

@@ -16,7 +16,6 @@ from ..cache import create_cache
 from ..sample_solvers import get_sample_scheduler
 from ..scheduler import KsanaScheduler
 
-from ..models.model_key import KsanaModelKey
 from ..models.model_pool import KsanaModelPool
 from ..models.base_model import KsanaModel
 
@@ -52,11 +51,11 @@ class KsanaX2VPipeline(ABC):
         self.model_load_warm_up_done = False
 
     @abstractmethod
-    def load_text_encoder(self, checkpoint_dir, shard_fn=None) -> tuple[KsanaModelKey, KsanaModel]:
+    def load_text_encoder(self, checkpoint_dir, shard_fn=None) -> KsanaModel:
         pass
 
     @abstractmethod
-    def load_vae(self, checkpoint_dir, device) -> tuple[KsanaModelKey, KsanaModel]:
+    def load_vae(self, checkpoint_dir, device) -> KsanaModel:
         pass
 
     def clear_models(self):
@@ -77,7 +76,7 @@ class KsanaX2VPipeline(ABC):
         device=None,
         offload_device=None,
         shard_fn=None,
-    ) -> list[tuple[KsanaModelKey, KsanaModel]]:
+    ) -> list[KsanaModel]:
         pass
 
     def load_models(
@@ -92,7 +91,7 @@ class KsanaX2VPipeline(ABC):
         offload_device=None,
         shard_fn=None,
         lora: None | str | list[list[dict], list[dict]] = None,
-    ) -> list[tuple[KsanaModelKey, KsanaModel]]:
+    ) -> list[KsanaModel]:
         if not is_dir(model_path):
             assert (
                 text_checkpoint_dir is not None
@@ -106,10 +105,11 @@ class KsanaX2VPipeline(ABC):
         # keep lora flag for output name
         self.has_lora = lora is not None
 
-        self.text_encoder_key, text_encoder = self.load_text_encoder(text_checkpoint_dir, shard_fn=shard_fn)
+        text_encoder = self.load_text_encoder(text_checkpoint_dir, shard_fn=shard_fn)
+        self.text_encoder_key = text_encoder.get_model_key()
         if offload_device:
             text_encoder.to(offload_device)
-        diffusion_model_tuple_list = self.load_diffusion_model(
+        diffusion_model_list = self.load_diffusion_model(
             model_path,
             lora=lora,
             model_config=model_config,
@@ -119,16 +119,17 @@ class KsanaX2VPipeline(ABC):
             shard_fn=shard_fn,
         )
         if offload_device:
-            [diffusion_model.to(offload_device) for _, diffusion_model in diffusion_model_tuple_list]
-        self.diffusion_model_keys = [one_model_key for one_model_key, _ in diffusion_model_tuple_list]
+            [one_model.to(offload_device) for one_model in diffusion_model_list]
+        self.diffusion_model_keys = [one_model.get_model_key() for one_model in diffusion_model_list]
 
-        self.vae_key, vae_model = self.load_vae(vae_checkpoint_dir, device)
+        vae_model = self.load_vae(vae_checkpoint_dir, device)
+        self.vae_key = vae_model.get_model_key()
         self.vae_z_dim = vae_model.z_dim
         self.vae_stride = self.pipeline_config.default_config.vae_stride
         self.patch_size = self.pipeline_config.default_config.patch_size
         if offload_device:
             vae_model.to(offload_device)
-        return [(self.text_encoder_key, text_encoder), (self.vae_key, vae_model), *diffusion_model_tuple_list]
+        return [text_encoder, vae_model] + diffusion_model_list
 
     @time_range
     def forward_text_encoder(
