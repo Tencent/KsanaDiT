@@ -98,7 +98,6 @@ class KsanaDiffusionModel(KsanaModel):
         model_state_dict: dict,
         *,
         model_config: KsanaModelConfig = None,
-        input_model_config=None,
         device=None,
         offload_device=None,
         shard_fn=None,
@@ -345,6 +344,11 @@ class KsanaWanModel(KsanaDiffusionModel):
     Wan model class for Ksana diffusion models.
     """
 
+    def _get_in_out_dim(self, state_dict, key_prefix=""):
+        in_dim = state_dict["{}patch_embedding.weight".format(key_prefix)].shape[1]
+        out_dim = state_dict["{}head.head.weight".format(key_prefix)].shape[0] // 4
+        return in_dim, out_dim
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._is_high = True
@@ -374,7 +378,6 @@ class KsanaWanModel(KsanaDiffusionModel):
     def load(
         self,
         model_state_dict: dict,
-        input_model_config: dict = None,
         load_device=None,
         offload_device=None,
         shard_fn=None,
@@ -399,21 +402,9 @@ class KsanaWanModel(KsanaDiffusionModel):
             attn_backend=AttentionBackendEnum.from_string(self.model_config.attn_backend),
             linear_backend=self.model_config.linear_backend,
         )
-        log.info(f"input_model_config:{input_model_config}, load_device:{load_device}, offload_device:{offload_device}")
-        if input_model_config is None:
-            input_model_config = {}
+        log.info(f"operations:{operations}, load_device:{load_device}, offload_device:{offload_device}")
         default_model_config = self.pipeline_config.default_config
-        default_in_dim = 36 if self.task_type == "i2v" else 16
-        in_dim = default_model_config.get("in_dim", default_in_dim)
-        out_dim = default_model_config.get("out_dim", 16)
-        in_dim = (
-            input_model_config.get("in_dim", in_dim) if input_model_config.get("in_dim", None) is not None else in_dim
-        )
-        out_dim = (
-            input_model_config.get("out_dim", out_dim)
-            if input_model_config.get("out_dim", None) is not None
-            else out_dim
-        )
+        in_dim, out_dim = self._get_in_out_dim(model_state_dict)
         log.info(f"in_dim:{in_dim}, out_dim:{out_dim}")
         with time_range(f"create_model_{self.full_model_name}"):
             self.model = WanModel(

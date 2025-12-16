@@ -145,7 +145,6 @@ class KsanaExecutor(ABC):
         *,
         lora: None | str | list[list[dict], list[dict]] = None,
         model_config: KsanaModelConfig = None,
-        input_model_config=None,
         comfy_bar_callback=None,
         **kwargs,
     ):
@@ -163,7 +162,6 @@ class KsanaExecutor(ABC):
             lora=lora,
             model_config=model_config,
             dist_config=self.dist_config,
-            input_model_config=input_model_config,
             device=load_to_deivce,
             offload_device=self.offload_device,
             shard_fn=self.shard_fn,
