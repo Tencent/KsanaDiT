@@ -70,7 +70,6 @@ class KsanaWanX2VPipeline(KsanaX2VPipeline):
         model_config: KsanaModelConfig = None,
         dist_config=None,
         model_state_dict=None,
-        input_model_config=None,
         device=None,
         offload_device=None,
         shard_fn=None,
@@ -78,7 +77,6 @@ class KsanaWanX2VPipeline(KsanaX2VPipeline):
         model = KsanaWanModel(model_config, self.pipeline_config, dist_config)
         model.load(
             model_state_dict=model_state_dict,
-            input_model_config=input_model_config,
             load_device=device,
             offload_device=offload_device,
             shard_fn=shard_fn,
@@ -94,7 +92,6 @@ class KsanaWanX2VPipeline(KsanaX2VPipeline):
         *,
         lora: None | str | list[list[dict], list[dict]] = None,
         model_config: KsanaModelConfig = None,
-        input_model_config=None,
         dist_config=None,
         device=None,
         offload_device=None,
@@ -147,7 +144,6 @@ class KsanaWanX2VPipeline(KsanaX2VPipeline):
                 one_model = self.load_one_diffusion_model(
                     model_config=model_config,
                     model_state_dict=model_state_dict,
-                    input_model_config=input_model_config,
                     dist_config=dist_config,
                     shard_fn=shard_fn,
                     device=device,
@@ -163,7 +159,6 @@ class KsanaWanX2VPipeline(KsanaX2VPipeline):
             model_state_dict = merge_lora(load_model_path_or_files, loras_list, device=device)
             one_model = self.load_one_diffusion_model(
                 model_config=model_config,
-                input_model_config=input_model_config,
                 model_state_dict=model_state_dict,
                 dist_config=dist_config,
                 shard_fn=shard_fn,

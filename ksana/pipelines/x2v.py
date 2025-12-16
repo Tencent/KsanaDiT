@@ -72,7 +72,6 @@ class KsanaX2VPipeline(ABC):
         lora: None | str | list[list[dict], list[dict]] = None,
         model_config: KsanaModelConfig = None,
         dist_config=None,
-        input_model_config=None,
         device=None,
         offload_device=None,
         shard_fn=None,

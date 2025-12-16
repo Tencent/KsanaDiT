@@ -1,4 +1,5 @@
 import comfy
+import torch
 import comfy.model_management as mm
 from comfy.utils import ProgressBar
 from ksana import get_generator
@@ -6,6 +7,7 @@ from ksana.config import KsanaSampleConfig, KsanaRuntimeConfig
 from ksana.utils.profile import MemoryProfiler
 from ksana.utils import log
 from ksana.models.diffusion import KsanaDiffusionModel
+from ksana.models.model_key import KsanaModelKey
 from ksana.utils.memory import (
     estimate_ksana_model_memory,
     get_available_memory,
@@ -13,7 +15,59 @@ from ksana.utils.memory import (
     MEMORY_USAGE_FACTOR_MAP,
 )
 
-ONE_GB = 1024**3
+
+class WanVAE21LatentProcessor:
+    latent_channels = 16
+
+    def __init__(self):
+        self.scale_factor = 1.0
+        self.latents_mean = torch.tensor(
+            [
+                -0.7571,
+                -0.7089,
+                -0.9113,
+                0.1075,
+                -0.1745,
+                0.9653,
+                -0.1517,
+                1.5508,
+                0.4134,
+                -0.0715,
+                0.5517,
+                -0.3632,
+                -0.1922,
+                -0.9497,
+                0.2503,
+                -0.2921,
+            ]
+        ).view(1, self.latent_channels, 1, 1, 1)
+        self.latents_std = torch.tensor(
+            [
+                2.8184,
+                1.4541,
+                2.3275,
+                2.6558,
+                1.2196,
+                1.7708,
+                2.6052,
+                2.0743,
+                3.2687,
+                2.1526,
+                2.8652,
+                1.5579,
+                1.6382,
+                1.1253,
+                2.8251,
+                1.9160,
+            ]
+        ).view(1, self.latent_channels, 1, 1, 1)
+
+    def process_out(self, latent):
+        if len(latent.shape) == 4:
+            latent = latent.unsqueeze(0)
+        latents_mean = self.latents_mean.to(latent.device, latent.dtype)
+        latents_std = self.latents_std.to(latent.device, latent.dtype)
+        return latent * latents_std / self.scale_factor + latents_mean
 
 
 class KsanaGeneratorNode:
@@ -170,7 +224,7 @@ class KsanaGeneratorNode:
         high_cache_config=None,
         low_cache_config=None,
     ):
-        comfy_model = model.get("model")
+        ksana_model = model.get("model")
         run_dtype = model.get("run_dtype")
         boundary = model.get("boundary")
         ksana_generator = get_generator()
@@ -189,7 +243,7 @@ class KsanaGeneratorNode:
 
         # TODO: maybe need to latent_format process_in for positive/negative?
         samples = ksana_generator.forward_diffusion_models_with_tensors(
-            model_keys=comfy_model.model.ksana_model,
+            model_keys=ksana_model,
             positive=positive[0][0],
             negative=negative[0][0],
             img_latents=latent_image["samples"],  # [1, 16, 5, h/, w/]
@@ -211,6 +265,7 @@ class KsanaGeneratorNode:
         MemoryProfiler.record_memory("after_ksana_generator_generate_video_with_tensors")
         if len(samples.shape) == 4:
             samples = samples.unsqueeze(0)
-        samples = comfy_model.model.model_config.latent_format.process_out(samples)
-        # out = latent_image.copy()
+        if isinstance(ksana_model, (list, tuple)) and ksana_model[0] == KsanaModelKey.Wan2_2_T2V_14B_HIGH:
+            processor = WanVAE21LatentProcessor()
+            samples = processor.process_out(samples)
         return ({"samples": samples},)
