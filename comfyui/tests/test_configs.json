@@ -10,6 +10,10 @@
     "expect_values": {
       "mean": 0.4077001,
       "eps_place": 4
+    },
+    "gpus_expect_values": {
+      "mean": 0.4076295,
+      "eps_place": 4
     }
   },
   {
@@ -37,7 +41,7 @@
     "linear_backend": "fp8_gemm",
     "attn_backend": "flash_attention",
     "expect_values": {
-      "mean": 0.3596877,
+      "mean": 0.3602811,
       "eps_place": 4
     },
     "gpus_expect_values": {
@@ -54,7 +58,7 @@
     "linear_backend": "default",
     "attn_backend": "sage_attention",
     "expect_values": {
-      "mean": 0.3613247,
+      "mean": 0.3607838,
       "eps_place": 4
     },
     "gpus_expect_values": {

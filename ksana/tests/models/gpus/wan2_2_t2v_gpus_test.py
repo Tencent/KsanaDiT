@@ -1,0 +1,66 @@
+import unittest
+from ksana import KsanaGenerator
+from ksana.config import (
+    KsanaRuntimeConfig,
+    KsanaSampleConfig,
+    KsanaDistributedConfig,
+)
+import torch
+
+prompts = [
+    "街头摄影，戴耳机的酷女孩滑板，纽约街头，涂鸦墙背景，动态姿势，风吹头发，黄金时刻光线，主体清晰背景虚化，街头潮牌。",
+    "新中式，戴发簪的女子，改良汉服（半透明丝绸），竹林，雾气，空灵氛围，丁达尔效应，清冷优雅，超写实",
+]
+
+SEED = 123
+# TODO: add test TEST_DTYPE
+TEST_DTYPE = torch.float16
+TEST_SIZE = (720, 480)
+TEST_STEPS = 1
+TEST_FRAME_NUM = 9
+TEST_EPS_PLACE = 4
+
+
+class TestKsanaGpus(unittest.TestCase):
+
+    def test_simple_gpus(self):
+        print("-----------------test_simple_gpus-----------------")
+        generator = KsanaGenerator.from_models("./Wan2.2-T2V-A14B", dist_config=KsanaDistributedConfig(num_gpus=2))
+        videos = generator.generate_video(
+            prompts,
+            sample_config=KsanaSampleConfig(steps=TEST_STEPS),
+            runtime_config=KsanaRuntimeConfig(
+                seed=SEED,
+                size=TEST_SIZE,
+                frame_num=TEST_FRAME_NUM,
+                return_frames=True,
+                save_video=True,
+            ),
+        )
+        mean0 = videos[0].cpu().abs().mean().item()
+        mean1 = videos[1].cpu().abs().mean().item()
+        videos = generator.generate_video(
+            prompts[0],
+            sample_config=KsanaSampleConfig(steps=TEST_STEPS),
+            runtime_config=KsanaRuntimeConfig(
+                seed=SEED,
+                size=TEST_SIZE,
+                frame_num=TEST_FRAME_NUM,
+                return_frames=True,
+                save_video=True,
+            ),
+        )
+        # TODO: check the value
+        mean2 = videos[0].cpu().abs().mean().item()
+        with self.subTest(msg="Mean 0 Check"):
+            self.assertAlmostEqual(mean0, 0.6556231379508972, places=TEST_EPS_PLACE)
+
+        with self.subTest(msg="Mean 1 Check"):
+            self.assertAlmostEqual(mean1, 0.44206780195236206, places=TEST_EPS_PLACE)
+
+        with self.subTest(msg="Mean 2 Check"):
+            self.assertAlmostEqual(mean2, 0.7042707800865173, places=TEST_EPS_PLACE)
+
+
+if __name__ == "__main__":
+    unittest.main()

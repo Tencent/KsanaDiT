@@ -287,6 +287,8 @@ def main():
 
             workflow_start_time = time.time()
             expect_values = config.get("gpus_expect_values") if num_gpus > 1 else config.get("expect_values")
+            if expect_values is None:
+                expect_values = config.get("expect_values")
             success = test_workflow(workflow_path=config["workflow_path"], params=config, expect_values=expect_values)
             workflow_elapsed = time.time() - workflow_start_time
 
