@@ -26,8 +26,8 @@ class TestKsanaI2V(unittest.TestCase):
         generator = KsanaGenerator.from_models("./Wan2.2-I2V-A14B")
         videos = generator.generate_video(
             prompts[0],
-            sample_config=KsanaSampleConfig(steps=TEST_STEPS),
             img_path="./examples/images/input.png",
+            sample_config=KsanaSampleConfig(steps=TEST_STEPS),
             runtime_config=KsanaRuntimeConfig(
                 seed=SEED,
                 size=TEST_SIZE,
@@ -40,9 +40,9 @@ class TestKsanaI2V(unittest.TestCase):
 
         videos = generator.generate_video(
             prompts,
-            sample_config=KsanaSampleConfig(steps=TEST_STEPS),
             img_path="./examples/images/start_image.png",
             end_img_path="./examples/images/end_image.png",
+            sample_config=KsanaSampleConfig(steps=TEST_STEPS),
             runtime_config=KsanaRuntimeConfig(
                 seed=SEED,
                 size=TEST_SIZE,

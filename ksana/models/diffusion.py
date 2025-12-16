@@ -345,16 +345,23 @@ class KsanaWanModel(KsanaDiffusionModel):
     Wan model class for Ksana diffusion models.
     """
 
-    def get_model_key(self, is_high: bool = True) -> KsanaModelKey:
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._is_high = True
+
+    def set_as_high_or_low(self, is_high):
+        self._is_high = is_high
+
+    def get_model_key(self) -> KsanaModelKey:
         if self.model_name in WAN2_2:
             if self.task_type == "t2v":
                 if self.model_size == "A14B":
-                    return KsanaModelKey.Wan2_2_T2V_14B_HIGH if is_high else KsanaModelKey.Wan2_2_T2V_14B_LOW
+                    return KsanaModelKey.Wan2_2_T2V_14B_HIGH if self._is_high else KsanaModelKey.Wan2_2_T2V_14B_LOW
                 else:
                     raise RuntimeError(f"model_size {self.model_size} is not in {self.model_name} {self.task_type} yet")
             elif self.task_type == "i2v":
                 if self.model_size == "A14B":
-                    return KsanaModelKey.Wan2_2_I2V_14B_HIGH if is_high else KsanaModelKey.Wan2_2_I2V_14B_LOW
+                    return KsanaModelKey.Wan2_2_I2V_14B_HIGH if self._is_high else KsanaModelKey.Wan2_2_I2V_14B_LOW
                 else:
                     raise RuntimeError(f"model_size {self.model_size} is not in {self.model_name} {self.task_type} yet")
             else:
