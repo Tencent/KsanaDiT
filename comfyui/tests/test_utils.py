@@ -392,7 +392,7 @@ def check_media_data(media_data: bytes, expect_values: dict) -> bool:
 
 
 def wait_for_completion(
-    ws: websocket.WebSocket, prompt_id: str, server_address: str = "127.0.0.1:8188"
+    ws: websocket.WebSocket, prompt_id: str, server_address: str = "127.0.0.1:8188", api_prompt: dict = None
 ) -> Tuple[bool, Optional[bytes]]:
     """等待 workflow 执行完成
 
@@ -400,6 +400,7 @@ def wait_for_completion(
         ws: WebSocket 连接
         prompt_id: prompt ID
         server_address: server 地址
+        api_prompt: API 格式的 workflow，用于获取节点的 class_type
 
     Returns:
         (是否成功完成, 最后一个媒体文件数据)
@@ -426,7 +427,8 @@ def wait_for_completion(
                     else:
                         last_node_id = data["data"]["node"]
                         last_node_start_time = current_time
-                        logger.info(f"执行: {last_node_id}")
+                        class_type = api_prompt[last_node_id].get("class_type", "error")
+                        logger.info(f"执行: {last_node_id} ({class_type})")
 
             elif data["type"] == "execution_error":
                 if data["data"].get("prompt_id") == prompt_id:

@@ -657,15 +657,6 @@ class KsanaX2VPipeline(ABC):
             else None
         )
 
-        sample_scheduler_kwargs = dict(
-            num_train_timesteps=default_pipeline_config.num_train_timesteps,
-            sampling_steps=sample_config.steps,
-            sample_solver=sample_config.solver,
-            device=device,
-            shift=sample_config.shift,
-            denoise=sample_config.denoise,
-        )
-
         with torch.no_grad():
             # 构建动态批处理策略
             batch_strategy = self.scheduler.build_batch_strategy(noise_latents.shape, batch_size, run_dtype, device)
@@ -691,8 +682,18 @@ class KsanaX2VPipeline(ABC):
                 batch_step_offset = batch_idx * total_steps_per_batch
                 bar_info = (batch_step_offset, global_total_steps)
 
-                batch_sample_scheduler, _, batch_timesteps = get_sample_scheduler(**sample_scheduler_kwargs)
-                log.info(f"batch timesteps: {batch_timesteps}, boundary:{boundary}, seq_len:{seq_len}")
+                batch_sample_scheduler, _, batch_timesteps = get_sample_scheduler(
+                    num_train_timesteps=default_pipeline_config.num_train_timesteps,
+                    sampling_steps=sample_config.steps,
+                    sample_solver=sample_config.solver,
+                    device=device,
+                    shift=sample_config.shift,
+                    denoise=sample_config.denoise,
+                    sigmas=sample_config.sigmas,
+                )
+                log.info(
+                    f"batch timesteps: {batch_timesteps}, boundary:{boundary}, seq_len:{seq_len}, sigmas:{sample_config.sigmas}"
+                )
 
                 processed_latents = self.run_steps_by_batch(
                     positive_batch=pos_batch,

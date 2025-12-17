@@ -175,6 +175,7 @@ class KsanaGeneratorNode:
                     "KSANA_CACHE_CONFIG",
                     {"tooltip": "The cache used for low model."},
                 ),
+                "sigmas": ("FLOAT", {"forceInput": True}),
             },
         }
 
@@ -223,7 +224,13 @@ class KsanaGeneratorNode:
         low_sample_guide_scale=None,
         high_cache_config=None,
         low_cache_config=None,
+        sigmas=None,
     ):
+        if sigmas is not None:
+            expected_lengths = steps + 1
+            if len(sigmas) != expected_lengths:
+                raise RuntimeError(f"sigmas length ({len(sigmas)}) must be equal to steps + 1 ({expected_lengths})")
+
         ksana_model = model.get("model")
         run_dtype = model.get("run_dtype")
         boundary = model.get("boundary")
@@ -253,6 +260,7 @@ class KsanaGeneratorNode:
                 shift=sample_shift,
                 solver=solver_name,
                 denoise=denoise,
+                sigmas=sigmas,
             ),
             runtime_config=KsanaRuntimeConfig(
                 seed=seed,

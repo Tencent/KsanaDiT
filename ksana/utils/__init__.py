@@ -9,7 +9,7 @@ from .distribute import get_rank_id, get_world_size, get_gpu_count, gather_forwa
 from .lora import model_safe_downcast, merge_lora
 from .load import load_torch_file, load_sharded_safetensors
 from .ops import cast_bias_weight, supports_fp8_compute, stochastic_rounding
-from .sample_solver import get_sigmas_with_denoise, get_timesteps_with_denoise, apply_sigma_shift
+from .sample_solver import get_sigmas_with_denoise, apply_sigma_shift
 
 __all__ = [
     log,
@@ -38,6 +38,5 @@ __all__ = [
     supports_fp8_compute,
     stochastic_rounding,
     get_sigmas_with_denoise,
-    get_timesteps_with_denoise,
     apply_sigma_shift,
 ]
