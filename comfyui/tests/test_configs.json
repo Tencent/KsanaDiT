@@ -8,11 +8,29 @@
     "attn_backend": "flash_attention",
     "lora_model_name": "Wan2.2-T2V-A14B-4steps-lora-rank64-Seko-V1/low_noise_model.safetensors",
     "expect_values": {
-      "mean": 0.4077001,
+      "mean": 0.4076926,
       "eps_place": 4
     },
     "gpus_expect_values": {
       "mean": 0.4076295,
+      "eps_place": 4
+    }
+  },
+  {
+    "workflow_path": "../workflows/wan/wan2.2_t2v_fp16_lightning_4steps_lora_sigma.json",
+    "steps": 1,
+    "width": 720,
+    "height": 480,
+    "frames": 9,
+    "sigmas": [0.9999, 0.0000],
+    "attn_backend": "flash_attention",
+    "lora_model_name": "Wan2.2-T2V-A14B-4steps-lora-rank64-Seko-V1/low_noise_model.safetensors",
+    "expect_values": {
+      "mean": 0.4418136,
+      "eps_place": 4
+    },
+    "gpus_expect_values": {
+      "mean": 0.4417852,
       "eps_place": 4
     }
   },
@@ -24,11 +42,11 @@
     "frames": 9,
     "attn_backend": "flash_attention",
     "expect_values": {
-      "mean": 0.3870876,
-      "eps_place": 2
+      "mean": 0.3870962,
+      "eps_place": 4
     },
     "gpus_expect_values": {
-      "mean": 0.3870537,
+      "mean": 0.3870642,
       "eps_place": 4
     }
   },

@@ -2,7 +2,6 @@ import unittest
 import numpy as np
 from ksana.utils.sample_solver import (
     get_sigmas_with_denoise,
-    get_timesteps_with_denoise,
     apply_sigma_shift,
 )
 
@@ -31,19 +30,6 @@ class TestSampleSolver(unittest.TestCase):
         self.assertEqual(len(sigmas), steps)
         self.assertAlmostEqual(sigmas[0], 0.5)
         self.assertAlmostEqual(sigmas[1], 0.4)
-
-    def test_get_timesteps_with_denoise(self):
-        num_steps = 10
-        max_steps = 1000
-        denoise = 1.0
-
-        timesteps = get_timesteps_with_denoise(num_steps, max_steps, denoise)
-
-        self.assertEqual(len(timesteps), num_steps + 1)
-        self.assertAlmostEqual(timesteps[0], 1000.0, places=5)
-        self.assertAlmostEqual(timesteps[1], 900.0, places=5)
-        self.assertAlmostEqual(timesteps[-1], 0.0, places=5)
-        self.assertEqual(timesteps.dtype, np.float32)
 
     def test_apply_sigma_shift(self):
         sigmas = np.array([1.0, 0.8, 0.6, 0.4, 0.2])

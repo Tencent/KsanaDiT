@@ -5,7 +5,8 @@ import torch
 # pyright: ignore
 from diffusers import FlowMatchEulerDiscreteScheduler  # pyright: ignore
 from torch import Tensor
-from ..utils.sample_solver import get_timesteps_with_denoise, apply_sigma_shift
+import numpy as np
+from ..utils.sample_solver import get_sigmas_with_denoise, apply_sigma_shift
 
 
 def unsqueeze_to_ndim(in_tensor: Tensor, tgt_n_dim: int):
@@ -31,21 +32,30 @@ class EulerScheduler(FlowMatchEulerDiscreteScheduler):
         pass
 
     def set_shift(self, shift: float = 1.0):
-        self.sigmas = self.timesteps_ori / self.num_train_timesteps
         self.sigmas = apply_sigma_shift(self.sigmas, shift)
-        self.timesteps = self.sigmas * self.num_train_timesteps
+        self.timesteps = self.sigmas[:-1] * self.num_train_timesteps
         self._shift = shift
 
     def set_timesteps(
-        self, num_inference_steps: int, device: torch.device | str | int | None = None, denoise: float = 1.0
+        self,
+        num_inference_steps: int,
+        device: torch.device | str | int | None = None,
+        denoise: float = 1.0,
+        sigmas: Tensor | list[float] | None = None,
     ):
-        timesteps = get_timesteps_with_denoise(
-            num_steps=num_inference_steps,
-            max_steps=self.num_train_timesteps,
-            denoise=denoise,
-        )
-        self.timesteps = torch.from_numpy(timesteps).to(dtype=torch.float32, device=device or self.device)
-        self.timesteps_ori = self.timesteps.clone()
+        if sigmas is not None:
+            self.sigmas = torch.tensor(sigmas, dtype=torch.float32, device=device or self.device)
+        else:
+            sigmas_array = get_sigmas_with_denoise(
+                steps=num_inference_steps,
+                denoise=denoise,
+                start=1,
+                end=0,
+            )
+            sigmas_with_zero = np.concatenate(
+                [sigmas_array, [0.0]]
+            )  # 添加最后的 0.0，使其与传入的 sigmas 数量保持一致，都是steps+1个value
+            self.sigmas = torch.from_numpy(sigmas_with_zero).to(dtype=torch.float32, device=device or self.device)
         self.set_shift(self._shift)
         self._step_index = None
         self._begin_index = None

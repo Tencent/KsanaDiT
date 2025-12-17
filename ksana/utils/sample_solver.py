@@ -26,12 +26,6 @@ def get_sigmas_with_denoise(steps, denoise=1.0, start=1.0, end=0.0):
     return values.copy()
 
 
-def get_timesteps_with_denoise(num_steps, max_steps, denoise=1.0):
-    timesteps = get_sigmas_with_denoise(num_steps, denoise, start=max_steps, end=0.0)
-    # The Euler scheduler expects the final 0.0 timestep to be included.
-    return np.concatenate([timesteps, [0.0]]).astype(np.float32)
-
-
 def apply_sigma_shift(sigmas, shift, use_dynamic_shifting=False):
     if use_dynamic_shifting or shift is None:
         return sigmas

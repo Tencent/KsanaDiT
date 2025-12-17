@@ -36,6 +36,7 @@ def modify_workflow_params(api_prompt: dict, params: dict) -> dict:
         - EmptyHunyuanLatentVideo: width, height, length (从 params["frames"] 获取)
         - KsanaModelLoaderNode: model_name, run_dtype, linear_backend, attn_backend
         - CLIPLoader: clip_name
+        - KsanaSigmasNode: sigmas
     """
     for _, node_data in api_prompt.items():
         class_type = node_data.get("class_type")
@@ -43,7 +44,6 @@ def modify_workflow_params(api_prompt: dict, params: dict) -> dict:
 
         if not inputs:
             continue
-
         # KsanaGeneratorNode: 修改 steps 和 seed
         if class_type == "KsanaGeneratorNode":
             if "steps" in params and "steps" in inputs:
@@ -88,19 +88,24 @@ def modify_workflow_params(api_prompt: dict, params: dict) -> dict:
             if params.get("lora_model_name"):
                 inputs["lora"] = params["lora_model_name"]
 
+        elif class_type == "StringToFloatList":
+            if "sigmas" in params and "string" in inputs:
+                sigmas_str = ",".join(map(str, params["sigmas"]))
+                inputs["string"] = sigmas_str
     return api_prompt
 
 
-def test_workflow(workflow_path: str, params: dict, expect_values: Optional[dict] = None) -> bool:
+def test_workflow(workflow_path: str, params: dict, expect_values: Optional[dict] = None, port: int = 8188) -> bool:
     """测试 workflow
     Args:
         workflow_path: workflow 文件路径
         params: 包含参数的字典
         expect_values: 期望值，用于结果校验
+        port: ComfyUI 服务器端口
     Returns:
         是否成功
     """
-    server_address = "127.0.0.1:8188"
+    server_address = f"127.0.0.1:{port}"
 
     try:
         # 1. 加载 workflow（自动判断格式，需要时转换）
@@ -118,7 +123,7 @@ def test_workflow(workflow_path: str, params: dict, expect_values: Optional[dict
             return False
 
         # 5. 等待完成
-        success, media_data = wait_for_completion(ws, prompt_id, server_address)
+        success, media_data = wait_for_completion(ws, prompt_id, server_address, api_prompt)
         if not success:
             return False
         # 6. 校验结果
@@ -230,6 +235,7 @@ def create_argument_parser():
     )
 
     parser.add_argument("--no-server", action="store_true", help="不启动 server（假设 server 已经在运行）")
+    parser.add_argument("--port", type=int, default=8188, help="ComfyUI 服务器端口 (默认: 8188)")
 
     return parser
 
@@ -278,7 +284,7 @@ def main():
 
         all_success = True
         for i, config in enumerate(workflow_configs, 1):
-            server_process = start_server()
+            server_process = start_server(port=args.port)
             config["seed"] = args.seed
             logger.info("=" * 60)
             logger.info(f"执行 workflow [{i}/{len(workflow_configs)}]")
@@ -289,7 +295,9 @@ def main():
             expect_values = config.get("gpus_expect_values") if num_gpus > 1 else config.get("expect_values")
             if expect_values is None:
                 expect_values = config.get("expect_values")
-            success = test_workflow(workflow_path=config["workflow_path"], params=config, expect_values=expect_values)
+            success = test_workflow(
+                workflow_path=config["workflow_path"], params=config, expect_values=expect_values, port=args.port
+            )
             workflow_elapsed = time.time() - workflow_start_time
 
             if success:

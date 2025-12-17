@@ -10,6 +10,7 @@ class KsanaSampleConfig:
     shift: float | None = field(default=None)
     solver: str | None = field(default=None)
     denoise: float | None = field(default=1.0)
+    sigmas: list[float] | None = field(default=None)
 
     def __post_init__(self):
         assert (
@@ -24,4 +25,5 @@ class KsanaSampleConfig:
             shift=default.get("sample_shift", None) if input_config.shift is None else input_config.shift,
             solver=default.get("sample_solver", None) if input_config.solver is None else input_config.solver,
             denoise=default.get("denoise", None) if input_config.denoise is None else input_config.denoise,
+            sigmas=default.get("sigmas", None) if input_config.sigmas is None else input_config.sigmas,
         )
