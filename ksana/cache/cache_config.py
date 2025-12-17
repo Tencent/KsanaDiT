@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
 
-SUPPORTED_CACHE_METHODS = ["DCache", "TeaCache", "EasyCache", "MagCache"]
+SUPPORTED_CACHE_METHODS = ["DCache", "TeaCache", "EasyCache", "MagCache", "DBCache"]
 
 
 @dataclass
@@ -48,3 +48,20 @@ class MagCacheConfig(KsanaCacheConfig):
     start_step: int | None = field(default=None)
     end_step: int | None = field(default=None)
     verbose: bool | None = field(default=None)
+
+
+@dataclass
+class DBCacheConfig(KsanaCacheConfig):
+    name: str = field(default="DBCache")
+    Fn_compute_blocks: int = field(default=8)
+    Bn_compute_blocks: int = field(default=0)
+    residual_diff_threshold: float = field(default=0.08)
+    max_warmup_steps: int = field(default=8)
+    warmup_interval: int = field(default=1)
+    max_cached_steps: int = field(default=-1)
+    max_continuous_cached_steps: int = field(default=-1)
+    enable_separate_cfg: bool = field(default=True)
+    cfg_compute_first: bool = field(default=False)
+    enable_taylorseer: bool = field(default=False)
+    taylorseer_order: int = field(default=1)
+    num_blocks: int | None = field(default=None)

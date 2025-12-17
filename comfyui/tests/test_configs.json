@@ -99,5 +99,21 @@
       "mean": 0.2320226,
       "eps_place": 4
     }
+  },
+  {
+    "workflow_path": "../workflows/wan/wan2.2_t2v_fp16_dbcache.json",
+    "steps": 1,
+    "width": 1280,
+    "height": 720,
+    "frames": 81,
+    "attn_backend": "flash_attention",
+    "expect_values": {
+      "mean": 0.4610096,
+      "eps_place": 4
+    },
+    "gpus_expect_values": {
+      "mean": 0.4610096,
+      "eps_place": 4
+    }
   }
 ]
