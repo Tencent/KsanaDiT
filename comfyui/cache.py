@@ -3,6 +3,7 @@ from ksana.cache.cache_config import (
     TeaCacheConfig,
     EasyCacheConfig,
     MagCacheConfig,
+    DBCacheConfig,
 )
 
 
@@ -185,3 +186,137 @@ class KsanaMagCacheNode:
 
     def func(self, threshold, K, cache_device, start_step, end_step, name=None):
         return (MagCacheConfig(threshold, K, cache_device, start_step, end_step, name=name),)
+
+
+class KsanaDBCacheNode:
+    PRESETS = {
+        "conservative": {
+            "Fn_compute_blocks": 10,
+            "Bn_compute_blocks": 8,
+            "residual_diff_threshold": 0.08,
+            "max_warmup_steps": 6,
+            "max_cached_steps": -1,
+            "max_continuous_cached_steps": -1,
+            "enable_taylorseer": False,
+            "taylorseer_order": 0,
+        },
+        "balanced": {
+            "Fn_compute_blocks": 8,
+            "Bn_compute_blocks": 6,
+            "residual_diff_threshold": 0.12,
+            "max_warmup_steps": 5,
+            "max_cached_steps": -1,
+            "max_continuous_cached_steps": -1,
+            "enable_taylorseer": True,
+            "taylorseer_order": 2,
+        },
+        "aggressive": {
+            "Fn_compute_blocks": 6,
+            "Bn_compute_blocks": 4,
+            "residual_diff_threshold": 0.18,
+            "max_warmup_steps": 4,
+            "max_cached_steps": -1,
+            "max_continuous_cached_steps": -1,
+            "enable_taylorseer": True,
+            "taylorseer_order": 3,
+            "num_blocks": 40,
+        },
+        # Wan2.2 specific presets
+        "wan22_high": {
+            "Fn_compute_blocks": 1,
+            "Bn_compute_blocks": 0,
+            "residual_diff_threshold": 0.16,
+            "max_warmup_steps": 2,
+            "max_cached_steps": 12,
+            "max_continuous_cached_steps": 3,
+            "enable_taylorseer": True,
+            "taylorseer_order": 1,
+        },
+        "wan22_low": {
+            "Fn_compute_blocks": 1,
+            "Bn_compute_blocks": 0,
+            "residual_diff_threshold": 0.24,
+            "max_warmup_steps": 2,
+            "max_cached_steps": 30,
+            "max_continuous_cached_steps": 3,
+            "enable_taylorseer": True,
+            "taylorseer_order": 1,
+        },
+    }
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "optional": {
+                "Fn_compute_blocks": ("INT", {"default": 8, "min": 0, "max": 100, "step": 1}),
+                "Bn_compute_blocks": ("INT", {"default": 6, "min": 0, "max": 100, "step": 1}),
+                "residual_diff_threshold": ("FLOAT", {"default": 0.12, "min": 0.01, "max": 1.0, "step": 0.01}),
+                "max_warmup_steps": ("INT", {"default": 5, "min": 0, "max": 100, "step": 1}),
+                "warmup_interval": ("INT", {"default": 1, "min": 1, "max": 10, "step": 1}),
+                "max_cached_steps": ("INT", {"default": -1, "min": -1, "max": 1000, "step": 1}),
+                "max_continuous_cached_steps": ("INT", {"default": -1, "min": -1, "max": 100, "step": 1}),
+                "enable_separate_cfg": ("BOOLEAN", {"default": True}),
+                "cfg_compute_first": ("BOOLEAN", {"default": False}),
+                "enable_taylorseer": ("BOOLEAN", {"default": True}),
+                "taylorseer_order": ("INT", {"default": 1, "min": 0, "max": 4, "step": 1}),
+                "num_blocks": ("INT", {"default": 40, "min": 1, "max": 200, "step": 1}),
+                "preset": (
+                    ["custom", "conservative", "balanced", "aggressive", "wan22_high", "wan22_low"],
+                    {"default": "balanced"},
+                ),
+            }
+        }
+
+    @classmethod
+    def VALIDATE_INPUTS(cls):
+        return True
+
+    RETURN_TYPES = ("KSANA_CACHE_CONFIG",)
+    RETURN_NAMES = ("cache_config",)
+    FUNCTION = "func"
+    CATEGORY = "ksana/cache"
+
+    def func(
+        self,
+        Fn_compute_blocks=8,
+        Bn_compute_blocks=6,
+        residual_diff_threshold=0.12,
+        max_warmup_steps=5,
+        warmup_interval=1,
+        max_cached_steps=-1,
+        max_continuous_cached_steps=-1,
+        enable_separate_cfg=True,
+        cfg_compute_first=False,
+        enable_taylorseer=True,
+        taylorseer_order=1,
+        num_blocks=40,
+        preset="balanced",
+    ):
+        if preset != "custom" and preset in self.PRESETS:
+            preset_config = self.PRESETS[preset]
+            Fn_compute_blocks = preset_config.get("Fn_compute_blocks", Fn_compute_blocks)
+            Bn_compute_blocks = preset_config.get("Bn_compute_blocks", Bn_compute_blocks)
+            residual_diff_threshold = preset_config.get("residual_diff_threshold", residual_diff_threshold)
+            max_warmup_steps = preset_config.get("max_warmup_steps", max_warmup_steps)
+            max_cached_steps = preset_config.get("max_cached_steps", max_cached_steps)
+            max_continuous_cached_steps = preset_config.get("max_continuous_cached_steps", max_continuous_cached_steps)
+            enable_taylorseer = preset_config.get("enable_taylorseer", enable_taylorseer)
+            taylorseer_order = preset_config.get("taylorseer_order", taylorseer_order)
+            num_blocks = preset_config.get("num_blocks", num_blocks)
+
+        return (
+            DBCacheConfig(
+                Fn_compute_blocks=Fn_compute_blocks,
+                Bn_compute_blocks=Bn_compute_blocks,
+                residual_diff_threshold=residual_diff_threshold,
+                max_warmup_steps=max_warmup_steps,
+                warmup_interval=warmup_interval,
+                max_cached_steps=max_cached_steps,
+                max_continuous_cached_steps=max_continuous_cached_steps,
+                enable_separate_cfg=enable_separate_cfg,
+                cfg_compute_first=cfg_compute_first,
+                enable_taylorseer=enable_taylorseer,
+                taylorseer_order=taylorseer_order,
+                num_blocks=num_blocks,
+            ),
+        )

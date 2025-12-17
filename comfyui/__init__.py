@@ -9,6 +9,7 @@ try:
         KsanaTeaCacheNode,
         KsanaEasyCacheNode,
         KsanaMagCacheNode,
+        KsanaDBCacheNode,
     )
     from .model_loader import KsanaModelLoaderNode
     from .vae import KsanaVAELoaderNode, KsanaVAEEncodeNode
@@ -21,6 +22,7 @@ try:
         "KsanaTeaCacheNode": KsanaTeaCacheNode,
         "KsanaEasyCacheNode": KsanaEasyCacheNode,
         "KsanaMagCacheNode": KsanaMagCacheNode,
+        "KsanaDBCacheNode": KsanaDBCacheNode,
         "KsanaDebugNode": KsanaDebugNode,
         "KsanaModelLoaderNode": KsanaModelLoaderNode,
         "KsanaVAELoaderNode": KsanaVAELoaderNode,
@@ -37,6 +39,7 @@ try:
         "KsanaTeaCacheNode": "KsanaDit TeaCache Node",
         "KsanaEasyCacheNode": "KsanaDit EasyCache Node",
         "KsanaMagCacheNode": "KsanaDit MagCache Node",
+        "KsanaDBCacheNode": "KsanaDit DBCache Node",
         "KsanaDebugNode": "KsanaDit Debug Node",
         "KsanaModelLoaderNode": "KsanaDit Model Loader",
         "KsanaVAELoaderNode": "KsanaDit VAE Loader",
