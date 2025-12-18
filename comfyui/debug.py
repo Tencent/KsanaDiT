@@ -20,7 +20,7 @@ class KsanaDebugNode:
     RETURN_TYPES = ()
     OUTPUT_NODE = True
     FUNCTION = "show_func"
-    CATEGORY = "ksana/debug"
+    CATEGORY = "ksana/utils"
 
     def show_func(self, source, name="", node_id=None):
         name = name if name else "source"

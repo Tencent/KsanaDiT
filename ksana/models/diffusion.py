@@ -402,7 +402,7 @@ class KsanaWanModel(KsanaDiffusionModel):
             attn_backend=AttentionBackendEnum.from_string(self.model_config.attn_backend),
             linear_backend=self.model_config.linear_backend,
         )
-        log.info(f"operations:{operations}, load_device:{load_device}, offload_device:{offload_device}")
+        log.info(f"load_device:{load_device}, offload_device:{offload_device}")
         default_model_config = self.pipeline_config.default_config
         in_dim, out_dim = self._get_in_out_dim(model_state_dict)
         log.info(f"in_dim:{in_dim}, out_dim:{out_dim}")

@@ -14,43 +14,41 @@ from ksana.config import (
 prompts = [
     "女孩扇子轻微挥动,吹口仙气后,手上的闪电飞到空中开始打雷",
     "新中式，戴发簪的女子，改良汉服（半透明丝绸），竹林，雾气，空灵氛围，丁达尔效应，清冷优雅，超写实",
-    "缓慢的平移镜头，在外滩边上，有清风吹过。镜头从远到近，女孩在手舞足蹈的跳舞，舞姿非常美丽，镜头从远景到近景，给出了女孩的特写和细节。",
+    "缓慢的平移镜头，在外滩边上，有清风吹过。镜头从远到近，女孩在动作的特写，舞姿非常美丽，舞姿缓慢的移动，最后定格。镜头从远景到近景，外滩的背景清晰，给出了女孩的特写和细节",
 ]
 
 SEED = 1234
 
 
-# def run_simple(args):
-#     generator = KsanaGenerator.from_models(
-#         f"{args.model_dir}/Wan2.2-I2V-A14B", dist_config=KsanaDistributedConfig(num_gpus=args.num_gpus)
-#     )
+def run_simple(args):
+    generator = KsanaGenerator.from_models(
+        f"{args.model_dir}/Wan2.2-I2V-A14B", dist_config=KsanaDistributedConfig(num_gpus=args.num_gpus)
+    )
 
-#     video = generator.generate_video(
-#         prompts,
-#         img_path=args.img_path,
-#         sample_config=KsanaSampleConfig(steps=40),
-#         runtime_config=KsanaRuntimeConfig(
-#             seed=SEED,
-#             size=(1280, 720),
-#             frame_num=81,
-#             # cache_method="DCache",
-#             return_frames=True,
-#         ),
-#     )
+    video = generator.generate_video(
+        prompts,
+        img_path=args.img_path,
+        sample_config=KsanaSampleConfig(steps=40),
+        runtime_config=KsanaRuntimeConfig(
+            seed=SEED,
+            size=(1280, 720),
+            frame_num=81,
+            return_frames=True,
+        ),
+    )
 
-#     video = generator.generate_video(
-#         prompts[0],
-#         img_path=args.img_path,
-#         sample_config=KsanaSampleConfig(steps=40),
-#         runtime_config=KsanaRuntimeConfig(
-#             seed=SEED,
-#             size=(1280, 720),
-#             frame_num=81,
-#             # cache_method="DCache",
-#             return_frames=True,
-#         ),
-#     )
-#     print("video shape:", video.shape)
+    video = generator.generate_video(
+        prompts[0],
+        img_path=args.img_path,
+        sample_config=KsanaSampleConfig(steps=40),
+        runtime_config=KsanaRuntimeConfig(
+            seed=SEED,
+            size=(1280, 720),
+            frame_num=81,
+            return_frames=True,
+        ),
+    )
+    print("video shape:", video.shape)
 
 
 def run_start_and_end(args):
@@ -104,5 +102,5 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    # run_simple(args)
+    run_simple(args)
     run_start_and_end(args)

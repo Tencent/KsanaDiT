@@ -14,6 +14,7 @@ class KsanaModelPool:
         if model_key in self.loaded_models and not allow_exist:
             log.error(f"model_key {model_key} has been loaded")
             raise RuntimeError(f"model_key {model_key} has been loaded")
+        log.info(f"loaded model {model_key}")
         self.loaded_models[model_key] = model
 
     def update_models(self, model_list: list[KsanaModel], allow_exist=False):
@@ -36,6 +37,7 @@ class KsanaModelPool:
         return [self.get_model(model_key) for model_key in model_key_list]
 
     def clear(self):
+        log.info("clear all models")
         self.loaded_models.clear()
         self.loaded_models = {}
         gc.collect()

@@ -632,8 +632,7 @@ class Wan2_1_VAE:
     # @nvtx_range
     def decode(self, zs):
         with amp.autocast(dtype=self.dtype):
-            # TODO: 考虑组batch
-            return [self.model.decode(u.unsqueeze(0), self.scale).float().clamp_(-1, 1).squeeze(0) for u in zs]
+            return self.model.decode(zs, self.scale).float().clamp_(-1, 1)
 
     def to(self, device):
         self.model.to(device)

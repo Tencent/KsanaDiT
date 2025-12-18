@@ -38,13 +38,15 @@ class TestKsana(unittest.TestCase):
                 save_video=True,
             ),
         )
+        with self.subTest(msg="Shape Check"):
+            self.assertEqual(list(videos.shape), [len(prompts), 3, TEST_FRAME_NUM, TEST_SIZE[1], TEST_SIZE[0]])
         mean0 = videos[0].cpu().abs().mean().item()
         mean1 = videos[1].cpu().abs().mean().item()
         with self.subTest(msg="Mean 0 Check"):
-            self.assertAlmostEqual(mean0, 0.6556175947189331, places=TEST_EPS_PLACE)
+            self.assertAlmostEqual(mean0, 0.6556181311607361, places=5)
 
         with self.subTest(msg="Mean 1 Check"):
-            self.assertAlmostEqual(mean1, 0.44206780195236206, places=TEST_EPS_PLACE)
+            self.assertAlmostEqual(mean1, 0.4420677423477173, places=5)
 
     def test_larger_seq_batch(self):
         print("-----------------test_larger_seq_batch-----------------")
@@ -60,6 +62,8 @@ class TestKsana(unittest.TestCase):
                 save_video=False,
             ),
         )
+        with self.subTest(msg="Shape Check"):
+            self.assertEqual(list(videos.shape), [len(prompts), 3, 81, 720, 1280])
         mean0 = videos[0].cpu().abs().mean().item()
         mean1 = videos[1].cpu().abs().mean().item()
         with self.subTest(msg="Mean 0 Check"):
@@ -92,12 +96,14 @@ class TestKsana(unittest.TestCase):
             sample_config=KsanaSampleConfig(steps=TEST_STEPS),
             runtime_config=KsanaRuntimeConfig(
                 seed=SEED,
-                size=(720, 480),
+                size=TEST_SIZE,
                 frame_num=TEST_FRAME_NUM,
                 return_frames=True,
                 save_video=False,
             ),
         )
+        with self.subTest(msg="Shape Check"):
+            self.assertEqual(list(video.shape), [1, 3, TEST_FRAME_NUM, TEST_SIZE[1], TEST_SIZE[0]])
         mean = video.cpu().abs().mean().item()
         self.assertAlmostEqual(mean, 0.6448575854301453, places=TEST_EPS_PLACE)
 
@@ -117,6 +123,8 @@ class TestKsana(unittest.TestCase):
                 save_video=False,
             ),
         )
+        with self.subTest(msg="Shape Check"):
+            self.assertEqual(list(video.shape), [1, 3, TEST_FRAME_NUM, TEST_SIZE[1], TEST_SIZE[0]])
         mean = video.cpu().abs().mean().item()
         self.assertAlmostEqual(mean, 0.6556134819984436, places=TEST_EPS_PLACE)
 
@@ -136,6 +144,8 @@ class TestKsana(unittest.TestCase):
                 save_video=False,
             ),
         )
+        with self.subTest(msg="Shape Check"):
+            self.assertEqual(list(video.shape), [1, 3, TEST_FRAME_NUM, TEST_SIZE[1], TEST_SIZE[0]])
         mean = video.cpu().abs().mean().item()
         self.assertAlmostEqual(mean, 0.255082368850708, places=TEST_EPS_PLACE)
 
@@ -158,6 +168,8 @@ class TestKsana(unittest.TestCase):
                 save_video=False,
             ),
         )
+        with self.subTest(msg="Shape Check"):
+            self.assertEqual(list(video.shape), [1, 3, TEST_FRAME_NUM, TEST_SIZE[1], TEST_SIZE[0]])
         mean = video.cpu().abs().mean().item()
         self.assertAlmostEqual(mean, 0.6559773683547974, places=TEST_EPS_PLACE)
 
@@ -183,6 +195,8 @@ class TestKsana(unittest.TestCase):
                 save_video=False,
             ),
         )
+        with self.subTest(msg="Shape Check"):
+            self.assertEqual(list(video.shape), [1, 3, TEST_FRAME_NUM, TEST_SIZE[1], TEST_SIZE[0]])
         mean = video.cpu().abs().mean().item()
         self.assertAlmostEqual(mean, 0.25497761368751526, places=TEST_EPS_PLACE)
 

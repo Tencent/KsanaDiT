@@ -37,8 +37,15 @@ class TestKsanaGpus(unittest.TestCase):
                 save_video=True,
             ),
         )
+        with self.subTest(msg="bs2 Shape Check"):
+            self.assertEqual(list(videos.shape), [len(prompts), 3, TEST_FRAME_NUM, TEST_SIZE[1], TEST_SIZE[0]])
         mean0 = videos[0].cpu().abs().mean().item()
         mean1 = videos[1].cpu().abs().mean().item()
+        with self.subTest(msg="Mean 0 Check"):
+            self.assertAlmostEqual(mean0, 0.6556231379508972, places=TEST_EPS_PLACE)
+        with self.subTest(msg="Mean 1 Check"):
+            self.assertAlmostEqual(mean1, 0.44206780195236206, places=TEST_EPS_PLACE)
+
         videos = generator.generate_video(
             prompts[0],
             sample_config=KsanaSampleConfig(steps=TEST_STEPS),
@@ -50,15 +57,11 @@ class TestKsanaGpus(unittest.TestCase):
                 save_video=True,
             ),
         )
-        mean2 = videos[0].cpu().abs().mean().item()
-        with self.subTest(msg="Mean 0 Check"):
-            self.assertAlmostEqual(mean0, 0.6556231379508972, places=TEST_EPS_PLACE)
-
-        with self.subTest(msg="Mean 1 Check"):
-            self.assertAlmostEqual(mean1, 0.44206780195236206, places=TEST_EPS_PLACE)
-
+        with self.subTest(msg="bs1 Shape Check"):
+            self.assertEqual(list(videos.shape), [1, 3, TEST_FRAME_NUM, TEST_SIZE[1], TEST_SIZE[0]])
+        mean2 = videos.cpu().abs().mean().item()
         with self.subTest(msg="Mean 2 Check"):
-            self.assertAlmostEqual(mean2, 0.7042707800865173, places=TEST_EPS_PLACE)
+            self.assertAlmostEqual(mean2, 0.6559354066848755, places=TEST_EPS_PLACE)
 
 
 if __name__ == "__main__":

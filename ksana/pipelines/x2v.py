@@ -7,7 +7,6 @@ import math
 
 import random
 import sys
-import numpy as np
 
 from dataclasses import dataclass, field
 from ..config import KsanaSampleConfig, KsanaRuntimeConfig, KsanaPipelineConfig, KsanaModelConfig
@@ -172,132 +171,6 @@ class KsanaX2VPipeline(ABC):
     def process_input_cache(self, cache_method):
         pass
 
-    @time_range
-    def forward_vae_decode(
-        self, model_pool: KsanaModelPool, latents, local_rank, device=None, offload_device=None, offload_model=False
-    ):
-        # TODO: support multi gpu
-        if local_rank != 0:
-            return
-        vae_model = model_pool.get_model(self.vae_key)
-        if vae_model.device != device:
-            vae_model.to(device)
-        videos = vae_model.decode(latents)
-        if offload_model and offload_device is not None and offload_device != device:
-            vae_model.to(offload_device)
-        del latents
-        log.info(f"Generated video count: {len(videos)}, first video shape: {videos[0].shape if videos else 'empty'}")
-        return videos
-
-    def forward_vae_encode(
-        self,
-        model_pool,
-        start_img: torch.Tensor,
-        target_f: int,
-        target_h: int,
-        target_w: int,
-        device,
-        *,
-        target_batch_size: int,
-        mask: torch.Tensor = None,
-        end_img: torch.Tensor = None,
-    ):
-        assert start_img.ndim == 4, f"img_batch must be 4D tensor[bs, 3, h, w], but got shape {start_img.shape}"
-        if end_img is not None:
-            assert (
-                start_img.shape == end_img.shape
-            ), f"start_img and end_img must have same shape, but got {start_img.shape} and {end_img.shape}"
-
-        if self.task_type != "i2v":
-            log.warning(f"task_type is {self.task_type} but now called image encode, maybe will fail in future")
-
-        # img: [bs, 3, ih, iw]
-        img_h, img_w = start_img.shape[2:]
-
-        lat_h = round(
-            np.sqrt(target_w * target_h * (img_h / img_w))
-            // self.vae_stride[1]
-            // self.patch_size[1]
-            * self.patch_size[1]
-        )
-        lat_w = round(
-            np.sqrt(target_w * target_h * (img_w / img_h))
-            // self.vae_stride[2]
-            // self.patch_size[2]
-            * self.patch_size[2]
-        )
-        lat_f = (target_f - 1) // self.vae_stride[0] + 1
-
-        h = lat_h * self.vae_stride[1]
-        w = lat_w * self.vae_stride[2]
-        start_img_batch = torch.nn.functional.interpolate(start_img.cpu(), size=(h, w), mode="bicubic")
-        if end_img is not None:
-            end_img_batch = torch.nn.functional.interpolate(end_img.cpu(), size=(h, w), mode="bicubic")
-
-        vae = model_pool.get_model(self.vae_key)
-        current_device = vae.device
-        if current_device != device:
-            vae.to(device)
-
-        # for bs in [bs, 3, h, w]
-        merge_batch = []
-        bs = start_img_batch.shape[0]
-        for i in range(bs):
-            one_start_img = start_img_batch[i]
-            # one_img: [3, h, w] => [1, 3, h, w] => [3, 1, h, w]
-            one_start_img = one_start_img.unsqueeze(0).transpose(0, 1)
-            if end_img is None:
-                merge = torch.concat([one_start_img, torch.zeros(3, target_f - 1, h, w)], dim=1)
-            else:
-                one_end_img = end_img_batch[i]
-                one_end_img = one_end_img.unsqueeze(0).transpose(0, 1)
-                merge = torch.concat([one_start_img, torch.zeros(3, target_f - 2, h, w), one_end_img], dim=1)
-            merge_batch.append(merge.unsqueeze(0))
-        del start_img_batch
-        if end_img is not None:
-            del end_img_batch
-
-        merge_batch = torch.concat(merge_batch, dim=0)
-        # merge_batch [bs, 3, target_f, h, w]
-        # => y [bs, 16, lat_f, lat_h , lat_w]
-        y = vae.encode(merge_batch.to(device))
-        vae.to(current_device)
-
-        assert y.shape == (
-            bs,
-            16,  # TODO: this is a magic number, get reference
-            lat_f,
-            lat_h,
-            lat_w,
-        ), f"vae encode shape must be [bs, 16, lat_f, lat_h, lat_w], but got {y.shape}, {[bs, 16, lat_f, lat_h, lat_w]}"
-
-        del merge_batch
-
-        if mask is None:
-            mask = self.get_img_mask(bs, lat_f, lat_h, lat_w, device, end_img is not None)
-
-        y = torch.concat([mask, y], dim=1)
-
-        if target_batch_size > bs:
-            y = y.repeat(target_batch_size // bs, 1, 1, 1, 1)
-
-        return y
-
-    def get_img_mask(self, bs, lat_f, lat_h, lat_w, device, has_end_img: bool = False):
-        start = torch.ones(bs, self.vae_stride[0], lat_h, lat_w, device=device)
-        if has_end_img:
-            zeros = torch.zeros(bs, (lat_f - 2) * self.vae_stride[0], lat_h, lat_w, device=device)
-            end = torch.ones(bs, self.vae_stride[0], lat_h, lat_w, device=device)
-            msk = torch.concat([start, zeros, end], dim=1)
-        else:
-            zeros = torch.zeros(bs, (lat_f - 1) * self.vae_stride[0], lat_h, lat_w, device=device)
-            msk = torch.concat([start, zeros], dim=1)
-
-        msk = msk.view(bs, lat_f, self.vae_stride[0], lat_h, lat_w)
-        msk = msk.transpose(1, 2)
-        # return [bs, 4, lat_f, lat_h, lat_w]
-        return msk
-
     def use_cfg(self, cfg_scale: float, eps: float = 1e-6):
         return abs(cfg_scale - 1.0) > eps
 
@@ -431,10 +304,13 @@ class KsanaX2VPipeline(ABC):
         seed_g = torch.Generator(device=device)
         seed_g.manual_seed(seed)
         bs = target_shape[0]
+        vae_z_dim = target_shape[1]
+        if self.task_type == "i2v":
+            vae_z_dim = self.vae_z_dim if hasattr(self, "vae_z_dim") else self.pipeline_config.default_config.vae_z_dim
         latents_list = []
         for _ in range(bs):
             single_noise = torch.randn(
-                self.vae_z_dim if self.task_type == "i2v" else target_shape[1],
+                vae_z_dim,
                 target_shape[2],
                 target_shape[3],
                 target_shape[4],
@@ -649,6 +525,7 @@ class KsanaX2VPipeline(ABC):
         boundary = None if low_model is None else runtime_config.boundary * default_pipeline_config.num_train_timesteps
         batch_size = positive.shape[0]
         noise_shape = self.get_noise_shape(img_latents, batch_size, runtime_config.frame_num, runtime_config.size)
+        log.info(f"noise_shape: {noise_shape}")
         noise_latents, seed_g = self.create_random_noise_latents(noise_shape, runtime_config, device, run_dtype)
         seq_len = self.get_seq_len(noise_latents.shape, default_pipeline_config.patch_size, high_model.sp_size)
         img_latents = (
@@ -656,6 +533,7 @@ class KsanaX2VPipeline(ABC):
             if img_latents is not None and self.task_type == "i2v"
             else None
         )
+        log.info(f"noise_latents: {noise_latents.shape}")
 
         with torch.no_grad():
             # 构建动态批处理策略
@@ -691,9 +569,7 @@ class KsanaX2VPipeline(ABC):
                     denoise=sample_config.denoise,
                     sigmas=sample_config.sigmas,
                 )
-                log.info(
-                    f"batch timesteps: {batch_timesteps}, boundary:{boundary}, seq_len:{seq_len}, sigmas:{sample_config.sigmas}"
-                )
+                log.info(f"batch timesteps: {batch_timesteps}, boundary:{boundary}, seq_len:{seq_len}")
 
                 processed_latents = self.run_steps_by_batch(
                     positive_batch=pos_batch,

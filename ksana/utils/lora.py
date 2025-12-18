@@ -128,7 +128,7 @@ def build_loras_list(lora_path: str, strength=1.0):
 
 
 @time_range
-def merge_lora(model_path: str, loras_list, device=None):
+def load_state_dict_and_merge_lora(model_path: str, loras_list, device=None):
     sd = {}
 
     need_merge = loras_list is not None and len(loras_list) > 0
@@ -139,7 +139,7 @@ def merge_lora(model_path: str, loras_list, device=None):
     # TODO(rockcao): support merge lora on gpu
     device = "cpu"
 
-    log.info(f"merge_lora on rank {get_rank_id()} via device {device}")
+    log.info(f"load_state_dict_and_merge_lora on rank {get_rank_id()} via device {device}")
 
     if os.path.isfile(model_path):
         files_list = [[model_path]]
