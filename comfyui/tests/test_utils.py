@@ -436,3 +436,43 @@ def wait_for_completion(
                     logger.error(json.dumps(data["data"], indent=2, ensure_ascii=False))
                     ws.close()
                     return False, None
+
+
+# ============================================================================
+# ramdisk 切换
+# ============================================================================
+
+MODEL_NAME_FIELDS = {
+    "CLIPLoader": "clip_name",
+    "KsanaVAELoaderNode": "vae_name",
+    "KsanaLoraSelectNode": "lora",
+    "KsanaModelLoaderNode": ["model_name", "low_noise_model_name"],
+}
+
+
+def extract_models_from_workflow(api_prompt):
+    """
+    List[Dict]: 模型配置列表，格式为 [{"name": "模型名", "type": "comfyui", "category": "节点类型"}]
+    """
+    model_configs = []
+    processed_models = set()
+
+    for _, node_data in api_prompt.items():
+        class_type = node_data.get("class_type")
+        inputs = node_data.get("inputs", {})
+        if class_type not in MODEL_NAME_FIELDS:
+            continue
+        name_fields = MODEL_NAME_FIELDS[class_type]
+        if isinstance(name_fields, str):
+            name_fields = [name_fields]
+
+        for field in name_fields:
+            if field in inputs and inputs[field]:
+                model_name = inputs[field]
+
+                # model_key 避免重复添加
+                model_key = f"{class_type}_{model_name}"
+                if model_key not in processed_models:
+                    model_configs.append({"name": model_name, "type": "comfyui", "category": class_type})
+                    processed_models.add(model_key)
+    return model_configs
