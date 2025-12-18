@@ -6,6 +6,7 @@ from ksana.config import (
     KsanaDistributedConfig,
 )
 import torch
+from ksana.tests.test_utils import setup_multi_gpu_environment
 
 prompts = [
     "缓慢的平移镜头，在外滩边上，有清风吹过。镜头从远到近，女孩在手舞足蹈的跳舞，舞姿非常美丽，镜头从远景到近景，给出了女孩的特写和细节。",
@@ -23,8 +24,14 @@ TEST_EPS_PLACE = 4
 
 class TestKsanaWanI2VGpus(unittest.TestCase):
 
+    def setUp(self):
+        """设置测试环境"""
+        model_configs = [{"name": "Wan2.2-I2V-A14B"}]
+        setup_multi_gpu_environment(model_configs, "ksana")
+
     def test_simple_gpus(self):
         print("-----------------test_simple_gpus-----------------")
+
         generator = KsanaGenerator.from_models("./Wan2.2-I2V-A14B", dist_config=KsanaDistributedConfig(num_gpus=2))
         videos = generator.generate_video(
             prompts,

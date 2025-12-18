@@ -6,6 +6,7 @@ from ksana.config import (
     KsanaDistributedConfig,
 )
 import torch
+from ksana.tests.test_utils import setup_multi_gpu_environment
 
 prompts = [
     "街头摄影，戴耳机的酷女孩滑板，纽约街头，涂鸦墙背景，动态姿势，风吹头发，黄金时刻光线，主体清晰背景虚化，街头潮牌。",
@@ -23,8 +24,14 @@ TEST_EPS_PLACE = 4
 
 class TestKsanaGpus(unittest.TestCase):
 
+    def setUp(self):
+        """设置测试环境"""
+        model_configs = [{"name": "Wan2.2-T2V-A14B"}]
+        setup_multi_gpu_environment(model_configs, "ksana")
+
     def test_simple_gpus(self):
         print("-----------------test_simple_gpus-----------------")
+
         generator = KsanaGenerator.from_models("./Wan2.2-T2V-A14B", dist_config=KsanaDistributedConfig(num_gpus=2))
         videos = generator.generate_video(
             prompts,
