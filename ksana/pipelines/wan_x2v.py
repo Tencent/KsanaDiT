@@ -7,7 +7,7 @@ from ..config import KsanaPipelineConfig, KsanaModelConfig
 from ..utils.profile import time_range
 from ..utils.logger import log
 from ..utils import is_dir
-from ..utils.lora import merge_lora, build_loras_list
+from ..utils.lora import load_state_dict_and_merge_lora, build_loras_list
 
 from ..models.model_key import WAN2_2, WAN2_1, X2V_TYPES
 from ..models.base_model import KsanaModel
@@ -140,7 +140,7 @@ class KsanaWanX2VPipeline(KsanaX2VPipeline):
             for i in range(len(load_model_path_or_files)):
                 one_model_path = load_model_path_or_files[i]
                 loras_list = list_of_loras_list[i] if list_of_loras_list is not None else None
-                model_state_dict = merge_lora(one_model_path, loras_list, device=device)
+                model_state_dict = load_state_dict_and_merge_lora(one_model_path, loras_list, device=device)
                 one_model = self.load_one_diffusion_model(
                     model_config=model_config,
                     model_state_dict=model_state_dict,
@@ -156,7 +156,7 @@ class KsanaWanX2VPipeline(KsanaX2VPipeline):
             return res
         else:
             loras_list = list_of_loras_list[0] if list_of_loras_list is not None else None
-            model_state_dict = merge_lora(load_model_path_or_files, loras_list, device=device)
+            model_state_dict = load_state_dict_and_merge_lora(load_model_path_or_files, loras_list, device=device)
             one_model = self.load_one_diffusion_model(
                 model_config=model_config,
                 model_state_dict=model_state_dict,

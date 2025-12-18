@@ -84,7 +84,7 @@ class KsanaLoraSelectMultiNode:
     RETURN_TYPES = ("KSANALORA",)
     RETURN_NAMES = ("lora",)
     FUNCTION = "get_lora_path"
-    CATEGORY = "ksana"
+    CATEGORY = "ksana/lora"
     DESCRIPTION = "Select a LoRA model from loras"
 
     def get_lora_path(
@@ -124,7 +124,7 @@ class KsanaLoraSelectNode:
     RETURN_TYPES = ("KSANALORA",)
     RETURN_NAMES = ("lora",)
     FUNCTION = "get_lora_path"
-    CATEGORY = "ksana"
+    CATEGORY = "ksana/lora"
     DESCRIPTION = "Select a LoRA model from loras"
 
     def get_lora_path(self, lora, strength):
@@ -146,7 +146,7 @@ class KsanaLoraCombineNode:
     RETURN_TYPES = ("KSANALORA",)
     RETURN_NAMES = ("lora",)
     FUNCTION = "combine_loras"
-    CATEGORY = "ksana"
+    CATEGORY = "ksana/lora"
     DESCRIPTION = "Combine LoRAs for 2 models"
 
     def combine_loras(self, lora, low_noise_model_lora=None):

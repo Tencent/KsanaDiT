@@ -224,6 +224,35 @@ class KsanaExecutor(ABC):
         else:
             return torch.cat(imgs, dim=0)
 
+    def images_to_latents(self, img_path, end_img_path, prompts_list_len: int, runtime_config: KsanaRuntimeConfig):
+        if not isinstance(img_path, (list, tuple)):
+            img_path = [img_path]
+        img_batch = self.load_image(img_path, prompts_list_len, device=self.offload_device)
+        if end_img_path is not None:
+            if not isinstance(end_img_path, (list, tuple)):
+                end_img_path = [end_img_path]
+            if len(end_img_path) != len(img_path):
+                raise ValueError(
+                    f"end_img_path length ({len(end_img_path)}) must match start_img_path length ({len(img_path)})"
+                )
+            end_img_batch = self.load_image(end_img_path, prompts_list_len, device=self.offload_device)
+        else:
+            end_img_batch = None
+
+        vae_model = self.model_pool.get_model(self.pipeline.vae_key)
+        img_latents = vae_model.forward_encode(
+            target_f=runtime_config.frame_num,
+            target_h=runtime_config.size[1],
+            target_w=runtime_config.size[0],
+            device=self.device,
+            start_img=img_batch,
+            end_img=end_img_batch,
+            target_batch_size=prompts_list_len,
+            vae_stride=self.pipeline.vae_stride,
+            vae_patch=self.pipeline.patch_size,
+        )
+        return img_latents
+
     @time_range
     def generate_video(
         self,
@@ -253,31 +282,12 @@ class KsanaExecutor(ABC):
         # encode img if have
         img_latents = None
         if img_path is not None:
-            if not isinstance(img_path, (list, tuple)):
-                img_path = [img_path]
-            img_batch = self.load_image(img_path, len(prompts_list), device=self.offload_device)
-            if end_img_path is not None:
-                if not isinstance(end_img_path, (list, tuple)):
-                    end_img_path = [end_img_path]
-                if len(end_img_path) != len(img_path):
-                    raise ValueError(
-                        f"end_img_path length ({len(end_img_path)}) must match start_img_path length ({len(img_path)})"
-                    )
-                end_img_batch = self.load_image(end_img_path, len(prompts_list), device=self.offload_device)
-            else:
-                end_img_batch = None
-
-            img_latents = self.pipeline.forward_vae_encode(
-                self.model_pool,
-                start_img=img_batch,
-                end_img=end_img_batch,
-                target_f=runtime_config.frame_num,
-                target_h=runtime_config.size[1],
-                target_w=runtime_config.size[0],
-                device=self.device,
-                target_batch_size=len(prompts_list),
+            img_latents = self.images_to_latents(
+                img_path=img_path,
+                end_img_path=end_img_path,
+                prompts_list_len=len(prompts_list),
+                runtime_config=runtime_config,
             )
-            log.info(f"img_latent shape: {img_latents.shape}")
 
         latents = self.pipeline.forward_diffusion_models(
             model_pool=self.model_pool,
@@ -290,28 +300,48 @@ class KsanaExecutor(ABC):
             offload_device=self.offload_device,
         )
         # TODO: multi-cards vae
-        videos = self.pipeline.forward_vae_decode(
-            model_pool=self.model_pool,
-            latents=latents,
-            local_rank=self.rank_id,
-            device=self.device,
-            offload_device=self.offload_device,
-            offload_model=runtime_config.offload_model,
-        )
+        vae_model = self.model_pool.get_model(self.pipeline.vae_key)
+        videos = vae_model.forward_decode(latents=latents, local_rank=self.rank_id, device=self.device)
         del latents
         if runtime_config.offload_model:
             gc.collect()
             torch.cuda.synchronize()
-        # TODO: move save to generator, outside executors
-        if runtime_config.save_video and self.rank_id == 0:
-            for _, (video, prompt_text) in enumerate(zip(videos, prompts_list)):
-                save_path = self.get_save_path(runtime_config.output_folder, prompt_text)
-                self.save_video(video, save_path)
 
-        res = []
-        if runtime_config.return_frames and self.rank_id == 0:
-            res = videos
+        self.save_videos(videos, prompts_list, runtime_config)
+        res = videos if self.rank_id == 0 and runtime_config.return_frames else None
+        # videos shape [bs, ch:3, f, h, w]
         return {self.rank_id: res}
+
+    @time_range
+    def forward_vae_encode(
+        self, vae_key, *, frame_num: int, width: int, height: int, start_image=None, end_image=None, mask=None
+    ):
+        vae = self.model_pool.get_model(vae_key)
+        log.info(
+            f"vae_encode with vae_key: {vae_key}, frame_num: {frame_num}, width: {width}, height: {height}, "
+            f"start_image shape: {start_image.shape if start_image is not None else None}, "
+            f"end_image shape: {end_image.shape if end_image is not None else None}, "
+            f"mask shape: {mask.shape if mask is not None else None}"
+        )
+        if self.rank_id != 0:
+            return {self.rank_id: None}
+        latents = vae.forward_encode(
+            target_f=frame_num,
+            target_h=height,
+            target_w=width,
+            device=self.device,
+            start_img=start_image,
+            end_img=end_image,
+            mask=mask,
+            target_batch_size=1 if start_image is None else start_image.shape[0],
+        )
+        return {self.rank_id: latents}
+
+    @time_range
+    def forward_vae_decode(self, vae_key, latents):
+        vae = self.model_pool.get_model(vae_key)
+        latents = vae.forward_decode(latents, local_rank=self.rank_id, device=self.device)
+        return {self.rank_id: latents}
 
     @time_range
     def forward_diffusion_models_with_tensors(self, model_keys, positive, negative, **kwargs):
@@ -330,17 +360,17 @@ class KsanaExecutor(ABC):
         res = latents if self.rank_id == 0 else None
         return {self.rank_id: res}
 
-    # TODO: move save to generator, outside executors
-    def get_save_path(self, output_folder, prompt_text):
+    def get_save_path(self, output_folder, out_size, prompt_text):
         formatted_time = datetime.now().strftime("%Y%m%d_%H%M%S")
         formatted_prompt = prompt_text.replace(" ", "_").replace("/", "_")[:30]
         suffix = ".mp4"
         save_file = (
-            f"{self.pipeline.save_name}_{self.dist_config.num_gpus}cards_{formatted_time}_{formatted_prompt}" + suffix
+            f"{self.pipeline.save_name}_{self.dist_config.num_gpus}cards_{out_size[0]}x{out_size[1]}_{formatted_time}_{formatted_prompt}"
+            + suffix
         )
         return os.path.join(output_folder, save_file)
 
-    def save_video(self, video, save_file):
+    def save_one_video(self, video, save_file):
         if self.rank_id != 0:
             return
         log.info(f"Saving generated video to {save_file}")
@@ -356,3 +386,12 @@ class KsanaExecutor(ABC):
         if "s2v" in self.pipeline.task_type:
             audio_path = "tts.wav"
             merge_video_audio(video_path=save_file, audio_path=audio_path)
+
+    def save_videos(self, videos, prompts_list, runtime_config):
+        if self.rank_id != 0 or not runtime_config.save_video:
+            return
+        for i in range(len(prompts_list)):
+            video = videos[i]
+            prompt_text = prompts_list[i]
+            save_path = self.get_save_path(runtime_config.output_folder, runtime_config.size, prompt_text)
+            self.save_one_video(video, save_path)

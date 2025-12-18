@@ -36,6 +36,9 @@ class TestKsanaI2V(unittest.TestCase):
                 save_video=True,
             ),
         )
+        with self.subTest(msg="bs1 Shape Check"):
+            # 576 is from image shape and target shape
+            self.assertEqual(list(videos.shape), [1, 3, TEST_FRAME_NUM, 576, 576])
         mean0 = videos.cpu().abs().mean().item()
 
         videos = generator.generate_video(
@@ -53,6 +56,8 @@ class TestKsanaI2V(unittest.TestCase):
         )
         mean1 = videos[0].cpu().abs().mean().item()
         mean2 = videos[1].cpu().abs().mean().item()
+        with self.subTest(msg="bs 2 Shape Check"):
+            self.assertEqual(list(videos.shape), [2, 3, TEST_FRAME_NUM, 576, 576])
         with self.subTest(msg="Mean 0 Check"):
             self.assertAlmostEqual(mean0, 0.6031375527381897, places=TEST_EPS_PLACE)
 

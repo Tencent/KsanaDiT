@@ -1000,7 +1000,7 @@ class Wan2_2_VAE:
             if not isinstance(zs, list):
                 raise TypeError("zs should be a list")
             with amp.autocast(dtype=self.dtype):
-                return [self.model.decode(u.unsqueeze(0), self.scale).float().clamp_(-1, 1).squeeze(0) for u in zs]
+                return self.model.decode(zs, self.scale).float().clamp_(-1, 1)
         except TypeError as e:
             logging.info(e)
             return None

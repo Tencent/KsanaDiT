@@ -59,7 +59,7 @@ class KsanaTorchCompileNode:
     RETURN_TYPES = ("KSANACOMPILEARGS",)
     RETURN_NAMES = ("torch_compile_args",)
     FUNCTION = "set_args"
-    CATEGORY = "ksana"
+    CATEGORY = "ksana/utils"
     DESCRIPTION = (
         "torch.compile settings, when connected to the model loader, torch.compile of the selected layers is attempted."
     )
