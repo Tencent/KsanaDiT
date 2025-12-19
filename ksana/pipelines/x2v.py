@@ -596,6 +596,13 @@ class KsanaX2VPipeline(ABC):
                 noise_latents[strategy_item.start : strategy_item.end] = processed_latents
 
         log.debug(f"noise_latents shape: {noise_latents.shape}")
+
+        # TODO: estimate diffusion memory usage to check whether neeed to offload diffusion model
+        # if runtime_config.offload_model and offload_device is not None :
+        # here always offload diffusion model to offload_device
+        if offload_device:
+            [diffusion_model.to(offload_device) for diffusion_model in diffusion_models]
+
         # [bs, vae_z_dim, f, h, w]
         return noise_latents
 
@@ -633,11 +640,6 @@ class KsanaX2VPipeline(ABC):
         )
         del positive, negative, img_latents
 
-        # TODO: estimate diffusion memory usage to check whether neeed to offload diffusion model
-        # if runtime_config.offload_model and offload_device is not None :
-        # here always offload diffusion model to offload_device
-        if offload_device:
-            [diffusion_model.to(offload_device) for diffusion_model in diffusion_models]
         return latents
 
     @property

@@ -21,7 +21,7 @@ class KsanaVAELoaderNode:
         num_gpus = get_gpu_count()
         ksana_generator = get_generator(dist_config=KsanaDistributedConfig(num_gpus=num_gpus))
 
-        ksana_model = ksana_generator.load_vae_model(model_path=vae_path)
+        ksana_model = ksana_generator.load_vae_model(model_path=vae_path, allow_exist=True)
         return (ksana_model,)
 
 

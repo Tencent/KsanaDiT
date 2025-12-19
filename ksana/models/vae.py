@@ -181,14 +181,10 @@ class KsanaVAE(KsanaModel):
         current_device = self.device
         if current_device != device:
             self.to(device)
-        # TODO: here memory should be enough for 720p*81 batch compute, but actually OOM yet, optimize me
-        outpus = []
-        for i in range(latents.shape[0]):
-            one_latents = latents[i]
-            one_latents = one_latents.unsqueeze(0)
-            one_latents = self.decode(one_latents)
-            outpus.append(one_latents)
-        latents = torch.concat(outpus, dim=0) if len(outpus) > 1 else outpus[0]
+        torch.cuda.empty_cache()
+        # TODO: every node should check memory usage before forward
+        # and offload other models to cpu if necessary
+        latents = self.decode(latents)
         self.to(current_device)
         log.info(f"decode output shape: {latents.shape}")
         # return [bs, ch:3, f, h, w]

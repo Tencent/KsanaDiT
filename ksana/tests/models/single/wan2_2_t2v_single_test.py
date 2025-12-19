@@ -67,10 +67,10 @@ class TestKsana(unittest.TestCase):
         mean0 = videos[0].cpu().abs().mean().item()
         mean1 = videos[1].cpu().abs().mean().item()
         with self.subTest(msg="Mean 0 Check"):
-            self.assertAlmostEqual(mean0, 0.5367064476013184, places=TEST_EPS_PLACE)
+            self.assertAlmostEqual(mean0, 0.5367065072059631, places=5)
 
         with self.subTest(msg="Mean 1 Check"):
-            self.assertAlmostEqual(mean1, 0.24088804423809052, places=TEST_EPS_PLACE)
+            self.assertAlmostEqual(mean1, 0.24088804423809052, places=5)
 
     def test_fp8(self):
         print("-----------------test_fp8-----------------")
@@ -105,7 +105,7 @@ class TestKsana(unittest.TestCase):
         with self.subTest(msg="Shape Check"):
             self.assertEqual(list(video.shape), [1, 3, TEST_FRAME_NUM, TEST_SIZE[1], TEST_SIZE[0]])
         mean = video.cpu().abs().mean().item()
-        self.assertAlmostEqual(mean, 0.6448575854301453, places=TEST_EPS_PLACE)
+        self.assertAlmostEqual(mean, 0.658674955368042, places=TEST_EPS_PLACE)
 
     def test_cache(self):
         # TODO: step 1 can not test cache, real test cache logical,

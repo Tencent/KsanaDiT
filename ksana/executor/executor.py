@@ -56,6 +56,7 @@ class KsanaExecutor(ABC):
     def init_torch_dist_group(self, rank_id, dist_config: KsanaDistributedConfig):
         """r initialize sequence parallel group."""
         self.dist_config = dist_config
+        log.info(f"init torch dist group with dist_config {dist_config}")
         if dist_config.num_gpus <= 1:
             return
         self.rank_id = rank_id
@@ -171,14 +172,14 @@ class KsanaExecutor(ABC):
         diffusion_model_key_list = [one_model.get_model_key() for one_model in diffusion_model_list]
         return diffusion_model_key_list
 
-    def load_vae_model(self, model_path, **kwargs) -> KsanaModelKey:
+    def load_vae_model(self, model_path, allow_exist=False, **kwargs) -> KsanaModelKey:
         if len(kwargs) > 0:
             log.warning(f"kwargs {kwargs} are not in used")
         vae = KsanaVAE(
             model_path=model_path,
             device=self.offload_device,
         )
-        self.model_pool.update_model(vae)
+        self.model_pool.update_model(vae, allow_exist=allow_exist)
         return vae.get_model_key()
 
     def _valid_prompts(self, prompt, target_len=None):

@@ -90,6 +90,12 @@ def modify_workflow_params(api_prompt: dict, params: dict) -> dict:
             if "sigmas" in params and "string" in inputs:
                 sigmas_str = ",".join(map(str, params["sigmas"]))
                 inputs["string"] = sigmas_str
+
+        elif class_type == "LoadImage":
+            # start and end just use the same input image
+            if "input_image" in params and "image" in inputs:
+                inputs["image"] = os.path.abspath(params["input_image"])
+
     return api_prompt
 
 

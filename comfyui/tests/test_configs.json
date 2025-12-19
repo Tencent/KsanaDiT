@@ -1,6 +1,6 @@
 [
   {
-    "workflow_path": "../workflows/wan/wan2.2_t2v_fp16_lightning_4steps_lora.json",
+    "workflow_path": "../workflows/wan/t2v/wan2.2_t2v_fp16_lightning_4steps_lora.json",
     "steps": 1,
     "width": 720,
     "height": 480,
@@ -17,7 +17,43 @@
     }
   },
   {
-    "workflow_path": "../workflows/wan/wan2.2_t2v_fp16_lightning_4steps_lora_sigma.json",
+    "workflow_path": "../workflows/wan/i2v/wan2.2_i2v_fp16_lightning_4steps_lora.json",
+    "steps": 1,
+    "width": 720,
+    "height": 480,
+    "frames": 9,
+    "input_image": "../../examples/images/start_image.png",
+    "attn_backend": "flash_attention",
+    "lora_model_name": "Wan2.2-I2V-A14B-4steps-lora-rank64-Seko-V1_low_noise.safetensors",
+    "expect_values": {
+      "mean": 0.8229001,
+      "eps_place": 4
+    },
+    "gpus_expect_values": {
+      "mean": 0.8228263,
+      "eps_place": 4
+    }
+  },
+  {
+    "workflow_path": "../workflows/wan/i2v/wan2.2_i2v_fp8_scaled.json",
+    "steps": 1,
+    "width": 720,
+    "height": 480,
+    "frames": 9,
+    "input_image": "../../examples/images/start_image.png",
+    "linear_backend": "fp8_gemm",
+    "attn_backend": "flash_attention",
+    "expect_values": {
+      "mean": 0.7636272,
+      "eps_place": 4
+    },
+    "gpus_expect_values": {
+      "mean": 0.7641701,
+      "eps_place": 4
+    }
+  },
+  {
+    "workflow_path": "../workflows/wan/t2v/wan2.2_t2v_fp16_lightning_4steps_lora_sigma.json",
     "steps": 1,
     "width": 720,
     "height": 480,
@@ -35,7 +71,7 @@
     }
   },
   {
-    "workflow_path": "../workflows/wan/wan2.2_t2v_fp16_dcache.json",
+    "workflow_path": "../workflows/wan/t2v/wan2.2_t2v_fp16_dcache.json",
     "steps": 1,
     "width": 720,
     "height": 480,
@@ -51,7 +87,7 @@
     }
   },
   {
-    "workflow_path": "../workflows/wan/wan2.2_t2v_fp8_scaled.json",
+    "workflow_path": "../workflows/wan/t2v/wan2.2_t2v_fp8_scaled.json",
     "steps": 1,
     "width": 720,
     "height": 480,
@@ -68,7 +104,7 @@
     }
   },
   {
-    "workflow_path": "../workflows/wan/wan2.2_t2v_fp8_scaled_dcache.json",
+    "workflow_path": "../workflows/wan/t2v/wan2.2_t2v_fp8_scaled_dcache.json",
     "steps": 1,
     "width": 720,
     "height": 480,
@@ -85,7 +121,7 @@
     }
   },
   {
-    "workflow_path": "../workflows/wan/wan2.2_t2v_fp8_scaled_dcache.json",
+    "workflow_path": "../workflows/wan/t2v/wan2.2_t2v_fp8_scaled_dcache.json",
     "steps": 1,
     "width": 1280,
     "height": 720,
@@ -101,7 +137,7 @@
     }
   },
   {
-    "workflow_path": "../workflows/wan/wan2.2_t2v_fp16_dbcache.json",
+    "workflow_path": "../workflows/wan/t2v/wan2.2_t2v_fp16_dbcache.json",
     "steps": 1,
     "width": 1280,
     "height": 720,
