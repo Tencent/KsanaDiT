@@ -30,3 +30,6 @@ ln -sf /dockerdata/ci-models/Wan2.2-I2V-A14B .
 
 mkdir -p /data/stable-diffusion-webui
 ln -sf /dockerdata/ci-models/comfy_models /data/stable-diffusion-webui/models
+
+sudo pkill -f comfy
+sudo pkill -f ksana

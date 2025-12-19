@@ -13,7 +13,7 @@ class RayKsanaExecutor(KsanaExecutor):
         初始化 PyTorch DDP。
         """
         master_addr = "127.0.0.1"  # ray.util.get_node_ip_address()
-        master_port = 29500  # get_free_port()
+        master_port = dist_config.port
         os.environ["RANK"] = str(rank_id)
         os.environ["WORLD_SIZE"] = str(dist_config.num_gpus)
         os.environ["MASTER_ADDR"] = master_addr

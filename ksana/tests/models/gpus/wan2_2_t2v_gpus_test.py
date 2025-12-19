@@ -6,6 +6,7 @@ from ksana.config import (
     KsanaDistributedConfig,
 )
 import torch
+import os
 from ksana.tests.test_utils import setup_multi_gpu_environment
 
 prompts = [
@@ -20,6 +21,7 @@ TEST_SIZE = (720, 480)
 TEST_STEPS = 1
 TEST_FRAME_NUM = 9
 TEST_EPS_PLACE = 4
+TEST_PORT = int(os.environ.get("KSANA_TEST_PORT", 29500))
 
 
 class TestKsanaGpus(unittest.TestCase):
@@ -31,8 +33,9 @@ class TestKsanaGpus(unittest.TestCase):
 
     def test_simple_gpus(self):
         print("-----------------test_simple_gpus-----------------")
-
-        generator = KsanaGenerator.from_models("./Wan2.2-T2V-A14B", dist_config=KsanaDistributedConfig(num_gpus=2))
+        generator = KsanaGenerator.from_models(
+            "./Wan2.2-T2V-A14B", dist_config=KsanaDistributedConfig(num_gpus=2, port=TEST_PORT)
+        )
         videos = generator.generate_video(
             prompts,
             sample_config=KsanaSampleConfig(steps=TEST_STEPS),

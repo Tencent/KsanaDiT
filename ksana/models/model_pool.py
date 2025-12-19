@@ -11,9 +11,10 @@ class KsanaModelPool:
 
     def update_model(self, model: KsanaModel, allow_exist=False):
         model_key = model.get_model_key()
-        if model_key in self.loaded_models and not allow_exist:
-            log.error(f"model_key {model_key} has been loaded")
-            raise RuntimeError(f"model_key {model_key} has been loaded")
+        if model_key in self.loaded_models:
+            log.warning(f"model_key {model_key} has been loaded")
+            if not allow_exist:
+                raise RuntimeError(f"model_key {model_key} has been loaded")
         log.info(f"loaded model {model_key}")
         self.loaded_models[model_key] = model
 

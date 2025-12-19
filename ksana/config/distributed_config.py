@@ -1,9 +1,11 @@
 from dataclasses import dataclass, field
+from ..utils.distribute import get_free_port
 
 
 @dataclass()
 class KsanaDistributedConfig:
     num_gpus: int = field(default=1, metadata={"help": "total number of gpus"})
+    port: int | None = field(default=29500, metadata={"help": "port for distributed communication"})
 
     use_sp: bool | None = field(default=None, metadata={"help": "use sequence parallel"})
     dit_fsdp: bool | None = field(default=None, metadata={"help": "use fully sharded data parallel"})
@@ -29,3 +31,6 @@ class KsanaDistributedConfig:
             assert (
                 self.ulysses_size == self.num_gpus
             ), f"The number of ulysses_size({self.ulysses_size}) should be equal to the num_gpus({self.num_gpus})."
+
+        if self.port is None or self.port <= 0:
+            self.port = get_free_port()
