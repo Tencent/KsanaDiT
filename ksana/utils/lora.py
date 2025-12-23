@@ -153,13 +153,12 @@ def load_state_dict_and_merge_lora(model_path: str, loras_list, device=None):
         base_sd = load_torch_files(files, device=device)
 
         for lora in loras_list:
-            log.info(f"start to load lora torch files: {lora['path']}")
-            lora_sd = load_torch_file(lora["path"], device=device)
             log.info(f"start to merge lora: {lora['path']}")
+            lora_sd = load_torch_file(lora["path"], device=device)
             base_sd = merge_lora_weight(base_sd, lora_sd, strength=lora["strength"])
             del lora_sd
 
-        log.info("start to offload to cpu")
+        log.debug("start to offload to cpu")
         for key, value in base_sd.items():
             value.data = value.to("cpu")
         sd.update(base_sd)

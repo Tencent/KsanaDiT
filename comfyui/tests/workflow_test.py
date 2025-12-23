@@ -8,7 +8,6 @@ import time
 import urllib.error
 from typing import Optional
 
-from ksana.tests.test_utils import setup_multi_gpu_environment, setup_single_gpu_environment
 
 from test_utils import (
     start_server,
@@ -18,17 +17,20 @@ from test_utils import (
     submit_workflow,
     wait_for_completion,
     check_media_data,
-    extract_models_from_workflow,
 )
 
+# 配置日志
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
 logger = logging.getLogger(__name__)
-
-SERVER_HOST = "127.0.0.1"
 
 
 def modify_workflow_params(api_prompt: dict, params: dict) -> dict:
     """修改 workflow 参数
+
+    Args:
+        api_prompt: API workflow 数据
+        params: 包含参数的字典
+
     支持的节点类型和参数映射:
         - KsanaGeneratorNode: steps, seed
         - EmptyHunyuanLatentVideo: width, height, length (从 params["frames"] 获取)
@@ -99,31 +101,38 @@ def modify_workflow_params(api_prompt: dict, params: dict) -> dict:
     return api_prompt
 
 
-def test_workflow(api_prompt: dict, expect_values: Optional[dict] = None, port: int = 8188) -> bool:
+def test_workflow(workflow_path: str, params: dict, expect_values: Optional[dict] = None, port: int = 8188) -> bool:
     """测试 workflow
     Args:
-        api_prompt: 预处理的 API workflow 数据
+        workflow_path: workflow 文件路径
+        params: 包含参数的字典
         expect_values: 期望值，用于结果校验
         port: ComfyUI 服务器端口
     Returns:
         是否成功
     """
-    server_address = f"{SERVER_HOST}:{port}"
+    server_address = f"127.0.0.1:{port}"
 
     try:
-        # 1. 连接 WebSocket
+        # 1. 加载 workflow（自动判断格式，需要时转换）
+        api_prompt = load_workflow(workflow_path, server_address)
+
+        # 2. 修改参数
+        api_prompt = modify_workflow_params(api_prompt, params)
+
+        # 3. 连接 WebSocket
         ws, client_id = connect_websocket(server_address)
 
-        # 2. 提交 workflow
+        # 4. 提交 workflow
         prompt_id = submit_workflow(api_prompt, client_id, server_address)
         if not prompt_id:
             return False
 
-        # 3. 等待完成
+        # 5. 等待完成
         success, media_data = wait_for_completion(ws, prompt_id, server_address, api_prompt)
         if not success:
             return False
-        # 4. 校验结果
+        # 6. 校验结果
         return check_media_data(media_data, expect_values)
 
     except urllib.error.HTTPError as e:
@@ -142,24 +151,6 @@ def test_workflow(api_prompt: dict, expect_values: Optional[dict] = None, port: 
 
         traceback.print_exc()
         return False
-
-
-def preprocess_workflows(workflow_configs: list, port: int = 8188) -> list:
-    """预处理所有 workflow 的 api_prompt"""
-    server_address = f"{SERVER_HOST}:{port}"
-    logger.info("开始预处理 workflow...")
-    server_process = start_server(port=port)
-    try:
-        processed_configs = []
-        for i, config in enumerate(workflow_configs, 1):
-            logger.info(f"预处理 workflow [{i}/{len(workflow_configs)}]: {config['workflow_path']}")
-            api_prompt = load_workflow(config["workflow_path"], server_address)
-            api_prompt = modify_workflow_params(api_prompt, config)
-            processed_configs.append({"config": config, "api_prompt": api_prompt})
-        logger.info("✓ 预处理完成，开始执行测试...")
-        return processed_configs
-    finally:
-        stop_server(server_process)
 
 
 def create_argument_parser():
@@ -287,47 +278,43 @@ def main():
         logger.info(f"设置 CUDA_VISIBLE_DEVICES = {args.gpus}")
         num_gpus = len(args.gpus.split(","))
 
-        for config in workflow_configs:
-            config["seed"] = args.seed
-
-        processed_configs = preprocess_workflows(workflow_configs, args.port)
-
+        logger.info("=" * 60)
+        logger.info("开始执行测试...")
         test_start_time = time.time()
+
+        # TODO: 后面改成启动一次，执行多个workflow，现在主要是多卡的情况之下多个workflow会卡住。
+        # if not args.no_server:
+        #     server_process = start_server()
+        # else:
+        #     logger.info("跳过启动 server（使用已有 server）")
+
         all_success = True
-        for i, item in enumerate(processed_configs, 1):
-            config = item["config"]
-            api_prompt = item["api_prompt"]
-            workflow_start_time = time.time()
-
-            if num_gpus > 1:
-                model_configs = extract_models_from_workflow(api_prompt)
-                setup_multi_gpu_environment(model_configs, "comfyui")
-            else:
-                setup_single_gpu_environment()
-
+        for i, config in enumerate(workflow_configs, 1):
             server_process = start_server(port=args.port)
-
+            config["seed"] = args.seed
             logger.info("=" * 60)
-            logger.info(f"执行 workflow [{i}/{len(processed_configs)}]")
+            logger.info(f"执行 workflow [{i}/{len(workflow_configs)}]")
             logger.info(f"配置: {config}")
             logger.info("=" * 60)
 
+            workflow_start_time = time.time()
             expect_values = config.get("gpus_expect_values") if num_gpus > 1 else config.get("expect_values")
             if expect_values is None:
                 expect_values = config.get("expect_values")
-
-            success = test_workflow(api_prompt=api_prompt, expect_values=expect_values, port=args.port)
+            success = test_workflow(
+                workflow_path=config["workflow_path"], params=config, expect_values=expect_values, port=args.port
+            )
             workflow_elapsed = time.time() - workflow_start_time
 
             if success:
-                logger.info(f"✓ Workflow [{i}/{len(processed_configs)}] 成功! 耗时: {workflow_elapsed:.2f} 秒")
+                logger.info(f"✓ Workflow [{i}/{len(workflow_configs)}] 成功! 耗时: {workflow_elapsed:.2f} 秒")
             else:
-                logger.error(f"✗ Workflow [{i}/{len(processed_configs)}] 失败! 耗时: {workflow_elapsed:.2f} 秒")
+                logger.error(f"✗ Workflow [{i}/{len(workflow_configs)}] 失败! 耗时: {workflow_elapsed:.2f} 秒")
                 all_success = False
-                stop_server(server_process)
                 break
             stop_server(server_process)
 
+        # 计算总耗时
         elapsed_seconds = time.time() - test_start_time
         elapsed_minutes = int(elapsed_seconds // 60)
         remaining_seconds = int(elapsed_seconds % 60)

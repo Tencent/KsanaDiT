@@ -37,6 +37,10 @@ def get_rank_id():
     return dist.get_rank()
 
 
+def is_multi_process() -> bool:
+    return dist.is_initialized()
+
+
 def get_world_size():
     return dist.get_world_size()
 

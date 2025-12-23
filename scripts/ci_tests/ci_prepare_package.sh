@@ -23,13 +23,14 @@ sudo chown mqq:mqq -R KsanaDiT/
 cd /data/ComfyUI/custom_nodes/KsanaDiT
 ./scripts/install_dev.sh
 
-ln -sf /dockerdata/ci-models/comfy_models .
-ln -sf /dockerdata/ci-models/Wan2.2-Lightning .
-ln -sf /dockerdata/ci-models/Wan2.2-T2V-A14B .
-ln -sf /dockerdata/ci-models/Wan2.2-I2V-A14B .
+ln -sf /dockerdata/ci-models/single/comfy_models .
+ln -sf /dockerdata/ci-models/single/Wan2.2-Lightning .
+ln -sf /dockerdata/ci-models/single/Wan2.2-T2V-A14B .
+ln -sf /dockerdata/ci-models/single/Wan2.2-I2V-A14B .
+
 
 mkdir -p /data/stable-diffusion-webui
-ln -sf /dockerdata/ci-models/comfy_models /data/stable-diffusion-webui/models
+ln -sf /dockerdata/ci-models/single/comfy_models /data/stable-diffusion-webui/models
 
 sudo pkill -f comfy
 sudo pkill -f ksana

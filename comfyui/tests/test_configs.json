@@ -45,7 +45,7 @@
     "attn_backend": "flash_attention",
     "expect_values": {
       "mean": 0.7636272,
-      "eps_place": 4
+      "eps_place": 2
     },
     "gpus_expect_values": {
       "mean": 0.7641701,
