@@ -158,22 +158,18 @@ def convert_workflow_to_api(
             "请运行：pip install playwright && playwright install firefox"
         )
 
-    # 读取 workflow 文件
     with open(workflow_path, "r", encoding="utf-8") as f:
         workflow_data = f.read()
 
     with sync_playwright() as p:
-        # 启动无头浏览器 (使用 Firefox 避免 --no-sandbox 问题)
         logger.info("启动无头浏览器 (Firefox)...")
         browser = p.firefox.launch(headless=True)
         context = browser.new_context()
         page = context.new_page()
 
-        # 访问 ComfyUI
         logger.info(f"访问 ComfyUI: {server_url}")
         page.goto(server_url, timeout=timeout)
 
-        # 等待 app 对象初始化完成
         logger.info("等待页面加载...")
         page.wait_for_function(
             """
@@ -189,7 +185,6 @@ def convert_workflow_to_api(
         )
         logger.info("✓ 页面初始化完成，开始转换...")
 
-        # 在浏览器中执行转换
         api_output = page.evaluate(
             """
             async (workflowJson) => {
@@ -436,43 +431,3 @@ def wait_for_completion(
                     logger.error(json.dumps(data["data"], indent=2, ensure_ascii=False))
                     ws.close()
                     return False, None
-
-
-# ============================================================================
-# ramdisk 切换
-# ============================================================================
-
-MODEL_NAME_FIELDS = {
-    "CLIPLoader": "clip_name",
-    "KsanaVAELoaderNode": "vae_name",
-    "KsanaLoraSelectNode": "lora",
-    "KsanaModelLoaderNode": ["model_name", "low_noise_model_name"],
-}
-
-
-def extract_models_from_workflow(api_prompt):
-    """
-    List[Dict]: 模型配置列表，格式为 [{"name": "模型名", "type": "comfyui", "category": "节点类型"}]
-    """
-    model_configs = []
-    processed_models = set()
-
-    for _, node_data in api_prompt.items():
-        class_type = node_data.get("class_type")
-        inputs = node_data.get("inputs", {})
-        if class_type not in MODEL_NAME_FIELDS:
-            continue
-        name_fields = MODEL_NAME_FIELDS[class_type]
-        if isinstance(name_fields, str):
-            name_fields = [name_fields]
-
-        for field in name_fields:
-            if field in inputs and inputs[field]:
-                model_name = inputs[field]
-
-                # model_key 避免重复添加
-                model_key = f"{class_type}_{model_name}"
-                if model_key not in processed_models:
-                    model_configs.append({"name": model_name, "type": "comfyui", "category": class_type})
-                    processed_models.add(model_key)
-    return model_configs

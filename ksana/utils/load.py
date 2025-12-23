@@ -1,13 +1,66 @@
 import torch
 import safetensors
+import os
 
 from .logger import log
 from pathlib import Path
+from .prefetch import maybe_prefetch_file
+from .distribute import get_rank_id, is_multi_process
+
+
+def _resolve_one_symlink_prefix(abs_path: str) -> str:
+    """Resolve a single symlink prefix, without resolving through to CEPH.
+
+    This is intended for CI where repo-local symlinks point into `/dockerdata/ci-models/...`.
+    """
+
+    parts = abs_path.split(os.sep)
+    for i in range(len(parts), 1, -1):
+        prefix = os.sep.join(parts[:i])
+        if prefix and os.path.islink(prefix):
+            target = os.readlink(prefix)
+            if not os.path.isabs(target):
+                target = os.path.normpath(os.path.join(os.path.dirname(prefix), target))
+            rest = os.sep.join(parts[i:])
+            return os.path.join(target, rest) if rest else target
+    return abs_path
+
+
+def _map_ci_models_single_multi(path: str, root: str) -> str:
+    rank = get_rank_id()
+    multi = is_multi_process()
+
+    token_multi = "/multi/"
+    token_single = "/single/"
+
+    if multi and token_single in path:
+        prefix, suffix = path.split(token_single, 1)
+        return prefix + token_multi + f"rank{rank}/" + suffix
+
+    return path
+
+
+def resolve_ci_models_ckpt_path(ckpt: str) -> str:
+    root = os.getenv("KSANA_CI_MODELS_ROOT")
+    if not root:
+        return ckpt
+    root = root.rstrip("/")
+
+    path = os.path.abspath(ckpt)
+    path = _resolve_one_symlink_prefix(path)
+
+    # Only rewrite paths under the configured CI root.
+    if not (path == root or path.startswith(root + "/")):
+        raise RuntimeError(f"Path '{path}' is not within the CI models root '{root}'")
+
+    return _map_ci_models_single_multi(path, root)
 
 
 def load_torch_file(ckpt, device=None):
     if device is None:
         device = torch.device("cpu")
+    ckpt = resolve_ci_models_ckpt_path(str(ckpt))
+    maybe_prefetch_file(ckpt)
     return safetensors.torch.load_file(ckpt, device=str(device))
 
 
