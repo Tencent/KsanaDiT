@@ -5,4 +5,4 @@ from .attention_op import LocalAttentionOp
 
 
 def pick_attn_op(backend: AttentionBackendEnum = AttentionBackendEnum.FLASH_ATTN):
-    return partial(LocalAttentionOp, forced_backend=backend)
+    return partial(LocalAttentionOp, attn_backend=backend)

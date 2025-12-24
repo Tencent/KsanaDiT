@@ -7,7 +7,6 @@ from diffusers.configuration_utils import ConfigMixin, register_to_config
 from diffusers.models.modeling_utils import ModelMixin
 import torch.cuda.nvtx as nvtx
 
-from ksana.operations.attention import AttentionBackendEnum
 from ksana.cache import KsanaCache, DBCache
 from ksana.utils import time_range, gather_forward, get_rank_id, log
 
@@ -121,11 +120,6 @@ class WanSelfAttention(nn.Module):
             num_heads=num_heads,
             head_size=self.head_dim,
             causal=False,
-            supported_attention_backends=(
-                AttentionBackendEnum.FLASH_ATTN,
-                AttentionBackendEnum.SAGE_ATTN,
-                AttentionBackendEnum.TORCH_SDPA,
-            ),
         )
 
     def forward(self, x, seq_lens, grid_sizes, freqs):
@@ -429,7 +423,11 @@ class WanModel(ModelMixin, ConfigMixin):
             operations.Linear(dim, dim, device=device, dtype=dtype),
         )
         self.time_projection = nn.Sequential(nn.SiLU(), operations.Linear(dim, dim * 6, device=device, dtype=dtype))
-        operation_settings = {"operations": operations, "device": device, "dtype": dtype}
+        operation_settings = {
+            "operations": operations,
+            "device": device,
+            "dtype": dtype,
+        }
 
         # blocks
         self.blocks = nn.ModuleList(

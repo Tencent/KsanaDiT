@@ -151,5 +151,22 @@
       "mean": 0.4167720,
       "eps_place": 4
     }
+  },
+  {
+    "workflow_path": "../workflows/wan/t2v/wan2.2_t2v_fp8_dynamic.json",
+    "steps": 1,
+    "width": 720,
+    "height": 480,
+    "frames": 9,
+    "linear_backend": "fp8_gemm_dynamic",
+    "attn_backend": "sage_attention",
+    "expect_values": {
+      "mean": 0.3212644,
+      "eps_place": 2
+    },
+    "gpus_expect_values": {
+      "mean": 0.3212644,
+      "eps_place": 2
+    }
   }
 ]

@@ -6,7 +6,8 @@ import torch.distributed as dist
 
 from ..distributed import sp_attn_forward
 from ..utils import log, time_range
-
+from ..utils.quant_utils import maybe_apply_dynamic_fp8_quant
+from ..utils.torch_compile import apply_torch_compile
 
 from .wan import WanModel
 from .wan.configs import WAN2_2_CONFIGS
@@ -42,7 +43,12 @@ class KsanaDiffusionModel(KsanaModel):
 
     @time_range
     def preallocate_pinned_memory(self, offload_device):
-        """按dtype分组分配统一的 pinned memory buffer"""
+        # fp8_gemm_dynamic uses torchao Float8Tensor weights which are not compatible with
+        # our pinned-memory swap (it mutates `.data` and can error with incompatible tensor type).
+        if getattr(self.model_config, "linear_backend", None) == "fp8_gemm_dynamic":
+            return
+
+        # 按dtype分组分配统一的 pinned memory buffer
         if not self._use_pinned_memory or offload_device.type != "cpu":
             return
 
@@ -105,42 +111,9 @@ class KsanaDiffusionModel(KsanaModel):
         pass
 
     @time_range
-    def apply_torch_compile(self, torch_compile_config=None):
-        if torch_compile_config is None:
-            return
-        log.info(f"apply torch_compile_config: {torch_compile_config}")
-        if hasattr(torch, "_dynamo") and hasattr(torch._dynamo, "config"):
-            torch._dynamo.config.cache_size_limit = torch_compile_config.dynamo_cache_size_limit
-            torch._dynamo.config.force_parameter_static_shapes = torch_compile_config.force_parameter_static_shapes
-            try:
-                torch._dynamo.config.recompile_limit = torch_compile_config.dynamo_recompile_limit
-            except Exception as e:
-                log.warning(f"Could not set recompile_limit: {e}")
-        if torch_compile_config.compile_transformer_blocks_only:
-            log.info("Compiling only transformer blocks")
-            compiled_cnt = 0
-            for i, block in enumerate(self.model.blocks):
-                try:
-                    self.model.blocks[i] = torch.compile(
-                        block,
-                        backend=torch_compile_config.backend,
-                        mode=torch_compile_config.mode,
-                        fullgraph=torch_compile_config.fullgraph,
-                        dynamic=torch_compile_config.dynamic,
-                    )
-                    compiled_cnt += 1
-                except Exception as e:
-                    log.warning(f"torch.compile block[{i}] failed: {e}")
-            log.info(f"Applied torch.compile to {compiled_cnt}/{len(self.model.blocks)} transformer blocks.")
-        else:
-            log.info("Compiling entire model")
-            self.model = torch.compile(
-                self.model,
-                fullgraph=torch_compile_config.fullgraph,
-                dynamic=torch_compile_config.dynamic,
-                backend=torch_compile_config.backend,
-                mode=torch_compile_config.mode,
-            )
+    def do_apply_torch_compile(self, torch_compile_config=None):
+        """Apply torch compile to the model using the standalone function."""
+        self.model = apply_torch_compile(self.model, torch_compile_config)
 
     def comfy_load_model_weights(self, model, sd, unet_prefix=""):
         to_load = {}
@@ -192,6 +165,10 @@ class KsanaDiffusionModel(KsanaModel):
         if self._use_pinned_memory and "dtype" in kwargs:
             raise ValueError("使用 pinned memory 时不支持 dtype 转换。")
 
+        if device is not None and getattr(self.model_config, "linear_backend", None) == "fp8_gemm_dynamic":
+            self.model.to(device, **kwargs)
+            return self
+
         if not self._use_pinned_memory or device is None:
             self.model.to(device, **kwargs)
             return self
@@ -217,7 +194,7 @@ class KsanaDiffusionModel(KsanaModel):
 
     def _offload_to_pinned_memory(self):
         """将模型参数从 GPU offload 到 CPU 的 pinned memory"""
-        if not self._use_pinned_memory:
+        if not self._use_pinned_memory or getattr(self.model_config, "linear_backend", None) == "fp8_gemm_dynamic":
             self.model.to("cpu")
             return
 
@@ -243,7 +220,7 @@ class KsanaDiffusionModel(KsanaModel):
 
     def _load_from_pinned_memory(self, device: torch.device):
         """从 CPU 的 pinned memory 加载模型参数到 GPU"""
-        if not self._use_pinned_memory:
+        if not self._use_pinned_memory or getattr(self.model_config, "linear_backend", None) == "fp8_gemm_dynamic":
             self.model.to(device)
             return
 
@@ -440,5 +417,11 @@ class KsanaWanModel(KsanaDiffusionModel):
             model=self.model, use_sp=self.dist_config.use_sp, dit_fsdp=self.dist_config.dit_fsdp, shard_fn=shard_fn
         )
 
+        maybe_apply_dynamic_fp8_quant(
+            self.model,
+            linear_backend=self.model_config.linear_backend,
+            load_device=load_device,
+        )
+
         # Note: apply torch compile should be after all weight loading and merging
-        self.apply_torch_compile(self.model_config.torch_compile_config)
+        self.model = apply_torch_compile(self.model, self.model_config.torch_compile_config)

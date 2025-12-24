@@ -27,6 +27,7 @@ class KsanaModelConfig:
         assert self.linear_backend in [
             "default",
             "fp8_gemm",
+            "fp8_gemm_dynamic",
             "fp16_gemm",
         ], f"linear_backend {self.linear_backend} not supported"
         assert self.attn_backend in [

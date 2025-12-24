@@ -12,8 +12,6 @@ from .selector import AttentionBackendEnum, get_attn_backend
 
 
 class LocalAttentionOp(nn.Module):
-    """Lightweight attention wrapper that delegates execution to registered backends."""
-
     def __init__(
         self,
         num_heads: int,
@@ -23,6 +21,7 @@ class LocalAttentionOp(nn.Module):
         softmax_scale: Optional[float] = None,
         causal: bool = False,
         supported_attention_backends: Optional[tuple[AttentionBackendEnum, ...]] = None,
+        attn_backend: Optional[AttentionBackendEnum] = None,
         forced_backend: Optional[AttentionBackendEnum] = None,
         **extra_impl_args: Any,
     ) -> None:
@@ -33,7 +32,7 @@ class LocalAttentionOp(nn.Module):
         self.softmax_scale = softmax_scale if softmax_scale is not None else head_size**-0.5
         self.causal = causal
         self.supported_attention_backends = supported_attention_backends
-        self.forced_backend = forced_backend
+        self.attn_backend = attn_backend
         self.extra_impl_args = extra_impl_args
 
         self._backend_cls: type[AttentionBackend] | None = None
@@ -52,7 +51,7 @@ class LocalAttentionOp(nn.Module):
             self.head_size,
             dtype,
             supported_attention_backends=self.supported_attention_backends,
-            forced_backend=self.forced_backend,
+            forced_backend=self.attn_backend,
         )
         impl_cls = backend_cls.get_impl_cls()
         self._attn_impl = impl_cls(
