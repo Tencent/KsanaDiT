@@ -74,6 +74,14 @@ class KsanaVAEEncodeNode:
         if end_image is not None and end_image.shape[3] == CHANNELS:
             end_image = end_image.permute(0, 3, 1, 2)
 
+        def preprocess_image(image):
+            if image is None:
+                return image
+            return image.sub_(0.5).div_(0.5)
+
+        start_image = preprocess_image(start_image)
+        end_image = preprocess_image(end_image)
+
         latents = ksana_generator.forward_vae_encode(
             vae_key=vae,
             frame_num=num_frames,
