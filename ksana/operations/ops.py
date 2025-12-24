@@ -117,5 +117,5 @@ def build_ops(
     ops.register("Embedding", Embedding)
     ops.register("Linear", pick_linear(run_dtype, state_dict, linear_backend, load_device))
     ops.register("Attn", pick_attn_op(attn_backend))
-
+    ops.attn_backend = attn_backend
     return ops

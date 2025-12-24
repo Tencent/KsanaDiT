@@ -48,7 +48,7 @@ class KsanaModelLoaderNode:
                     {"tooltip": "dtype of running model"},
                 ),
                 "linear_backend": (
-                    ["default", "fp8_gemm", "fp16_gemm"],
+                    ["default", "fp8_gemm", "fp8_gemm_dynamic", "fp16_gemm"],
                     {"default": "default"},
                     {"tooltip": "linear_backend default use linear dtype from model"},
                 ),
