@@ -1,12 +1,12 @@
 [build-system]
-requires = ["setuptools>=42", "wheel"]  # 构建依赖
-build-backend = "setuptools.build_meta"  # 构建后端
+requires = ["setuptools>=64", "setuptools_scm>=8"]
+build-backend = "setuptools.build_meta"
 
 [project]
 name = "ksana"
-version = "0.1.0"
-description = "Venus KsanaDit"
-authors = [{ name = "Venus", email = "venus@example.com" }]
+version = "1.0.0"
+description = "KsanaDit"
+authors = [{ name = "KsanaDit", email = "KsanaDiT@venus.com" }]
 readme = "README.md"
 requires-python = ">=3.10,<4.0"
 license = {file = "LICENSE"}
