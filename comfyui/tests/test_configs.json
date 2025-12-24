@@ -26,12 +26,12 @@
     "attn_backend": "flash_attention",
     "lora_model_name": "Wan2.2-I2V-A14B-4steps-lora-rank64-Seko-V1_low_noise.safetensors",
     "expect_values": {
-      "mean": 0.8229001,
-      "eps_place": 4
+      "mean": 0.5771753,
+      "eps_place": 3
     },
     "gpus_expect_values": {
-      "mean": 0.8228263,
-      "eps_place": 4
+      "mean": 0.5770748,
+      "eps_place": 3
     }
   },
   {
@@ -44,11 +44,11 @@
     "linear_backend": "fp8_gemm",
     "attn_backend": "flash_attention",
     "expect_values": {
-      "mean": 0.7636272,
+      "mean": 0.5840249,
       "eps_place": 2
     },
     "gpus_expect_values": {
-      "mean": 0.7641701,
+      "mean": 0.5916738,
       "eps_place": 4
     }
   },

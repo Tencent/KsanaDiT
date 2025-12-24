@@ -326,6 +326,7 @@ class KsanaExecutor(ABC):
         )
         if self.rank_id != 0:
             return {self.rank_id: None}
+
         latents = vae.forward_encode(
             target_f=frame_num,
             target_h=height,
