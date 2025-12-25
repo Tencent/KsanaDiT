@@ -398,8 +398,13 @@ class KsanaExecutor(ABC):
     def save_videos(self, videos, prompts_list, runtime_config):
         if self.rank_id != 0 or not runtime_config.save_video:
             return
+        out_size = (
+            runtime_config.size
+            if runtime_config.size is not None
+            else self.pipeline.pipeline_config.default_config.get("size", (None, None))
+        )
         for i in range(len(prompts_list)):
             video = videos[i]
             prompt_text = prompts_list[i]
-            save_path = self.get_save_path(runtime_config.output_folder, runtime_config.size, prompt_text)
+            save_path = self.get_save_path(runtime_config.output_folder, out_size, prompt_text)
             self.save_one_video(video, save_path)
