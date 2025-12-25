@@ -51,6 +51,7 @@ class TestKsanaI2V(unittest.TestCase):
                 size=TEST_SIZE,
                 frame_num=TEST_FRAME_NUM,
                 return_frames=True,
+                rope_function="comfy",
                 save_video=True,
             ),
         )
@@ -62,10 +63,10 @@ class TestKsanaI2V(unittest.TestCase):
             self.assertAlmostEqual(mean0, 0.6031375527381897, places=TEST_EPS_PLACE)
 
         with self.subTest(msg="Mean 1 Check"):
-            self.assertAlmostEqual(mean1, 0.4759126901626587, places=TEST_EPS_PLACE)
+            self.assertAlmostEqual(mean1, 0.475780189037323, places=TEST_EPS_PLACE)
 
         with self.subTest(msg="Mean 2 Check"):
-            self.assertAlmostEqual(mean2, 0.49622246623039246, places=TEST_EPS_PLACE)
+            self.assertAlmostEqual(mean2, 0.49633002281188965, places=TEST_EPS_PLACE)
 
 
 if __name__ == "__main__":

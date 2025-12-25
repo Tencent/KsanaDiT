@@ -7,6 +7,7 @@
     "frames": 9,
     "attn_backend": "flash_attention",
     "lora_model_name": "Wan2.2-T2V-A14B-4steps-lora-rank64-Seko-V1/low_noise_model.safetensors",
+    "rope_function": "comfy",
     "expect_values": {
       "mean": 0.3655159,
       "eps_place": 4

@@ -9,7 +9,8 @@ import torch.cuda.nvtx as nvtx
 
 from ksana.cache import KsanaCache, DBCache
 from ksana.utils import time_range, gather_forward, get_rank_id, log
-
+from ksana.utils.rope import EmbedND, apply_comfyui_rope
+from ksana.utils.rope import apply_default_rope
 
 __all__ = ["WanModel"]
 
@@ -48,39 +49,6 @@ def rope_params(max_seq_len, dim, theta=10000):
     )
     freqs = torch.polar(torch.ones_like(freqs), freqs)
     return freqs
-
-
-@torch.amp.autocast("cuda", enabled=False)
-@torch.compiler.disable()
-def rope_apply(x, grid_sizes, freqs):
-    n, c = x.size(2), x.size(3) // 2
-
-    # split freqs
-    freqs = freqs.split([c - 2 * (c // 3), c // 3, c // 3], dim=1)
-
-    # loop over samples
-    output = []
-    for i, (f, h, w) in enumerate(grid_sizes.tolist()):
-        seq_len = f * h * w
-
-        # precompute multipliers
-        x_i = torch.view_as_complex(x[i, :seq_len].to(torch.float64).reshape(seq_len, n, -1, 2))
-        freqs_i = torch.cat(
-            [
-                freqs[0][:f].view(f, 1, 1, -1).expand(f, h, w, -1),
-                freqs[1][:h].view(1, h, 1, -1).expand(f, h, w, -1),
-                freqs[2][:w].view(1, 1, w, -1).expand(f, h, w, -1),
-            ],
-            dim=-1,
-        ).reshape(seq_len, 1, -1)
-
-        # apply rotary embedding
-        x_i = torch.view_as_real(x_i * freqs_i).flatten(2)
-        x_i = torch.cat([x_i, x[i, seq_len:]])
-
-        # append to collection
-        output.append(x_i)
-    return torch.stack(output).type_as(x)
 
 
 class WanSelfAttention(nn.Module):
@@ -122,7 +90,7 @@ class WanSelfAttention(nn.Module):
             causal=False,
         )
 
-    def forward(self, x, seq_lens, grid_sizes, freqs):
+    def forward(self, x, seq_lens, grid_sizes, freqs, rope_func="default"):
         r"""
         Args:
             x(Tensor): Shape [B, L, num_heads, C / num_heads]
@@ -141,9 +109,16 @@ class WanSelfAttention(nn.Module):
 
         q, k, v = qkv_fn(x)
 
+        if rope_func == "comfy":
+            q = apply_comfyui_rope(q, freqs)
+            k = apply_comfyui_rope(k, freqs)
+        else:
+            q = apply_default_rope(q, grid_sizes, freqs)
+            k = apply_default_rope(k, grid_sizes, freqs)
+
         x = self.attention(
-            rope_apply(q, grid_sizes, freqs),
-            rope_apply(k, grid_sizes, freqs),
+            q,
+            k,
             v,
             k_lens=seq_lens,
             window_size=self.window_size,
@@ -239,6 +214,7 @@ class WanAttentionBlock(nn.Module):
         freqs,
         context,
         context_lens,
+        rope_func="default",
     ):
         r"""
             seq_lens=seq_lens, #[7200]
@@ -266,6 +242,7 @@ class WanAttentionBlock(nn.Module):
             seq_lens,
             grid_sizes,
             freqs,
+            rope_func=rope_func,
         )
         x = torch.addcmul(x, y, repeat_e(e[2], x))
         del y
@@ -460,6 +437,54 @@ class WanModel(ModelMixin, ConfigMixin):
             ],
             dim=1,
         )
+        self.rope_embedder = EmbedND(
+            dim=d,
+            theta=10000.0,
+            axes_dim=[d - 4 * (d // 6), 2 * (d // 6), 2 * (d // 6)],
+        )
+        self.rope_func = "default"
+        self.cached_comfy_freqs = None
+        self.cached_comfy_shape = None
+
+    def set_rope_function(self, rope_function: str | None):
+        rope_value = rope_function or "default"
+        if rope_value != self.rope_func:
+            self.cached_comfy_freqs = None
+            self.cached_comfy_shape = None
+        self.rope_func = rope_value
+
+    def _rope_encode(self, grid_sizes, device, dtype):
+        sizes = grid_sizes[0].tolist()
+        # 最后一个维度是shape是3。表示某个 token 在 (f, h, w) 三个轴上的位置索引
+        f, h, w = int(sizes[0]), int(sizes[1]), int(sizes[2])
+        img_ids = torch.zeros((f, h, w, 3), device=device, dtype=dtype)
+        img_ids[:, :, :, 0] = img_ids[:, :, :, 0] + torch.linspace(
+            0, f - 1, steps=f, device=device, dtype=dtype
+        ).reshape(-1, 1, 1)
+        img_ids[:, :, :, 1] = img_ids[:, :, :, 1] + torch.linspace(
+            0, h - 1, steps=h, device=device, dtype=dtype
+        ).reshape(1, -1, 1)
+        img_ids[:, :, :, 2] = img_ids[:, :, :, 2] + torch.linspace(
+            0, w - 1, steps=w, device=device, dtype=dtype
+        ).reshape(1, 1, -1)
+        img_ids = img_ids.reshape(1, -1, img_ids.shape[-1])
+        # img_ids.shape = [1,f*h*w,3]
+        freqs = self.rope_embedder(img_ids).movedim(1, 2)
+        return freqs.to(dtype=dtype)
+
+    def _get_rope_freqs(self, grid_sizes, device, dtype):
+        if "comfy" in self.rope_func:
+            shape_key = (tuple(grid_sizes.reshape(-1).tolist()), dtype, device, self.rope_func)
+            if (
+                self.cached_comfy_freqs is None
+                or self.cached_comfy_shape != shape_key
+                or self.cached_comfy_freqs.device != device
+                or self.cached_comfy_freqs.dtype != dtype
+            ):
+                self.cached_comfy_freqs = self._rope_encode(grid_sizes, device, dtype)
+                self.cached_comfy_shape = shape_key
+            return self.cached_comfy_freqs
+        return self.freqs
 
     def set_keep_in_fp32_modules(self):
         self._keep_in_fp32_modules = [
@@ -513,8 +538,6 @@ class WanModel(ModelMixin, ConfigMixin):
             raise ValueError("y must be provided for i2v model")
         # params
         device = self.patch_embedding.weight.device
-        if self.freqs.device != device:
-            self.freqs = self.freqs.to(device)
 
         if y is not None:
             # x = [torch.cat([u, v], dim=0) for u, v in zip(x, y)]
@@ -572,14 +595,19 @@ class WanModel(ModelMixin, ConfigMixin):
         if self.sp_size > 1:
             x = torch.chunk(x, self.sp_size, dim=1)[get_rank_id()]
 
+        rope_freqs = self._get_rope_freqs(grid_sizes, device=x.device, dtype=x.dtype)
+        if rope_freqs.device != device:
+            rope_freqs = rope_freqs.to(device)
+
         # arguments
         kwargs = dict(
             e=e0,  # [bs, seqlen, 6, 5120]
             seq_lens=seq_lens,  # [bs]
             grid_sizes=grid_sizes,  # [bs, 3]
-            freqs=self.freqs,  # [1024, 64]
+            freqs=rope_freqs,  # [1024, 64]
             context=context,  # [bs, text_len:512, 5120]
             context_lens=context_lens,
+            rope_func=self.rope_func,
         )
 
         if cache is None:

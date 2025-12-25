@@ -463,6 +463,12 @@ class KsanaX2VPipeline(ABC):
 
         return noise_latents_batch
 
+    def _apply_rope_function_to_models(self, diffusion_models: list[KsanaModel], rope_function: str | None):
+        rope_value = rope_function or "default"
+        for model in diffusion_models:
+            if hasattr(model.model, "set_rope_function"):
+                model.model.set_rope_function(rope_value)
+
     @time_range
     def model_load_warm_up(self, high_model, low_model, device, offload_device):
         if self.model_load_warm_up_done:
@@ -511,6 +517,7 @@ class KsanaX2VPipeline(ABC):
             low_model is None or high_model.run_dtype == low_model.run_dtype
         ), f"high_model.run_dtype {high_model.run_dtype}, low_model.run_dtype {low_model.run_dtype} should be same"
         run_dtype = high_model.run_dtype
+        self._apply_rope_function_to_models(diffusion_models, runtime_config.rope_function)
         self.model_load_warm_up(high_model, low_model, device, offload_device)
 
         log.debug("positive, negtive:")
