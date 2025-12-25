@@ -1,7 +1,7 @@
 import folder_paths
 import torch
 from ksana import get_generator
-from ksana.utils import get_gpu_count
+from ksana.utils import get_gpu_count, log
 from ksana.config import KsanaDistributedConfig
 
 
@@ -77,10 +77,12 @@ class KsanaVAEEncodeNode:
         def preprocess_image(image):
             if image is None:
                 return image
-            return image.sub_(0.5).div_(0.5)
+            return image.sub(0.5).div(0.5)
 
         start_image = preprocess_image(start_image)
         end_image = preprocess_image(end_image)
+
+        with_end_image = end_image is not None
 
         latents = ksana_generator.forward_vae_encode(
             vae_key=vae,
@@ -91,7 +93,7 @@ class KsanaVAEEncodeNode:
             end_image=end_image,
             mask=mask,
         )
-        return ({"samples": latents},)
+        return ({"samples": latents, "with_end_image": with_end_image},)
 
 
 class KsanaVAEDecodeNode:
@@ -114,6 +116,7 @@ class KsanaVAEDecodeNode:
 
     def vae_decode(self, vae, latent):
         latents = latent["samples"]
+        with_end_image = latent.get("with_end_image", False)
         ksana_generator = get_generator()
         print(f"latent{latents.shape}, {latents.device}")
         if isinstance(latents, torch.Tensor) and latents.ndim == 4:
@@ -121,8 +124,9 @@ class KsanaVAEDecodeNode:
         images = ksana_generator.forward_vae_decode(
             vae_key=vae,
             latents=latents,
+            with_end_image=with_end_image,
         )
         images = images.cpu().permute(0, 2, 3, 4, 1)
         images = images.reshape(-1, images.shape[-3], images.shape[-2], images.shape[-1])
-        print(f"images {images.shape}, {images.device}")
+        log.info(f"images {images.shape}, {images.device}")
         return (self.comfy_process_output(images),)

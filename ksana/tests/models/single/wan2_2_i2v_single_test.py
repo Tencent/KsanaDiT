@@ -62,10 +62,10 @@ class TestKsanaI2V(unittest.TestCase):
             self.assertAlmostEqual(mean0, 0.6031375527381897, places=TEST_EPS_PLACE)
 
         with self.subTest(msg="Mean 1 Check"):
-            self.assertAlmostEqual(mean1, 0.3233220875263214, places=TEST_EPS_PLACE)
+            self.assertAlmostEqual(mean1, 0.4759126901626587, places=TEST_EPS_PLACE)
 
         with self.subTest(msg="Mean 2 Check"):
-            self.assertAlmostEqual(mean2, 0.34881800413131714, places=TEST_EPS_PLACE)
+            self.assertAlmostEqual(mean2, 0.49622246623039246, places=TEST_EPS_PLACE)
 
 
 if __name__ == "__main__":

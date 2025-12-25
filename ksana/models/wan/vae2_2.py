@@ -982,7 +982,7 @@ class Wan2_2_VAE:
             .to(device)
         )
 
-    def encode(self, videos):
+    def encode(self, videos, with_end_image):
         """
         videos shape [bs, c, h, w]
         """
@@ -995,7 +995,7 @@ class Wan2_2_VAE:
             logging.info(e)
             return None
 
-    def decode(self, zs):
+    def decode(self, zs, with_end_image):
         try:
             if not isinstance(zs, list):
                 raise TypeError("zs should be a list")

@@ -498,6 +498,40 @@ class WanVAE_(nn.Module):
         self.clear_cache()
         return mu
 
+    # modification originally by @raindrop313 https://github.com/raindrop313/ComfyUI-WanVideoStartEndFrames
+    def encode_with_end_image(self, x, scale):
+        self.clear_cache()
+        t = x.shape[2]
+        iter_ = 2 + (t - 2) // 4
+
+        for i in range(iter_):
+            self._enc_conv_idx = [0]
+            if i == 0:
+                out = self.encoder(x[:, :, :1, :, :], feat_cache=self._enc_feat_map, feat_idx=self._enc_conv_idx)
+            elif i == iter_ - 1:
+                out_ = self.encoder(
+                    x[:, :, -1:, :, :], feat_cache=[None] * self._enc_conv_num, feat_idx=self._enc_conv_idx
+                )
+                out = torch.cat([out, out_], 2)
+            else:
+                out_ = self.encoder(
+                    x[:, :, 1 + 4 * (i - 1) : 1 + 4 * i, :, :],
+                    feat_cache=self._enc_feat_map,
+                    feat_idx=self._enc_conv_idx,
+                )
+                out = torch.cat([out, out_], 2)
+        self.clear_cache()
+        out_head = out[:, :, : iter_ - 1, :, :]
+        out_tail = out[:, :, -1, :, :].unsqueeze(2)
+        mu = torch.cat([self.conv1(out_head), self.conv1(out_tail)], dim=2).chunk(2, dim=1)[0]
+
+        if isinstance(scale[0], torch.Tensor):
+            mu = (mu - scale[0].view(1, self.z_dim, 1, 1, 1)) * scale[1].view(1, self.z_dim, 1, 1, 1)
+        else:
+            mu = (mu - scale[0]) * scale[1]
+
+        return mu
+
     def decode(self, z, scale):
         self.clear_cache()
         # z: [b,c,t,h,w]
@@ -511,6 +545,32 @@ class WanVAE_(nn.Module):
             self._conv_idx = [0]
             if i == 0:
                 out = self.decoder(x[:, :, i : i + 1, :, :], feat_cache=self._feat_map, feat_idx=self._conv_idx)
+            else:
+                out_ = self.decoder(x[:, :, i : i + 1, :, :], feat_cache=self._feat_map, feat_idx=self._conv_idx)
+                out = torch.cat([out, out_], 2)
+        self.clear_cache()
+        return out
+
+    def decode_with_end_image(self, z, scale):
+        self.clear_cache()
+        # z: [b,c,t,h,w]
+
+        if isinstance(scale[0], torch.Tensor):
+            z = z / scale[1].view(1, self.z_dim, 1, 1, 1) + scale[0].view(1, self.z_dim, 1, 1, 1)
+        else:
+            z = z / scale[1] + scale[0]
+
+        iter_ = z.shape[2]
+        z_head = z[:, :, :-1, :, :]
+        z_tail = z[:, :, -1, :, :].unsqueeze(2)
+        x = torch.cat([self.conv2(z_head), self.conv2(z_tail)], dim=2)
+        for i in range(iter_):
+            self._conv_idx = [0]
+            if i == 0:
+                out = self.decoder(x[:, :, i : i + 1, :, :], feat_cache=self._feat_map, feat_idx=self._conv_idx)
+            elif i == iter_ - 1:
+                out_ = self.decoder(x[:, :, -1, :, :].unsqueeze(2), feat_cache=None, feat_idx=self._conv_idx)
+                out = torch.cat([out, out_], 2)
             else:
                 out_ = self.decoder(x[:, :, i : i + 1, :, :], feat_cache=self._feat_map, feat_idx=self._conv_idx)
                 out = torch.cat([out, out_], 2)
@@ -622,17 +682,19 @@ class Wan2_1_VAE:
             .to(device)
         )
 
-    def encode(self, videos):
+    def encode(self, videos, with_end_image):
         """
         videos:  videos each with shape [bs, C, T, H, W].
         """
+        encode_func = self.model.encode_with_end_image if with_end_image else self.model.encode
         with amp.autocast(dtype=self.dtype):
-            return self.model.encode(videos, self.scale).float()
+            return encode_func(videos, self.scale).float()
 
     # @nvtx_range
-    def decode(self, zs):
+    def decode(self, zs, with_end_image):
+        decode_func = self.model.decode_with_end_image if with_end_image else self.model.decode
         with amp.autocast(dtype=self.dtype):
-            return self.model.decode(zs, self.scale).float().clamp_(-1, 1)
+            return decode_func(zs, self.scale).float().clamp_(-1, 1)
 
     def to(self, device):
         self.model.to(device)

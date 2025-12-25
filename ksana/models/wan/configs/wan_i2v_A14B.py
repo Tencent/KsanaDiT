@@ -33,6 +33,9 @@ i2v_A14B.eps = 1e-6
 i2v_A14B.low_noise_checkpoint = "low_noise_model"
 i2v_A14B.high_noise_checkpoint = "high_noise_model"
 
+i2v_A14B.low_noise_lora_checkpoint = "low_noise_model.safetensors"
+i2v_A14B.high_noise_lora_checkpoint = "high_noise_model.safetensors"
+
 # inference
 i2v_A14B.sample_shift = 5.0
 i2v_A14B.sample_steps = 40
