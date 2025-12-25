@@ -1,7 +1,13 @@
 from dataclasses import dataclass, field
 from easydict import EasyDict
 
-from ..utils.const import DEFAULT_OFFLOAD_MODEL, DEFAULT_RETURN_FRAMES, DEFAULT_OUTPUTS_VIDEO_DIR, DEFAULT_SAVE_VIDEO
+from ..utils.const import (
+    DEFAULT_OFFLOAD_MODEL,
+    DEFAULT_RETURN_FRAMES,
+    DEFAULT_OUTPUTS_VIDEO_DIR,
+    DEFAULT_SAVE_VIDEO,
+    DEFAULT_ROPE_FUNC_TYPE,
+)
 
 from ..cache import SUPPORTED_CACHE_METHODS
 
@@ -17,7 +23,7 @@ class KsanaRuntimeConfig:
     seed: int | None = field(default=None)
     offload_model: bool | None = field(default=DEFAULT_OFFLOAD_MODEL)
     boundary: float | None = field(default=None)
-    rope_function: str | None = field(default="default")
+    rope_function: str | None = field(default=DEFAULT_ROPE_FUNC_TYPE)
 
     return_frames: bool | None = field(default=DEFAULT_RETURN_FRAMES)
     output_folder: str | None = field(default=DEFAULT_OUTPUTS_VIDEO_DIR)
