@@ -99,6 +99,13 @@ class KsanaGeneratorNode:
                 ),
             },
             "optional": {
+                "rope_function": (
+                    ["default", "comfy"],
+                    {
+                        "default": "default",
+                        "tooltip": "Select the rotary positional embedding implementation.",
+                    },
+                ),
                 "low_sample_guide_scale": (
                     "FLOAT",
                     {
@@ -164,6 +171,7 @@ class KsanaGeneratorNode:
         sample_guide_scale,
         sample_shift,
         denoise=1.0,
+        rope_function="default",
         low_sample_guide_scale=None,
         high_cache_config=None,
         low_cache_config=None,
@@ -208,6 +216,7 @@ class KsanaGeneratorNode:
             runtime_config=KsanaRuntimeConfig(
                 seed=seed,
                 boundary=boundary,
+                rope_function=rope_function,
             ),
             high_cache_config=high_cache_config,
             low_cache_config=low_cache_config,

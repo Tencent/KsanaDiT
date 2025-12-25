@@ -62,6 +62,7 @@ class TestKsanaWanI2VGpus(unittest.TestCase):
                 seed=SEED,
                 size=TEST_SIZE,
                 frame_num=TEST_FRAME_NUM,
+                rope_function="comfy",
                 return_frames=True,
                 save_video=True,
             ),
@@ -70,7 +71,7 @@ class TestKsanaWanI2VGpus(unittest.TestCase):
             self.assertEqual(list(videos.shape), [1, 3, TEST_FRAME_NUM, 576, 576])
         mean2 = videos.cpu().abs().mean().item()
         with self.subTest(msg="Mean 2 Check"):
-            self.assertAlmostEqual(mean2, 0.47549110651016235, places=TEST_EPS_PLACE)
+            self.assertAlmostEqual(mean2, 0.47554442286491394, places=TEST_EPS_PLACE)
 
 
 if __name__ == "__main__":

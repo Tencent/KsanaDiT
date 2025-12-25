@@ -59,6 +59,7 @@ class TestKsanaGpus(unittest.TestCase):
                 seed=SEED,
                 size=TEST_SIZE,
                 frame_num=TEST_FRAME_NUM,
+                rope_function="comfy",
                 return_frames=True,
                 save_video=True,
             ),
@@ -67,7 +68,7 @@ class TestKsanaGpus(unittest.TestCase):
             self.assertEqual(list(videos.shape), [1, 3, TEST_FRAME_NUM, TEST_SIZE[1], TEST_SIZE[0]])
         mean2 = videos.cpu().abs().mean().item()
         with self.subTest(msg="Mean 2 Check"):
-            self.assertAlmostEqual(mean2, 0.6559354066848755, places=TEST_EPS_PLACE)
+            self.assertAlmostEqual(mean2, 0.6555809378623962, places=TEST_EPS_PLACE)
 
 
 if __name__ == "__main__":

@@ -164,6 +164,7 @@ class TestKsana(unittest.TestCase):
                 seed=SEED,
                 size=TEST_SIZE,
                 frame_num=TEST_FRAME_NUM,
+                rope_function="comfy",
                 return_frames=True,
                 save_video=False,
             ),
@@ -171,7 +172,7 @@ class TestKsana(unittest.TestCase):
         with self.subTest(msg="Shape Check"):
             self.assertEqual(list(video.shape), [1, 3, TEST_FRAME_NUM, TEST_SIZE[1], TEST_SIZE[0]])
         mean = video.cpu().abs().mean().item()
-        self.assertAlmostEqual(mean, 0.6559773683547974, places=TEST_EPS_PLACE)
+        self.assertAlmostEqual(mean, 0.6557297706604004, places=TEST_EPS_PLACE)
 
     def test_lora_torch_compile(self):
         print("-----------------test_lora_torch_compile-----------------")

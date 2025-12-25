@@ -17,6 +17,7 @@ class KsanaRuntimeConfig:
     seed: int | None = field(default=None)
     offload_model: bool | None = field(default=DEFAULT_OFFLOAD_MODEL)
     boundary: float | None = field(default=None)
+    rope_function: str | None = field(default="default")
 
     return_frames: bool | None = field(default=DEFAULT_RETURN_FRAMES)
     output_folder: str | None = field(default=DEFAULT_OUTPUTS_VIDEO_DIR)
@@ -37,6 +38,7 @@ class KsanaRuntimeConfig:
             seed=input_config.seed,
             offload_model=input_config.offload_model,
             boundary=default.get("boundary", None) if input_config.boundary is None else input_config.boundary,
+            rope_function=input_config.rope_function,
             return_frames=input_config.return_frames,
             output_folder=input_config.output_folder,
             save_video=input_config.save_video,

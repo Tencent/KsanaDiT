@@ -51,6 +51,8 @@ def modify_workflow_params(api_prompt: dict, params: dict) -> dict:
             if "seed" in params and params["seed"] is not None and "seed" in inputs:
                 inputs["seed"] = params["seed"]
                 inputs["control_after_generate"] = "fixed"
+            if "rope_function" in params and "rope_function" in inputs:
+                inputs["rope_function"] = params["rope_function"]
 
         # EmptyHunyuanLatentVideo: 修改 width, height, length
         elif class_type == "EmptyHunyuanLatentVideo":
@@ -184,7 +186,6 @@ def create_argument_parser():
     parser.add_argument("--frames", type=int, default=17, help="视频帧数 (默认: 17)")
     parser.add_argument("--seed", type=int, default=None, help="随机种子 (默认: None，不修改)")
 
-    # 模型名称参数
     parser.add_argument(
         "--dit_high_model_name",
         type=str,
@@ -225,7 +226,6 @@ def create_argument_parser():
         help="attention backend",
     )
 
-    # GPU 参数
     parser.add_argument(
         "--gpus",
         type=str,
@@ -233,7 +233,6 @@ def create_argument_parser():
         help="指定使用的 GPU，用逗号分隔（例如: 0,1）(默认: 0)",
     )
 
-    # 多个 workflow 参数
     parser.add_argument(
         "--workflows-file",
         type=str,
@@ -250,19 +249,15 @@ def main():
     parser = create_argument_parser()
     args = parser.parse_args()
 
-    # 准备 workflow 配置列表
     workflow_configs = []
 
     if args.workflows_file:
-        # 从文件加载配置
         logger.info(f"从文件加载 workflow 配置: {args.workflows_file}")
         with open(args.workflows_file, "r", encoding="utf-8") as f:
             workflow_configs = json.load(f)
     else:
-        # 使用单个 workflow（原有方式）
         workflow_configs = [vars(args)]
 
-    # 打印配置
     logger.info("=" * 60)
     logger.info("ComfyUI Workflow 测试")
     logger.info("=" * 60)
@@ -311,10 +306,9 @@ def main():
             else:
                 logger.error(f"✗ Workflow [{i}/{len(workflow_configs)}] 失败! 耗时: {workflow_elapsed:.2f} 秒")
                 all_success = False
-                break
+                # break
             stop_server(server_process)
 
-        # 计算总耗时
         elapsed_seconds = time.time() - test_start_time
         elapsed_minutes = int(elapsed_seconds // 60)
         remaining_seconds = int(elapsed_seconds % 60)
