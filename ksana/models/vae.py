@@ -52,12 +52,12 @@ class KsanaVAE(KsanaModel):
             raise ValueError(f"model_path {model_path} not in support list {WAN2_2 + WAN2_1}")
 
     @time_range("vae_decode")
-    def decode(self, latents):
-        return self.model.decode(latents)
+    def decode(self, latents, with_end_image: bool = False):
+        return self.model.decode(latents, with_end_image)
 
     @time_range("vae_encode")
-    def encode(self, latents):
-        return self.model.encode(latents)
+    def encode(self, latents, with_end_image: bool = False):
+        return self.model.encode(latents, with_end_image)
 
     def to(self, device):
         if self.device != device or self.model.device != device:
@@ -69,16 +69,15 @@ class KsanaVAE(KsanaModel):
         vae_stride = vae_stride or self.vae_stride
         start = torch.ones(bs, vae_stride[0], lat_h, lat_w, device=device)
         if has_end_img:
-            zeros = torch.zeros(bs, (lat_f - 2) * vae_stride[0], lat_h, lat_w, device=device)
+            zeros = torch.zeros(bs, (lat_f - 1) * vae_stride[0], lat_h, lat_w, device=device)
             end = torch.ones(bs, vae_stride[0], lat_h, lat_w, device=device)
             msk = torch.concat([start, zeros, end], dim=1)
         else:
             zeros = torch.zeros(bs, (lat_f - 1) * vae_stride[0], lat_h, lat_w, device=device)
             msk = torch.concat([start, zeros], dim=1)
 
-        msk = msk.view(bs, lat_f, vae_stride[0], lat_h, lat_w)
+        msk = msk.view(bs, -1, vae_stride[0], lat_h, lat_w)
         msk = msk.transpose(1, 2)
-        # return [bs, 4, lat_f, lat_h, lat_w]
         return msk
 
     def forward_encode(
@@ -98,10 +97,12 @@ class KsanaVAE(KsanaModel):
         vae_stride = vae_stride or self.vae_stride
         vae_patch = vae_patch or self.vae_patch
 
+        with_end_image = end_img is not None
+
         if start_img is not None:
             assert start_img.ndim == 4, f"img_batch must be 4D tensor[bs, 3, h, w], but got shape {start_img.shape}"
             assert start_img.shape[1] == 3, f"start_img must be 4D tensor[bs, 3, h, w], but got shape {start_img.shape}"
-            if end_img is not None:
+            if with_end_image:
                 assert (
                     start_img.shape == end_img.shape
                 ), f"start_img and end_img must have same shape, but got {start_img.shape} and {end_img.shape}"
@@ -118,9 +119,8 @@ class KsanaVAE(KsanaModel):
         h = lat_h * vae_stride[1]
         w = lat_w * vae_stride[2]
         start_img_batch = torch.nn.functional.interpolate(start_img.cpu(), size=(h, w), mode="bicubic")
-        if end_img is not None:
+        if with_end_image:
             end_img_batch = torch.nn.functional.interpolate(end_img.cpu(), size=(h, w), mode="bicubic")
-
         # for bs in [bs, 3, h, w]
         merge_batch = []
         bs = start_img_batch.shape[0]
@@ -128,15 +128,16 @@ class KsanaVAE(KsanaModel):
             one_start_img = start_img_batch[i]
             # one_img: [3, h, w] => [1, 3, h, w] => [3, 1, h, w]
             one_start_img = one_start_img.unsqueeze(0).transpose(0, 1)
-            if end_img is None:
-                merge = torch.concat([one_start_img, torch.zeros(3, target_f - 1, h, w)], dim=1)
-            else:
+            if with_end_image:
                 one_end_img = end_img_batch[i]
                 one_end_img = one_end_img.unsqueeze(0).transpose(0, 1)
-                merge = torch.concat([one_start_img, torch.zeros(3, target_f - 2, h, w), one_end_img], dim=1)
+                merge = torch.concat([one_start_img, torch.zeros(3, target_f - 1, h, w), one_end_img], dim=1)
+            else:
+                merge = torch.concat([one_start_img, torch.zeros(3, target_f - 1, h, w)], dim=1)
             merge_batch.append(merge.unsqueeze(0))
+
         del start_img_batch
-        if end_img is not None:
+        if with_end_image:
             del end_img_batch
 
         merge_batch = torch.concat(merge_batch, dim=0)
@@ -144,21 +145,21 @@ class KsanaVAE(KsanaModel):
         current_device = self.device
         if current_device != device:
             self.to(device)
-        y = self.encode(merge_batch.to(device))
-        self.to(current_device)
 
+        y = self.encode(merge_batch.to(device), with_end_image)
+        self.to(current_device)
         assert y.shape == (
             bs,
             self.z_dim,
-            lat_f,
+            y.shape[2],
             lat_h,
             lat_w,
-        ), f"vae encode shape must be [bs, 16, lat_f, lat_h, lat_w], but got {y.shape}, {[bs, self.z_dim, lat_f, lat_h, lat_w]}"
+        ), f"vae encode shape must be [bs, 16, lat_f, lat_h, lat_w], but got {y.shape}, {[bs, self.z_dim, y.shape[2], lat_h, lat_w]}"
 
         del merge_batch
 
         if mask is None:
-            mask = self.get_img_mask(bs, lat_f, lat_h, lat_w, device, end_img is not None, vae_stride)
+            mask = self.get_img_mask(bs, lat_f, lat_h, lat_w, device, with_end_image, vae_stride)
 
         y = torch.concat([mask, y], dim=1)
 
@@ -169,7 +170,7 @@ class KsanaVAE(KsanaModel):
         return y
 
     @time_range
-    def forward_decode(self, latents, local_rank, device=None) -> torch.Tensor:
+    def forward_decode(self, latents, local_rank, device=None, with_end_image: bool = False) -> torch.Tensor:
         # TODO: support multi gpu
         if local_rank != 0:
             return
@@ -184,8 +185,10 @@ class KsanaVAE(KsanaModel):
         torch.cuda.empty_cache()
         # TODO: every node should check memory usage before forward
         # and offload other models to cpu if necessary
-        latents = self.decode(latents)
+        latents = self.decode(latents, with_end_image=with_end_image)
         self.to(current_device)
+        if with_end_image:
+            latents = latents[:, :, 0:-1]
         log.info(f"decode output shape: {latents.shape}")
         # return [bs, ch:3, f, h, w]
         return latents

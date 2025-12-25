@@ -1,10 +1,12 @@
 import os
 import argparse
+import torch
 
 os.environ["KSANA_LOGGER_LEVEL"] = "INFO"
 
 from ksana import KsanaGenerator
 from ksana.config import (
+    KsanaModelConfig,
     KsanaDistributedConfig,
     KsanaRuntimeConfig,
     KsanaSampleConfig,
@@ -51,19 +53,31 @@ def run_simple(args):
     print("video shape:", video.shape)
 
 
-def run_start_and_end(args):
-    generator = KsanaGenerator.from_models(
-        f"{args.model_dir}/Wan2.2-I2V-A14B", dist_config=KsanaDistributedConfig(num_gpus=args.num_gpus)
+def run_start_and_end_with_lora(args):
+
+    model_config = KsanaModelConfig(
+        run_dtype=torch.float16,
+        attn_backend="sage_attention",
     )
 
+    generator = KsanaGenerator.from_models(
+        f"{args.model_dir}/Wan2.2-I2V-A14B",
+        dist_config=KsanaDistributedConfig(num_gpus=args.num_gpus),
+        model_config=model_config,
+        lora=f"{args.model_dir}/Wan2.2-Lightning/Wan2.2-I2V-A14B-4steps-lora-rank64-Seko-V1",
+    )
+
+    sample_config = KsanaSampleConfig(
+        steps=4, cfg_scale=1.0, shift=1.0, solver="euler", sigmas=[1.0, 0.9375001, 0.8333333, 0.625, 0.0000]
+    )
     video = generator.generate_video(
         prompts[2],
         img_path="./examples/images/start_image.png",
         end_img_path="./examples/images/end_image.png",
-        sample_config=KsanaSampleConfig(steps=40),
+        sample_config=sample_config,
         runtime_config=KsanaRuntimeConfig(
             seed=SEED,
-            size=(1280, 720),
+            size=(512, 512),
             frame_num=81,
             return_frames=True,
         ),
@@ -103,4 +117,4 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     run_simple(args)
-    run_start_and_end(args)
+    run_start_and_end_with_lora(args)

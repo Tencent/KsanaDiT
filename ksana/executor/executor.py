@@ -241,6 +241,7 @@ class KsanaExecutor(ABC):
             end_img_batch = None
 
         vae_model = self.model_pool.get_model(self.pipeline.vae_key)
+
         img_latents = vae_model.forward_encode(
             target_f=runtime_config.frame_num,
             target_h=runtime_config.size[1],
@@ -270,6 +271,7 @@ class KsanaExecutor(ABC):
         text_run_device = torch.device("cpu")  # TODO: maybe run text on cuda self.device
         prompts_list = self._valid_prompts(prompt)
         prompts_negative_list = self._valid_prompts(prompt_negative, len(prompts_list))
+        with_end_image = end_img_path is not None
 
         positive, negative = self.pipeline.forward_text_encoder(
             self.model_pool,
@@ -302,7 +304,9 @@ class KsanaExecutor(ABC):
         )
         # TODO: multi-cards vae
         vae_model = self.model_pool.get_model(self.pipeline.vae_key)
-        videos = vae_model.forward_decode(latents=latents, local_rank=self.rank_id, device=self.device)
+        videos = vae_model.forward_decode(
+            latents=latents, local_rank=self.rank_id, device=self.device, with_end_image=with_end_image
+        )
         del latents
         if runtime_config.offload_model:
             gc.collect()
@@ -340,9 +344,11 @@ class KsanaExecutor(ABC):
         return {self.rank_id: latents}
 
     @time_range
-    def forward_vae_decode(self, vae_key, latents):
+    def forward_vae_decode(self, vae_key, latents, with_end_image: bool = False):
         vae = self.model_pool.get_model(vae_key)
-        latents = vae.forward_decode(latents, local_rank=self.rank_id, device=self.device)
+        latents = vae.forward_decode(
+            latents, local_rank=self.rank_id, device=self.device, with_end_image=with_end_image
+        )
         return {self.rank_id: latents}
 
     @time_range

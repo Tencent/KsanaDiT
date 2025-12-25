@@ -216,4 +216,5 @@ class KsanaGeneratorNode:
         MemoryProfiler.record_memory("after_ksana_generator_generate_video_with_tensors")
         if len(samples.shape) == 4:
             samples = samples.unsqueeze(0)
-        return ({"samples": samples},)
+
+        return ({"samples": samples, "with_end_image": latent_image.get("with_end_image", False)},)
