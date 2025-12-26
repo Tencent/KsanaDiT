@@ -1,6 +1,33 @@
 import threading
+import copy
 import os
 from typing import Optional
+
+
+# TODO: move to torch compile utils
+try:
+    # Avoid Dynamo compiling cache helpers that use numpy/Python control flow
+    from torch._dynamo import disable as disable_dynamo
+except Exception:
+
+    def disable_dynamo(fn=None):
+        return fn if fn is not None else (lambda f: f)
+
+
+def get_recommend_config(input_config, recommend_config):
+    """
+    search all vars in input_config, if var is None, then use the vars in recommend_config if not None
+    """
+    out_config = copy.deepcopy(input_config)
+    for attr in vars(out_config):
+        if getattr(out_config, attr) is None:
+            if isinstance(recommend_config, dict):
+                val_rec = recommend_config.get(attr, None)
+            else:
+                val_rec = getattr(recommend_config, attr, None)
+            if val_rec is not None:
+                setattr(out_config, attr, val_rec)
+    return out_config
 
 
 def is_dir(path):

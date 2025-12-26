@@ -9,12 +9,18 @@ import random
 import sys
 
 from dataclasses import dataclass, field
-from ..config import KsanaSampleConfig, KsanaRuntimeConfig, KsanaPipelineConfig, KsanaModelConfig
+from ..config import (
+    KsanaSampleConfig,
+    KsanaRuntimeConfig,
+    KsanaPipelineConfig,
+    KsanaModelConfig,
+)
 from ..utils import log, print_recursive, time_range, MemoryProfiler, is_dir
-from ..cache import create_cache
 from ..sample_solvers import get_sample_scheduler
 from ..scheduler import KsanaScheduler
+from ..cache import create_hybrid_cache
 
+from ..config.cache_config import KsanaCacheConfig, KsanaHybridCacheConfig, warp_as_hybrid_cache
 from ..models.model_pool import KsanaModelPool
 from ..models.base_model import KsanaModel
 
@@ -166,10 +172,6 @@ class KsanaX2VPipeline(ABC):
             text_encoder.to(offload_device)
 
         return positive, negative
-
-    @abstractmethod
-    def process_input_cache(self, cache_method):
-        pass
 
     def use_cfg(self, cfg_scale: float, eps: float = 1e-6):
         return abs(cfg_scale - 1.0) > eps
@@ -379,17 +381,13 @@ class KsanaX2VPipeline(ABC):
         low_cache = None
         high_cache = None
         if high_cache_config is not None:
-            high_cache = create_cache(
-                f"{high_model.model_name}-high",
-                high_model.task_type,
-                high_model.model_size,
+            high_cache = create_hybrid_cache(
+                high_model.get_model_key(),
                 high_cache_config,
             )
         if low_cache_config is not None and low_model is not None:
-            low_cache = create_cache(
-                f"{low_model.model_name}-low",
-                low_model.task_type,
-                low_model.model_size,
+            low_cache = create_hybrid_cache(
+                low_model.get_model_key(),
                 low_cache_config,
             )
 
@@ -446,18 +444,22 @@ class KsanaX2VPipeline(ABC):
                     # timestep: [bs] => [2*bs]
                     timestep_batch = torch.cat([timestep, timestep], dim=0)
                     noise_pred_batch = run_model.forward(
-                        x=latent_batch, t=timestep_batch, cache=run_cache, **arg_combine
+                        x=latent_batch, t=timestep_batch, step_iter=iter_id, cache=run_cache, **arg_combine
                     )
                     # 分离结果: [2*bs, 16, fi, hi, wi] => 2 x [bs, 16, fi, hi, wi]
                     noise_pred_cond, noise_pred_uncond = noise_pred_batch.chunk(2, dim=0)
                 else:
                     noise_pred_uncond = run_model.forward(
-                        x=latent_model_input, t=timestep, cache=run_cache, **arg_uncond
+                        x=latent_model_input, t=timestep, step_iter=iter_id, cache=run_cache, **arg_uncond
                     )
-                    noise_pred_cond = run_model.forward(x=latent_model_input, t=timestep, cache=run_cache, **arg_cond)
+                    noise_pred_cond = run_model.forward(
+                        x=latent_model_input, t=timestep, step_iter=iter_id, cache=run_cache, **arg_cond
+                    )
                 noise_pred = noise_pred_uncond + cfg_scale * (noise_pred_cond - noise_pred_uncond)
             else:
-                noise_pred = run_model.forward(x=latent_model_input, t=timestep, cache=run_cache, **arg_cond)
+                noise_pred = run_model.forward(
+                    x=latent_model_input, t=timestep, step_iter=iter_id, cache=run_cache, **arg_cond
+                )
 
             temp_x0 = sample_scheduler_step_func(
                 noise_pred,
@@ -505,6 +507,21 @@ class KsanaX2VPipeline(ABC):
 
         self.model_load_warm_up_done = True
 
+    def change_to_hybrid_cache(
+        self, cache_configs: list[KsanaCacheConfig | KsanaHybridCacheConfig], target_len: int
+    ) -> list[KsanaHybridCacheConfig]:
+        if cache_configs is None:
+            return None
+        if not (len(cache_configs) == 1 or len(cache_configs) == target_len):
+            raise ValueError(f"cache_configs length must be {target_len} or 1, but got {len(cache_configs)}")
+        hybrid_caches = []
+        for i in range(target_len):
+            cache_id = min(i, len(cache_configs) - 1)  # allow two model use same cache config
+            cache_config = cache_configs[cache_id]
+            as_hybrid_cache = warp_as_hybrid_cache(cache_config)
+            hybrid_caches.append(as_hybrid_cache)
+        return hybrid_caches
+
     @time_range
     def forward_diffusion_models_with_tensors(
         self,
@@ -514,8 +531,7 @@ class KsanaX2VPipeline(ABC):
         sample_config: KsanaSampleConfig,
         runtime_config: KsanaRuntimeConfig,
         img_latents: torch.Tensor = None,  # [bs, vae_z_dim+4, lat_f, lat_h, lat_w]
-        high_cache_config=None,
-        low_cache_config=None,
+        cache_configs: list[KsanaCacheConfig | KsanaHybridCacheConfig] = None,
         device=None,
         offload_device=None,
         comfy_bar_callback=None,
@@ -528,7 +544,13 @@ class KsanaX2VPipeline(ABC):
         Returns:
             latents (torch.Tensor)
         """
-        log.info(f"runtime_config: {runtime_config}, sample_config: {sample_config}")
+        log.info(f"runtime_config: {runtime_config}, sample_config: {sample_config}, cache_configs: {cache_configs}")
+        high_cache_config, low_cache_config = None, None
+        cache_configs = self.change_to_hybrid_cache(cache_configs, len(diffusion_models))
+        if cache_configs is not None:
+            high_cache_config = cache_configs[0]
+            low_cache_config = cache_configs[1] if len(cache_configs) > 1 else None
+
         high_model, low_model, high_sample_guide_scale, low_sample_guide_scale = self.valid_args(
             diffusion_models, sample_config
         )
@@ -653,6 +675,7 @@ class KsanaX2VPipeline(ABC):
         img_latents: torch.Tensor = None,
         sample_config: KsanaSampleConfig = None,
         runtime_config: KsanaRuntimeConfig = None,
+        cache_configs: list[KsanaCacheConfig | KsanaHybridCacheConfig] = None,
         device: torch.device = None,
         offload_device: torch.device = None,
     ):
@@ -662,7 +685,6 @@ class KsanaX2VPipeline(ABC):
         diffusion_models = model_pool.get_models(self.diffusion_model_keys)
 
         runtime_config = KsanaRuntimeConfig.copy_with_default(runtime_config, self.pipeline_config.default_config)
-        high_cache_config, low_cache_config = self.process_input_cache(runtime_config.cache_method)
 
         latents = self.forward_diffusion_models_with_tensors(
             diffusion_models=diffusion_models,
@@ -671,8 +693,7 @@ class KsanaX2VPipeline(ABC):
             img_latents=img_latents,
             sample_config=self.prepare_sample_default_args(sample_config),
             runtime_config=runtime_config,
-            high_cache_config=high_cache_config,
-            low_cache_config=low_cache_config,
+            cache_configs=cache_configs,
             device=device,
             offload_device=offload_device,
         )

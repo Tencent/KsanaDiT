@@ -13,6 +13,8 @@ from ksana.config import (
     KsanaSampleConfig,
 )
 
+from ksana.config.cache_config import KsanaHybridCacheConfig, DCacheConfig, DBCacheConfig
+
 
 prompts = [
     "街头摄影，戴耳机的酷女孩滑板，纽约街头，涂鸦墙背景，动态姿势，风吹头发，黄金时刻光线，主体清晰背景虚化，街头潮牌。",
@@ -34,9 +36,9 @@ def run_simple(args):
             seed=SEED,
             size=(720, 480),
             frame_num=17,
-            cache_method="DCache",
             return_frames=True,
         ),
+        cache_config=DCacheConfig(),
     )
     print("video shape:", video.shape)
 
@@ -65,6 +67,8 @@ def run_fp8_models(args):
         dist_config=KsanaDistributedConfig(num_gpus=args.num_gpus),
         model_config=model_config,
     )
+    high_cache_config = DCacheConfig(fast_degree=55)
+    low_cache_config = DCacheConfig(fast_degree=45)
 
     video = generator.generate_video(
         prompts[0],
@@ -73,9 +77,9 @@ def run_fp8_models(args):
             seed=SEED,
             size=(720, 480),
             frame_num=17,
-            cache_method="DCache",
             return_frames=True,
         ),
+        cache_config=[high_cache_config, low_cache_config],
     )
     print("video shape:", video.shape)
 
@@ -87,7 +91,7 @@ def run_with_lora(args):
         dist_config=KsanaDistributedConfig(num_gpus=args.num_gpus),
     )
 
-    generator.generate_video(prompts, runtime_config=KsanaRuntimeConfig(seed=SEED))
+    generator.generate_video(prompts, runtime_config=KsanaRuntimeConfig(seed=SEED), cache_config=DCacheConfig())
 
 
 def run_advanced(args):
@@ -109,18 +113,21 @@ def run_advanced(args):
         size=(720, 480),
         seed=SEED,
         frame_num=17,
-        cache_method="DCache",
         return_frames=True,
         output_folder="outputs",
         save_video=True,
     )
+
     sample_config = KsanaSampleConfig(steps=40, cfg_scale=3.0, shift=12.0, solver="uni_pc")
+
+    cache_config = KsanaHybridCacheConfig(
+        step_cache=DCacheConfig(fast_degree=50),
+        block_cache=DBCacheConfig(),
+    )
 
     # Generate the video
     video = generator.generate_video(
-        prompts[0],
-        sample_config=sample_config,
-        runtime_config=runtime_config,
+        prompts[0], sample_config=sample_config, runtime_config=runtime_config, cache_config=cache_config
     )
     print("video shape:", video.shape)
 

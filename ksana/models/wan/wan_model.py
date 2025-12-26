@@ -7,8 +7,8 @@ from diffusers.configuration_utils import ConfigMixin, register_to_config
 from diffusers.models.modeling_utils import ModelMixin
 import torch.cuda.nvtx as nvtx
 
-from ksana.cache import KsanaCache, DBCache
-from ksana.utils import time_range, gather_forward, get_rank_id, log
+from ksana.cache import KsanaHybridCache
+from ksana.utils import time_range, gather_forward, get_rank_id
 from ksana.utils.rope import EmbedND, apply_comfyui_rope
 from ksana.utils.rope import apply_default_rope
 
@@ -508,7 +508,8 @@ class WanModel(ModelMixin, ConfigMixin):
         self,
         x: torch.Tensor,
         t,
-        cache: KsanaCache,
+        step_iter: int,
+        cache: KsanaHybridCache | None,
         phase: str,
         context: torch.Tensor,
         seq_len,
@@ -609,29 +610,12 @@ class WanModel(ModelMixin, ConfigMixin):
             context_lens=context_lens,
             rope_func=self.rope_func,
         )
-
+        # x: [bs, seqlen, 5120]
         if cache is None:
             for block in self.blocks:
-                # x: [bs, seqlen, 5120]
                 x = block(x, **kwargs)
         else:
-            # if cache.need_compile_cache:
-            #     x_ori = x.clone()
-            #     nvtx.range_push("blocks")
-            #     for block in self.blocks:
-            #         x = block(x, **kwargs)
-            #     nvtx.range_pop()
-            #     x_diff = x - x_ori
-            #     cache.compile_config_add(timestep, x_diff)
-            # TODO(jasonbsun): add unified cache interface
-            if isinstance(cache, DBCache):
-                # DBCache: FnBn block-wise caching logic
-                x = self._forward_with_dbcache(x, cache, phase, timestep, **kwargs)
-            else:
-                # DCache: full-block caching logic
-                x = self._forward_with_dcache(x, cache, phase, timestep, **kwargs)
-
-        # torch.save(x.cpu().abs().mean(dim = len(x.shape) - 1), f"{save_prefix}_xo_mean.pt")
+            x = self._forward_with_cache(x, cache, phase, step_iter, timestep, **kwargs)
 
         # head
         # [bs, seqlen, 5120] => [bs, seqlen, 64], e:[bs, seqlen, freq_dim=>self.dim:5120]
@@ -643,87 +627,23 @@ class WanModel(ModelMixin, ConfigMixin):
         x = self.unpatchify(x, grid_sizes)
         return x
 
-    def _forward_with_dcache(self, x, cache, phase, timestep, **kwargs):
-        use_cache = False
-        x_diff = None
-        if cache.can_use_cache(phase, x, timestep):
-            x_diff = cache.try_get_prev_cache(phase, x, timestep)
-            use_cache = x_diff is not None
+    def _forward_with_cache(self, x, cache, phase, step_iter, timestep, **kwargs):
+        step_cache, block_cache = cache.step_cache, cache.block_cache
+        if step_cache is not None and step_cache.valid_for(phase=phase, x=x, step_iter=step_iter, timestep=timestep):
+            x = step_cache(phase=phase, x=x, step_iter=step_iter, timestep=timestep)
+            return x  # step cache hit, skip block cache and return
 
-        if use_cache:
-            x = x + x_diff.to(x.device)
+        if step_cache is not None:
+            step_cache.record_input_before_update(x=x, step_iter=step_iter, timestep=timestep)
+
+        if block_cache is not None:
+            x = block_cache(phase=phase, x=x, step_iter=step_iter, timestep=timestep, blocks=self.blocks, **kwargs)
         else:
-            x_ori = cache.clone_input_x(timestep, x)
             for block in self.blocks:
                 x = block(x, **kwargs)
-            cache.update_states(phase, timestep, x_ori, x)
-        return x
 
-    def _forward_with_dbcache(self, x, cache, phase, timestep, **kwargs):
-        use_cache = False
-        step = cache.context.current_step
-        Fn_start, Fn_end = cache.context.Fn_blocks_range
-        Mn_start, Mn_end = cache.context.Mn_blocks_range
-        Bn_start, Bn_end = cache.context.Bn_blocks_range
-
-        if cache.can_use_cache(phase, x, timestep):
-            # Step 1: Always compute Fn blocks first
-            x_ori = x.clone()
-            for i in range(Fn_start, min(Fn_end, len(self.blocks))):
-                x = self.blocks[i](x, **kwargs)
-
-            # Calculate Fn residual for diff comparison
-            Fn_residual = x - x_ori
-
-            # Step 2: Check L1 diff to decide whether to use cache
-            if cache.compute_diff_and_decide(phase, Fn_residual):
-                # Cache HIT: Use cached Mn+Bn residual
-                Bn_residual, _ = cache.try_get_prev_cache(phase, x, timestep)
-                if Bn_residual is not None:
-                    x = x + Bn_residual.to(x.device)
-                    use_cache = True
-                    log.info(
-                        f"[Wan][DBCache] step={step} phase={phase} cache=HIT "
-                        f"skip Mn[{Mn_start},{Mn_end}) Bn[{Bn_start},{Bn_end})"
-                    )
-                else:
-                    log.info(f"[Wan][DBCache] step={step} phase={phase} cache=MISS " f"reason=no_cached_residual")
-
-            if not use_cache:
-                # Cache MISS: Compute remaining Mn and Bn blocks
-                x_before_Mn = x.clone()
-
-                # Compute Mn blocks
-                for i in range(Mn_start, min(Mn_end, len(self.blocks))):
-                    x = self.blocks[i](x, **kwargs)
-
-                # Compute Bn blocks
-                for i in range(Bn_start, min(Bn_end, len(self.blocks))):
-                    x = self.blocks[i](x, **kwargs)
-
-                # Update cache with new residuals
-                Bn_residual = x - x_before_Mn
-                cache.update_states(phase, timestep, Fn_residual, Bn_residual)
-                log.info(
-                    f"[Wan][DBCache] step={step} phase={phase} cache=MISS "
-                    f"computed Mn[{Mn_start},{Mn_end}) Bn[{Bn_start},{Bn_end})"
-                )
-        else:
-            # Warmup or forced compute: run all blocks
-            x_ori = x.clone()
-            for block in self.blocks:
-                x = block(x, **kwargs)
-            # Still update cache for subsequent steps
-            # Use a simplified approach: treat entire residual as both Fn and Bn residual
-            full_residual = x - x_ori
-            cache.update_states(phase, timestep, full_residual, full_residual)
-            log.info(
-                f"[Wan][DBCache] step={step} phase={phase} cache=MISS "
-                f"warmup compute all blocks ({len(self.blocks)})"
-            )
-        # Advance cache step once per diffusion timestep (guarded inside DBCache)
-        if hasattr(cache, "advance_step_once"):
-            cache.advance_step_once(timestep)
+        if step_cache is not None:
+            step_cache.update_cache(phase=phase, x=x, step_iter=step_iter, timestep=timestep)
         return x
 
     def unpatchify(self, x, grid_sizes):

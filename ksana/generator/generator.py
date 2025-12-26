@@ -6,6 +6,7 @@ from ..executor import KsanaExecutor, RayKsanaExecutor
 from ..utils import log, singleton
 from ..utils.distribute import get_torchrun_env, is_launched_by_torchrun, get_gpu_count
 from ..config import KsanaDistributedConfig, KsanaSampleConfig, KsanaRuntimeConfig, KsanaModelConfig
+from ..config.cache_config import KsanaCacheConfig, KsanaHybridCacheConfig
 
 
 def get_generator(*args, **kwargs):
@@ -152,6 +153,9 @@ class KsanaGenerator(ABC):
         prompt_negative: str | list[str] = None,
         sample_config: KsanaSampleConfig = None,
         runtime_config: KsanaRuntimeConfig = None,
+        cache_config: (
+            KsanaCacheConfig | KsanaHybridCacheConfig | list[KsanaCacheConfig | KsanaHybridCacheConfig]
+        ) = None,
         **kwargs,
     ):
         if len(kwargs) > 0:
@@ -170,6 +174,7 @@ class KsanaGenerator(ABC):
                     prompt_negative=prompt_negative,
                     sample_config=sample_config,
                     runtime_config=runtime_config,
+                    cache_configs=cache_config,
                 )
                 for executor in self.executors
             ]
@@ -183,6 +188,7 @@ class KsanaGenerator(ABC):
                 prompt_negative=prompt_negative,
                 sample_config=sample_config,
                 runtime_config=runtime_config,
+                cache_configs=cache_config,
             ).get(rank_0_id)
 
         return res

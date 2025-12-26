@@ -6,6 +6,8 @@ from ksana.config import (
     KsanaRuntimeConfig,
     KsanaSampleConfig,
 )
+from ksana.config.cache_config import DCacheConfig
+
 import torch
 
 prompts = [
@@ -143,10 +145,10 @@ class TestKsana(unittest.TestCase):
                 seed=SEED,
                 size=TEST_SIZE,
                 frame_num=TEST_FRAME_NUM,
-                cache_method="DCache",
                 return_frames=True,
                 save_video=False,
             ),
+            cache_config=DCacheConfig(),
         )
         with self.subTest(msg="Shape Check"):
             self.assertEqual(list(video.shape), [1, 3, TEST_FRAME_NUM, TEST_SIZE[1], TEST_SIZE[0]])

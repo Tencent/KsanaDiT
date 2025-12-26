@@ -6,6 +6,9 @@ try:
     from .debug import KsanaDebugNode
     from .cache import (
         KsanaDCacheNode,
+        KsanaCustomStepCacheNode,
+        KsanaHybridCacheNode,
+        KsanaCacheCombineNode,
         KsanaTeaCacheNode,
         KsanaEasyCacheNode,
         KsanaMagCacheNode,
@@ -18,6 +21,9 @@ try:
     from .lora import KsanaLoraSelectMultiNode, KsanaLoraSelectNode, KsanaLoraCombineNode
 
     NODE_CLASS_MAPPINGS = {
+        "KsanaCustomStepCacheNode": KsanaCustomStepCacheNode,
+        "KsanaHybridCacheNode": KsanaHybridCacheNode,
+        "KsanaCacheCombineNode": KsanaCacheCombineNode,
         "KsanaDCacheNode": KsanaDCacheNode,
         "KsanaTeaCacheNode": KsanaTeaCacheNode,
         "KsanaEasyCacheNode": KsanaEasyCacheNode,
@@ -36,21 +42,24 @@ try:
     }
 
     NODE_DISPLAY_NAME_MAPPINGS = {
-        "KsanaDCacheNode": "KsanaDit DCache Node",
-        "KsanaTeaCacheNode": "KsanaDit TeaCache Node",
-        "KsanaEasyCacheNode": "KsanaDit EasyCache Node",
-        "KsanaMagCacheNode": "KsanaDit MagCache Node",
-        "KsanaDBCacheNode": "KsanaDit DBCache Node",
-        "KsanaDebugNode": "KsanaDit Debug Node",
+        "KsanaCustomStepCacheNode": "KsanaDit CustomStepCache",
+        "KsanaHybridCacheNode": "KsanaDit HybridCache",
+        "KsanaCacheCombineNode": "KsanaDit CacheCombine",
+        "KsanaDCacheNode": "KsanaDit DCache",
+        "KsanaTeaCacheNode": "KsanaDit TeaCache",
+        "KsanaEasyCacheNode": "KsanaDit EasyCache",
+        "KsanaMagCacheNode": "KsanaDit MagCache",
+        "KsanaDBCacheNode": "KsanaDit DBCache",
+        "KsanaDebugNode": "KsanaDit DebugNode",
         "KsanaModelLoaderNode": "KsanaDit Model Loader",
         "KsanaVAELoaderNode": "KsanaDit VAE Loader",
         "KsanaVAEEncodeNode": "KsanaDit VAE Encoder",
         "KsanaVAEDecodeNode": "KsanaDit VAE Decoder",
         "KsanaGeneratorNode": "KsanaDit Generator",
-        "KsanaTorchCompileNode": "KsanaDiT Torch Compile Node",
-        "KsanaLoraSelectMultiNode": "KsanaDit Lora Select Multi Node",
-        "KsanaLoraSelectNode": "KsanaDit Lora Select Node",
-        "KsanaLoraCombineNode": "KsanaDit Lora Combine Node",
+        "KsanaTorchCompileNode": "KsanaDiT TorchCompile",
+        "KsanaLoraSelectMultiNode": "KsanaDit LoraSelectMulti",
+        "KsanaLoraSelectNode": "KsanaDit LoraSelect",
+        "KsanaLoraCombineNode": "KsanaDit LoraCombine",
     }
 except Exception as e:
     print(f"import错误: {str(e)}")

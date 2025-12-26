@@ -1,23 +1,34 @@
-from .base_cache import KsanaCache
-from .cache_config import MagCacheConfig
+import torch
+from .base_cache import KsanaStepCache
+from ..config.cache_config import MagCacheConfig
+from ..models.model_key import KsanaModelKey
+from ..utils import log
 
 
-class MagCache(KsanaCache):
-    def __init__(self, model_name: str, model_type: str, model_size: str, config: MagCacheConfig):
-        super().__init__(f"{model_name}_{model_type}_{model_size}_{config.name}")
-        self.config = config
+class MagCache(KsanaStepCache):
+    def __init__(self, model_key: KsanaModelKey, config: MagCacheConfig):
+        super().__init__(model_key, config)
 
-    def can_use_cache(self, current_x_input, current_timestep: int) -> bool:
+    def valid_for(self, **kwargs) -> bool:
+        log.error("MagCache valid_for not implemented")
+        return False
+
+    def __call__(self, **kwargs) -> torch.Tensor:
+        log.error("MagCache __call__ not implemented")
         return
 
-    def try_get_prev_cache(self, current_x_input, current_timestep: int):
+    def record_input_before_update(self, **kwargs):
+        log.error("MagCache record_input_before_update not implemented")
         return
 
-    def clone_input_x(self, current_timestep: int, x):
-        return x.clone()
-
-    def update_states(self, current_timestep: int, current_x_input, current_x_output):
+    def update_cache(self, **kwargs):
+        log.error("MagCache update_cache not implemented")
         return
 
     def offload_to_cpu(self):
+        log.error("MagCache offload_to_cpu not implemented")
+        return
+
+    def show_cache_rate(self):
+        log.error("MagCache show_cache_rate not implemented")
         return

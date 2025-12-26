@@ -1,66 +1,67 @@
-from .base_cache import KsanaCache
-from .cache_config import DCacheConfig
+from .base_cache import KsanaStepCache
+from ..config.cache_config import DCacheConfig
 import numpy as np
+import torch
 
+from ..models.model_key import KsanaModelKey
 from ..utils import log
+from ..utils.utils import disable_dynamo, get_recommend_config
 
 __all__ = ["DCache"]
 
-try:
-    # Avoid Dynamo compiling cache helpers that use numpy/Python control flow
-    from torch._dynamo import disable as _dynamo_disable
-except Exception:
-
-    def _dynamo_disable(fn=None):
-        return fn if fn is not None else (lambda f: f)
-
 
 DCACHE_COEFFS_MAPS = {
-    "wan2.2-high": {
-        "t2v": {
-            "A14B": [
-                1.79787941e-06,
-                -6.73669299e-03,
-                9.45476817e00,
-                -5.89111662e03,
-                1.37508591e06,
-            ]
-        }
-    },
-    "wan2.2-low": {
-        "t2v": {
-            "A14B": [
-                -4.67923490e-09,
-                9.48489344e-06,
-                -6.97084940e-03,
-                2.12416998e00,
-                -1.65571475e02,
-            ]
-        }
-    },
+    KsanaModelKey.Wan2_2_T2V_14B_HIGH: [
+        1.79787941e-06,
+        -6.73669299e-03,
+        9.45476817e00,
+        -5.89111662e03,
+        1.37508591e06,
+    ],
+    KsanaModelKey.Wan2_2_T2V_14B_LOW: [
+        -4.67923490e-09,
+        9.48489344e-06,
+        -6.97084940e-03,
+        2.12416998e00,
+        -1.65571475e02,
+    ],
 }
 
 
-def get_coeffs(
-    model_name: str,
-    model_type: str,
-    model_size: str,
-):
+RECOMMEND_DCACHE_CONFIGS = {
+    KsanaModelKey.Wan2_2_T2V_14B_HIGH: DCacheConfig(
+        name=KsanaModelKey.Wan2_2_T2V_14B_HIGH.name,
+        fast_degree=70,
+        slow_degree=35,
+        fast_force_calc_every_n_step=1,
+        slow_force_calc_every_n_step=5,
+    ),
+    KsanaModelKey.Wan2_2_T2V_14B_LOW: DCacheConfig(
+        name=KsanaModelKey.Wan2_2_T2V_14B_LOW.name,
+        fast_degree=65,
+        slow_degree=25,
+        fast_force_calc_every_n_step=2,
+        slow_force_calc_every_n_step=4,
+    ),
+}
+
+
+def _get_coeffs(model_key: KsanaModelKey):
     try:
-        coeffs = DCACHE_COEFFS_MAPS[model_name][model_type][model_size]
-        return coeffs
+        return DCACHE_COEFFS_MAPS[model_key]
     except KeyError:
-        raise ValueError(f"Unknown model kind {model_name}, type {model_type}, size {model_size}")
+        raise RuntimeError(f"dcache do not support model {model_key} yet")
 
 
-class DCache(KsanaCache):
-    def __init__(self, model_name: str, model_type: str, model_size: str, config: DCacheConfig):
-        super().__init__(f"{model_name}_{model_type}_{model_size}_{config.name}")
-        self.config = config
-        coeffs = get_coeffs(model_name, model_type, model_size)
-        self.degree_func = np.poly1d(coeffs)
+class DCache(KsanaStepCache):
+    def __init__(self, model_key: KsanaModelKey, config: DCacheConfig):
+        super().__init__(model_key, config)
+        self.config = get_recommend_config(config, RECOMMEND_DCACHE_CONFIGS[model_key])
+        self.degree_func = np.poly1d(_get_coeffs(model_key))
         self.need_compile_cache = False
 
+        self.cur_input_x = None
+        self.cur_degree = None
         self.prev_diff = {"cond": None, "uncond": None, "combine": None}
         self.cnt_continuous_cached = {"cond": 0, "uncond": 0, "combine": 0}
         self.total_in_cache_cnt = {"cond": 0, "uncond": 0, "combine": 0}
@@ -68,16 +69,10 @@ class DCache(KsanaCache):
         self.total_cnt = {"cond": 0, "uncond": 0, "combine": 0}
 
     def __str__(self):
-        return (
-            f"DitCache {self.name} timestep_range: [{self.timestep_start}, {self.timestep_end}] "
-            f"need_compile_cache: {self.need_compile_cache}, config: {self.config}"
-        )
-
-    # def __call__(self, *args, **kwds):
-    #     return super().__call__(*args, **kwds)
+        return f"DitCache {self.model_key}, config: {self.config}"
 
     @staticmethod
-    @_dynamo_disable()
+    @disable_dynamo()
     def get_unify_degree(degree_func, timestep):
         # import ipdb
         # ipdb.set_trace()
@@ -89,76 +84,75 @@ class DCache(KsanaCache):
             unify_degree = min(unify_degree, abs(180 - unify_degree))
         return unify_degree
 
-    @_dynamo_disable()
-    def can_use_cache(self, phase: str, current_x_input, current_timestep: int) -> bool:
+    @disable_dynamo()
+    def valid_for(self, phase: str, step_iter: int, timestep: int, **kwargs) -> bool:
         self.total_cnt[phase] += 1
+        base_no_in_use_info = f"[MISS cache] phase {phase} step_iter {step_iter} timestep {timestep}"
         if self.total_cnt[phase] <= self.config.skip_first_n_iter:
             log.debug(
-                f"[NOT use cache] phase {phase} timestep {current_timestep}, by skip first {self.config.skip_first_n_iter} iter, current iter {self.total_cnt[phase]}"
+                f"{base_no_in_use_info}, by skip first {self.config.skip_first_n_iter} iter, current iter {self.total_cnt[phase]}"
             )
             return False
         if self.prev_diff[phase] is None:
-            log.debug(f"[NOT use cache] phase {phase} timestep {current_timestep}, by prev_diff is None")
+            log.debug(f"{base_no_in_use_info}, by prev_diff is None")
             return False
-        cur_degree = self.get_unify_degree(self.degree_func, current_timestep)
-        self.cur_degree = cur_degree
-        if cur_degree > self.config.fast_degree:
-            log.debug(
-                f"[NOT use cache] phase {phase} timestep {current_timestep}, by degree {cur_degree:.1f} > fast degree {self.config.fast_degree}"
-            )
+        self.cur_degree = self.get_unify_degree(self.degree_func, timestep)
+        if self.cur_degree > self.config.fast_degree:
+            log.debug(f"{base_no_in_use_info}, by degree {self.cur_degree:.1f} > fast degree {self.config.fast_degree}")
             return False
-        else:
-            return True
-
-    @_dynamo_disable()
-    def try_get_prev_cache(self, phase: str, current_x_input, current_timestep: int):
         self.total_in_cache_cnt[phase] += 1
         if (
             self.config.slow_degree < self.cur_degree <= self.config.fast_degree
             and self.cnt_continuous_cached[phase] >= self.config.fast_force_calc_every_n_step
         ):
-            log.debug(
-                f"[NOT use cache] phase {phase} timestep {current_timestep}, by every {self.config.fast_force_calc_every_n_step} steps"
-            )
+            log.debug(f"{base_no_in_use_info}, by every {self.config.fast_force_calc_every_n_step} steps")
             self.cnt_continuous_cached[phase] = 0
-            return None
+            return False
         if (
             self.cur_degree <= self.config.slow_degree
             and self.cnt_continuous_cached[phase] >= self.config.slow_force_calc_every_n_step
         ):
-            log.debug(
-                f"[NOT use cache] phase {phase} timestep {current_timestep}, by every {self.config.slow_force_calc_every_n_step} steps"
-            )
+            log.debug(f"{base_no_in_use_info}, by every {self.config.slow_force_calc_every_n_step} steps")
             self.cnt_continuous_cached[phase] = 0
+            return False
+        return True
+
+    @disable_dynamo()
+    def __call__(self, phase: str, x: torch.Tensor, step_iter: int, timestep: int):
+        base_info = f"phase {phase} step_iter {step_iter} timestep {timestep}"
+        if self.prev_diff[phase] is None:
+            log.error(f"prev_diff is None, call valid_for or update cache firstly for {base_info}")
             return None
-        log.debug(f"[USE cache] phase {phase} timestep {current_timestep}, cur_degree {self.cur_degree:.1f}")
-        cur_diff = self.prev_diff[phase]
+        log.debug(f"[HIT cache] {base_info}, cur_degree {self.cur_degree:.1f}")
         self.total_cached_cnt[phase] += 1
         self.cnt_continuous_cached[phase] += 1
-        self.prev_diff[phase] = cur_diff
-        return cur_diff
+        cur_diff = self.prev_diff[phase]
+        output = x + cur_diff.to(device=x.device, dtype=x.dtype)
+        return output
 
-    @_dynamo_disable
+    @disable_dynamo()
+    def record_input_before_update(self, x: torch.Tensor, **kwargs):
+        self.cur_input_x = x.clone().to("cpu") if self.config.offload else x.clone()
+
+    @disable_dynamo()
+    def update_cache(self, phase: str, x: torch.Tensor, step_iter: int, timestep: int):
+        current_x_output = x.clone().to("cpu") if self.config.offload else x
+        if self.cur_input_x is None:
+            base_info = f"phase {phase} step_iter {step_iter} timestep {timestep}"
+            log.error(f"cur_input_x is None, call record_input_before_blocks firstly for {base_info}")
+            return
+        self.prev_diff[phase] = current_x_output - self.cur_input_x
+        self.cur_input_x = None
+
+    @disable_dynamo()
     def offload_to_cpu(self):
-        if self.prev_diff is not None:
-            for phase in self.prev_diff:
-                if self.prev_diff[phase] is not None:
-                    self.prev_diff[phase] = self.prev_diff[phase].to("cpu")
+        if self.prev_diff is None:
+            return
+        for phase in self.prev_diff:
+            if self.prev_diff[phase] is not None:
+                self.prev_diff[phase] = self.prev_diff[phase].to("cpu")
 
-    # def post_cacheprocess(self, phase: str, current_timestep: int, current_x_diff):
-    #     self.prev_diff[phase] = current_x_diff
-
-    @_dynamo_disable()
-    def clone_input_x(self, current_timestep: int, current_x_input) -> bool:
-        return current_x_input.clone().to("cpu") if self.config.offload else current_x_input.clone()
-
-    @_dynamo_disable()
-    def update_states(self, phase: str, current_timestep: int, current_x_input, current_x_output):
-        current_x_output = current_x_output.clone().to("cpu") if self.config.offload else current_x_output
-        self.prev_diff[phase] = current_x_output - current_x_input
-        del current_x_input
-
-    @_dynamo_disable()
+    @disable_dynamo()
     def show_cache_rate(self):
         if self.need_compile_cache:
             return
@@ -170,7 +164,7 @@ class DCache(KsanaCache):
         uncond_cached_total = self.total_cached_cnt["uncond"]
         uncond_total = self.total_cnt["uncond"]
         log.info(
-            f"DCache {self.name} fast degree {self.config.fast_degree}, slow degree {self.config.slow_degree}, "
+            f"DCache {self.model_key} fast degree {self.config.fast_degree}, slow degree {self.config.slow_degree}, "
             f"fast force compute every {self.config.fast_force_calc_every_n_step} steps in cache, "
             f"slow force compute every {self.config.slow_force_calc_every_n_step} steps in cache, "
             f"cond(in cache rate {(100 * cond_in_cache_total/ (cond_total + 1e-8)): .2f}%, "
