@@ -1,6 +1,7 @@
 from dataclasses import dataclass, field
 from easydict import EasyDict
 from ..sample_solvers import SUPPORTED_SOLVERS
+from ..utils.const import DEFAULT_DENOISE, DEFAULT_BATCH_PER_PROMPT
 
 
 @dataclass(frozen=True)
@@ -9,8 +10,9 @@ class KsanaSampleConfig:
     cfg_scale: float | tuple[float, float] | None = field(default=None)
     shift: float | None = field(default=None)
     solver: str | None = field(default=None)
-    denoise: float | None = field(default=1.0)
+    denoise: float | None = field(default=DEFAULT_DENOISE)
     sigmas: list[float] | None = field(default=None)
+    batch_per_prompt: int | list[int] | None = field(default=DEFAULT_BATCH_PER_PROMPT)
 
     def __post_init__(self):
         assert (
@@ -26,4 +28,5 @@ class KsanaSampleConfig:
             solver=default.get("sample_solver", None) if input_config.solver is None else input_config.solver,
             denoise=default.get("denoise", None) if input_config.denoise is None else input_config.denoise,
             sigmas=default.get("sigmas", None) if input_config.sigmas is None else input_config.sigmas,
+            batch_per_prompt=input_config.batch_per_prompt,
         )

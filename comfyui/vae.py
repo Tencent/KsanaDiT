@@ -59,7 +59,6 @@ class KsanaVAEEncodeNode:
         height=None,
         batch_size=None,
     ):
-        # TODO: support batch_size, need support batch size per one prompt
         ksana_generator = get_generator()
         print(f"encoder vae: {vae}")
         if isinstance(start_image, torch.Tensor) and start_image.ndim == 3:
@@ -93,7 +92,7 @@ class KsanaVAEEncodeNode:
             end_image=end_image,
             mask=mask,
         )
-        return ({"samples": latents, "with_end_image": with_end_image},)
+        return ({"samples": latents, "with_end_image": with_end_image, "batch_per_prompt": int(batch_size)},)
 
 
 class KsanaVAEDecodeNode:
