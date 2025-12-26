@@ -2,7 +2,6 @@ from .x2v import KsanaX2VPipeline, KsanaDefaultArgs
 import os
 from ..models import KsanaWanModel, KsanaT5Encoder, KsanaVAE
 from dataclasses import dataclass, field
-from ..cache import DCacheConfig, DBCacheConfig
 from ..config import KsanaPipelineConfig, KsanaModelConfig
 from ..utils.profile import time_range
 from ..utils.logger import log
@@ -168,48 +167,3 @@ class KsanaWanX2VPipeline(KsanaX2VPipeline):
             if comfy_bar_callback is not None:
                 comfy_bar_callback()
             return [one_model]
-
-    def process_input_cache(self, cache_method):
-        high_cache_config = None
-        low_cache_config = None
-        if cache_method == "DCache":
-            high_cache_config = DCacheConfig(
-                fast_degree=70,
-                slow_degree=35,
-                fast_force_calc_every_n_step=1,
-                slow_force_calc_every_n_step=5,
-                name="high_dcache",
-            )
-            low_cache_config = DCacheConfig(
-                fast_degree=65,
-                slow_degree=25,
-                fast_force_calc_every_n_step=2,
-                slow_force_calc_every_n_step=4,
-                name="low_dcache",
-            )
-        elif cache_method == "DBCache":
-            high_cache_config = DBCacheConfig(
-                Fn_compute_blocks=1,  # F1B0 configuration
-                Bn_compute_blocks=0,
-                residual_diff_threshold=0.08,
-                max_warmup_steps=4,
-                warmup_interval=1,
-                max_cached_steps=8,
-                max_continuous_cached_steps=2,
-                enable_separate_cfg=True,
-                num_blocks=40,  # Wan2.2-A14B blocks count
-                name="high_dbcache",
-            )
-            low_cache_config = DBCacheConfig(
-                Fn_compute_blocks=1,
-                Bn_compute_blocks=0,
-                residual_diff_threshold=0.08,
-                max_warmup_steps=2,
-                warmup_interval=1,
-                max_cached_steps=20,
-                max_continuous_cached_steps=2,
-                enable_separate_cfg=True,
-                num_blocks=40,
-                name="low_dbcache",
-            )
-        return high_cache_config, low_cache_config

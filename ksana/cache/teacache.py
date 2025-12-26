@@ -1,23 +1,34 @@
-from .base_cache import KsanaCache
-from .cache_config import TeaCacheConfig
+import torch
+from .base_cache import KsanaStepCache
+from ..config.cache_config import TeaCacheConfig
+from ..utils import log
+from ..models.model_key import KsanaModelKey
 
 
-class TeaCache(KsanaCache):
-    def __init__(self, model_name: str, model_type: str, model_size: str, config: TeaCacheConfig):
-        super().__init__(f"{model_name}_{model_type}_{model_size}_{config.name}")
-        self.config = config
+class TeaCache(KsanaStepCache):
+    def __init__(self, model_key: KsanaModelKey, config: TeaCacheConfig):
+        super().__init__(model_key, config)
 
-    def can_use_cache(self, current_x_input, current_timestep: int) -> bool:
+    def valid_for(self, **kwargs) -> bool:
+        log.error("TeaCache valid_for not implemented")
+        return False
+
+    def __call__(self, **kwargs) -> torch.Tensor:
+        log.error("TeaCache __call__ not implemented")
         return
 
-    def try_get_prev_cache(self, current_x_input, current_timestep: int):
+    def record_input_before_update(self, **kwargs):
+        log.error("TeaCache record_input_before_update not implemented")
         return
 
-    def clone_input_x(self, current_timestep: int, x):
-        return x.clone()
-
-    def update_states(self, current_timestep: int, current_x_input, current_x_output):
+    def update_cache(self, **kwargs):
+        log.error("TeaCache update_cache not implemented")
         return
 
     def offload_to_cpu(self):
+        log.error("TeaCache offload_to_cpu not implemented")
+        return
+
+    def show_cache_rate(self):
+        log.error("TeaCache show_cache_rate not implemented")
         return

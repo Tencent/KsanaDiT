@@ -1,10 +1,70 @@
-from ksana.cache.cache_config import (
+from ksana.config.cache_config import (
+    KsanaBlockCacheConfig,
+    KsanaStepCacheConfig,
     DCacheConfig,
+    CustomStepCacheConfig,
+    KsanaHybridCacheConfig,
     TeaCacheConfig,
     EasyCacheConfig,
     MagCacheConfig,
     DBCacheConfig,
 )
+
+
+class KsanaHybridCacheNode:
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "optional": {
+                "step_cache": ("KSANA_CACHE_CONFIG", {"default": None}),
+                "block_cache": ("KSANA_CACHE_CONFIG", {"default": None}),
+                "name": ("STRING", {"default": "HybridCache"}),
+            },
+        }
+
+    RETURN_TYPES = ("KSANA_CACHE_CONFIG",)
+    RETURN_NAMES = ("hybrid_cache",)
+    FUNCTION = "func"
+    CATEGORY = "ksana/cache"
+
+    def func(self, step_cache=None, block_cache=None, name=None):
+        if step_cache is None and block_cache is None:
+            raise ValueError("step_cache and block_cache cannot be both None")
+        step_cache, block_cache = None
+        if step_cache is not None and not isinstance(step_cache, KsanaStepCacheConfig):
+            raise ValueError("step_cache must be KsanaStepCacheConfig")
+        if block_cache is not None and not isinstance(block_cache, KsanaBlockCacheConfig):
+            raise ValueError("block_cache must be KsanaBlockCacheConfig")
+        return (
+            KsanaHybridCacheConfig(
+                step_cache=step_cache,
+                block_cache=block_cache,
+                name=name,
+            ),
+        )
+
+
+class KsanaCacheCombineNode:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "cache": ("KSANA_CACHE_CONFIG",),
+            },
+            "optional": {
+                "low_noise_model_cache": ("KSANA_CACHE_CONFIG", {"default": None}),
+            },
+        }
+
+    RETURN_TYPES = ("KSANA_CACHE_CONFIG",)
+    RETURN_NAMES = ("cache_configs",)
+    FUNCTION = "combine_caches"
+    CATEGORY = "ksana/cache"
+    DESCRIPTION = "Combine Hybrid Caches for 2 models"
+
+    def combine_caches(self, cache, low_noise_model_cache=None):
+        combined_caches = [cache, low_noise_model_cache] if low_noise_model_cache is not None else [cache]
+        return (combined_caches,)
 
 
 class KsanaDCacheNode:
@@ -52,6 +112,50 @@ class KsanaDCacheNode:
                 slow_degree=slow_degree,
                 fast_force_calc_every_n_step=fast_force_calc_every_n_step,
                 slow_force_calc_every_n_step=slow_force_calc_every_n_step,
+                offload=offload,
+            ),
+        )
+
+
+class KsanaCustomStepCacheNode:
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "steps": ("FLOAT", {"forceInput": True, "tooltip": "The steps to cache, start from 0"}),
+            },
+            "optional": {
+                "scales": ("FLOAT", {"forceInput": True, "default": 1.0}),
+                "name": ("STRING", {"default": ""}),
+                "offload": ("BOOLEAN", {"default": False}),
+            },
+        }
+
+    @classmethod
+    def VALIDATE_INPUTS(cls):
+        return True
+
+    RETURN_TYPES = ("KSANA_CACHE_CONFIG",)
+    RETURN_NAMES = ("cache_config",)
+    FUNCTION = "func"
+    CATEGORY = "ksana/cache"
+
+    def func(
+        self,
+        steps,
+        scales=1.0,
+        name=None,
+        offload=False,
+    ):
+        print(f"steps: {steps}, scales: {scales}")
+        steps = [int(i) for i in steps]
+        if isinstance(scales, float):
+            scales = [scales] * len(steps)
+        return (
+            CustomStepCacheConfig(
+                steps=steps,
+                scales=scales,
+                name=name,
                 offload=offload,
             ),
         )

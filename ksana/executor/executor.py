@@ -27,6 +27,7 @@ from ..distributed import shard_model
 from ..models.model_pool import KsanaModelPool
 from ..models.model_key import KsanaModelKey
 from ..models import KsanaVAE
+from ..config.cache_config import KsanaCacheConfig, KsanaHybridCacheConfig
 import torchvision.transforms.functional as tvtf
 
 
@@ -294,6 +295,7 @@ class KsanaExecutor(ABC):
         prompt_negative: str | list[str] = None,
         sample_config: KsanaSampleConfig = None,
         runtime_config: KsanaRuntimeConfig = None,
+        cache_configs: list[KsanaCacheConfig | KsanaHybridCacheConfig] = None,
     ):
         prompts_list = self.valid_prompts(prompt)
         prompts_negative_list = self.valid_prompts(prompt_negative, len(prompts_list))
@@ -321,6 +323,9 @@ class KsanaExecutor(ABC):
                 runtime_config=runtime_config,
             )
 
+        if cache_configs is not None and not isinstance(cache_configs, list):
+            cache_configs = [cache_configs]
+
         latents = self.pipeline.forward_diffusion_models(
             model_pool=self.model_pool,
             positive=positive,
@@ -328,6 +333,7 @@ class KsanaExecutor(ABC):
             img_latents=img_latents,
             sample_config=sample_config,
             runtime_config=runtime_config,
+            cache_configs=cache_configs,
             device=self.device,
             offload_device=self.offload_device,
         )

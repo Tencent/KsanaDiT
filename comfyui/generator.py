@@ -117,13 +117,9 @@ class KsanaGeneratorNode:
                         "tooltip": "The Classifier-Free Guidance scale balances creativity and adherence to the prompt. Higher values result in images more closely matching the prompt however too high values will negatively impact quality.",
                     },
                 ),
-                "high_cache_config": (
+                "cache_configs": (
                     "KSANA_CACHE_CONFIG",
-                    {"tooltip": "The cache used for high model."},
-                ),
-                "low_cache_config": (
-                    "KSANA_CACHE_CONFIG",
-                    {"tooltip": "The cache used for low model."},
+                    {"tooltip": "The cache configs."},
                 ),
                 "sigmas": ("FLOAT", {"forceInput": True}),
             },
@@ -173,8 +169,7 @@ class KsanaGeneratorNode:
         denoise=1.0,
         rope_function="default",
         low_sample_guide_scale=None,
-        high_cache_config=None,
-        low_cache_config=None,
+        cache_configs=None,
         sigmas=None,
     ):
         if sigmas is not None:
@@ -199,6 +194,8 @@ class KsanaGeneratorNode:
         def comfy_bar_callback(step, total):
             comfyui_progress_bar.update_absolute(step, total)
 
+        if cache_configs is not None and not isinstance(cache_configs, list):
+            cache_configs = [cache_configs]
         num_prompts = positive[0][0].shape[0]
         batch_per_prompt = latent_image.get("batch_per_prompt", 1)
         batch_per_prompt = [batch_per_prompt] * num_prompts
@@ -223,8 +220,7 @@ class KsanaGeneratorNode:
                 boundary=boundary,
                 rope_function=rope_function,
             ),
-            high_cache_config=high_cache_config,
-            low_cache_config=low_cache_config,
+            cache_configs=cache_configs,
             comfy_bar_callback=comfy_bar_callback,
         )
         MemoryProfiler.record_memory("after_ksana_generator_generate_video_with_tensors")
