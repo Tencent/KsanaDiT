@@ -265,16 +265,38 @@ class KsanaX2VPipeline(ABC):
         }
         return KsanaSampleConfig.copy_with_default(sample_config, sample_default_args)
 
+    def expand_conditioning_by_batch_per_prompt(
+        self,
+        positive: torch.Tensor,
+        negative: torch.Tensor,
+        batch_per_prompt: list[int],
+        img_latents: torch.Tensor | None = None,
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor | None]:
+        repeats = torch.tensor(batch_per_prompt, dtype=torch.int64, device=positive.device)
+        positive = positive.repeat_interleave(repeats, dim=0)
+        negative = negative.repeat_interleave(repeats, dim=0)
+
+        if img_latents is not None:
+            img_latents = img_latents.repeat_interleave(repeats, dim=0)
+
+        return positive, negative, img_latents
+
     def get_noise_shape(
-        self, img_latents: torch.Tensor, batch_size: int, frame_num: int, input_img_size_w_h: list[int]
+        self,
+        img_latents: torch.Tensor,
+        num_prompts: int,
+        frame_num: int,
+        input_img_size_w_h: list[int],
+        total_batch: int,
     ):
         if img_latents is not None:
             assert (
                 len(img_latents.shape) == 5
             ), f"img_latents.shape {img_latents.shape} dim must be 5:(bs, z_dim:16, f, h, w)"
-            assert (
-                img_latents.shape[0] == batch_size
-            ), f"img_latents.shape[0] {img_latents.shape[0]} must be equal to batch_size {batch_size}"
+            if img_latents.shape[0] != total_batch:
+                raise ValueError(
+                    f"img_latents.shape[0] ({img_latents.shape[0]}) must match sum(batch_per_prompt) ({total_batch})"
+                )
             return img_latents.shape
         else:
             # TODO: here should not used vae model params insider forward transformer, need create noise outside pipeline
@@ -282,7 +304,7 @@ class KsanaX2VPipeline(ABC):
                 self.vae_z_dim is not None and self.vae_stride is not None
             ), f"self.vae_z_dim {self.vae_z_dim}, self.vae_stride {self.vae_stride}"
             return [
-                batch_size,
+                total_batch,
                 self.vae_z_dim,
                 (frame_num - 1) // self.vae_stride[0] + 1,
                 input_img_size_w_h[1] // self.vae_stride[1],
@@ -528,10 +550,19 @@ class KsanaX2VPipeline(ABC):
         positive = self.cast_to(positive, run_dtype, device)
         negative = self.cast_to(negative, run_dtype, device)
 
+        num_prompts = positive.shape[0]
+        batch_per_prompt = sample_config.batch_per_prompt
+        total_batch = sum(batch_per_prompt)
+        if total_batch != num_prompts:
+            positive, negative, img_latents = self.expand_conditioning_by_batch_per_prompt(
+                positive, negative, img_latents=img_latents, batch_per_prompt=batch_per_prompt
+            )
+
         default_pipeline_config = self.pipeline_config.default_config
         boundary = None if low_model is None else runtime_config.boundary * default_pipeline_config.num_train_timesteps
-        batch_size = positive.shape[0]
-        noise_shape = self.get_noise_shape(img_latents, batch_size, runtime_config.frame_num, runtime_config.size)
+        noise_shape = self.get_noise_shape(
+            img_latents, num_prompts, runtime_config.frame_num, runtime_config.size, total_batch
+        )
         log.info(f"noise_shape: {noise_shape}")
         noise_latents, seed_g = self.create_random_noise_latents(noise_shape, runtime_config, device, run_dtype)
         seq_len = self.get_seq_len(noise_latents.shape, default_pipeline_config.patch_size, high_model.sp_size)
@@ -544,12 +575,12 @@ class KsanaX2VPipeline(ABC):
 
         with torch.no_grad():
             # 构建动态批处理策略
-            batch_strategy = self.scheduler.build_batch_strategy(noise_latents.shape, batch_size, run_dtype, device)
+            batch_strategy = self.scheduler.build_batch_strategy(noise_latents.shape, total_batch, run_dtype, device)
 
             # 计算全局进度信息
             total_steps_per_batch = sample_config.steps
             global_total_steps = len(batch_strategy) * total_steps_per_batch
-
+            log.info(f"batch_strategy={batch_strategy}")
             # 使用动态batch处理
             for batch_idx, strategy_item in enumerate(batch_strategy):
                 pos_batch = positive[strategy_item.start : strategy_item.end]

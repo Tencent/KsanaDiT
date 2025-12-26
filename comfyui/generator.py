@@ -199,6 +199,10 @@ class KsanaGeneratorNode:
         def comfy_bar_callback(step, total):
             comfyui_progress_bar.update_absolute(step, total)
 
+        num_prompts = positive[0][0].shape[0]
+        batch_per_prompt = latent_image.get("batch_per_prompt", 1)
+        batch_per_prompt = [batch_per_prompt] * num_prompts
+
         # TODO: maybe need to latent_format process_in for positive/negative?
         samples = ksana_generator.forward_diffusion_models_with_tensors(
             model_keys=ksana_model,
@@ -212,6 +216,7 @@ class KsanaGeneratorNode:
                 solver=solver_name,
                 denoise=denoise,
                 sigmas=sigmas,
+                batch_per_prompt=batch_per_prompt,
             ),
             runtime_config=KsanaRuntimeConfig(
                 seed=seed,

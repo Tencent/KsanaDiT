@@ -48,6 +48,31 @@ class TestKsana(unittest.TestCase):
         with self.subTest(msg="Mean 1 Check"):
             self.assertAlmostEqual(mean1, 0.4420677423477173, places=5)
 
+    def test_batch_per_prompt(self):
+        print("-----------------test_batch_per_prompt-----------------")
+        generator = KsanaGenerator.from_models("./Wan2.2-T2V-A14B")
+        videos = generator.generate_video(
+            prompts[0],
+            sample_config=KsanaSampleConfig(steps=TEST_STEPS, batch_per_prompt=2),
+            runtime_config=KsanaRuntimeConfig(
+                seed=SEED,
+                size=TEST_SIZE,
+                frame_num=TEST_FRAME_NUM,
+                return_frames=True,
+                save_video=True,
+            ),
+        )
+        with self.subTest(msg="Shape Check"):
+            self.assertEqual(list(videos.shape), [len(prompts), 3, TEST_FRAME_NUM, TEST_SIZE[1], TEST_SIZE[0]])
+        mean0 = videos[0].cpu().abs().mean().item()
+        mean1 = videos[1].cpu().abs().mean().item()
+
+        with self.subTest(msg="Mean 0 Check"):
+            self.assertAlmostEqual(mean0, 0.6556181311607361, places=5)
+
+        with self.subTest(msg="Mean 1 Check"):
+            self.assertAlmostEqual(mean1, 0.652587354183197, places=5)
+
     def test_larger_seq_batch(self):
         print("-----------------test_larger_seq_batch-----------------")
         generator = KsanaGenerator.from_models("./Wan2.2-T2V-A14B")

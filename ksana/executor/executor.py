@@ -4,6 +4,7 @@ import torch
 import os
 import gc
 from datetime import datetime
+from dataclasses import asdict
 import torch.distributed as dist
 from functools import partial
 from PIL import Image
@@ -182,24 +183,6 @@ class KsanaExecutor(ABC):
         self.model_pool.update_model(vae, allow_exist=allow_exist)
         return vae.get_model_key()
 
-    def _valid_prompts(self, prompt, target_len=None):
-        if prompt is None:
-            return None
-        if isinstance(prompt, str):
-            prompts = [prompt]
-        elif isinstance(prompt, (list, tuple)):
-            prompts = list(prompt)
-        else:
-            raise TypeError(f"prompt must be str or list[str], got {type(prompt)}")
-        if len(prompts) == 0:
-            raise ValueError("prompt must not be empty")
-        if target_len is not None:
-            if len(prompts) == 1:
-                prompts = prompts * target_len
-            elif len(prompts) != target_len:
-                raise ValueError(f"prompt length ({len(prompts)}) must match target length ({target_len})")
-        return prompts
-
     def load_image(self, img_paths: list[str], target_len, device) -> torch.Tensor:
         if img_paths is None:
             return None
@@ -225,7 +208,13 @@ class KsanaExecutor(ABC):
         else:
             return torch.cat(imgs, dim=0)
 
-    def images_to_latents(self, img_path, end_img_path, prompts_list_len: int, runtime_config: KsanaRuntimeConfig):
+    def images_to_latents(
+        self,
+        img_path,
+        end_img_path,
+        prompts_list_len: int,
+        runtime_config: KsanaRuntimeConfig,
+    ):
         if not isinstance(img_path, (list, tuple)):
             img_path = [img_path]
         img_batch = self.load_image(img_path, prompts_list_len, device=self.offload_device)
@@ -253,7 +242,47 @@ class KsanaExecutor(ABC):
             vae_stride=self.pipeline.vae_stride,
             vae_patch=self.pipeline.patch_size,
         )
+
         return img_latents
+
+    def valid_prompts(self, prompt, target_len=None):
+        if prompt is None:
+            return None
+        if isinstance(prompt, str):
+            prompts = [prompt]
+        elif isinstance(prompt, (list, tuple)):
+            prompts = list(prompt)
+        else:
+            raise TypeError(f"prompt must be str or list[str], got {type(prompt)}")
+        if len(prompts) == 0:
+            raise ValueError("prompt must not be empty")
+        if target_len is not None:
+            if len(prompts) == 1:
+                prompts = prompts * target_len
+            elif len(prompts) != target_len:
+                raise ValueError(f"prompt length ({len(prompts)}) must match target length ({target_len})")
+        return prompts
+
+    def valid_sample_config(self, sample_config: KsanaSampleConfig, num_prompts):
+        config_to_modify = sample_config if sample_config else KsanaSampleConfig()
+        # Convert the frozen dataclass to a mutable dictionary
+        config_dict = asdict(config_to_modify)
+        # valid: batch_per_prompt to list
+        batch_per_prompt = config_dict.get("batch_per_prompt")
+        if batch_per_prompt is None:
+            batch_per_prompt = [1] * num_prompts
+        elif isinstance(batch_per_prompt, int):
+            batch_per_prompt = [batch_per_prompt] * num_prompts
+        elif isinstance(batch_per_prompt, (list, tuple)):
+            if len(batch_per_prompt) != num_prompts:
+                raise ValueError(
+                    f"len(batch_per_prompt) ({len(batch_per_prompt)}) must match num_prompts ({num_prompts})"
+                )
+        else:
+            raise TypeError(f"batch_per_prompt must be int|list[int]|None, got {type(batch_per_prompt)}")
+        config_dict["batch_per_prompt"] = batch_per_prompt
+
+        return KsanaSampleConfig(**config_dict)
 
     @time_range
     def generate_video(
@@ -266,13 +295,13 @@ class KsanaExecutor(ABC):
         sample_config: KsanaSampleConfig = None,
         runtime_config: KsanaRuntimeConfig = None,
     ):
-        sample_config = sample_config if sample_config else KsanaSampleConfig()
-        runtime_config = runtime_config if runtime_config else KsanaRuntimeConfig()
-        text_run_device = torch.device("cpu")  # TODO: maybe run text on cuda self.device
-        prompts_list = self._valid_prompts(prompt)
-        prompts_negative_list = self._valid_prompts(prompt_negative, len(prompts_list))
+        prompts_list = self.valid_prompts(prompt)
+        prompts_negative_list = self.valid_prompts(prompt_negative, len(prompts_list))
         with_end_image = end_img_path is not None
+        sample_config = self.valid_sample_config(sample_config, num_prompts=len(prompts_list))
+        runtime_config = runtime_config if runtime_config else KsanaRuntimeConfig()
 
+        text_run_device = torch.device("cpu")  # TODO: maybe run text on cuda self.device
         positive, negative = self.pipeline.forward_text_encoder(
             self.model_pool,
             prompts_list,
@@ -312,7 +341,7 @@ class KsanaExecutor(ABC):
             gc.collect()
             torch.cuda.synchronize()
 
-        self.save_videos(videos, prompts_list, runtime_config)
+        self.save_videos(videos, prompts_list, runtime_config, sample_config.batch_per_prompt)
         res = videos if self.rank_id == 0 and runtime_config.return_frames else None
         # videos shape [bs, ch:3, f, h, w]
         return {self.rank_id: res}
@@ -368,12 +397,12 @@ class KsanaExecutor(ABC):
         res = latents if self.rank_id == 0 else None
         return {self.rank_id: res}
 
-    def get_save_path(self, output_folder, out_size, prompt_text):
+    def get_save_path(self, output_folder, out_size, prompt_text, save_id):
         formatted_time = datetime.now().strftime("%Y%m%d_%H%M%S")
         formatted_prompt = prompt_text.replace(" ", "_").replace("/", "_")[:30]
         suffix = ".mp4"
         save_file = (
-            f"{self.pipeline.save_name}_{self.dist_config.num_gpus}cards_{out_size[0]}x{out_size[1]}_{formatted_time}_{formatted_prompt}"
+            f"{self.pipeline.save_name}_{self.dist_config.num_gpus}cards_{out_size[0]}x{out_size[1]}_{formatted_time}_{formatted_prompt}_{save_id}"
             + suffix
         )
         return os.path.join(output_folder, save_file)
@@ -395,7 +424,7 @@ class KsanaExecutor(ABC):
             audio_path = "tts.wav"
             merge_video_audio(video_path=save_file, audio_path=audio_path)
 
-    def save_videos(self, videos, prompts_list, runtime_config):
+    def save_videos(self, videos, prompts_list, runtime_config, batch_per_prompt: list[int]):
         if self.rank_id != 0 or not runtime_config.save_video:
             return
         out_size = (
@@ -403,8 +432,11 @@ class KsanaExecutor(ABC):
             if runtime_config.size is not None
             else self.pipeline.pipeline_config.default_config.get("size", (None, None))
         )
-        for i in range(len(prompts_list)):
-            video = videos[i]
-            prompt_text = prompts_list[i]
-            save_path = self.get_save_path(runtime_config.output_folder, out_size, prompt_text)
-            self.save_one_video(video, save_path)
+        video_idx = 0
+        for i in range(len(batch_per_prompt)):
+            for j in range(batch_per_prompt[i]):
+                video = videos[video_idx]
+                prompt_text = prompts_list[i]
+                save_path = self.get_save_path(runtime_config.output_folder, out_size, prompt_text, j)
+                self.save_one_video(video, save_path)
+                video_idx += 1
