@@ -155,6 +155,62 @@ def test_workflow(workflow_path: str, params: dict, expect_values: Optional[dict
         return False
 
 
+def run_workflows_batch(workflow_configs: list, seed: int, num_gpus: int, port: int, restart_server: bool) -> bool:
+    """批量运行 workflow 测试
+
+    Args:
+        workflow_configs: workflow 配置列表,每个配置是一个字典
+        seed: 随机种子,会覆盖配置中的 seed
+        num_gpus: GPU 数量,用于选择期望值
+        port: ComfyUI 服务器端口
+        restart_server: 是否每次测试前重启服务器
+
+    Returns:
+        是否所有测试都成功
+    """
+    all_success = True
+
+    if not restart_server:
+        server_process = start_server(port=port)
+
+    for i, configs in enumerate(workflow_configs, 1):
+        if isinstance(configs, dict):
+            configs = [configs]
+        workflow_path_list = [config["workflow_path"] for config in configs]
+        logger.info(f"开始执行 workflow 配置组 [{i}/{len(workflow_configs)}] {workflow_path_list}")
+        for j, config in enumerate(configs, 1):
+            if restart_server:
+                server_process = start_server(port=port)
+            config["seed"] = seed
+            logger.info("=" * 60)
+            logger.info(f"执行 workflow [{j}/{len(configs)}]")
+            logger.info(f"配置: {config}")
+            logger.info("=" * 60)
+
+            workflow_start_time = time.time()
+            expect_values = config.get("gpus_expect_values") if num_gpus > 1 else config.get("expect_values")
+            if expect_values is None:
+                expect_values = config.get("expect_values")
+            success = test_workflow(
+                workflow_path=config["workflow_path"], params=config, expect_values=expect_values, port=port
+            )
+            workflow_elapsed = time.time() - workflow_start_time
+
+            if success:
+                logger.info(f"✓ Workflow [{j}/{len(configs)}] 成功! 耗时: {workflow_elapsed:.2f} 秒")
+            else:
+                logger.error(f"✗ Workflow [{j}/{len(configs)}] 失败! 耗时: {workflow_elapsed:.2f} 秒")
+                all_success = False
+                # break
+            if restart_server:
+                stop_server(server_process)
+
+    if not restart_server:
+        stop_server(server_process)
+
+    return all_success
+
+
 def create_argument_parser():
     parser = argparse.ArgumentParser(
         description="ComfyUI Workflow 测试工具",
@@ -236,6 +292,7 @@ def create_argument_parser():
     parser.add_argument(
         "--workflows-file",
         type=str,
+        required=True,
         help="从 JSON 文件加载多个 workflow 配置",
     )
 
@@ -251,19 +308,15 @@ def main():
 
     workflow_configs = []
 
-    if args.workflows_file:
-        logger.info(f"从文件加载 workflow 配置: {args.workflows_file}")
-        with open(args.workflows_file, "r", encoding="utf-8") as f:
-            workflow_configs = json.load(f)
-    else:
-        workflow_configs = [vars(args)]
+    logger.info(f"从文件加载 workflow 配置: {args.workflows_file}")
+    with open(args.workflows_file, "r", encoding="utf-8") as f:
+        workflow_configs = json.load(f)
 
     logger.info("=" * 60)
     logger.info("ComfyUI Workflow 测试")
     logger.info("=" * 60)
-    logger.info(f"总共 {len(workflow_configs)} 个 workflow:")
-    for i, config in enumerate(workflow_configs, 1):
-        logger.info(f"  [{i}] {config}")
+    total_workflows = len(workflow_configs["independent_tests"] + workflow_configs["continuous_tests"])
+    logger.info(f"总共 {total_workflows} 个 workflow:")
     logger.info("=" * 60)
 
     server_process = None
@@ -277,37 +330,24 @@ def main():
         logger.info("开始执行测试...")
         test_start_time = time.time()
 
-        # TODO: 后面改成启动一次，执行多个workflow，现在主要是多卡的情况之下多个workflow会卡住。
-        # if not args.no_server:
-        #     server_process = start_server()
-        # else:
-        #     logger.info("跳过启动 server（使用已有 server）")
-
+        # TODO: 后面改成全部是启动一次，执行多个workflow，现在主要是多卡的情况之下多个workflow会卡住。
+        # 两种测试，一种是独立测试，一种是连续测试（不重启server）
+        test_types = [("independent_tests", True), ("continuous_tests", False)]
         all_success = True
-        for i, config in enumerate(workflow_configs, 1):
-            server_process = start_server(port=args.port)
-            config["seed"] = args.seed
-            logger.info("=" * 60)
-            logger.info(f"执行 workflow [{i}/{len(workflow_configs)}]")
-            logger.info(f"配置: {config}")
-            logger.info("=" * 60)
-
-            workflow_start_time = time.time()
-            expect_values = config.get("gpus_expect_values") if num_gpus > 1 else config.get("expect_values")
-            if expect_values is None:
-                expect_values = config.get("expect_values")
-            success = test_workflow(
-                workflow_path=config["workflow_path"], params=config, expect_values=expect_values, port=args.port
+        for test_type, restart_server in test_types:
+            if num_gpus > 1 and not restart_server:
+                logger.info(f"多卡情况下不执行 {test_type} 测试")
+                continue
+            logger.info(f"开始执行 {test_type} 测试..., restart_server: {restart_server}")
+            all_success = run_workflows_batch(
+                workflow_configs=workflow_configs[test_type],
+                seed=args.seed,
+                num_gpus=num_gpus,
+                port=args.port,
+                restart_server=restart_server,
             )
-            workflow_elapsed = time.time() - workflow_start_time
-
-            if success:
-                logger.info(f"✓ Workflow [{i}/{len(workflow_configs)}] 成功! 耗时: {workflow_elapsed:.2f} 秒")
-            else:
-                logger.error(f"✗ Workflow [{i}/{len(workflow_configs)}] 失败! 耗时: {workflow_elapsed:.2f} 秒")
-                all_success = False
-                # break
-            stop_server(server_process)
+            if not all_success:
+                break
 
         elapsed_seconds = time.time() - test_start_time
         elapsed_minutes = int(elapsed_seconds // 60)

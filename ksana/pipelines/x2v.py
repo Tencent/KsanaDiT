@@ -63,7 +63,7 @@ class KsanaX2VPipeline(ABC):
     def load_vae(self, checkpoint_dir, device) -> KsanaModel:
         pass
 
-    def clear_models(self):
+    def clear_all_models(self):
         self.text_encoder_key = None
         self.vae_key = None
         self.diffusion_model_keys = None
