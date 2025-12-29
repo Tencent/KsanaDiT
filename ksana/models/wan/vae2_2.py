@@ -7,6 +7,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 from einops import rearrange
 
+from ksana.utils import load_file_to_state_dict, remove_prefix_from_sd_inplace
+
 __all__ = [
     "Wan2_2_VAE",
 ]
@@ -837,7 +839,8 @@ def _video_vae(pretrained_path=None, z_dim=16, dim=160, device="cpu", **kwargs):
 
     # load checkpoint
     logging.info(f"loading {pretrained_path}")
-    model.load_state_dict(torch.load(pretrained_path, map_location=device), assign=True)
+    unified_sd = remove_prefix_from_sd_inplace(load_file_to_state_dict(pretrained_path, device=device), prefix="model.")
+    model.load_state_dict(unified_sd, assign=True, strict=True)
 
     return model
 

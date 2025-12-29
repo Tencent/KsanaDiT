@@ -56,12 +56,42 @@ def resolve_ci_models_ckpt_path(ckpt: str) -> str:
     return _map_ci_models_single_multi(path, root)
 
 
-def load_torch_file(ckpt, device=None):
+def remove_prefix_from_sd_inplace(state_dict: dict, prefix: str) -> dict:
+    """
+    Remove a specified prefix from all keys in the state dictionary (in-place).
+
+    Args:
+        state_dict (dict): The state dictionary with keys to be modified (modified in-place).
+        prefix (str): The prefix string to be removed from the keys.
+
+    Returns:
+        dict: The same state dictionary with the specified prefix removed from the keys.
+    """
+    if not prefix:
+        return state_dict
+
+    keys_to_update = [key for key in state_dict if key.startswith(prefix)]
+
+    for old_key in keys_to_update:
+        state_dict[old_key.removeprefix(prefix)] = state_dict.pop(old_key)
+
+    return state_dict
+
+
+def load_file_to_state_dict(ckpt, device=None):
     if device is None:
         device = torch.device("cpu")
     ckpt = resolve_ci_models_ckpt_path(str(ckpt))
     maybe_prefetch_file(ckpt)
-    return safetensors.torch.load_file(ckpt, device=str(device))
+
+    # 根据文件扩展名选择加载方式
+    ckpt_path = Path(ckpt)
+    if ckpt_path.suffix == ".safetensors":
+        return safetensors.torch.load_file(ckpt, device=str(device))
+    elif ckpt_path.suffix in [".pt", ".pth"]:
+        return torch.load(ckpt, map_location=device)
+    else:
+        raise ValueError(f"Unsupported file format: {ckpt_path.suffix}. Supported formats: .safetensors, .pt, .pth")
 
 
 def load_sharded_safetensors(model_dir, device=None):
@@ -87,17 +117,17 @@ def load_sharded_safetensors(model_dir, device=None):
     state_dict = {}
     for file_path in safetensors_files:
         log.debug(f"Loading {file_path.name}...")
-        shard_dict = load_torch_file(str(file_path), device=device)
+        shard_dict = load_file_to_state_dict(str(file_path), device=device)
         state_dict.update(shard_dict)
 
     return state_dict
 
 
-def load_torch_files(file_list, device=None):
+def load_files_to_state_dict(file_list, device=None):
     state_dict = {}
     for file_path in file_list:
         log.info(f"Loading {file_path}...")
-        shard_dict = load_torch_file(str(file_path), device=device)
+        shard_dict = load_file_to_state_dict(str(file_path), device=device)
         state_dict.update(shard_dict)
 
     return state_dict

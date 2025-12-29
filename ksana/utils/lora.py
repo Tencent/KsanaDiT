@@ -5,7 +5,7 @@ import torch.nn as nn
 import os
 
 from .profile import time_range
-from .load import load_torch_file, batch_safetensors_by_size, load_torch_files
+from .load import batch_safetensors_by_size, load_file_to_state_dict, load_files_to_state_dict
 from .logger import log
 from .distribute import get_rank_id
 from .utils import is_dir
@@ -150,11 +150,11 @@ def load_state_dict_and_merge_lora(model_path: str, loras_list, device=None):
         raise ValueError(f"model_path {model_path} is not a file or dir")
 
     for files in files_list:
-        base_sd = load_torch_files(files, device=device)
+        base_sd = load_files_to_state_dict(files, device=device)
 
         for lora in loras_list:
             log.info(f"start to merge lora: {lora['path']}")
-            lora_sd = load_torch_file(lora["path"], device=device)
+            lora_sd = load_file_to_state_dict(lora["path"], device=device)
             base_sd = merge_lora_weight(base_sd, lora_sd, strength=lora["strength"])
             del lora_sd
 
