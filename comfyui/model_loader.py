@@ -9,30 +9,6 @@ from ksana.utils.profile import MemoryProfiler
 from comfy.utils import ProgressBar
 
 
-@time_range
-def load_comfy_model_from_name(
-    model_name: list,
-    num_gpus,
-    ksana_model_config: KsanaModelConfig,
-    comfy_bar_callback=None,
-    lora=None,
-):
-    high, low = model_name
-    high_model_path = folder_paths.get_full_path("diffusion_models", high)
-    low_model_path = None
-    if low is not None:
-        low_model_path = folder_paths.get_full_path("diffusion_models", low)
-
-    ksana_generator = get_generator(dist_config=KsanaDistributedConfig(num_gpus=num_gpus))
-    ksana_model = ksana_generator.load_diffusion_model(
-        model_path=(high_model_path, low_model_path) if low_model_path is not None else high_model_path,
-        model_config=ksana_model_config,
-        comfy_bar_callback=comfy_bar_callback,
-        lora=lora,
-    )
-    return ksana_model
-
-
 class KsanaModelLoaderNode:
     @classmethod
     def INPUT_TYPES(s):
@@ -87,6 +63,31 @@ class KsanaModelLoaderNode:
     def VALIDATE_INPUTS(s):
         return True
 
+    @time_range
+    def _load_comfy_model_from_name(
+        self,
+        model_name: list,
+        num_gpus,
+        ksana_model_config: KsanaModelConfig,
+        comfy_bar_callback=None,
+        lora=None,
+    ):
+        high, low = model_name
+        high_model_path = folder_paths.get_full_path("diffusion_models", high)
+        low_model_path = None
+        if low is not None:
+            low_model_path = folder_paths.get_full_path("diffusion_models", low)
+
+        ksana_generator = get_generator(dist_config=KsanaDistributedConfig(num_gpus=num_gpus))
+        if hasattr(self, "loaded_model"):
+            ksana_generator.clear_models(self.loaded_model)
+        self.loaded_model = ksana_generator.load_diffusion_model(
+            model_path=(high_model_path, low_model_path) if low_model_path is not None else high_model_path,
+            model_config=ksana_model_config,
+            comfy_bar_callback=comfy_bar_callback,
+            lora=lora,
+        )
+
     def load_model(
         self,
         model_name,
@@ -128,17 +129,18 @@ class KsanaModelLoaderNode:
         log.info(f"high_model_loras_list: {high_model_loras_list}, low_model_loras_list: {low_model_loras_list}")
 
         MemoryProfiler.record_memory(f"before_load_{model_name}, {low_noise_model_name}")
-        model = load_comfy_model_from_name(
+        self._load_comfy_model_from_name(
             [model_name, low_noise_model_name],
             num_gpus=num_gpus,
             ksana_model_config=model_config,
             comfy_bar_callback=comfy_bar_callback,
             lora=[high_model_loras_list, low_model_loras_list],
         )
+
         MemoryProfiler.record_memory(f"after_load_{model_name}, {low_noise_model_name}")
         return (
             {
-                "model": model,
+                "model": self.loaded_model,
                 "model_name": model_name,  # TODO:  need remove
                 "run_dtype": model_config.run_dtype,
                 "boundary": model_boundary,

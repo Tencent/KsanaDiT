@@ -37,6 +37,12 @@ class KsanaModelPool:
             return []
         return [self.get_model(model_key) for model_key in model_key_list]
 
+    def clear_model(self, model: KsanaModelKey):
+        log.info(f"clear {model}")
+        self.loaded_models.pop(model)
+        gc.collect()
+        torch.cuda.empty_cache()
+
     def clear(self):
         log.info("clear all models")
         self.loaded_models.clear()

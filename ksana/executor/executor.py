@@ -90,15 +90,23 @@ class KsanaExecutor(ABC):
         )
         return create_ksana_pipeline(pipeline_config)
 
-    def clear_models(self):
+    def clear_all_models(self):
         """
         Clean models loaded by this executor.
         """
         if self.pipeline is None:
             return
         self.model_pool.clear()
-        self.pipeline.clear_models()
+        self.pipeline.clear_all_models()
         self.pipeline = None
+
+    def clear_models(self, models: list[KsanaModelKey] | KsanaModelKey):
+        if models is None:
+            return
+        if not isinstance(models, (list, tuple)):
+            models = [models]
+        for one_model in models:
+            self.model_pool.clear_model(one_model)
 
     def load_models(
         self,
@@ -110,7 +118,7 @@ class KsanaExecutor(ABC):
         model_config: KsanaModelConfig = None,
         **kwargs,
     ):
-        self.clear_models()
+        self.clear_all_models()
         if not is_dir(model_path) and not isinstance(model_path, (list, tuple)):
             raise ValueError(f"model_path {model_path} is not exist, or not a directory")
         if isinstance(model_path, (list, tuple)):
@@ -151,7 +159,6 @@ class KsanaExecutor(ABC):
         comfy_bar_callback=None,
         **kwargs,
     ):
-        self.clear_models()
         if len(kwargs) > 0:
             log.warning(f"kwargs {kwargs} are not used")
         dir_path = model_path
@@ -174,14 +181,14 @@ class KsanaExecutor(ABC):
         diffusion_model_key_list = [one_model.get_model_key() for one_model in diffusion_model_list]
         return diffusion_model_key_list
 
-    def load_vae_model(self, model_path, allow_exist=False, **kwargs) -> KsanaModelKey:
+    def load_vae_model(self, model_path, **kwargs) -> KsanaModelKey:
         if len(kwargs) > 0:
             log.warning(f"kwargs {kwargs} are not in used")
         vae = KsanaVAE(
             model_path=model_path,
             device=self.offload_device,
         )
-        self.model_pool.update_model(vae, allow_exist=allow_exist)
+        self.model_pool.update_model(vae)
         return vae.get_model_key()
 
     def load_image(self, img_paths: list[str], target_len, device) -> torch.Tensor:

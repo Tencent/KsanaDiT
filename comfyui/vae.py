@@ -20,9 +20,10 @@ class KsanaVAELoaderNode:
         print(vae_path)
         num_gpus = get_gpu_count()
         ksana_generator = get_generator(dist_config=KsanaDistributedConfig(num_gpus=num_gpus))
-
-        ksana_model = ksana_generator.load_vae_model(model_path=vae_path, allow_exist=True)
-        return (ksana_model,)
+        if hasattr(self, "loaded_model"):
+            ksana_generator.clear_models(self.loaded_model)
+        self.loaded_model = ksana_generator.load_vae_model(model_path=vae_path)
+        return (self.loaded_model,)
 
 
 class KsanaVAEEncodeNode:
