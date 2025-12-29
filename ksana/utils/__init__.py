@@ -7,7 +7,7 @@ from .profile import ksanaProfiler, time_range, nvtx_range, MemoryProfiler
 from .media import save_video, merge_video_audio
 from .distribute import get_rank_id, get_world_size, get_gpu_count, gather_forward, all_to_all
 from .lora import model_safe_downcast, load_state_dict_and_merge_lora
-from .load import load_torch_file, load_sharded_safetensors
+from .load import load_file_to_state_dict, load_sharded_safetensors, remove_prefix_from_sd_inplace
 from .ops import cast_bias_weight, supports_fp8_compute, stochastic_rounding
 from .sample_solver import get_sigmas_with_denoise, apply_sigma_shift
 
@@ -32,11 +32,12 @@ __all__ = [
     all_to_all,
     load_state_dict_and_merge_lora,
     model_safe_downcast,
-    load_torch_file,
+    load_file_to_state_dict,
     load_sharded_safetensors,
     cast_bias_weight,
     supports_fp8_compute,
     stochastic_rounding,
     get_sigmas_with_denoise,
     apply_sigma_shift,
+    remove_prefix_from_sd_inplace,
 ]

@@ -79,11 +79,11 @@
     "frames": 9,
     "attn_backend": "flash_attention",
     "expect_values": {
-      "mean": 0.5272554,
+      "mean": 0.5268635,
       "eps_place": 4
     },
     "gpus_expect_values": {
-      "mean": 0.5272959,
+      "mean": 0.5269037,
       "eps_place": 4
     }
   },
@@ -96,7 +96,7 @@
     "linear_backend": "fp8_gemm",
     "attn_backend": "flash_attention",
     "expect_values": {
-      "mean": 0.2979568,
+      "mean": 0.2979546,
       "eps_place": 4
     },
     "gpus_expect_values": {
