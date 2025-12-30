@@ -382,7 +382,7 @@ class DBCache(KsanaBlockCache):
                         f"[DBCache] step={step} phase={phase} cache=HIT skip Mn[{Mn_start},{Mn_end}) Bn[{Bn_start},{Bn_end})"
                     )
                 else:
-                    log.info(f"[Wan][DBCache] step={step} phase={phase} cache=MISS " f"reason=no_cached_residual")
+                    log.info(f"[DBCache] step={step} phase={phase} cache=MISS " f"reason=no_cached_residual")
 
             if not use_cache:
                 # Cache MISS: Compute remaining Mn and Bn blocks
@@ -412,9 +412,7 @@ class DBCache(KsanaBlockCache):
             # Use a simplified approach: treat entire residual as both Fn and Bn residual
             full_residual = x - x_ori
             self.update_states(phase, timestep, full_residual, full_residual)
-            log.info(
-                f"[Wan][DBCache] step={step} phase={phase} cache=MISS " f"warmup compute all blocks ({len(blocks)})"
-            )
+            log.info(f"[DBCache] step={step} phase={phase} cache=MISS " f"warmup compute all blocks ({len(blocks)})")
         # Advance cache step once per diffusion timestep (guarded inside DBCache)
         self.advance_step_once(timestep)
         return x
