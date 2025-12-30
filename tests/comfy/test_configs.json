@@ -2,7 +2,7 @@
   "independent_tests":
   [
     {
-      "workflow_path": "../workflows/wan/t2v/wan2.2_t2v_fp16_lightning_4steps_lora.json",
+      "workflow_path": "../../comfyui/examples/wan/t2v/wan2.2_t2v_fp16_lightning_4steps_lora.json",
       "steps": 1,
       "width": 720,
       "height": 480,
@@ -20,7 +20,7 @@
       }
     },
     {
-      "workflow_path": "../workflows/wan/i2v/wan2.2_i2v_fp16_lightning_4steps_lora.json",
+      "workflow_path": "../../comfyui/examples/wan/i2v/wan2.2_i2v_fp16_lightning_4steps_lora.json",
       "steps": 1,
       "width": 720,
       "height": 480,
@@ -38,7 +38,7 @@
       }
     },
     {
-      "workflow_path": "../workflows/wan/i2v/wan2.2_i2v_fp8_scaled.json",
+      "workflow_path": "../../comfyui/examples/wan/i2v/wan2.2_i2v_fp8_scaled.json",
       "steps": 1,
       "width": 720,
       "height": 480,
@@ -56,7 +56,7 @@
       }
     },
     {
-      "workflow_path": "../workflows/wan/t2v/wan2.2_t2v_fp16_lightning_4steps_lora_sigma.json",
+      "workflow_path": "../../comfyui/examples/wan/t2v/wan2.2_t2v_fp16_lightning_4steps_lora_sigma.json",
       "steps": 1,
       "width": 720,
       "height": 480,
@@ -74,7 +74,7 @@
       }
     },
     {
-      "workflow_path": "../workflows/wan/t2v/wan2.2_t2v_fp16_dcache.json",
+      "workflow_path": "../../comfyui/examples/wan/t2v/wan2.2_t2v_fp16_dcache.json",
       "steps": 1,
       "width": 720,
       "height": 480,
@@ -90,7 +90,7 @@
       }
     },
     {
-      "workflow_path": "../workflows/wan/t2v/wan2.2_t2v_fp8_scaled.json",
+      "workflow_path": "../../comfyui/examples/wan/t2v/wan2.2_t2v_fp8_scaled.json",
       "steps": 1,
       "width": 720,
       "height": 480,
@@ -107,7 +107,7 @@
       }
     },
     {
-      "workflow_path": "../workflows/wan/t2v/wan2.2_t2v_fp8_scaled_dcache.json",
+      "workflow_path": "../../comfyui/examples/wan/t2v/wan2.2_t2v_fp8_scaled_hybridcache.json",
       "steps": 1,
       "width": 720,
       "height": 480,
@@ -124,7 +124,7 @@
       }
     },
     {
-      "workflow_path": "../workflows/wan/t2v/wan2.2_t2v_fp8_scaled_dcache.json",
+      "workflow_path": "../../comfyui/examples/wan/t2v/wan2.2_t2v_fp8_scaled_hybridcache.json",
       "steps": 1,
       "width": 1280,
       "height": 720,
@@ -140,7 +140,7 @@
       }
     },
     {
-      "workflow_path": "../workflows/wan/t2v/wan2.2_t2v_fp16_dbcache.json",
+      "workflow_path": "../../comfyui/examples/wan/t2v/wan2.2_t2v_fp16_dbcache.json",
       "steps": 1,
       "width": 1280,
       "height": 720,
@@ -156,7 +156,7 @@
       }
     },
     {
-      "workflow_path": "../workflows/wan/t2v/wan2.2_t2v_fp8_dynamic.json",
+      "workflow_path": "../../comfyui/examples/wan/t2v/wan2.2_t2v_fp16_dynamic_fp8_gemm.json",
       "steps": 1,
       "width": 720,
       "height": 480,
@@ -177,7 +177,7 @@
   [
     [
       {
-        "workflow_path": "../workflows/wan/i2v/wan2.2_i2v_fp8_scaled.json",
+        "workflow_path": "../../comfyui/examples/wan/i2v/wan2.2_i2v_fp8_scaled.json",
         "steps": 1,
         "width": 720,
         "height": 480,
@@ -195,7 +195,7 @@
         }
       },
       {
-        "workflow_path": "../workflows/wan/i2v/wan2.2_i2v_fp8_scaled.json",
+        "workflow_path": "../../comfyui/examples/wan/i2v/wan2.2_i2v_fp8_scaled.json",
         "steps": 1,
         "width": 720,
         "height": 480,

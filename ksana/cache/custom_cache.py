@@ -4,7 +4,7 @@ from ..config.cache_config import CustomStepCacheConfig
 
 from ..utils import log
 
-from ..utils.utils import disable_dynamo
+from ..utils.torch_compile import disable_dynamo
 
 __all__ = ["CustomStepCache"]
 

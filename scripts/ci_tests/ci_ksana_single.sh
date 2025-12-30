@@ -22,4 +22,4 @@ export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 export CUDA_VISIBLE_DEVICES=${GPU_CARDS}
 export KSANA_CI_MODELS_ROOT=/dockerdata/ci-models
 cd /data/ComfyUI/custom_nodes/KsanaDiT
-pytest -s -v ksana/tests/ --ignore=ksana/tests/models/gpus/
+pytest -s -v tests/ksana/ --ignore=tests/ksana/models/gpus/

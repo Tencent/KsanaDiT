@@ -23,6 +23,10 @@ class KsanaHybridCacheConfig:
     step_cache: KsanaStepCacheConfig | None = None
     block_cache: KsanaBlockCacheConfig | None = None
 
+    def __post_init__(self):
+        if self.step_cache is None and self.block_cache is None:
+            raise ValueError("KsanaHybridCacheConfig must have step_cache or block_cache")
+
 
 def warp_as_hybrid_cache(
     cache_config: KsanaCacheConfig,
@@ -31,15 +35,11 @@ def warp_as_hybrid_cache(
         return cache_config
     if cache_config is None or not isinstance(cache_config, KsanaCacheConfig):
         raise ValueError("cache_config must be provided")
-    out = KsanaHybridCacheConfig()
     if isinstance(cache_config, KsanaBlockCacheConfig):
-        out.block_cache = cache_config
-        out.name = f"Hybrid_{cache_config.name}"
+        return KsanaHybridCacheConfig(name=cache_config.name, block_cache=cache_config)
     elif isinstance(cache_config, KsanaStepCacheConfig):
-        out.step_cache = cache_config
-        out.name = f"Hybrid_{cache_config.name}"
+        return KsanaHybridCacheConfig(name=cache_config.name, step_cache=cache_config)
     else:
         raise ValueError(
             f"cache_config must be KsanaBlockCacheConfig or KsanaStepCacheConfig, but got {type(cache_config)}"
         )
-    return out

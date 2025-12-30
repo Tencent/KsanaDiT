@@ -4,16 +4,6 @@ import os
 from typing import Optional
 
 
-# TODO: move to torch compile utils
-try:
-    # Avoid Dynamo compiling cache helpers that use numpy/Python control flow
-    from torch._dynamo import disable as disable_dynamo
-except Exception:
-
-    def disable_dynamo(fn=None):
-        return fn if fn is not None else (lambda f: f)
-
-
 def get_recommend_config(input_config, recommend_config):
     """
     search all vars in input_config, if var is None, then use the vars in recommend_config if not None

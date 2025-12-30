@@ -61,16 +61,16 @@ class KsanaGenerator(ABC):
             ray.get(init_futures)
             self._is_ray = True
 
-    def clear_models(self, models):
+    def clear_models(self, model_keys):
         assert self.executors is not None, "executors is not initialized"
         if self.is_ray:
-            func_futures = [executor.clear_models.remote(models) for executor in self.executors]
+            func_futures = [executor.clear_models.remote(model_keys) for executor in self.executors]
             funcs_res = ray.get(func_futures)
             # note all gpus return the same model keys, so just return any result
             any_rank_id = 0
             return funcs_res[any_rank_id]
         else:
-            return self.executors.clear_models(models)
+            return self.executors.clear_models(model_keys)
 
     @staticmethod
     def from_models(
