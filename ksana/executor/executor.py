@@ -90,23 +90,20 @@ class KsanaExecutor(ABC):
         )
         return create_ksana_pipeline(pipeline_config)
 
-    def clear_all_models(self):
+    def clear(self):
         """
         Clean models loaded by this executor.
         """
         if self.pipeline is None:
             return
-        self.model_pool.clear()
-        self.pipeline.clear_all_models()
+        self.model_pool.clear_models()
+        self.pipeline.clear()
         self.pipeline = None
 
-    def clear_models(self, models: list[KsanaModelKey] | KsanaModelKey):
-        if models is None:
+    def clear_models(self, model_keys: list[KsanaModelKey] | KsanaModelKey = None):
+        if self.model_pool is None:
             return
-        if not isinstance(models, (list, tuple)):
-            models = [models]
-        for one_model in models:
-            self.model_pool.clear_model(one_model)
+        self.model_pool.clear_models(model_keys)
 
     def load_models(
         self,
@@ -118,7 +115,7 @@ class KsanaExecutor(ABC):
         model_config: KsanaModelConfig = None,
         **kwargs,
     ):
-        self.clear_all_models()
+        self.clear()
         if not is_dir(model_path) and not isinstance(model_path, (list, tuple)):
             raise ValueError(f"model_path {model_path} is not exist, or not a directory")
         if isinstance(model_path, (list, tuple)):

@@ -33,7 +33,8 @@ __all__ = ["DBCache", "DBCacheContext"]
 
 from ..models.model_key import KsanaModelKey
 
-from ..utils.utils import disable_dynamo, get_recommend_config
+from ..utils.torch_compile import disable_dynamo
+from ..utils.utils import get_recommend_config
 
 RECOMMEND_DBCACHE_CONFIGS = {
     KsanaModelKey.Wan2_2_T2V_14B_HIGH: DBCacheConfig(
@@ -82,11 +83,12 @@ class DBCacheContext:
         self.buffers: Dict[str, CacheBuffer] = {
             "cond": CacheBuffer(),
             "uncond": CacheBuffer(),
+            "combine": CacheBuffer(),
         }
 
         # Statistics
-        self.total_steps = {"cond": 0, "uncond": 0}
-        self.cached_steps = {"cond": 0, "uncond": 0}
+        self.total_steps = {"cond": 0, "uncond": 0, "combine": 0}
+        self.cached_steps = {"cond": 0, "uncond": 0, "combine": 0}
 
     def reset(self):
         """Reset context for a new inference run."""

@@ -1,6 +1,14 @@
 import torch
 from . import log
 
+try:
+    # Avoid Dynamo compiling cache helpers that use numpy/Python control flow
+    from torch._dynamo import disable as disable_dynamo
+except Exception:
+
+    def disable_dynamo(fn=None):
+        return fn if fn is not None else (lambda f: f)
+
 
 def apply_torch_compile(model, torch_compile_config=None):
     if torch_compile_config is None:

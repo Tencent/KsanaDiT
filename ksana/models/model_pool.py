@@ -37,15 +37,22 @@ class KsanaModelPool:
             return []
         return [self.get_model(model_key) for model_key in model_key_list]
 
-    def clear_model(self, model: KsanaModelKey):
-        log.info(f"clear {model}")
-        self.loaded_models.pop(model)
-        gc.collect()
-        torch.cuda.empty_cache()
+    def clear_models(self, model_keys: list[KsanaModelKey] | KsanaModelKey = None):
+        """clear models loaded by this executor
+        clear all if model_keys is None
+        """
+        if model_keys is None:
+            log.info("clear all models")
+            self.loaded_models.clear()
+            self.loaded_models = {}
+            gc.collect()
+            torch.cuda.empty_cache()
+            return
 
-    def clear(self):
-        log.info("clear all models")
-        self.loaded_models.clear()
-        self.loaded_models = {}
+        if not isinstance(model_keys, (list, tuple)):
+            model_keys = [model_keys]
+        for one_model_key in model_keys:
+            self.loaded_models.pop(one_model_key)
+            log.info(f"clear {one_model_key}")
         gc.collect()
         torch.cuda.empty_cache()

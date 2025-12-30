@@ -5,7 +5,8 @@ import torch
 
 from ..models.model_key import KsanaModelKey
 from ..utils import log
-from ..utils.utils import disable_dynamo, get_recommend_config
+from ..utils.torch_compile import disable_dynamo
+from ..utils.utils import get_recommend_config
 
 __all__ = ["DCache"]
 

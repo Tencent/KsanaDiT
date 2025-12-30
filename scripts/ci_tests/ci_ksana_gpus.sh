@@ -26,4 +26,4 @@ conda activate env-novelai
 export KSANA_TEST_PORT=${KSANA_TEST_PORT}
 export CUDA_VISIBLE_DEVICES=${GPU_CARDS}
 cd /data/ComfyUI/custom_nodes/KsanaDiT
-pytest -s -v ksana/tests/models/gpus/
+pytest -s -v tests/ksana/models/gpus/

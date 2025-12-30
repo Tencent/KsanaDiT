@@ -6,7 +6,7 @@ from ksana.config import (
     KsanaRuntimeConfig,
     KsanaSampleConfig,
 )
-from ksana.config.cache_config import DCacheConfig
+from ksana.config.cache_config import DCacheConfig, KsanaHybridCacheConfig, DBCacheConfig
 
 import torch
 
@@ -154,6 +154,21 @@ class TestKsana(unittest.TestCase):
             self.assertEqual(list(video.shape), [1, 3, TEST_FRAME_NUM, TEST_SIZE[1], TEST_SIZE[0]])
         mean = video.cpu().abs().mean().item()
         self.assertAlmostEqual(mean, 0.6556134819984436, places=TEST_EPS_PLACE)
+
+        video = generator.generate_video(
+            prompts[0],
+            sample_config=KsanaSampleConfig(steps=TEST_STEPS),
+            runtime_config=KsanaRuntimeConfig(
+                seed=SEED,
+                size=TEST_SIZE,
+                frame_num=TEST_FRAME_NUM,
+                return_frames=True,
+                save_video=False,
+            ),
+            cache_config=KsanaHybridCacheConfig(step_cache=DCacheConfig(), block_cache=DBCacheConfig()),
+        )
+        with self.subTest(msg="Shape Check"):
+            self.assertEqual(list(video.shape), [1, 3, TEST_FRAME_NUM, TEST_SIZE[1], TEST_SIZE[0]])
 
     def test_lora(self):
         print("-----------------test_lora-----------------")

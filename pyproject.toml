@@ -53,22 +53,19 @@ Repository = "https://git.woa.com/jackyjtang/KsanaDiT.git"
 
 #  Used by Comfy Registry https://comfyregistry.org
 [tool.comfy]
-PublisherId = "venus"
+PublisherId = "KsanaDit"
 DisplayName = "KsanaDit"
 Icon = ""
 
 [project.optional-dependencies]  # 可选依赖
-dev = ["pytest>=6.0", "black>=21.0", "pyinstrument>=5.1.1", "pre-commit>=4.0.0", "pytest"]
+dev = ["pytest>=6.0", "black>=21.0", "pyinstrument>=5.1.1", "pre-commit>=4.0.0"]
 
 [project.scripts]  # 命令行工具
 mycli = "my_package.cli:main"
 
 [tool.setuptools.packages.find]  # 包发现规则
 where = ["."]
-exclude = ["tests*", "assets*", "docker*", "docs", "scripts*"]
-
-[tool.wheel]
-exclude = ["assets*", "docker*", "docs", "scripts*"]
+exclude = ["tests*", "assets*", "docker*", "docs", "scripts*", "comfyui*"]
 
 # 包含数据文件（如配置文件）
 [tool.setuptools.package-data]

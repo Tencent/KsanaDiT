@@ -81,8 +81,6 @@ class KsanaHybridCache(KsanaCache):
     def __post_init__(self):
         if self.model_key is None:
             raise ValueError("KsanaHybridCache model_key must be set")
-        if self.step_cache is None and self.block_cache is None:
-            raise ValueError("KsanaHybridCache must have step_cache or block_cache")
         self.name = f"{KsanaModelKey(self.model_key).name}_{self.name}"
         if self.step_cache is not None:
             self.name = f"{self.name}_{type(self.step_cache).__name__}"
