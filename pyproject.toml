@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ksana"
-version = "1.0.1"
+dynamic = ["version"]
 description = "KsanaDit"
 authors = [{ name = "KsanaDit", email = "KsanaDiT@venus.com" }]
 readme = "README.md"
@@ -62,6 +62,11 @@ dev = ["pytest>=6.0", "black>=21.0", "pyinstrument>=5.1.1", "pre-commit>=4.0.0"]
 
 [project.scripts]  # 命令行工具
 mycli = "my_package.cli:main"
+
+[tool.setuptools_scm]
+version_scheme = "post-release"
+write_to = "ksana/_version.py"
+local_scheme = "node-and-date"
 
 [tool.setuptools.packages.find]  # 包发现规则
 where = ["."]
