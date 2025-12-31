@@ -27,7 +27,7 @@ def run_simple(args):
         f"{args.model_dir}/Wan2.2-I2V-A14B", dist_config=KsanaDistributedConfig(num_gpus=args.num_gpus)
     )
 
-    video = generator.generate_video(
+    video = generator.generate(
         prompts,
         img_path=args.img_path,
         sample_config=KsanaSampleConfig(steps=40),
@@ -39,7 +39,7 @@ def run_simple(args):
         ),
     )
 
-    video = generator.generate_video(
+    video = generator.generate(
         prompts[0],
         img_path=args.img_path,
         sample_config=KsanaSampleConfig(steps=40),
@@ -70,7 +70,7 @@ def run_start_and_end_with_lora(args):
     sample_config = KsanaSampleConfig(
         steps=4, cfg_scale=1.0, shift=1.0, solver="euler", sigmas=[1.0, 0.9375001, 0.8333333, 0.625, 0.0000]
     )
-    video = generator.generate_video(
+    video = generator.generate(
         prompts[2],
         img_path="./examples/images/start_image.png",
         end_img_path="./examples/images/end_image.png",

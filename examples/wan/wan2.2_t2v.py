@@ -29,7 +29,7 @@ def run_simple(args):
         f"{args.model_dir}/Wan2.2-T2V-A14B", dist_config=KsanaDistributedConfig(num_gpus=args.num_gpus)
     )
 
-    video = generator.generate_video(
+    video = generator.generate(
         prompts[0],
         sample_config=KsanaSampleConfig(steps=40),
         runtime_config=KsanaRuntimeConfig(
@@ -70,7 +70,7 @@ def run_fp8_models(args):
     high_cache_config = DCacheConfig(fast_degree=55)
     low_cache_config = DCacheConfig(fast_degree=45)
 
-    video = generator.generate_video(
+    video = generator.generate(
         prompts[0],
         sample_config=KsanaSampleConfig(steps=40),
         runtime_config=KsanaRuntimeConfig(
@@ -91,7 +91,7 @@ def run_with_lora(args):
         dist_config=KsanaDistributedConfig(num_gpus=args.num_gpus),
     )
 
-    generator.generate_video(prompts, runtime_config=KsanaRuntimeConfig(seed=SEED), cache_config=DCacheConfig())
+    generator.generate(prompts, runtime_config=KsanaRuntimeConfig(seed=SEED), cache_config=DCacheConfig())
 
 
 def run_advanced(args):
@@ -126,7 +126,7 @@ def run_advanced(args):
     )
 
     # Generate the video
-    video = generator.generate_video(
+    video = generator.generate(
         prompts[0], sample_config=sample_config, runtime_config=runtime_config, cache_config=cache_config
     )
     print("video shape:", video.shape)

@@ -8,7 +8,7 @@ from .profile import time_range
 from .load import batch_safetensors_by_size, load_file_to_state_dict, load_files_to_state_dict
 from .logger import log
 from .distribute import get_rank_id
-from .utils import is_dir
+from .types import is_dir
 
 
 def model_safe_downcast(

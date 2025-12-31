@@ -32,7 +32,7 @@ class TestKsanaGpus(unittest.TestCase):
         generator = KsanaGenerator.from_models(
             "./Wan2.2-T2V-A14B", dist_config=KsanaDistributedConfig(num_gpus=2, port=TEST_PORT)
         )
-        videos = generator.generate_video(
+        videos = generator.generate(
             prompts,
             sample_config=KsanaSampleConfig(steps=TEST_STEPS),
             runtime_config=KsanaRuntimeConfig(
@@ -52,7 +52,7 @@ class TestKsanaGpus(unittest.TestCase):
         with self.subTest(msg="Mean 1 Check"):
             self.assertAlmostEqual(mean1, 0.44206780195236206, places=TEST_EPS_PLACE)
 
-        videos = generator.generate_video(
+        videos = generator.generate(
             prompts[0],
             sample_config=KsanaSampleConfig(steps=TEST_STEPS),
             runtime_config=KsanaRuntimeConfig(

@@ -6,7 +6,7 @@ import torch
 from ..models.model_key import KsanaModelKey
 from ..utils import log
 from ..utils.torch_compile import disable_dynamo
-from ..utils.utils import get_recommend_config
+from ..utils.types import evolve_with_recommend
 
 __all__ = ["DCache"]
 
@@ -57,7 +57,7 @@ def _get_coeffs(model_key: KsanaModelKey):
 class DCache(KsanaStepCache):
     def __init__(self, model_key: KsanaModelKey, config: DCacheConfig):
         super().__init__(model_key, config)
-        self.config = get_recommend_config(config, RECOMMEND_DCACHE_CONFIGS[model_key])
+        self.config = evolve_with_recommend(config, RECOMMEND_DCACHE_CONFIGS[model_key])
         self.degree_func = np.poly1d(_get_coeffs(model_key))
         self.need_compile_cache = False
 

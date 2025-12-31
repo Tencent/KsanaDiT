@@ -4,7 +4,7 @@ import numpy as np
 
 from .wan import Wan2_1_VAE, Wan2_2_VAE
 from .base_model import KsanaModel
-from ..utils.utils import any_key_in_str
+from ..utils.types import any_key_in_str
 from ..utils.logger import log
 from ..utils.profile import time_range
 from ..models.model_key import KsanaModelKey, WAN2_2, WAN2_1

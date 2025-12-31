@@ -34,7 +34,7 @@ __all__ = ["DBCache", "DBCacheContext"]
 from ..models.model_key import KsanaModelKey
 
 from ..utils.torch_compile import disable_dynamo
-from ..utils.utils import get_recommend_config
+from ..utils.types import evolve_with_recommend
 
 RECOMMEND_DBCACHE_CONFIGS = {
     KsanaModelKey.Wan2_2_T2V_14B_HIGH: DBCacheConfig(
@@ -183,7 +183,7 @@ class DBCache(KsanaBlockCache):
         config: DBCacheConfig,
     ):
         super().__init__(model_key.name, config)
-        config = get_recommend_config(config, RECOMMEND_DBCACHE_CONFIGS[model_key])
+        config = evolve_with_recommend(config, RECOMMEND_DBCACHE_CONFIGS[model_key])
         self.config = config
         self.num_blocks = config.num_blocks
         self.context = DBCacheContext(config, config.num_blocks)

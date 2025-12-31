@@ -15,7 +15,7 @@ from ..config import (
     KsanaPipelineConfig,
     KsanaModelConfig,
 )
-from ..utils import log, print_recursive, time_range, MemoryProfiler, is_dir
+from ..utils import log, print_recursive, time_range, MemoryProfiler, is_dir, evolve_with_recommend
 from ..sample_solvers import get_sample_scheduler
 from ..scheduler import KsanaScheduler
 from ..cache import create_hybrid_cache
@@ -37,7 +37,7 @@ class KsanaDefaultArgs:
     sample_solver: str | None = field(default=None)
 
 
-class KsanaX2VPipeline(ABC):
+class KsanaX2XPipeline(ABC):
     def __init__(self, pipeline_config: KsanaPipelineConfig):
         """_summary_
 
@@ -253,19 +253,19 @@ class KsanaX2VPipeline(ABC):
                 if self.default_args.cfg_scale is not None
                 else default_pipeline_config.get("sample_guide_scale", None)
             ),
-            "sample_shift": (
+            "shift": (
                 self.default_args.sample_shift
                 if self.default_args.sample_shift is not None
                 else default_pipeline_config.get("sample_shift", None)
             ),
-            "sample_solver": (
+            "solver": (
                 self.default_args.sample_solver
                 if self.default_args.sample_solver is not None
                 else default_pipeline_config.get("sample_solver", None)
             ),
             "denoise": default_pipeline_config.get("denoise", None),
         }
-        return KsanaSampleConfig.copy_with_default(sample_config, sample_default_args)
+        return evolve_with_recommend(sample_config, sample_default_args)
 
     def expand_conditioning_by_batch_per_prompt(
         self,
@@ -684,7 +684,7 @@ class KsanaX2VPipeline(ABC):
             raise ValueError("model_pool must not be None")
         diffusion_models = model_pool.get_models(self.diffusion_model_keys)
 
-        runtime_config = KsanaRuntimeConfig.copy_with_default(runtime_config, self.pipeline_config.default_config)
+        runtime_config = evolve_with_recommend(runtime_config, self.pipeline_config.default_config)
 
         latents = self.forward_diffusion_models_with_tensors(
             diffusion_models=diffusion_models,
