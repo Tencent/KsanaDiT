@@ -5,7 +5,7 @@ import functools
 import atexit
 from ..executor import KsanaExecutor, RayKsanaExecutor
 from ..utils import log, singleton
-from ..utils.distribute import get_torchrun_env, is_launched_by_torchrun, get_gpu_count, get_rank_id_result
+from ..utils.distribute import get_torchrun_env, is_launched_by_torchrun, get_gpu_count
 from ..config import KsanaDistributedConfig, KsanaModelConfig
 
 
@@ -30,10 +30,11 @@ class KsanaGenerator(ABC):
     Base class for all Ksana generators.
     """
 
-    PRE_FUNC_KEY_ALL = "pre_func_key_all"
-    PRE_FUNC_KEY_RAY = "pre_func_key_ray"
-    PRE_FUNC_KEY_LOCAL = "pre_func_key_local"
+    FUNC_KEY_PRE_ALL = "func_key_pre_all"
+    FUNC_KEY_PRE_RAY = "func_key_pre_ray"
+    FUNC_KEY_PRE_LOCAL = "func_key_pre_local"
     RAY_KEY_REMOVE_KWARGS = "ray_key_remove_kwargs"
+    FUNC_KEY_POST_RAY_OUTPUTS = "func_key_post_ray_outputs"
 
     executors = None
 
@@ -68,6 +69,7 @@ class KsanaGenerator(ABC):
                 RayKsanaExecutor.remote(local_rank_id, offload_device) for _ in range(dist_config.num_gpus)
             ]
             init_futures = []
+            # executors is sorted by rank_id
             for rank_id, executor in enumerate(self.executors):
                 future = executor.init_torch_dist_group.remote(rank_id, dist_config)
                 init_futures.append(future)
@@ -84,6 +86,10 @@ class KsanaGenerator(ABC):
     def _check_callable_key_in_map(self, key: str, map: dict):
         return self._check_key_in_map(map, key) and callable(map[key])
 
+    def _get_rank_0_result(self, func_res: list, *args, **kwargs):
+        RANK_0_ID = 0
+        return func_res[RANK_0_ID]
+
     @staticmethod
     def auto_dispatch(func):
         """auto dispatch the function to ray executors or local executor"""
@@ -95,48 +101,46 @@ class KsanaGenerator(ABC):
             if pre_func_map is not None and not isinstance(pre_func_map, dict):
                 raise ValueError(
                     f"func{func} must return None or dict like:"
-                    f'["{self.PRE_FUNC_KEY_RAY}":ray_pre_func, "{self.PRE_FUNC_KEY_LOCAL}":local_pre_func]'
+                    f'["{self.FUNC_KEY_PRE_RAY}":ray_pre_func, "{self.FUNC_KEY_PRE_LOCAL}":local_pre_func]'
                     f", but got {type(pre_func_map)}"
                 )
-            RANK_0_ID = 0
             if self.executors is None:
                 raise RuntimeError("executors is not initialized")
 
-            if self._check_callable_key_in_map(self.PRE_FUNC_KEY_ALL, pre_func_map):
-                pre_func_map[self.PRE_FUNC_KEY_ALL](*args, **kwargs)
+            if self._check_callable_key_in_map(self.FUNC_KEY_PRE_ALL, pre_func_map):
+                pre_func_map[self.FUNC_KEY_PRE_ALL](*args, **kwargs)
 
             if self.is_ray:
-                if self._check_callable_key_in_map(self.PRE_FUNC_KEY_RAY, pre_func_map):
-                    pre_func_map[self.PRE_FUNC_KEY_RAY](*args, **kwargs)
+                if self._check_callable_key_in_map(self.FUNC_KEY_PRE_RAY, pre_func_map):
+                    pre_func_map[self.FUNC_KEY_PRE_RAY](*args, **kwargs)
                 if self._check_key_in_map(self.RAY_KEY_REMOVE_KWARGS, pre_func_map):
                     to_be_remove = pre_func_map[self.RAY_KEY_REMOVE_KWARGS]
                     if not isinstance(to_be_remove, list):
                         to_be_remove = [to_be_remove]
                     kwargs = pop_keys_in_kwargs(to_be_remove, kwargs)
                 func_futures = [getattr(executor, method_name).remote(*args, **kwargs) for executor in self.executors]
+                # Note: the result is list by rank_id
                 func_return = ray.get(func_futures)
-                log.debug(f"method_name {method_name} ray results: {func_return}")
-                return get_rank_id_result(func_return, RANK_0_ID, check_no_none_res=False)
+                process_outputs_func = self._get_rank_0_result  # default get rank 0 result
+                if self._check_callable_key_in_map(self.FUNC_KEY_POST_RAY_OUTPUTS, pre_func_map):
+                    process_outputs_func = pre_func_map[self.FUNC_KEY_POST_RAY_OUTPUTS]
+                func_return = process_outputs_func(func_return, *args, **kwargs)
+                log.debug(f"method_name {method_name} final return: {func_return}")
+                return func_return
             else:
-                if self._check_callable_key_in_map(self.PRE_FUNC_KEY_LOCAL, pre_func_map):
-                    pre_func_map[self.PRE_FUNC_KEY_LOCAL](*args, **kwargs)
+                if self._check_callable_key_in_map(self.FUNC_KEY_PRE_LOCAL, pre_func_map):
+                    pre_func_map[self.FUNC_KEY_PRE_LOCAL](*args, **kwargs)
                 this_func = getattr(self.executors, method_name)
                 if this_func is None:
                     raise ValueError(f"method_name {method_name} not found in executors")
                 func_return = this_func(*args, **kwargs)
                 log.debug(f"method_name {method_name} single result: {func_return}")
-                if isinstance(func_return, dict) and RANK_0_ID in func_return:
-                    return func_return.get(RANK_0_ID)
-                else:
-                    return func_return
+                return func_return
 
         return wrapper
 
     @auto_dispatch
     def load_models(self, model_path, **kwargs):
-        """
-        Load models from model_path.
-        """
         pass
 
     @auto_dispatch
@@ -156,7 +160,7 @@ class KsanaGenerator(ABC):
         **kwargs,
     ):
         """
-        Load a pre-trained model.
+        create generator from pretrained models for local usage.
         """
         model_config = model_config or KsanaModelConfig()
         dist_config = dist_config or KsanaDistributedConfig()
@@ -205,7 +209,7 @@ class KsanaGenerator(ABC):
                 seed = runtime_config.seed if runtime_config else None
                 self.broadcast_input_args(*args, seed=seed, **kwargs)
 
-        return {self.PRE_FUNC_KEY_ALL: pre_func_all}
+        return {self.FUNC_KEY_PRE_ALL: pre_func_all, self.FUNC_KEY_POST_RAY_OUTPUTS: self._get_rank_0_result}
 
     def cleanup(self):
         if dist.is_initialized():
