@@ -29,7 +29,7 @@ class TestKsana(unittest.TestCase):
     def test_simple(self):
         print("-----------------test_simple-----------------")
         generator = KsanaGenerator.from_models("./Wan2.2-T2V-A14B")
-        videos = generator.generate_video(
+        videos = generator.generate(
             prompts,
             sample_config=KsanaSampleConfig(steps=TEST_STEPS),
             runtime_config=KsanaRuntimeConfig(
@@ -53,7 +53,7 @@ class TestKsana(unittest.TestCase):
     def test_batch_per_prompt(self):
         print("-----------------test_batch_per_prompt-----------------")
         generator = KsanaGenerator.from_models("./Wan2.2-T2V-A14B")
-        videos = generator.generate_video(
+        videos = generator.generate(
             prompts[0],
             sample_config=KsanaSampleConfig(steps=TEST_STEPS, batch_per_prompt=2),
             runtime_config=KsanaRuntimeConfig(
@@ -78,7 +78,7 @@ class TestKsana(unittest.TestCase):
     def test_larger_seq_batch(self):
         print("-----------------test_larger_seq_batch-----------------")
         generator = KsanaGenerator.from_models("./Wan2.2-T2V-A14B")
-        videos = generator.generate_video(
+        videos = generator.generate(
             prompts,
             sample_config=KsanaSampleConfig(steps=TEST_STEPS),
             runtime_config=KsanaRuntimeConfig(
@@ -118,7 +118,7 @@ class TestKsana(unittest.TestCase):
             vae_checkpoint_dir=vae_dir,
             model_config=model_config,
         )
-        video = generator.generate_video(
+        video = generator.generate(
             prompts[0],
             sample_config=KsanaSampleConfig(steps=TEST_STEPS),
             runtime_config=KsanaRuntimeConfig(
@@ -138,7 +138,7 @@ class TestKsana(unittest.TestCase):
         # TODO: step 1 can not test cache, real test cache logical,
         print("-----------------test_cache-----------------")
         generator = KsanaGenerator.from_models("./Wan2.2-T2V-A14B")
-        video = generator.generate_video(
+        video = generator.generate(
             prompts[0],
             sample_config=KsanaSampleConfig(steps=TEST_STEPS),
             runtime_config=KsanaRuntimeConfig(
@@ -155,7 +155,7 @@ class TestKsana(unittest.TestCase):
         mean = video.cpu().abs().mean().item()
         self.assertAlmostEqual(mean, 0.6556134819984436, places=TEST_EPS_PLACE)
 
-        video = generator.generate_video(
+        video = generator.generate(
             prompts[0],
             sample_config=KsanaSampleConfig(steps=TEST_STEPS),
             runtime_config=KsanaRuntimeConfig(
@@ -175,7 +175,7 @@ class TestKsana(unittest.TestCase):
         generator = KsanaGenerator.from_models(
             "./Wan2.2-T2V-A14B", lora="./Wan2.2-Lightning/Wan2.2-T2V-A14B-4steps-lora-rank64-Seko-V1"
         )
-        video = generator.generate_video(
+        video = generator.generate(
             prompts[0],
             sample_config=KsanaSampleConfig(steps=TEST_STEPS),
             runtime_config=KsanaRuntimeConfig(
@@ -199,7 +199,7 @@ class TestKsana(unittest.TestCase):
         )
         generator = KsanaGenerator.from_models("./Wan2.2-T2V-A14B", model_config=model_config)
 
-        video = generator.generate_video(
+        video = generator.generate(
             prompts[0],
             sample_config=KsanaSampleConfig(steps=TEST_STEPS),
             runtime_config=KsanaRuntimeConfig(
@@ -227,7 +227,7 @@ class TestKsana(unittest.TestCase):
             lora="./Wan2.2-Lightning/Wan2.2-T2V-A14B-4steps-lora-rank64-Seko-V1",
             model_config=model_config,
         )
-        video = generator.generate_video(
+        video = generator.generate(
             prompts[0],
             sample_config=KsanaSampleConfig(steps=TEST_STEPS),
             runtime_config=KsanaRuntimeConfig(

@@ -1,12 +1,12 @@
 from abc import ABC
 import torch.distributed as dist
 import ray
+import functools
 import atexit
 from ..executor import KsanaExecutor, RayKsanaExecutor
 from ..utils import log, singleton
-from ..utils.distribute import get_torchrun_env, is_launched_by_torchrun, get_gpu_count
-from ..config import KsanaDistributedConfig, KsanaSampleConfig, KsanaRuntimeConfig, KsanaModelConfig
-from ..config.cache_config import KsanaCacheConfig, KsanaHybridCacheConfig
+from ..utils.distribute import get_torchrun_env, is_launched_by_torchrun, get_gpu_count, get_rank_id_result
+from ..config import KsanaDistributedConfig, KsanaModelConfig
 
 
 def get_generator(*args, **kwargs):
@@ -16,11 +16,24 @@ def get_generator(*args, **kwargs):
     return KsanaGenerator(*args, **kwargs)
 
 
+def pop_keys_in_kwargs(to_be_removed_keys, kwargs):
+    for key in to_be_removed_keys:
+        if key in kwargs:
+            kwargs.pop(key, None)
+            log.debug(f"pop key {key} from kwargs")
+    return kwargs
+
+
 @singleton
 class KsanaGenerator(ABC):
     """
     Base class for all Ksana generators.
     """
+
+    PRE_FUNC_KEY_ALL = "pre_func_key_all"
+    PRE_FUNC_KEY_RAY = "pre_func_key_ray"
+    PRE_FUNC_KEY_LOCAL = "pre_func_key_local"
+    RAY_KEY_REMOVE_KWARGS = "ray_key_remove_kwargs"
 
     executors = None
 
@@ -61,16 +74,74 @@ class KsanaGenerator(ABC):
             ray.get(init_futures)
             self._is_ray = True
 
+    @property
+    def is_ray(self):
+        return self._is_ray and ray.is_initialized()
+
+    def _check_key_in_map(self, key: str, map: dict):
+        return isinstance(map, dict) and map is not None and key in map and map[key] is not None
+
+    def _check_callable_key_in_map(self, key: str, map: dict):
+        return self._check_key_in_map(map, key) and callable(map[key])
+
+    @staticmethod
+    def auto_dispatch(func):
+        """auto dispatch the function to ray executors or local executor"""
+
+        @functools.wraps(func)
+        def wrapper(self, *args, **kwargs):
+            method_name = func.__name__  # 自动获取被装饰函数的名称
+            pre_func_map = func(self, *args, **kwargs)
+            if pre_func_map is not None and not isinstance(pre_func_map, dict):
+                raise ValueError(
+                    f"func{func} must return None or dict like:"
+                    f'["{self.PRE_FUNC_KEY_RAY}":ray_pre_func, "{self.PRE_FUNC_KEY_LOCAL}":local_pre_func]'
+                    f", but got {type(pre_func_map)}"
+                )
+            RANK_0_ID = 0
+            if self.executors is None:
+                raise RuntimeError("executors is not initialized")
+
+            if self._check_callable_key_in_map(self.PRE_FUNC_KEY_ALL, pre_func_map):
+                pre_func_map[self.PRE_FUNC_KEY_ALL](*args, **kwargs)
+
+            if self.is_ray:
+                if self._check_callable_key_in_map(self.PRE_FUNC_KEY_RAY, pre_func_map):
+                    pre_func_map[self.PRE_FUNC_KEY_RAY](*args, **kwargs)
+                if self._check_key_in_map(self.RAY_KEY_REMOVE_KWARGS, pre_func_map):
+                    to_be_remove = pre_func_map[self.RAY_KEY_REMOVE_KWARGS]
+                    if not isinstance(to_be_remove, list):
+                        to_be_remove = [to_be_remove]
+                    kwargs = pop_keys_in_kwargs(to_be_remove, kwargs)
+                func_futures = [getattr(executor, method_name).remote(*args, **kwargs) for executor in self.executors]
+                func_return = ray.get(func_futures)
+                log.debug(f"method_name {method_name} ray results: {func_return}")
+                return get_rank_id_result(func_return, RANK_0_ID, check_no_none_res=False)
+            else:
+                if self._check_callable_key_in_map(self.PRE_FUNC_KEY_LOCAL, pre_func_map):
+                    pre_func_map[self.PRE_FUNC_KEY_LOCAL](*args, **kwargs)
+                this_func = getattr(self.executors, method_name)
+                if this_func is None:
+                    raise ValueError(f"method_name {method_name} not found in executors")
+                func_return = this_func(*args, **kwargs)
+                log.debug(f"method_name {method_name} single result: {func_return}")
+                if isinstance(func_return, dict) and RANK_0_ID in func_return:
+                    return func_return.get(RANK_0_ID)
+                else:
+                    return func_return
+
+        return wrapper
+
+    @auto_dispatch
+    def load_models(self, model_path, **kwargs):
+        """
+        Load models from model_path.
+        """
+        pass
+
+    @auto_dispatch
     def clear_models(self, model_keys):
-        assert self.executors is not None, "executors is not initialized"
-        if self.is_ray:
-            func_futures = [executor.clear_models.remote(model_keys) for executor in self.executors]
-            funcs_res = ray.get(func_futures)
-            # note all gpus return the same model keys, so just return any result
-            any_rank_id = 0
-            return funcs_res[any_rank_id]
-        else:
-            return self.executors.clear_models(model_keys)
+        pass
 
     @staticmethod
     def from_models(
@@ -100,46 +171,41 @@ class KsanaGenerator(ABC):
         )
         return generator
 
-    def load_models(self, model_path, **kwargs):
-        """
-        Load models from model_path.
-        """
-        if self.executors is None:
-            raise RuntimeError("executors is not initialized")
-        if self.is_ray:
-            func_futures = [executor.load_models.remote(model_path, **kwargs) for executor in self.executors]
-            ray.get(func_futures)
-        else:
-            self.executors.load_models(model_path, **kwargs)
+    @auto_dispatch
+    def load_diffusion_model(self, *args, **kwargs):
+        return {self.RAY_KEY_REMOVE_KWARGS: "comfy_bar_callback"}
 
-    def load_diffusion_model(self, model_path, **kwargs):
-        assert self.executors is not None, "executors is not initialized"
-        if self.is_ray:
-            comfy_bar_callback = kwargs.pop("comfy_bar_callback", None)
-            if comfy_bar_callback is not None:
-                log.info("comfy_bar_callback is not support at ray gpus, skip it")
-            func_futures = [executor.load_diffusion_model.remote(model_path, **kwargs) for executor in self.executors]
-            funcs_res = ray.get(func_futures)
-            # note all gpus return the same model keys, so just return any result
-            any_rank_id = 0
-            return funcs_res[any_rank_id]
-        else:
-            return self.executors.load_diffusion_model(model_path, **kwargs)
+    @auto_dispatch
+    def forward_diffusion_models_with_tensors(self, *args, **kwargs):
+        return {self.RAY_KEY_REMOVE_KWARGS: "comfy_bar_callback"}
 
-    def load_vae_model(self, model_path, **kwargs):
-        assert self.executors is not None, "executors is not initialized"
-        if self.is_ray:
-            func_futures = [executor.load_vae_model.remote(model_path, **kwargs) for executor in self.executors]
-            funcs_res = ray.get(func_futures)
-            # note all gpus return the same model keys, so just return any result
-            any_rank_id = 0
-            return funcs_res[any_rank_id]
-        else:
-            return self.executors.load_vae_model(model_path, **kwargs)
+    @auto_dispatch
+    def load_vae_model(self, *args, **kwargs):
+        pass
 
-    @property
-    def is_ray(self):
-        return self._is_ray and ray.is_initialized()
+    @auto_dispatch
+    def forward_vae_encode(self, *args, **kwargs):
+        pass
+
+    @auto_dispatch
+    def forward_vae_decode(self, *args, **kwargs):
+        pass
+
+    def broadcast_input_args(self, prompts, *, seed, prompts_negative=None, **kwargs):
+        if dist.is_initialized():
+            dist.broadcast_object_list([prompts, seed], src=0)
+            if prompts_negative is not None:
+                dist.broadcast_object_list(prompts_negative, src=0)
+
+    @auto_dispatch
+    def generate(self, *args, **kwargs):
+        def pre_func_all(*args, **kwargs):
+            if self.num_gpus > 1:
+                runtime_config = kwargs.get("runtime_config", None)
+                seed = runtime_config.seed if runtime_config else None
+                self.broadcast_input_args(*args, seed=seed, **kwargs)
+
+        return {self.PRE_FUNC_KEY_ALL: pre_func_all}
 
     def cleanup(self):
         if dist.is_initialized():
@@ -148,119 +214,3 @@ class KsanaGenerator(ABC):
 
         if self.is_ray:
             ray.shutdown()
-
-    def broadcast_input_args(self, prompts, seed, prompts_negative=None):
-        if dist.is_initialized():
-            dist.broadcast_object_list([prompts, seed], src=0)
-            if prompts_negative is not None:
-                dist.broadcast_object_list(prompts_negative, src=0)
-
-    def generate_video(
-        self,
-        prompt: str | list[str],
-        *,
-        img_path: str | list[str] = None,
-        end_img_path: str | list[str] = None,
-        prompt_negative: str | list[str] = None,
-        sample_config: KsanaSampleConfig = None,
-        runtime_config: KsanaRuntimeConfig = None,
-        cache_config: (
-            KsanaCacheConfig | KsanaHybridCacheConfig | list[KsanaCacheConfig | KsanaHybridCacheConfig]
-        ) = None,
-        **kwargs,
-    ):
-        if len(kwargs) > 0:
-            log.warning(f"kwargs {kwargs} are not used")
-        if self.num_gpus > 1:
-            self.broadcast_input_args(
-                prompt, runtime_config.seed if runtime_config else None, prompts_negative=prompt_negative
-            )
-
-        if self.is_ray:
-            func_futures = [
-                executor.generate_video.remote(
-                    prompt=prompt,
-                    img_path=img_path,
-                    end_img_path=end_img_path,
-                    prompt_negative=prompt_negative,
-                    sample_config=sample_config,
-                    runtime_config=runtime_config,
-                    cache_configs=cache_config,
-                )
-                for executor in self.executors
-            ]
-            res = self.get_rank0_res(ray.get(func_futures))
-        else:
-            rank_0_id = 0
-            res = self.executors.generate_video(
-                prompt=prompt,
-                img_path=img_path,
-                end_img_path=end_img_path,
-                prompt_negative=prompt_negative,
-                sample_config=sample_config,
-                runtime_config=runtime_config,
-                cache_configs=cache_config,
-            ).get(rank_0_id)
-
-        return res
-
-    def get_rank0_res(self, ray_res: list):
-        """
-        input : [{rank_id_1: [None, None, ...]}, {rank_id_0: [tensor, tensor, ...]}] or [{rank_id_1: None}, {rank_id_0: tensor}]
-        return [tensor, tensor, ...] or tensor
-        """
-        for r in ray_res:
-            if r is None:
-                continue
-            res = r.get(0, None)
-            if res is None:
-                continue
-            if isinstance(res, (list, tuple)):
-                has_none = [x is None for x in res]
-                if any(has_none):
-                    raise ValueError(f"rank 0 res has None: {res}")
-            return res
-
-    def forward_diffusion_models_with_tensors(self, model_keys, positive, negative, **kwargs):
-        if self.is_ray:
-            comfy_bar_callback = kwargs.pop("comfy_bar_callback", None)
-            if comfy_bar_callback is not None:
-                log.info("comfy_bar_callback is not support at ray gpus, skip it")
-            func_futures = [
-                executor.forward_diffusion_models_with_tensors.remote(
-                    model_keys=model_keys, positive=positive, negative=negative, **kwargs
-                )
-                for executor in self.executors
-            ]
-            gpus_res = ray.get(func_futures)
-            log.debug(f"gpus_res: {gpus_res}")
-            res = self.get_rank0_res(gpus_res)
-        else:
-            rank_0_id = 0
-            res = self.executors.forward_diffusion_models_with_tensors(
-                model_keys=model_keys, positive=positive, negative=negative, **kwargs
-            ).get(rank_0_id)
-
-        return res
-
-    def forward_vae_encode(self, vae_key, **kwargs):
-        # TODO: support multi gpus vae encode
-        if self.is_ray:
-            func_futures = [executor.forward_vae_encode.remote(vae_key, **kwargs) for executor in self.executors]
-            gpus_res = ray.get(func_futures)
-            res = self.get_rank0_res(gpus_res)
-        else:
-            rank_0_id = 0
-            res = self.executors.forward_vae_encode(vae_key=vae_key, **kwargs).get(rank_0_id)
-        return res
-
-    def forward_vae_decode(self, vae_key, **kwargs):
-        # TODO: support multi gpus vae decode
-        if self.is_ray:
-            func_futures = [executor.forward_vae_decode.remote(vae_key, **kwargs) for executor in self.executors]
-            gpus_res = ray.get(func_futures)
-            res = self.get_rank0_res(gpus_res)
-        else:
-            rank_0_id = 0
-            res = self.executors.forward_vae_decode(vae_key=vae_key, **kwargs).get(rank_0_id)
-        return res

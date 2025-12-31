@@ -6,7 +6,7 @@ import torch.distributed as dist
 
 from ..distributed import sp_attn_forward
 from ..utils import log, time_range
-from ..utils.quant_utils import maybe_apply_dynamic_fp8_quant
+from ..utils.quantize import maybe_apply_dynamic_fp8_quant
 from ..utils.torch_compile import apply_torch_compile
 
 from .wan import WanModel
@@ -14,7 +14,7 @@ from .wan.configs import WAN2_2_CONFIGS
 from ..config import KsanaModelConfig, KsanaDistributedConfig
 from ksana.operations import build_ops, AttentionBackendEnum
 from .base_model import KsanaModel
-from ..utils.utils import any_key_in_str
+from ..utils.types import any_key_in_str
 from ..models.model_key import KsanaModelKey, WAN2_2, WAN2_1, X2V_TYPES
 
 

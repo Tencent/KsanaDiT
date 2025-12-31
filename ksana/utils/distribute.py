@@ -30,6 +30,40 @@ def get_torchrun_env() -> tuple:
     return world_size, rank_id, local_rank, local_world_size
 
 
+def get_rank_id_result(func_res: list | dict | None, rank_id: int = 0, check_no_none_res: bool = False):
+    """
+    default get rank 0 result
+    func_res :
+        - when single card:
+            - return func_res[rank_id] if func_res is dict else return full result func_res but not for list
+        - when multi-cards:
+            - can be list[any]
+            1. [dct{rank_id_1: [None, None, ...]}, dict{rank_id_0: [tensor, tensor, ...]}] return [tensor,tensor,...]
+            2. [dict{rank_id_1: None}, dict{rank_id_0: tensor}] return tensor
+            3. [[tensor, tensor], [tensor, tensor]] return [tensor,tensor] any list not None
+            4. [tensor, tensor] return tensor any one not None
+    """
+    if not isinstance(func_res, list):
+        if isinstance(func_res, dict):
+            return func_res.get(rank_id) if rank_id in func_res else func_res
+    any_rank_id = min(rank_id, len(func_res) - 1)
+    return_res = func_res[any_rank_id]
+    for one_rank_res in func_res:
+        if isinstance(one_rank_res, dict) and rank_id in one_rank_res:
+            return_res = one_rank_res.get(rank_id)
+            if check_no_none_res:
+                if return_res is None:
+                    raise ValueError(f"rank {rank_id} res can not be None: full func_res {func_res}")
+                elif isinstance(return_res, (list, tuple)):
+                    has_none = [x is None for x in return_res]
+                    if any(has_none):
+                        raise ValueError(f"rank {rank_id} res has None: {return_res}")
+            return return_res
+        else:
+            continue
+    return return_res
+
+
 def get_rank_id():
     """get rank in total world size"""
     if not dist.is_initialized():

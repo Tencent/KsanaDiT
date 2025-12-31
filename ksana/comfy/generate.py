@@ -65,7 +65,7 @@ def generate(
     run_dtype = model.run_dtype
     boundary = model.boundary
     ksana_generator = get_generator()
-    MemoryProfiler.record_memory("before_ksana_generator_generate_video_with_tensors")
+    MemoryProfiler.record_memory("before_ksana_generator_generate_with_tensors")
 
     latent_shape = latent_image.samples.shape
     _prepare_memory_for_ksana_models(
@@ -111,7 +111,7 @@ def generate(
         cache_configs=cache_configs,
         comfy_bar_callback=comfy_bar_callback,
     )
-    MemoryProfiler.record_memory("after_ksana_generator_generate_video_with_tensors")
+    MemoryProfiler.record_memory("after_ksana_generator_generate_with_tensors")
     if len(samples.shape) == 4:
         samples = samples.unsqueeze(0)
 

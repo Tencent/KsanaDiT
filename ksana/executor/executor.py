@@ -4,7 +4,6 @@ import torch
 import os
 import gc
 from datetime import datetime
-from dataclasses import asdict
 import torch.distributed as dist
 from functools import partial
 from PIL import Image
@@ -19,6 +18,7 @@ from ..config import (
     KsanaPipelineConfig,
 )
 
+from ..utils.types import evolve_with_recommend
 from ..utils.logger import init_logging
 
 from ..pipelines import create_ksana_pipeline
@@ -188,14 +188,10 @@ class KsanaExecutor(ABC):
         self.model_pool.update_model(vae)
         return vae.get_model_key()
 
-    def load_image(self, img_paths: list[str], target_len, device) -> torch.Tensor:
+    def load_image(self, img_paths: list[str], device) -> torch.Tensor:
         if img_paths is None:
             return None
         log.info(f"load input image: {img_paths}")
-        if len(img_paths) != 1 and len(img_paths) != target_len:
-            raise ValueError(
-                f"img_path length ({len(img_paths)}) must match prompt list length ({target_len}) or only one image"
-            )
         imgs = []
         shape = None
         for one_path in img_paths:
@@ -215,22 +211,14 @@ class KsanaExecutor(ABC):
 
     def images_to_latents(
         self,
-        img_path,
-        end_img_path,
+        img_path: list[str],
+        end_img_path: list[str],
         prompts_list_len: int,
         runtime_config: KsanaRuntimeConfig,
     ):
-        if not isinstance(img_path, (list, tuple)):
-            img_path = [img_path]
-        img_batch = self.load_image(img_path, prompts_list_len, device=self.offload_device)
+        img_batch = self.load_image(img_path, device=self.offload_device)
         if end_img_path is not None:
-            if not isinstance(end_img_path, (list, tuple)):
-                end_img_path = [end_img_path]
-            if len(end_img_path) != len(img_path):
-                raise ValueError(
-                    f"end_img_path length ({len(end_img_path)}) must match start_img_path length ({len(img_path)})"
-                )
-            end_img_batch = self.load_image(end_img_path, prompts_list_len, device=self.offload_device)
+            end_img_batch = self.load_image(end_img_path, device=self.offload_device)
         else:
             end_img_batch = None
 
@@ -250,17 +238,23 @@ class KsanaExecutor(ABC):
 
         return img_latents
 
-    def valid_prompts(self, prompt, target_len=None):
+    def _valid_input_str_to_list(self, input_str: str | list[str] | None) -> list[str]:
+        if input_str is None:
+            return []
+        if isinstance(input_str, str):
+            input_str = [input_str]
+        elif isinstance(input_str, (list, tuple)):
+            input_str = list(input_str)
+        else:
+            raise TypeError(f"input must be str or list[str], got {type(input_str)}")
+        if len(input_str) == 0:
+            raise ValueError(f"input must not be empty, but got {input_str}")
+        return input_str
+
+    def _valid_input_prompt(self, prompt, target_len=None):
         if prompt is None:
             return None
-        if isinstance(prompt, str):
-            prompts = [prompt]
-        elif isinstance(prompt, (list, tuple)):
-            prompts = list(prompt)
-        else:
-            raise TypeError(f"prompt must be str or list[str], got {type(prompt)}")
-        if len(prompts) == 0:
-            raise ValueError("prompt must not be empty")
+        prompts = self._valid_input_str_to_list(prompt)
         if target_len is not None:
             if len(prompts) == 1:
                 prompts = prompts * target_len
@@ -268,12 +262,10 @@ class KsanaExecutor(ABC):
                 raise ValueError(f"prompt length ({len(prompts)}) must match target length ({target_len})")
         return prompts
 
-    def valid_sample_config(self, sample_config: KsanaSampleConfig, num_prompts):
-        config_to_modify = sample_config if sample_config else KsanaSampleConfig()
-        # Convert the frozen dataclass to a mutable dictionary
-        config_dict = asdict(config_to_modify)
+    def _valid_sample_config(self, sample_config: KsanaSampleConfig, num_prompts):
+        sample_config = sample_config if sample_config else KsanaSampleConfig()
         # valid: batch_per_prompt to list
-        batch_per_prompt = config_dict.get("batch_per_prompt")
+        batch_per_prompt = sample_config.batch_per_prompt
         if batch_per_prompt is None:
             batch_per_prompt = [1] * num_prompts
         elif isinstance(batch_per_prompt, int):
@@ -285,12 +277,26 @@ class KsanaExecutor(ABC):
                 )
         else:
             raise TypeError(f"batch_per_prompt must be int|list[int]|None, got {type(batch_per_prompt)}")
-        config_dict["batch_per_prompt"] = batch_per_prompt
+        sample_config = evolve_with_recommend(sample_config, {"batch_per_prompt": batch_per_prompt}, force_update=True)
+        return sample_config
 
-        return KsanaSampleConfig(**config_dict)
+    def _valid_runtime_config(self, runtime_config: KsanaRuntimeConfig):
+        runtime_config = runtime_config if runtime_config else KsanaRuntimeConfig()
+        return runtime_config
+
+    def _valid_images(self, img_path, prompts_list_len: int):
+        if img_path is None:
+            return None
+        img_path = self._valid_input_str_to_list(img_path)
+        if len(img_path) != 1 and len(img_path) != prompts_list_len:
+            raise ValueError(
+                f"img_path length ({len(img_path)}) must match prompt list length ({prompts_list_len}) "
+                "or only one image"
+            )
+        return img_path
 
     @time_range
-    def generate_video(
+    def generate(
         self,
         prompt: str | list[str],
         *,
@@ -299,13 +305,15 @@ class KsanaExecutor(ABC):
         prompt_negative: str | list[str] = None,
         sample_config: KsanaSampleConfig = None,
         runtime_config: KsanaRuntimeConfig = None,
-        cache_configs: list[KsanaCacheConfig | KsanaHybridCacheConfig] = None,
+        cache_config: list[KsanaCacheConfig | KsanaHybridCacheConfig] = None,
     ):
-        prompts_list = self.valid_prompts(prompt)
-        prompts_negative_list = self.valid_prompts(prompt_negative, len(prompts_list))
+        prompts_list = self._valid_input_prompt(prompt)
+        prompts_negative_list = self._valid_input_prompt(prompt_negative, len(prompts_list))
+        sample_config = self._valid_sample_config(sample_config, num_prompts=len(prompts_list))
+        runtime_config = self._valid_runtime_config(runtime_config)
+        img_path = self._valid_images(img_path, len(prompts_list))
+        end_img_path = self._valid_images(end_img_path, len(prompts_list))
         with_end_image = end_img_path is not None
-        sample_config = self.valid_sample_config(sample_config, num_prompts=len(prompts_list))
-        runtime_config = runtime_config if runtime_config else KsanaRuntimeConfig()
 
         text_run_device = torch.device("cpu")  # TODO: maybe run text on cuda self.device
         positive, negative = self.pipeline.forward_text_encoder(
@@ -327,8 +335,9 @@ class KsanaExecutor(ABC):
                 runtime_config=runtime_config,
             )
 
-        if cache_configs is not None and not isinstance(cache_configs, list):
-            cache_configs = [cache_configs]
+        cache_configs = None
+        if cache_config is not None and not isinstance(cache_config, list):
+            cache_configs = [cache_config]
 
         latents = self.pipeline.forward_diffusion_models(
             model_pool=self.model_pool,
@@ -391,7 +400,7 @@ class KsanaExecutor(ABC):
         return {self.rank_id: latents}
 
     @time_range
-    def forward_diffusion_models_with_tensors(self, model_keys, positive, negative, **kwargs):
+    def forward_diffusion_models_with_tensors(self, *, model_keys, positive, negative, **kwargs):
         diffusion_models = self.model_pool.get_models(
             model_keys if isinstance(model_keys, (list, tuple)) else [model_keys]
         )

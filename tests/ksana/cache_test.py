@@ -25,7 +25,8 @@ from ksana.models.model_key import KsanaModelKey
 
 
 def check_cache_apis(class_type, config_type, model_key=KsanaModelKey.Wan2_2_T2V_14B_HIGH):
-    cache = class_type(model_key, config_type)
+    cache_config = config_type(steps=0) if config_type is CustomStepCacheConfig else config_type()
+    cache = class_type(model_key, cache_config)
     x = torch.randn(1, 14, 14, 14)
 
     if isinstance(cache, KsanaBlockCache):

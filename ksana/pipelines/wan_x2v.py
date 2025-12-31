@@ -1,4 +1,4 @@
-from .x2v import KsanaX2VPipeline, KsanaDefaultArgs
+from .base_x2x import KsanaX2XPipeline, KsanaDefaultArgs
 import os
 from ..models import KsanaWanModel, KsanaT5Encoder, KsanaVAE
 from dataclasses import dataclass, field
@@ -26,7 +26,7 @@ class WanLightLoraDefaultArgs(Wan2_2DefaultArgs):
     sample_solver: str = field(default="euler")
 
 
-class KsanaWanX2VPipeline(KsanaX2VPipeline):
+class KsanaWanX2VPipeline(KsanaX2XPipeline):
     def __init__(self, pipeline_config: KsanaPipelineConfig):
         """_summary_
 

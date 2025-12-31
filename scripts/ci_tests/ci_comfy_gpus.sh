@@ -25,4 +25,4 @@ unset http_proxy https_proxy HTTP_PROXY HTTPS_PROXY
 
 export KSANA_CI_MODELS_ROOT=/dockerdata/ci-models
 cd /data/ComfyUI/custom_nodes/KsanaDiT/tests/comfy
-python workflow_test.py --workflows-file ./test_configs.json --gpus ${GPU_CARDS} --seed 321 --port ${COMFYUI_PORT}
+python workflow_test.py --workflows-file ./test_configs.json --seed 321 --gpus ${GPU_CARDS} --port ${COMFYUI_PORT}
