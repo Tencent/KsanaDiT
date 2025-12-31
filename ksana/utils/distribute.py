@@ -30,6 +30,7 @@ def get_torchrun_env() -> tuple:
     return world_size, rank_id, local_rank, local_world_size
 
 
+# maybe to be removed
 def get_rank_id_result(func_res: list | dict | None, rank_id: int = 0, check_no_none_res: bool = False):
     """
     default get rank 0 result

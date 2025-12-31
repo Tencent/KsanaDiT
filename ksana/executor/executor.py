@@ -115,6 +115,9 @@ class KsanaExecutor(ABC):
         model_config: KsanaModelConfig = None,
         **kwargs,
     ):
+        """
+        Load models from model_path.
+        """
         self.clear()
         if not is_dir(model_path) and not isinstance(model_path, (list, tuple)):
             raise ValueError(f"model_path {model_path} is not exist, or not a directory")
@@ -361,14 +364,15 @@ class KsanaExecutor(ABC):
             torch.cuda.synchronize()
 
         self.save_videos(videos, prompts_list, runtime_config, sample_config.batch_per_prompt)
-        res = videos if self.rank_id == 0 and runtime_config.return_frames else None
         # videos shape [bs, ch:3, f, h, w]
-        return {self.rank_id: res}
+        return videos if (self.rank_id == 0 and runtime_config.return_frames) else None
 
     @time_range
     def forward_vae_encode(
         self, vae_key, *, frame_num: int, width: int, height: int, start_image=None, end_image=None, mask=None
     ):
+        if self.rank_id != 0:
+            return
         vae = self.model_pool.get_model(vae_key)
         log.info(
             f"vae_encode with vae_key: {vae_key}, frame_num: {frame_num}, width: {width}, height: {height}, "
@@ -376,10 +380,7 @@ class KsanaExecutor(ABC):
             f"end_image shape: {end_image.shape if end_image is not None else None}, "
             f"mask shape: {mask.shape if mask is not None else None}"
         )
-        if self.rank_id != 0:
-            return {self.rank_id: None}
-
-        latents = vae.forward_encode(
+        return vae.forward_encode(
             target_f=frame_num,
             target_h=height,
             target_w=width,
@@ -389,15 +390,11 @@ class KsanaExecutor(ABC):
             mask=mask,
             target_batch_size=1 if start_image is None else start_image.shape[0],
         )
-        return {self.rank_id: latents}
 
     @time_range
     def forward_vae_decode(self, vae_key, latents, with_end_image: bool = False):
         vae = self.model_pool.get_model(vae_key)
-        latents = vae.forward_decode(
-            latents, local_rank=self.rank_id, device=self.device, with_end_image=with_end_image
-        )
-        return {self.rank_id: latents}
+        return vae.forward_decode(latents, local_rank=self.rank_id, device=self.device, with_end_image=with_end_image)
 
     @time_range
     def forward_diffusion_models_with_tensors(self, *, model_keys, positive, negative, **kwargs):
@@ -413,8 +410,7 @@ class KsanaExecutor(ABC):
             **kwargs,
         )
         # only resturn latents on rank 0, since all rank have the same latents
-        res = latents if self.rank_id == 0 else None
-        return {self.rank_id: res}
+        return latents if self.rank_id == 0 else None
 
     def get_save_path(self, output_folder, out_size, prompt_text, save_id):
         formatted_time = datetime.now().strftime("%Y%m%d_%H%M%S")
