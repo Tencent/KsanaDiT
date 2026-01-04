@@ -1,14 +1,6 @@
-from .abstract import AttentionBackend, AttentionImpl, AttentionMetadata, AttentionMetadataBuilder
-from .flash_attn import FlashAttentionBackend
-from .sdpa import SDPABackend
-from .sage_attn import SageAttentionBackend
+from .base import KsanaAttentionBackend, KsanaAttentionBackendImpl
+from .flash_attn import FlashAttentionImpl
+from .sage_attn import SageAttentionImpl
+from .sdpa import SDPAImpl
 
-__all__ = [
-    "AttentionBackend",
-    "AttentionImpl",
-    "AttentionMetadata",
-    "AttentionMetadataBuilder",
-    "FlashAttentionBackend",
-    "SDPABackend",
-    "SageAttentionBackend",
-]
+__all__ = [KsanaAttentionBackend, KsanaAttentionBackendImpl, FlashAttentionImpl, SageAttentionImpl, SDPAImpl]

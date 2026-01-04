@@ -12,7 +12,7 @@ from ..utils.torch_compile import apply_torch_compile
 from .wan import WanModel
 from .wan.configs import WAN2_2_CONFIGS
 from ..config import KsanaModelConfig, KsanaDistributedConfig
-from ksana.operations import build_ops, AttentionBackendEnum
+from ksana.operations import build_ops, KsanaAttentionBackend
 from .base_model import KsanaModel
 from ..utils.types import any_key_in_str
 from ..models.model_key import KsanaModelKey, WAN2_2, WAN2_1, X2V_TYPES
@@ -376,7 +376,7 @@ class KsanaWanModel(KsanaDiffusionModel):
         operations = build_ops(
             self.run_dtype,
             model_state_dict,
-            attn_backend=AttentionBackendEnum.from_string(self.model_config.attn_backend),
+            attn_backend=KsanaAttentionBackend(self.model_config.attn_backend),
             linear_backend=self.model_config.linear_backend,
         )
         log.info(f"load_device:{load_device}, offload_device:{offload_device}")

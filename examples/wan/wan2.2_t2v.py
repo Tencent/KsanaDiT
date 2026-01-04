@@ -14,7 +14,7 @@ from ksana.config import (
 )
 
 from ksana.config.cache_config import KsanaHybridCacheConfig, DCacheConfig, DBCacheConfig
-
+from ksana.operations import KsanaAttentionBackend
 
 prompts = [
     "街头摄影，戴耳机的酷女孩滑板，纽约街头，涂鸦墙背景，动态姿势，风吹头发，黄金时刻光线，主体清晰背景虚化，街头潮牌。",
@@ -55,7 +55,7 @@ def run_fp8_models(args):
 
     model_config = KsanaModelConfig(
         run_dtype=torch.float16,
-        attn_backend="sage_attention",
+        attn_backend=KsanaAttentionBackend.SAGE_ATTN,
         linear_backend="fp8_gemm",
         torch_compile_config=KsanaTorchCompileConfig(),
     )
@@ -97,8 +97,7 @@ def run_with_lora(args):
 def run_advanced(args):
     model_config = KsanaModelConfig(
         run_dtype=torch.float16,
-        attn_backend="flash_attention",
-        # linear_backend="fp8_gemm",
+        attn_backend=KsanaAttentionBackend.FLASH_ATTN,
         torch_compile_config=KsanaTorchCompileConfig(),
     )
     generator = KsanaGenerator.from_models(
