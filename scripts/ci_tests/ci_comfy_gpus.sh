@@ -24,5 +24,5 @@ conda activate env-novelai
 unset http_proxy https_proxy HTTP_PROXY HTTPS_PROXY
 
 export KSANA_CI_MODELS_ROOT=/dockerdata/ci-models
-cd /data/ComfyUI/custom_nodes/KsanaDiT/tests/comfy
+cd /ci_workspace/${BK_CI_GIT_REPO_HEAD_COMMIT_ID}/tests/comfy
 python workflow_test.py --workflows-file ./test_configs.json --seed 321 --gpus ${GPU_CARDS} --port ${COMFYUI_PORT}
