@@ -21,5 +21,5 @@ conda activate env-novelai
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 export CUDA_VISIBLE_DEVICES=${GPU_CARDS}
 export KSANA_CI_MODELS_ROOT=/dockerdata/ci-models
-cd /data/ComfyUI/custom_nodes/KsanaDiT
+cd /ci_workspace/${BK_CI_GIT_REPO_HEAD_COMMIT_ID}/
 pytest -s -v tests/ksana/ --ignore=tests/ksana/models/gpus/

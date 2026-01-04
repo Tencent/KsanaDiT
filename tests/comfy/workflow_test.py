@@ -155,7 +155,14 @@ def test_workflow(workflow_path: str, params: dict, expect_values: Optional[dict
         return False
 
 
-def run_workflows_batch(workflow_configs: list, seed: int, num_gpus: int, port: int, restart_server: bool) -> bool:
+def run_workflows_batch(
+    comfyui_root: str,
+    workflow_configs: list,
+    seed: int,
+    num_gpus: int,
+    port: int,
+    restart_server: bool,
+) -> bool:
     """批量运行 workflow 测试
 
     Args:
@@ -171,7 +178,7 @@ def run_workflows_batch(workflow_configs: list, seed: int, num_gpus: int, port: 
     all_success = True
 
     if not restart_server:
-        server_process = start_server(port=port)
+        server_process = start_server(comfyui_root=comfyui_root, port=port)
 
     for i, configs in enumerate(workflow_configs, 1):
         if isinstance(configs, dict):
@@ -180,7 +187,7 @@ def run_workflows_batch(workflow_configs: list, seed: int, num_gpus: int, port: 
         logger.info(f"开始执行 workflow 配置组 [{i}/{len(workflow_configs)}] {workflow_path_list}")
         for j, config in enumerate(configs, 1):
             if restart_server:
-                server_process = start_server(port=port)
+                server_process = start_server(comfyui_root=comfyui_root, port=port)
             config["seed"] = seed
             logger.info("=" * 60)
             logger.info(f"执行 workflow [{j}/{len(configs)}]")
@@ -288,7 +295,12 @@ def create_argument_parser():
         default="0",
         help="指定使用的 GPU，用逗号分隔（例如: 0,1）(默认: 0)",
     )
-
+    parser.add_argument(
+        "--comfyui_root",
+        type=str,
+        default="/data/ComfyUI",
+        help="ComfyUI 根目录，默认自动推断",
+    )
     parser.add_argument(
         "--workflows-file",
         type=str,
@@ -340,6 +352,7 @@ def main():
                 continue
             logger.info(f"开始执行 {test_type} 测试..., restart_server: {restart_server}")
             all_success = run_workflows_batch(
+                comfyui_root=args.comfyui_root,
                 workflow_configs=workflow_configs[test_type],
                 seed=args.seed,
                 num_gpus=num_gpus,
