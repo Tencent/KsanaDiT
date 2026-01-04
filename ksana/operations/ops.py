@@ -1,6 +1,6 @@
 import torch
 
-from .attention import pick_attn_op, AttentionBackendEnum
+from .attention import pick_attn_op, KsanaAttentionBackend
 from .linear import pick_linear
 
 
@@ -102,7 +102,7 @@ def build_ops(
     run_dtype,
     state_dict,
     linear_backend: str,
-    attn_backend: AttentionBackendEnum = AttentionBackendEnum.FLASH_ATTN,
+    attn_backend: KsanaAttentionBackend = KsanaAttentionBackend.FLASH_ATTN,
     load_device=None,
 ):
     ops = Ops()

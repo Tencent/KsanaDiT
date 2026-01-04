@@ -1,8 +1,8 @@
 from functools import partial
 
-from .selector import AttentionBackendEnum
-from .attention_op import LocalAttentionOp
+from .backends import KsanaAttentionBackend
+from .attention_op import KsanaAttentionOp
 
 
-def pick_attn_op(backend: AttentionBackendEnum = AttentionBackendEnum.FLASH_ATTN):
-    return partial(LocalAttentionOp, attn_backend=backend)
+def pick_attn_op(backend: KsanaAttentionBackend):
+    return partial(KsanaAttentionOp, attn_backend=backend)

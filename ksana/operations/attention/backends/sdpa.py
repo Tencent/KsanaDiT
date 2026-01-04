@@ -1,35 +1,27 @@
-from __future__ import annotations
+from .base import KsanaAttentionBackend, KsanaAttentionBackendImpl
 
-from typing import Any, Optional
 
 import torch
 import torch.nn.functional as F
 
-from .abstract import AttentionBackend, AttentionImpl, AttentionMetadata
 
-
-class SDPABackend(AttentionBackend):
-    accept_output_buffer: bool = True
+class SDPAImpl(KsanaAttentionBackendImpl):
+    @staticmethod
+    def type() -> KsanaAttentionBackend:
+        return KsanaAttentionBackend.TORCH_SDPA
 
     @staticmethod
-    def get_name() -> str:
-        return "TORCH_SDPA"
+    def supports(**_) -> bool:
+        return torch.cuda.is_available()
 
-    @staticmethod
-    def get_impl_cls() -> type["SDPAImpl"]:
-        return SDPAImpl
-
-
-class SDPAImpl(AttentionImpl[AttentionMetadata]):
     def __init__(
         self,
         num_heads: int,
         head_size: int,
         causal: bool,
         softmax_scale: float,
-        num_kv_heads: Optional[int] = None,
-        prefix: str = "",
-        **extra_impl_args: Any,
+        num_kv_heads: int = None,
+        **extra_impl_args,
     ) -> None:
         self.causal = causal
         self.softmax_scale = softmax_scale
@@ -40,13 +32,12 @@ class SDPAImpl(AttentionImpl[AttentionMetadata]):
         query: torch.Tensor,
         key: torch.Tensor,
         value: torch.Tensor,
-        attn_metadata: Optional[AttentionMetadata],
         *,
-        q_lens: Optional[torch.Tensor] = None,
-        k_lens: Optional[torch.Tensor] = None,
-        dropout_p: Optional[float] = None,
-        softmax_scale: Optional[float] = None,
-        **_: Any,
+        q_lens: torch.Tensor = None,
+        k_lens: torch.Tensor = None,
+        dropout_p: float = None,
+        softmax_scale: float = None,
+        **_,
     ) -> torch.Tensor:
         drop = self.dropout if dropout_p is None else dropout_p
         scale = self.softmax_scale if softmax_scale is None else softmax_scale

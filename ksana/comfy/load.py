@@ -5,6 +5,7 @@ from ksana import get_generator
 from ksana.config import KsanaModelConfig, KsanaDistributedConfig
 from ksana.utils.profile import MemoryProfiler
 from .output_types import KsanaComfyModelLoaderOutput
+from ksana.operations.attention import KsanaAttentionBackend
 
 
 class KsanaComfyModelLoader:
@@ -16,7 +17,7 @@ class KsanaComfyModelLoader:
         model_name,
         run_dtype="float16",
         linear_backend="default",
-        attn_backend="default",
+        attn_backend=KsanaAttentionBackend.FLASH_ATTN,
         num_gpus="default",
         low_noise_model_name="Empty",
         model_boundary=None,
@@ -30,6 +31,9 @@ class KsanaComfyModelLoader:
         else:
             comfyui_progress_bar = comfy_progress_bar_func(1 if low_noise_model_name == "Empty" else 2)
 
+        if not KsanaAttentionBackend.support(attn_backend):
+            raise ValueError(f"attn_backend {attn_backend} not in {KsanaAttentionBackend.get_supported_list()}")
+
         def comfy_bar_callback():
             if comfyui_progress_bar is None:
                 return
@@ -38,7 +42,7 @@ class KsanaComfyModelLoader:
         model_config = KsanaModelConfig(
             run_dtype=run_dtype,
             linear_backend=linear_backend,
-            attn_backend=attn_backend,
+            attn_backend=KsanaAttentionBackend(attn_backend),
             torch_compile_config=torch_compile_args,
         )
 

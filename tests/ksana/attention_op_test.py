@@ -2,7 +2,7 @@ import unittest
 import torch
 import torch.nn.functional as F
 
-from ksana.operations import AttentionBackendEnum, pick_attn_op, FlashAttentionBackend, SageAttentionBackend
+from ksana.operations.attention import KsanaAttentionBackend, pick_attn_op
 
 
 B, L, H, D = 2, 32, 64, 128  # batch, seq_len, num_heads, head_dim
@@ -50,79 +50,64 @@ class TestLocalAttentionOpBackends(unittest.TestCase):
 
         # Set deterministic seed for reproducible logs
         torch.manual_seed(0)
-        attn = pick_attn_op(backend=AttentionBackendEnum.TORCH_SDPA)
+        attn = pick_attn_op(backend=KsanaAttentionBackend.TORCH_SDPA)
         attn = attn(
             num_heads=H,
             head_size=D,
             causal=False,
-            supported_attention_backends=(AttentionBackendEnum.TORCH_SDPA,),
         )
 
         out = attn(q, k, v)
 
-        print(f"[SDPA] backend={attn.backend_name}, device={q.device}, dtype={q.dtype}, " f"shape={tuple(q.shape)}")
+        print(f"[SDPA] backend={attn.backend_type}, device={q.device}, dtype={q.dtype}, " f"shape={tuple(q.shape)}")
 
         self.assertEqual(out.shape, q.shape)
         self.assertFalse(torch.isnan(out).any())
 
-    @unittest.skipIf(
-        not FlashAttentionBackend.is_available() or not torch.cuda.is_available(),
-        "FlashAttention backend not available or CUDA not found.",
-    )
     def test_flash_attn_cuda(self) -> None:
         """FlashAttention backend should initialize and run on CUDA."""
         device = torch.device("cuda")
         q, k, v = _make_inputs(device=device, dtype=torch.float16)
 
         torch.manual_seed(0)
-        attn = pick_attn_op(backend=AttentionBackendEnum.FLASH_ATTN)
+        attn = pick_attn_op(backend=KsanaAttentionBackend.FLASH_ATTN)
         attn = attn(
             num_heads=H,
             head_size=D,
             causal=False,
-            supported_attention_backends=(AttentionBackendEnum.FLASH_ATTN,),
         )
 
         out = attn(q, k, v)
 
         print(
-            f"[FLASH_ATTN] backend={attn.backend_name}, device={q.device}, dtype={q.dtype}, " f"shape={tuple(q.shape)}"
+            f"[FLASH_ATTN] backend={attn.backend_type}, device={q.device}, dtype={q.dtype}, " f"shape={tuple(q.shape)}"
         )
 
         self.assertEqual(out.shape, q.shape)
         self.assertFalse(torch.isnan(out).any())
 
-    @unittest.skipIf(
-        not SageAttentionBackend.is_available() or not torch.cuda.is_available(),
-        "SageAttention backend or CUDA not available.",
-    )
     def test_sage_attn_cuda(self) -> None:
         """SageAttention backend should initialize and run on CUDA."""
         device = torch.device("cuda")
         q, k, v = _make_inputs(device=device, dtype=torch.float16)
 
         torch.manual_seed(0)
-        attn = pick_attn_op(backend=AttentionBackendEnum.SAGE_ATTN)
+        attn = pick_attn_op(backend=KsanaAttentionBackend.SAGE_ATTN)
         attn = attn(
             num_heads=H,
             head_size=D,
             causal=False,
-            supported_attention_backends=(AttentionBackendEnum.SAGE_ATTN,),
         )
 
         out = attn(q, k, v)
 
         print(
-            f"[SAGE_ATTN] backend={attn.backend_name}, device={q.device}, dtype={q.dtype}, " f"shape={tuple(q.shape)}"
+            f"[SAGE_ATTN] backend={attn.backend_type}, device={q.device}, dtype={q.dtype}, " f"shape={tuple(q.shape)}"
         )
 
         self.assertEqual(out.shape, q.shape)
         self.assertFalse(torch.isnan(out).any())
 
-    @unittest.skipIf(
-        not FlashAttentionBackend.is_available() or not torch.cuda.is_available(),
-        "FlashAttention backend not available or CUDA not found.",
-    )
     def test_flash_attn_accuracy_vs_sdpa(self) -> None:
         """FlashAttention output should be numerically close to SDPA baseline."""
         device = torch.device("cuda")
@@ -133,29 +118,24 @@ class TestLocalAttentionOpBackends(unittest.TestCase):
         # Baseline with PyTorch SDPA on the same device / dtype
         ref = _sdpa_reference(q, k, v, causal=False)
 
-        attn = pick_attn_op(backend=AttentionBackendEnum.FLASH_ATTN)
+        attn = pick_attn_op(backend=KsanaAttentionBackend.FLASH_ATTN)
         attn = attn(
             num_heads=H,
             head_size=D,
             causal=False,
-            supported_attention_backends=(AttentionBackendEnum.FLASH_ATTN,),
         )
         out = attn(q, k, v)
 
         diff = (out - ref).abs()
         print(
             "[FLASH_ATTN][accuracy] "
-            f"backend={attn.backend_name}, max_diff={diff.max().item():.4e}, "
+            f"backend={attn.backend_type}, max_diff={diff.max().item():.4e}, "
             f"mean_diff={diff.mean().item():.4e}"
         )
 
         self.assertEqual(out.shape, ref.shape)
         torch.testing.assert_close(out, ref, rtol=1e-2, atol=1e-3)
 
-    @unittest.skipIf(
-        not SageAttentionBackend.is_available() or not torch.cuda.is_available(),
-        "SageAttention backend or CUDA not available.",
-    )
     def test_sage_attn_accuracy_vs_sdpa(self) -> None:
         """SageAttention output should be numerically close to SDPA baseline."""
         device = torch.device("cuda")
@@ -166,19 +146,18 @@ class TestLocalAttentionOpBackends(unittest.TestCase):
         # Baseline with PyTorch SDPA on the same device / dtype
         ref = _sdpa_reference(q, k, v, causal=False)
 
-        attn = pick_attn_op(backend=AttentionBackendEnum.SAGE_ATTN)
+        attn = pick_attn_op(backend=KsanaAttentionBackend.SAGE_ATTN)
         attn = attn(
             num_heads=H,
             head_size=D,
             causal=False,
-            supported_attention_backends=(AttentionBackendEnum.SAGE_ATTN,),
         )
         out = attn(q, k, v)
 
         diff = (out - ref).abs()
         print(
             "[SAGE_ATTN][accuracy] "
-            f"backend={attn.backend_name}, max_diff={diff.max().item():.4e}, "
+            f"backend={attn.backend_type}, max_diff={diff.max().item():.4e}, "
             f"mean_diff={diff.mean().item():.4e}"
         )
 

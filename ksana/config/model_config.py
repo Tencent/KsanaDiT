@@ -1,16 +1,16 @@
 from dataclasses import dataclass, field
 
-# from easydict import EasyDict
 import torch
 
 from .torch_compile_config import KsanaTorchCompileConfig
+from ..operations import KsanaAttentionBackend
 
 
 @dataclass()
 class KsanaModelConfig:
     run_dtype: torch.dtype | str = field(default=torch.float16)
     linear_backend: str | None = field(default="fp16_gemm")
-    attn_backend: str | None = field(default="flash_attention")
+    attn_backend: KsanaAttentionBackend | None = field(default=KsanaAttentionBackend.FLASH_ATTN)
     torch_compile_config: KsanaTorchCompileConfig | None = field(default=None)
 
     def __post_init__(self):
@@ -30,7 +30,7 @@ class KsanaModelConfig:
             "fp8_gemm_dynamic",
             "fp16_gemm",
         ], f"linear_backend {self.linear_backend} not supported"
-        assert self.attn_backend in [
-            "flash_attention",
-            "sage_attention",
-        ], f"attn_backend {self.attn_backend} not supported"
+        if not KsanaAttentionBackend.support(self.attn_backend):
+            raise ValueError(
+                f"attn_backend {self.attn_backend} not supported in {KsanaAttentionBackend.get_supported_list()}"
+            )

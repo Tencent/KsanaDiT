@@ -12,6 +12,7 @@ from ksana.config import (
     KsanaSampleConfig,
 )
 
+from ksana.operations import KsanaAttentionBackend
 
 prompts = [
     "女孩扇子轻微挥动,吹口仙气后,手上的闪电飞到空中开始打雷",
@@ -57,7 +58,7 @@ def run_start_and_end_with_lora(args):
 
     model_config = KsanaModelConfig(
         run_dtype=torch.float16,
-        attn_backend="sage_attention",
+        attn_backend=KsanaAttentionBackend.SAGE_ATTN,
     )
 
     generator = KsanaGenerator.from_models(

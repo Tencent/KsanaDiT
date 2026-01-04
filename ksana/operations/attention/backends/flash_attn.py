@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from typing import Any, Optional
-
 import torch
 
 try:
@@ -20,66 +18,53 @@ except ModuleNotFoundError:
     flash_attn_3_func = None  # type: ignore[assignment]
     _FLASH_ATTN_3_AVAILABLE = False
 
-from .abstract import AttentionBackend, AttentionImpl, AttentionMetadata
+from .base import KsanaAttentionBackend, KsanaAttentionBackendImpl
 
 
-class FlashAttentionBackend(AttentionBackend):
-    accept_output_buffer: bool = True
-
-    @staticmethod
-    def get_name() -> str:
-        return "FLASH_ATTN"
+class FlashAttentionImpl(KsanaAttentionBackendImpl):
 
     @staticmethod
-    def get_impl_cls() -> type["FlashAttentionImpl"]:
-        return FlashAttentionImpl
+    def type() -> KsanaAttentionBackend:
+        return KsanaAttentionBackend.FLASH_ATTN
 
     @staticmethod
-    def is_available() -> bool:
-        return _FLASH_ATTN_2_AVAILABLE or _FLASH_ATTN_3_AVAILABLE
+    def supports(**_) -> bool:
+        installed = _FLASH_ATTN_2_AVAILABLE or _FLASH_ATTN_3_AVAILABLE
+        return installed and torch.cuda.is_available()
 
-    @staticmethod
-    def supports(head_size: int, dtype: torch.dtype) -> bool:
-        return FlashAttentionBackend.is_available() and torch.cuda.is_available()
-
-
-class FlashAttentionImpl(AttentionImpl[AttentionMetadata]):
     def __init__(
         self,
         num_heads: int,
         head_size: int,
         causal: bool,
         softmax_scale: float,
-        num_kv_heads: Optional[int] = None,
-        prefix: str = "",
-        **extra_impl_args: Any,
+        num_kv_heads: int | None = None,
+        **extra_impl_args,
     ) -> None:
         self.causal = causal
         self.softmax_scale = softmax_scale
         self.num_heads = num_heads
         self.head_size = head_size
         self.num_kv_heads = num_kv_heads or num_heads
-        self.prefix = prefix
 
     def forward(
         self,
         query: torch.Tensor,
         key: torch.Tensor,
         value: torch.Tensor,
-        attn_metadata: Optional[AttentionMetadata],
         *,
-        q_lens: Optional[torch.Tensor] = None,
-        k_lens: Optional[torch.Tensor] = None,
+        q_lens: torch.Tensor | None = None,
+        k_lens: torch.Tensor | None = None,
         dropout_p: float = 0.0,
-        softmax_scale: Optional[float] = None,
-        q_scale: Optional[torch.Tensor] = None,
-        causal: Optional[bool] = None,
+        softmax_scale: float | None = None,
+        q_scale: torch.Tensor | None = None,
+        causal: bool | None = None,
         window_size: tuple[int, int] = (-1, -1),
         deterministic: bool = False,
-        fa_version: Optional[int] = None,
-        **_: Any,
+        fa_version: int | None = None,
+        **_,
     ) -> torch.Tensor:
-        if not FlashAttentionBackend.is_available():
+        if not FlashAttentionImpl.supports():
             raise RuntimeError("FlashAttention backend requested but not installed.")
 
         device = query.device

@@ -1,7 +1,4 @@
-from __future__ import annotations
-
-import logging
-from typing import Any, Optional
+from .base import KsanaAttentionBackend, KsanaAttentionBackendImpl
 
 import torch
 
@@ -13,41 +10,25 @@ except ModuleNotFoundError:
     sageattn = None  # type: ignore[assignment]
     _SAGE_AVAILABLE = False
 
-from .abstract import AttentionBackend, AttentionImpl, AttentionMetadata
 
-logger = logging.getLogger(__name__)
-
-
-class SageAttentionBackend(AttentionBackend):
-    accept_output_buffer: bool = True
+class SageAttentionImpl(KsanaAttentionBackendImpl):
 
     @staticmethod
-    def get_name() -> str:
-        return "SAGE_ATTN"
+    def type() -> KsanaAttentionBackend:
+        return KsanaAttentionBackend.SAGE_ATTN
 
     @staticmethod
-    def is_available() -> bool:
+    def supports(**_) -> bool:
         return _SAGE_AVAILABLE
 
-    @staticmethod
-    def supports(head_size: int, dtype: torch.dtype) -> bool:
-        return _SAGE_AVAILABLE
-
-    @staticmethod
-    def get_impl_cls() -> type["SageAttentionImpl"]:
-        return SageAttentionImpl
-
-
-class SageAttentionImpl(AttentionImpl[AttentionMetadata]):
     def __init__(
         self,
         num_heads: int,
         head_size: int,
         causal: bool,
         softmax_scale: float,
-        num_kv_heads: Optional[int] = None,
-        prefix: str = "",
-        **extra_impl_args: Any,
+        num_kv_heads: int | None = None,
+        **extra_impl_args,
     ) -> None:
         if not _SAGE_AVAILABLE:
             raise RuntimeError("SageAttention backend requested but 'sageattention' package is not installed. ")
@@ -60,8 +41,7 @@ class SageAttentionImpl(AttentionImpl[AttentionMetadata]):
         query: torch.Tensor,
         key: torch.Tensor,
         value: torch.Tensor,
-        attn_metadata: Optional[AttentionMetadata],
-        **kwargs: Any,
+        **kwargs,
     ) -> torch.Tensor:
         if sageattn is None:
             raise RuntimeError("sageattention module missing at runtime.")
