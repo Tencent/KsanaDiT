@@ -54,14 +54,14 @@ def modify_workflow_params(api_prompt: dict, params: dict) -> dict:
             if "rope_function" in params and "rope_function" in inputs:
                 inputs["rope_function"] = params["rope_function"]
 
-        # EmptyHunyuanLatentVideo: 修改 width, height, length
-        elif class_type == "EmptyHunyuanLatentVideo":
+        # KsanaVAEEncodeNode: 修改 width, height, length
+        elif class_type == "KsanaVAEEncodeNode":
             if "width" in params and "width" in inputs:
                 inputs["width"] = params["width"]
             if "height" in params and "height" in inputs:
                 inputs["height"] = params["height"]
             if "frames" in params and "length" in inputs:
-                inputs["length"] = params["frames"]
+                inputs["num_frames"] = params["frames"]
 
         # KsanaModelLoaderNode: 根据命令行参数修改模型
         elif class_type == "KsanaModelLoaderNode":
