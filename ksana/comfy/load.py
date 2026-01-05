@@ -66,12 +66,16 @@ class KsanaComfyModelLoader:
         ksana_generator = get_generator(dist_config=KsanaDistributedConfig(num_gpus=num_gpus))
         if cls.LOADED_MODEL is not None:
             ksana_generator.clear_models(cls.LOADED_MODEL)
-        cls.LOADED_MODEL = ksana_generator.load_diffusion_model(
-            model_path=(high_model_path, low_model_path) if low_model_path is not None else high_model_path,
-            model_config=model_config,
-            comfy_bar_callback=comfy_bar_callback,
-            lora=[high_model_loras_list, low_model_loras_list],
-        )
+        try:
+            cls.LOADED_MODEL = ksana_generator.load_diffusion_model(
+                model_path=(high_model_path, low_model_path) if low_model_path is not None else high_model_path,
+                model_config=model_config,
+                comfy_bar_callback=comfy_bar_callback,
+                lora=[high_model_loras_list, low_model_loras_list],
+            )
+        except Exception as e:
+            log.warning(f"load_diffusion_model failed, because {e}")
+            cls.LOADED_MODEL = None
         MemoryProfiler.record_memory(f"after_load_{model_name}, {low_noise_model_name}")
         return KsanaComfyModelLoaderOutput(
             model=cls.LOADED_MODEL,
