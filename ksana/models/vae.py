@@ -183,9 +183,11 @@ class KsanaVAE(KsanaModel):
         if current_device != device:
             self.to(device)
         torch.cuda.empty_cache()
-        # TODO: every node should check memory usage before forward
-        # and offload other models to cpu if necessary
-        latents = self.decode(latents, with_end_image=with_end_image)
+        # TODO: Enable batch decoding when latent size is small enough to fit in memory
+        decoded_latents = []
+        for i in range(latents.shape[0]):
+            decoded_latents.append(self.decode(latents[i : i + 1], with_end_image=with_end_image))
+        latents = torch.cat(decoded_latents, dim=0)
         self.to(current_device)
         if with_end_image:
             latents = latents[:, :, 0:-1]
