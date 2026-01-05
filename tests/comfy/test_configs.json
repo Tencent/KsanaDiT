@@ -2,7 +2,7 @@
   "independent_tests":
   [
     {
-      "workflow_path": "../../comfyui/examples/wan/t2v/wan2.2_t2v_fp16_lightning_4steps_lora.json",
+      "workflow_path": "../../comfyui/benchmarks/wan/wan2.2_t2v_fp16_lightning.json",
       "steps": 1,
       "width": 720,
       "height": 480,
@@ -20,7 +20,7 @@
       }
     },
     {
-      "workflow_path": "../../comfyui/examples/wan/i2v/wan2.2_i2v_fp16_lightning_4steps_lora.json",
+      "workflow_path": "../../comfyui/benchmarks/wan/wan2.2_i2v_fp16_lightning.json",
       "steps": 1,
       "width": 720,
       "height": 480,
