@@ -77,7 +77,8 @@ class KsanaExecutor(ABC):
 
     def create_pipeline(self, dir, model_config: KsanaModelConfig = None):
         if self.pipeline is not None:
-            return self.pipeline
+            log.info("recreate pipeline")
+            self.pipeline.clear()
         model_name = os.path.basename(dir)
         model_name, task_type, model_size = KsanaDiffusionModel.get_model_type(model_name)
         default_pipeline_config = KsanaDiffusionModel.get_default_pipeline_config(model_name, task_type, model_size)
