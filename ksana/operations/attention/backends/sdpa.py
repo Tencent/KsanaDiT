@@ -1,8 +1,7 @@
-from .base import KsanaAttentionBackend, KsanaAttentionBackendImpl
-
-
 import torch
 import torch.nn.functional as F
+
+from .base import KsanaAttentionBackend, KsanaAttentionBackendImpl
 
 
 class SDPAImpl(KsanaAttentionBackendImpl):

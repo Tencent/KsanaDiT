@@ -1,8 +1,9 @@
-import ray
 import os
 
-from .executor import KsanaExecutor
+import ray
+
 from ..config import KsanaDistributedConfig
+from .executor import KsanaExecutor
 
 
 @ray.remote(num_gpus=1)

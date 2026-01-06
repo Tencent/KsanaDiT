@@ -1,14 +1,14 @@
 from ksana import get_generator
-from ksana.config import KsanaSampleConfig, KsanaRuntimeConfig
-from ksana.utils.profile import MemoryProfiler
-from ksana.utils import log
+from ksana.config import KsanaRuntimeConfig, KsanaSampleConfig
 from ksana.models.diffusion import KsanaDiffusionModel
+from ksana.utils import log
 from ksana.utils.memory import (
+    MEMORY_USAGE_FACTOR_MAP,
+    MODEL_SIZE_MAP,
     estimate_ksana_model_memory,
     get_available_memory,
-    MODEL_SIZE_MAP,
-    MEMORY_USAGE_FACTOR_MAP,
 )
+from ksana.utils.profile import MemoryProfiler
 
 from .output_types import KsanaComfyGeneratorOutput
 

@@ -1,12 +1,12 @@
-from .base_cache import KsanaStepCache
-from ..config.cache_config import DCacheConfig
 import numpy as np
 import torch
 
+from ..config.cache_config import DCacheConfig
 from ..models.model_key import KsanaModelKey
 from ..utils import log
 from ..utils.torch_compile import disable_dynamo
 from ..utils.types import evolve_with_recommend
+from .base_cache import KsanaStepCache
 
 __all__ = ["DCache"]
 
@@ -91,7 +91,8 @@ class DCache(KsanaStepCache):
         base_no_in_use_info = f"[MISS cache] phase {phase} step_iter {step_iter} timestep {timestep}"
         if self.total_cnt[phase] <= self.config.skip_first_n_iter:
             log.debug(
-                f"{base_no_in_use_info}, by skip first {self.config.skip_first_n_iter} iter, current iter {self.total_cnt[phase]}"
+                f"{base_no_in_use_info}, by skip first {self.config.skip_first_n_iter} iter, "
+                f"current iter {self.total_cnt[phase]}"
             )
             return False
         if self.prev_diff[phase] is None:

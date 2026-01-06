@@ -4,18 +4,18 @@ from abc import abstractmethod
 import torch
 import torch.distributed as dist
 
+from ksana.operations import KsanaLinearBackend, build_ops
+
+from ..config import KsanaDistributedConfig, KsanaModelConfig
 from ..distributed import sp_attn_forward
+from ..models.model_key import WAN2_1, WAN2_2, X2V_TYPES, KsanaModelKey
 from ..utils import log, time_range
 from ..utils.quantize import maybe_apply_dynamic_fp8_quant
 from ..utils.torch_compile import apply_torch_compile
-
+from ..utils.types import any_key_in_str
+from .base_model import KsanaModel
 from .wan import WanModel
 from .wan.configs import WAN2_2_CONFIGS
-from ..config import KsanaModelConfig, KsanaDistributedConfig
-from ksana.operations import build_ops, KsanaLinearBackend
-from .base_model import KsanaModel
-from ..utils.types import any_key_in_str
-from ..models.model_key import KsanaModelKey, WAN2_2, WAN2_1, X2V_TYPES
 
 
 class KsanaDiffusionModel(KsanaModel):
@@ -28,9 +28,10 @@ class KsanaDiffusionModel(KsanaModel):
         self.dist_config = dist_config
 
         if self.dist_config.ulysses_size > 1:
-            assert (
-                self.pipeline_config.default_config.num_heads % self.dist_config.ulysses_size == 0
-            ), f"`{self.pipeline_config.default_config.num_heads}` cannot be divided evenly by `{self.dist_config.ulysses_size}`."
+            assert self.pipeline_config.default_config.num_heads % self.dist_config.ulysses_size == 0, (
+                f"`{self.pipeline_config.default_config.num_heads}` cannot be divided evenly "
+                f"by `{self.dist_config.ulysses_size}`."
+            )
         if dist_config.use_sp:
             self.sp_size = dist_config.num_gpus
         else:
@@ -91,7 +92,8 @@ class KsanaDiffusionModel(KsanaModel):
                 offset += numel
 
         log.info(
-            f"Unified pinned buffer allocated successfully, total: {total_memory_gb:.2f} GB across {len(dtype_groups)} dtype(s)"
+            f"Unified pinned buffer allocated successfully, "
+            f"total: {total_memory_gb:.2f} GB across {len(dtype_groups)} dtype(s)"
         )
         self._preallocated_pinned_memory = True
 

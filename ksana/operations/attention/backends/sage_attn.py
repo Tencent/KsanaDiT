@@ -1,6 +1,6 @@
-from .base import KsanaAttentionBackend, KsanaAttentionBackendImpl
-
 import torch
+
+from .base import KsanaAttentionBackend, KsanaAttentionBackendImpl
 
 try:
     from sageattention import sageattn

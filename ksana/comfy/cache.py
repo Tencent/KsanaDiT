@@ -1,13 +1,13 @@
 from ksana.config.cache_config import (
-    KsanaBlockCacheConfig,
-    KsanaStepCacheConfig,
-    DCacheConfig,
     CustomStepCacheConfig,
-    KsanaHybridCacheConfig,
-    TeaCacheConfig,
-    EasyCacheConfig,
-    MagCacheConfig,
     DBCacheConfig,
+    DCacheConfig,
+    EasyCacheConfig,
+    KsanaBlockCacheConfig,
+    KsanaHybridCacheConfig,
+    KsanaStepCacheConfig,
+    MagCacheConfig,
+    TeaCacheConfig,
 )
 
 

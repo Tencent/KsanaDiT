@@ -1,15 +1,17 @@
+import cProfile
+import csv
+import functools
+import os
+import pstats
+import time
+from typing import Callable, Optional, Union
+
+import torch
 import torch.cuda.nvtx as nvtx
 from pyinstrument import Profiler
-import cProfile
-from .logger import log
-import time
-import functools
-import pstats
-import torch
-import os
-import csv
+
 from .env import KSANA_MEMORY_PROFILER
-from typing import Callable, Optional, Union
+from .logger import log
 
 global g_cprofiler
 g_cprofiler = cProfile.Profile()
@@ -237,5 +239,6 @@ class MemoryProfiler:
             )
 
         log.info(
-            f"[{project_name}] Memory usage recorded for tag '{tag}': Allocated={allocated/1024**3:.2f}GB, Reserved={reserved/1024**3:.2f}GB, Max_Allocated={max_allocated/1024**3:.2f}GB"
+            f"[{project_name}] Memory usage recorded for tag '{tag}': Allocated={allocated/1024**3:.2f}GB, "
+            f"Reserved={reserved/1024**3:.2f}GB, Max_Allocated={max_allocated/1024**3:.2f}GB"
         )

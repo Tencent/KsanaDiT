@@ -5,9 +5,8 @@ from .fm_solvers import (
     get_sampling_sigmas,
     retrieve_timesteps,
 )
-from .fm_solvers_unipc import FlowUniPCMultistepScheduler
 from .fm_solvers_euler import EulerScheduler
-
+from .fm_solvers_unipc import FlowUniPCMultistepScheduler
 
 SUPPORTED_SOLVERS = ["uni_pc", "dpm++", "euler"]
 

@@ -20,19 +20,18 @@ Reference:
     https://github.com/vipshop/cache-dit
 """
 
-from typing import Optional, Dict, Tuple, Any
 from dataclasses import dataclass, field
+from typing import Any, Dict, Optional, Tuple
 
 import torch
 
-from .base_cache import KsanaBlockCache
 from ..config.cache_config import DBCacheConfig
 from ..utils import log
+from .base_cache import KsanaBlockCache
 
 __all__ = ["DBCache", "DBCacheContext"]
 
 from ..models.model_key import KsanaModelKey
-
 from ..utils.torch_compile import disable_dynamo
 from ..utils.types import evolve_with_recommend
 
@@ -191,9 +190,10 @@ class DBCache(KsanaBlockCache):
         # Validate config
         assert config.Fn_compute_blocks >= 0, "Fn_compute_blocks must be >= 0"
         assert config.Bn_compute_blocks >= 0, "Bn_compute_blocks must be >= 0"
-        assert (
-            config.Fn_compute_blocks + config.Bn_compute_blocks <= config.num_blocks
-        ), f"Fn({config.Fn_compute_blocks}) + Bn({config.Bn_compute_blocks}) must be <= num_blocks({config.num_blocks})"
+        assert config.Fn_compute_blocks + config.Bn_compute_blocks <= config.num_blocks, (
+            f"Fn({config.Fn_compute_blocks}) + Bn({config.Bn_compute_blocks}) must "
+            + f"be <= num_blocks({config.num_blocks})"
+        )
 
         log.info(f"DBCache initialized: {config}")
 
@@ -379,10 +379,10 @@ class DBCache(KsanaBlockCache):
                     x = x + Bn_residual.to(x.device)
                     use_cache = True
                     log.info(
-                        f"[DBCache] step={step} phase={phase} cache=HIT skip Mn[{Mn_start},{Mn_end}) Bn[{Bn_start},{Bn_end})"
+                        f"step={step} phase={phase} cache=HIT skip Mn[{Mn_start},{Mn_end}) Bn[{Bn_start},{Bn_end})"
                     )
                 else:
-                    log.info(f"[DBCache] step={step} phase={phase} cache=MISS " f"reason=no_cached_residual")
+                    log.info(f"step={step} phase={phase} cache=MISS " f"reason=no_cached_residual")
 
             if not use_cache:
                 # Cache MISS: Compute remaining Mn and Bn blocks

@@ -1,13 +1,13 @@
 import unittest
-import numpy as np
-import torch
 from dataclasses import dataclass, field
 
-from ksana.utils import singleton, evolve_with_recommend
-from ksana.utils.debug import print_recursive
-from ksana.utils.logger import log
+import numpy as np
+import torch
 
 from ksana.config.sample_config import KsanaSampleConfig
+from ksana.utils import evolve_with_recommend, singleton
+from ksana.utils.debug import print_recursive
+from ksana.utils.logger import log
 
 
 @singleton

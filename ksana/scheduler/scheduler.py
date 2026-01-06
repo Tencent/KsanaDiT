@@ -1,7 +1,9 @@
-import torch
 from dataclasses import dataclass
 from typing import List
-from ..utils.memory import get_available_memory, estimate_ksana_model_memory, MODEL_SIZE_MAP, MEMORY_USAGE_FACTOR_MAP
+
+import torch
+
+from ..utils.memory import MEMORY_USAGE_FACTOR_MAP, MODEL_SIZE_MAP, estimate_ksana_model_memory, get_available_memory
 
 
 @dataclass(frozen=True)

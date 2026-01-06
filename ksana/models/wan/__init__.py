@@ -1,8 +1,8 @@
-from .wan_model import WanModel
+from .configs import WAN2_2_CONFIGS
 from .t5 import T5EncoderModel
 from .vae2_1 import Wan2_1_VAE
 from .vae2_2 import Wan2_2_VAE
-from .configs import WAN2_2_CONFIGS
+from .wan_model import WanModel
 
 __all__ = [
     WanModel,

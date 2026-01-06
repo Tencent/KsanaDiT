@@ -1,8 +1,8 @@
-import unittest
 import time
+import unittest
 
-from ksana.utils.profile import time_range
 from ksana.utils.logger import log
+from ksana.utils.profile import time_range
 
 SLEEP_TIME = 0.01
 

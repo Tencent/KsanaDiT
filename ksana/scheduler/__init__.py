@@ -1,3 +1,3 @@
-from .scheduler import KsanaScheduler, BatchStrategyItem
+from .scheduler import BatchStrategyItem, KsanaScheduler
 
 __all__ = ["KsanaScheduler", "BatchStrategyItem"]

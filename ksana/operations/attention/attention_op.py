@@ -1,9 +1,8 @@
 import torch
 import torch.nn as nn
+
 from ...utils.logger import log
-
-from .backends import KsanaAttentionBackend, KsanaAttentionBackendImpl, FlashAttentionImpl, SageAttentionImpl, SDPAImpl
-
+from .backends import FlashAttentionImpl, KsanaAttentionBackend, KsanaAttentionBackendImpl, SageAttentionImpl, SDPAImpl
 
 _ATTN_BACKEND_TO_IMPL = {
     FlashAttentionImpl.type(): FlashAttentionImpl,

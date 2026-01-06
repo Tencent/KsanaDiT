@@ -1,11 +1,12 @@
-import torch
-import safetensors
 import os
-
-from .logger import log
 from pathlib import Path
-from .prefetch import maybe_prefetch_file
+
+import safetensors
+import torch
+
 from .distribute import get_rank_id, is_multi_process
+from .logger import log
+from .prefetch import maybe_prefetch_file
 
 
 def _resolve_one_symlink_prefix(abs_path: str) -> str:

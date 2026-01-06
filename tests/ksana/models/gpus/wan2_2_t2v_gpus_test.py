@@ -5,9 +5,9 @@ import torch
 
 from ksana import KsanaGenerator
 from ksana.config import (
+    KsanaDistributedConfig,
     KsanaRuntimeConfig,
     KsanaSampleConfig,
-    KsanaDistributedConfig,
 )
 
 prompts = [

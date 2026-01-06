@@ -1,5 +1,6 @@
-import torch
 import logging
+
+import torch
 
 from ksana.utils import (
     cast_bias_weight,

@@ -1,9 +1,12 @@
-from ksana.utils import supports_fp8_compute, log
-from .linear import CUBLAS_IS_AVAILABLE, Linear
+import logging
+
+import torch
+
+from ksana.utils import log, supports_fp8_compute
+
 from .backends import KsanaLinearBackend
 from .fp8_linear import Fp8Linear, scaled_fp8_ops
-import logging
-import torch
+from .linear import CUBLAS_IS_AVAILABLE, Linear
 
 
 # Try to find fp8 info from state_dict

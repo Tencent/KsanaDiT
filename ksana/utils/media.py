@@ -1,11 +1,11 @@
+import binascii
 import os
+import shutil
+import subprocess
 
 import imageio
-import binascii
-import torchvision
-import subprocess
-import shutil
 import torch
+import torchvision
 
 from .logger import log
 

@@ -14,7 +14,8 @@ from diffusers.schedulers.scheduling_utils import (
     SchedulerOutput,
 )
 from diffusers.utils import deprecate, is_scipy_available
-from ..utils.sample_solver import get_sigmas_with_denoise, apply_sigma_shift
+
+from ..utils.sample_solver import apply_sigma_shift, get_sigmas_with_denoise
 
 if is_scipy_available():
     pass
@@ -152,7 +153,8 @@ class FlowUniPCMultistepScheduler(SchedulerMixin, ConfigMixin):
         """
         self._begin_index = begin_index
 
-    # Modified from diffusers.schedulers.scheduling_flow_match_euler_discrete.FlowMatchEulerDiscreteScheduler.set_timesteps
+    # Modified from diffusers.schedulers.scheduling_flow_match_euler_discrete
+    # .FlowMatchEulerDiscreteScheduler.set_timesteps
     def set_timesteps(
         self,
         num_inference_steps: Union[int, None] = None,
@@ -296,7 +298,8 @@ class FlowUniPCMultistepScheduler(SchedulerMixin, ConfigMixin):
             deprecate(
                 "timesteps",
                 "1.0.0",
-                "Passing `timesteps` is deprecated and has no effect as model output conversion is now handled via an internal counter `self.step_index`",
+                "Passing `timesteps` is deprecated and has no effect as model output conversion is now handled via an"
+                " internal counter `self.step_index`",
             )
 
         sigma = self.sigmas[self.step_index]
@@ -374,7 +377,8 @@ class FlowUniPCMultistepScheduler(SchedulerMixin, ConfigMixin):
             deprecate(
                 "prev_timestep",
                 "1.0.0",
-                "Passing `prev_timestep` is deprecated and has no effect as model output conversion is now handled via an internal counter `self.step_index`",
+                "Passing `prev_timestep` is deprecated and has no effect as model output conversion is now handled via"
+                " an internal counter `self.step_index`",
             )
         model_output_list = self.model_outputs
 
@@ -514,7 +518,8 @@ class FlowUniPCMultistepScheduler(SchedulerMixin, ConfigMixin):
             deprecate(
                 "this_timestep",
                 "1.0.0",
-                "Passing `this_timestep` is deprecated and has no effect as model output conversion is now handled via an internal counter `self.step_index`",
+                "Passing `this_timestep` is deprecated and has no effect as model output conversion is now handled via"
+                " an internal counter `self.step_index`",
             )
 
         model_output_list = self.model_outputs
