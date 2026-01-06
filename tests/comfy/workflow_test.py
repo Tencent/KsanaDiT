@@ -34,7 +34,8 @@ def modify_workflow_params(api_prompt: dict, params: dict) -> dict:
     支持的节点类型和参数映射:
         - KsanaGeneratorNode: steps, seed
         - EmptyHunyuanLatentVideo: width, height, length (从 params["frames"] 获取)
-        - KsanaModelLoaderNode: model_name, run_dtype, linear_backend, attn_backend
+        - KsanaModelLoaderNode: model_name, run_dtype, linear_backend
+        - KsanaAttentionConfigNode: backend
         - CLIPLoader: clip_name
         - KsanaSigmasNode: sigmas
     """
@@ -78,8 +79,10 @@ def modify_workflow_params(api_prompt: dict, params: dict) -> dict:
                 inputs["run_dtype"] = params["run_dtype"]
             if params.get("linear_backend") and "linear_backend" in inputs:
                 inputs["linear_backend"] = params["linear_backend"]
-            if params.get("attn_backend") and "attn_backend" in inputs:
-                inputs["attn_backend"] = params["attn_backend"]
+
+        elif class_type == "KsanaAttentionConfigNode":
+            if params.get("attn_backend") and "backend" in inputs:
+                inputs["backend"] = params["attn_backend"]
 
         # CLIPLoader: 根据命令行参数修改模型
         elif class_type == "CLIPLoader":
@@ -278,15 +281,13 @@ def create_argument_parser():
         "--linear_backend",
         type=str,
         default=None,
-        choices=["default", "fp8_gemm", "fp16_gemm"],
         help="linear backend",
     )
     parser.add_argument(
         "--attn_backend",
         type=str,
         default=None,
-        choices=["default", "flash_attention"],
-        help="attention backend",
+        help="attention config backend",
     )
 
     parser.add_argument(

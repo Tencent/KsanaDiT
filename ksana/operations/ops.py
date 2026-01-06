@@ -1,6 +1,6 @@
 import torch
 
-from .attention import pick_attn_op, KsanaAttentionBackend
+from .attention import pick_attn_op
 from .linear import pick_linear
 
 
@@ -102,7 +102,7 @@ def build_ops(
     run_dtype,
     state_dict,
     linear_backend: str,
-    attn_backend: KsanaAttentionBackend = KsanaAttentionBackend.FLASH_ATTN,
+    attention_config=None,
     load_device=None,
 ):
     ops = Ops()
@@ -116,6 +116,5 @@ def build_ops(
     ops.register("ConvTranspose1d", ConvTranspose1d)
     ops.register("Embedding", Embedding)
     ops.register("Linear", pick_linear(run_dtype, state_dict, linear_backend, load_device))
-    ops.register("Attn", pick_attn_op(attn_backend))
-    ops.attn_backend = attn_backend
+    ops.register("Attn", pick_attn_op(attention_config))
     return ops

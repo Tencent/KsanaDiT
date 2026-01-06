@@ -12,7 +12,7 @@ _ATTN_BACKEND_TO_IMPL = {
 }
 
 
-def _get_attn_backend_impl(attn_backend: KsanaAttentionBackend, **kwargs) -> KsanaAttentionBackendImpl:
+def _get_attention_backend_impl(attn_backend: KsanaAttentionBackend, **kwargs) -> KsanaAttentionBackendImpl:
     if not KsanaAttentionBackend.support(attn_backend):
         raise ValueError(
             f"attn_backend:{attn_backend} is not in supported_list:{ KsanaAttentionBackend.get_supported_list()}"
@@ -44,7 +44,7 @@ class KsanaAttentionOp(nn.Module):
         num_kv_heads: int | None = None,
         softmax_scale: float | None = None,
         causal: bool = False,
-        attn_backend: KsanaAttentionBackend | str = None,
+        attention_config=None,
         **extra_impl_args,
     ) -> None:
         super().__init__()
@@ -53,7 +53,10 @@ class KsanaAttentionOp(nn.Module):
         self.num_kv_heads = num_kv_heads or num_heads
         self.softmax_scale = softmax_scale if softmax_scale is not None else head_size**-0.5
         self.causal = causal
-        self.attn_backend = KsanaAttentionBackend(attn_backend)
+        if attention_config is None:
+            raise ValueError("attention_config should not be None")
+        self.attention_config = attention_config
+        log.debug(f"KsanaAttentionOp with config: {self.attention_config}")
         self.extra_impl_args = extra_impl_args
 
         self._attn_impl: KsanaAttentionBackendImpl | None = None
@@ -67,8 +70,8 @@ class KsanaAttentionOp(nn.Module):
         if self._attn_impl is not None and dtype == self._attn_impl_dtype:
             return
 
-        backend_impl = _get_attn_backend_impl(
-            attn_backend=self.attn_backend,
+        backend_impl = _get_attention_backend_impl(
+            attn_backend=self.attention_config.backend,
             head_size=self.head_size,
             dtype=dtype,
         )
