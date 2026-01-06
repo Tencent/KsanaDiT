@@ -5,9 +5,10 @@ from ksana.config import (
     KsanaTorchCompileConfig,
     KsanaRuntimeConfig,
     KsanaSampleConfig,
+    KsanaAttentionConfig,
 )
 from ksana.config.cache_config import DCacheConfig, KsanaHybridCacheConfig, DBCacheConfig
-from ksana.operations.attention import KsanaAttentionBackend
+from ksana.operations import KsanaAttentionBackend, KsanaLinearBackend
 import torch
 
 prompts = [
@@ -107,8 +108,8 @@ class TestKsana(unittest.TestCase):
         vae_dir = "./Wan2.2-T2V-A14B"
         model_config = KsanaModelConfig(
             run_dtype=torch.float16,
-            attn_backend=KsanaAttentionBackend.SAGE_ATTN,
-            linear_backend="fp8_gemm",
+            attention_config=KsanaAttentionConfig(backend=KsanaAttentionBackend.SAGE_ATTN),
+            linear_backend=KsanaLinearBackend.FP8_GEMM,
             torch_compile_config=KsanaTorchCompileConfig(),
         )
 

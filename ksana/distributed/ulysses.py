@@ -1,7 +1,6 @@
 # Copyright 2024-2025 The Alibaba Wan Team Authors. All rights reserved.
 import torch.distributed as dist
 
-from ..operations.attention import KsanaAttentionBackend
 from ..utils import all_to_all
 
 
@@ -12,7 +11,6 @@ def distributed_attention(
     seq_lens,
     attn_func,
     window_size=(-1, -1),
-    attn_backend: str | KsanaAttentionBackend = KsanaAttentionBackend.FLASH_ATTN,
 ):
     """
     Performs distributed attention based on DeepSpeed Ulysses attention mechanism.
@@ -41,7 +39,6 @@ def distributed_attention(
         v,
         k_lens=seq_lens,
         window_size=window_size,
-        attn_backend=attn_backend,
     )
 
     # scatter q/k/v sequence

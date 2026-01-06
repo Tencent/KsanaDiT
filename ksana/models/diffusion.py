@@ -12,7 +12,7 @@ from ..utils.torch_compile import apply_torch_compile
 from .wan import WanModel
 from .wan.configs import WAN2_2_CONFIGS
 from ..config import KsanaModelConfig, KsanaDistributedConfig
-from ksana.operations import build_ops, KsanaAttentionBackend
+from ksana.operations import build_ops, KsanaLinearBackend
 from .base_model import KsanaModel
 from ..utils.types import any_key_in_str
 from ..models.model_key import KsanaModelKey, WAN2_2, WAN2_1, X2V_TYPES
@@ -49,7 +49,7 @@ class KsanaDiffusionModel(KsanaModel):
 
         # fp8_gemm_dynamic uses torchao Float8Tensor weights which are not compatible with
         # our pinned-memory swap (it mutates `.data` and can error with incompatible tensor type).
-        if getattr(self.model_config, "linear_backend", None) == "fp8_gemm_dynamic":
+        if self.model_config.linear_backend == KsanaLinearBackend.FP8_GEMM_DYNAMIC:
             return
 
         # 按dtype分组分配统一的 pinned memory buffer
@@ -162,7 +162,7 @@ class KsanaDiffusionModel(KsanaModel):
         if self._use_pinned_memory and "dtype" in kwargs:
             raise ValueError("使用 pinned memory 时不支持 dtype 转换。")
 
-        if device is not None and getattr(self.model_config, "linear_backend", None) == "fp8_gemm_dynamic":
+        if device is not None and self.model_config.linear_backend == KsanaLinearBackend.FP8_GEMM_DYNAMIC:
             self.model.to(device, **kwargs)
             return self
 
@@ -191,7 +191,7 @@ class KsanaDiffusionModel(KsanaModel):
 
     def _offload_to_pinned_memory(self):
         """将模型参数从 GPU offload 到 CPU 的 pinned memory"""
-        if not self._use_pinned_memory or getattr(self.model_config, "linear_backend", None) == "fp8_gemm_dynamic":
+        if not self._use_pinned_memory or self.model_config.linear_backend == KsanaLinearBackend.FP8_GEMM_DYNAMIC:
             self.model.to("cpu")
             return
 
@@ -214,7 +214,7 @@ class KsanaDiffusionModel(KsanaModel):
 
     def _load_from_pinned_memory(self, device: torch.device):
         """从 CPU 的 pinned memory 加载模型参数到 GPU"""
-        if not self._use_pinned_memory or getattr(self.model_config, "linear_backend", None) == "fp8_gemm_dynamic":
+        if not self._use_pinned_memory or self.model_config.linear_backend == KsanaLinearBackend.FP8_GEMM_DYNAMIC:
             self.model.to(device)
             return
 
@@ -351,24 +351,11 @@ class KsanaWanModel(KsanaDiffusionModel):
         offload_device=None,
         shard_fn=None,
     ):
-        # TODO(rock): get weight dtype from model_state_dict and judge linear_backend is fp8_gemm or not
-        # scaled_fp8_dtype = model_config.scaled_fp8
-        # if (
-        #     ksana_model_config.linear_backend == "default"
-        #     and scaled_fp8_dtype is not None
-        #     and "float8" in str(scaled_fp8_dtype)
-        # ):
-        #     print("linear_backend will use fp8_gemm")
-        #     ksana_model_config.linear_backend = "fp8_gemm"
-        # weight_dtype = next(iter(model_state_dict.values())).dtype
-        # if weight_dtype != fp8
-        #     log.warning(f"weight_dtype {weight_dtype} is not fp8, will use fp16_gemm linear_backend")
-        #     self.model_config.linear_backend = "fp16_gemm"
-
+        # TODO(rock): get weight dtype from model_state_dict and judge linear_backend use fp8_gemm or not
         operations = build_ops(
             self.run_dtype,
             model_state_dict,
-            attn_backend=KsanaAttentionBackend(self.model_config.attn_backend),
+            attention_config=self.model_config.attention_config,
             linear_backend=self.model_config.linear_backend,
         )
         log.info(f"load_device:{load_device}, offload_device:{offload_device}")

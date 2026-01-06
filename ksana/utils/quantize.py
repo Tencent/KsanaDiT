@@ -1,6 +1,6 @@
 import torch
 from .logger import log
-
+from ..operations import KsanaLinearBackend
 
 _FP8_TENSOR_PATCHED = False
 
@@ -163,17 +163,17 @@ def adjust_fp8_backend_for_dtype(run_dtype, linear_backend, model_name):
     rd_str = run_dtype if isinstance(run_dtype, str) else str(run_dtype)
     has_fp8 = rd_str is not None and ("float8" in rd_str.lower() or "fp8" in rd_str.lower())
     if run_dtype != "default" and not has_fp8:
-        if linear_backend == "fp8_gemm_dynamic":
+        if linear_backend == KsanaLinearBackend.FP8_GEMM_DYNAMIC:
             log.warning(
                 f"weight_dtype {run_dtype} is not FP8, using fp8_gemm_dynamic backend for dynamic FP8 quantization."
             )
-            linear_backend = "fp8_gemm_dynamic"
+            linear_backend = KsanaLinearBackend.FP8_GEMM_DYNAMIC
         else:
             log.warning(
                 f"weight_dtype {run_dtype} can not use fp8_gemm linear_backend, will use run_dtype back to default"
             )
             run_dtype = "float16"
-            linear_backend = "default"
+            linear_backend = KsanaLinearBackend.DEFAULT
 
     return run_dtype, linear_backend
 
@@ -326,8 +326,8 @@ def apply_dynamic_fp8_quant(module: torch.nn.Module):
         log.warning(traceback.format_exc())
 
 
-def maybe_apply_dynamic_fp8_quant(model: torch.nn.Module, linear_backend: str, load_device=None) -> bool:
-    if linear_backend != "fp8_gemm_dynamic":
+def maybe_apply_dynamic_fp8_quant(model: torch.nn.Module, linear_backend: KsanaLinearBackend, load_device=None) -> bool:
+    if linear_backend != KsanaLinearBackend.FP8_GEMM_DYNAMIC:
         return False
 
     if model is None:

@@ -3,7 +3,7 @@ import torch
 import torch.nn.functional as F
 
 from ksana.operations.attention import KsanaAttentionBackend, pick_attn_op
-
+from ksana.config import KsanaAttentionConfig
 
 B, L, H, D = 2, 32, 64, 128  # batch, seq_len, num_heads, head_dim
 
@@ -50,7 +50,7 @@ class TestLocalAttentionOpBackends(unittest.TestCase):
 
         # Set deterministic seed for reproducible logs
         torch.manual_seed(0)
-        attn = pick_attn_op(backend=KsanaAttentionBackend.TORCH_SDPA)
+        attn = pick_attn_op(KsanaAttentionConfig(backend=KsanaAttentionBackend.TORCH_SDPA))
         attn = attn(
             num_heads=H,
             head_size=D,
@@ -70,7 +70,7 @@ class TestLocalAttentionOpBackends(unittest.TestCase):
         q, k, v = _make_inputs(device=device, dtype=torch.float16)
 
         torch.manual_seed(0)
-        attn = pick_attn_op(backend=KsanaAttentionBackend.FLASH_ATTN)
+        attn = pick_attn_op(KsanaAttentionConfig(backend=KsanaAttentionBackend.FLASH_ATTN))
         attn = attn(
             num_heads=H,
             head_size=D,
@@ -92,7 +92,7 @@ class TestLocalAttentionOpBackends(unittest.TestCase):
         q, k, v = _make_inputs(device=device, dtype=torch.float16)
 
         torch.manual_seed(0)
-        attn = pick_attn_op(backend=KsanaAttentionBackend.SAGE_ATTN)
+        attn = pick_attn_op(KsanaAttentionConfig(backend=KsanaAttentionBackend.SAGE_ATTN))
         attn = attn(
             num_heads=H,
             head_size=D,
@@ -118,7 +118,7 @@ class TestLocalAttentionOpBackends(unittest.TestCase):
         # Baseline with PyTorch SDPA on the same device / dtype
         ref = _sdpa_reference(q, k, v, causal=False)
 
-        attn = pick_attn_op(backend=KsanaAttentionBackend.FLASH_ATTN)
+        attn = pick_attn_op(KsanaAttentionConfig(backend=KsanaAttentionBackend.FLASH_ATTN))
         attn = attn(
             num_heads=H,
             head_size=D,
@@ -146,7 +146,7 @@ class TestLocalAttentionOpBackends(unittest.TestCase):
         # Baseline with PyTorch SDPA on the same device / dtype
         ref = _sdpa_reference(q, k, v, causal=False)
 
-        attn = pick_attn_op(backend=KsanaAttentionBackend.SAGE_ATTN)
+        attn = pick_attn_op(KsanaAttentionConfig(backend=KsanaAttentionBackend.SAGE_ATTN))
         attn = attn(
             num_heads=H,
             head_size=D,

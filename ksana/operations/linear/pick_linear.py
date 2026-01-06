@@ -1,5 +1,6 @@
 from ksana.utils import supports_fp8_compute, log
 from .linear import CUBLAS_IS_AVAILABLE, Linear
+from .backends import KsanaLinearBackend
 from .fp8_linear import Fp8Linear, scaled_fp8_ops
 import logging
 import torch
@@ -33,10 +34,10 @@ def pick_linear(run_dtype, state_dict, linear_backend: str, load_device=None):
     fp8_dtype, is_scaled_fp8 = find_fp8_info(state_dict)
 
     fp8_gemm = False
-    if linear_backend == "default":
+    if linear_backend == KsanaLinearBackend.DEFAULT:
         fp8_gemm = fp8_dtype is not None
 
-    if linear_backend == "fp8_gemm":
+    if linear_backend == KsanaLinearBackend.FP8_GEMM:
         fp8_gemm = True
         if fp8_dtype is None:
             raise ValueError("Could not find fp8 dtype in state_dict when linear_backend is fp8_gemm")

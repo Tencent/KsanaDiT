@@ -10,6 +10,7 @@ from ksana.config import (
     KsanaDistributedConfig,
     KsanaRuntimeConfig,
     KsanaSampleConfig,
+    KsanaAttentionConfig,
 )
 
 from ksana.operations import KsanaAttentionBackend
@@ -58,7 +59,7 @@ def run_start_and_end_with_lora(args):
 
     model_config = KsanaModelConfig(
         run_dtype=torch.float16,
-        attn_backend=KsanaAttentionBackend.SAGE_ATTN,
+        attention_config=KsanaAttentionConfig(backend=KsanaAttentionBackend.SAGE_ATTN),
     )
 
     generator = KsanaGenerator.from_models(
