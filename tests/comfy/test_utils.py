@@ -13,19 +13,19 @@ import json
 import logging
 import subprocess
 import time
-import uuid
-import urllib.request
 import urllib.error
-from pathlib import Path
-from typing import Optional, Tuple
+import urllib.request
+import uuid
 
 # video mean
 from io import BytesIO
-import torch
-import numpy
-from PIL import Image, ImageSequence
+from pathlib import Path
+from typing import Optional, Tuple
 
+import numpy
+import torch
 import websocket
+from PIL import Image, ImageSequence
 
 # 配置日志
 logger = logging.getLogger(__name__)

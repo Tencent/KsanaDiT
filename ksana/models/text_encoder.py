@@ -2,9 +2,9 @@ import os
 
 import torch
 
-from .wan import T5EncoderModel
 from .base_model import KsanaModel
 from .model_key import KsanaModelKey
+from .wan import T5EncoderModel
 
 
 class KsanaT5Encoder(KsanaModel):

@@ -1,6 +1,8 @@
 from abc import ABC, abstractmethod
-import torch
 from dataclasses import dataclass, field
+
+import torch
+
 from ..models.model_key import KsanaModelKey
 
 

@@ -1,11 +1,12 @@
 import folder_paths
 
-from ksana.utils import get_gpu_count, log
 from ksana import get_generator
-from ksana.config import KsanaModelConfig, KsanaDistributedConfig, KsanaAttentionConfig
-from ksana.utils.profile import MemoryProfiler
-from .output_types import KsanaComfyModelLoaderOutput
+from ksana.config import KsanaAttentionConfig, KsanaDistributedConfig, KsanaModelConfig
 from ksana.operations import KsanaLinearBackend
+from ksana.utils import get_gpu_count, log
+from ksana.utils.profile import MemoryProfiler
+
+from .output_types import KsanaComfyModelLoaderOutput
 
 
 class KsanaComfyModelLoader:

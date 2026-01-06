@@ -1,8 +1,9 @@
-from .base_cache import KsanaStepCache
+import torch
+
 from ..config.cache_config import EasyCacheConfig
 from ..models.model_key import KsanaModelKey
 from ..utils import log
-import torch
+from .base_cache import KsanaStepCache
 
 
 class EasyCache(KsanaStepCache):

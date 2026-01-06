@@ -1,6 +1,5 @@
 from enum import Enum, auto, unique
 
-
 WAN2_2 = ["wan2.2", "wan22", "wan2_2", "wan_2_2", "wan_2.2"]
 WAN2_1 = ["wan2.1", "wan21", "wan2_1", "wan_2_1", "wan_2.1"]
 

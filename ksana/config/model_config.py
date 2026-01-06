@@ -2,9 +2,9 @@ from dataclasses import dataclass, field
 
 import torch
 
-from .torch_compile_config import KsanaTorchCompileConfig
-from .attention_config import KsanaAttentionConfig
 from ..operations.linear import KsanaLinearBackend
+from .attention_config import KsanaAttentionConfig
+from .torch_compile_config import KsanaTorchCompileConfig
 
 
 @dataclass()

@@ -8,15 +8,14 @@ import time
 import urllib.error
 from typing import Optional
 
-
 from test_utils import (
+    check_media_data,
+    connect_websocket,
+    load_workflow,
     start_server,
     stop_server,
-    load_workflow,
-    connect_websocket,
     submit_workflow,
     wait_for_completion,
-    check_media_data,
 )
 
 # 配置日志

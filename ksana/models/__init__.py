@@ -1,7 +1,6 @@
 from .base_model import KsanaModel
-from .model_pool import KsanaModelPool
-
 from .diffusion import KsanaDiffusionModel, KsanaWanModel
+from .model_pool import KsanaModelPool
 from .text_encoder import KsanaT5Encoder
 from .vae import KsanaVAE
 

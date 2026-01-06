@@ -1,8 +1,10 @@
-from .model_key import KsanaModelKey
-from .base_model import KsanaModel
-from ..utils.logger import log
 import gc
+
 import torch
+
+from ..utils.logger import log
+from .base_model import KsanaModel
+from .model_key import KsanaModelKey
 
 
 class KsanaModelPool:

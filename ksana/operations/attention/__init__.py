@@ -1,5 +1,5 @@
-from .backends import KsanaAttentionBackend
 from .attention_op import KsanaAttentionOp
+from .backends import KsanaAttentionBackend
 from .pick_attn import pick_attn_op
 
 __all__ = [

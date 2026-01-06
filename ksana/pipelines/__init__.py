@@ -1,8 +1,6 @@
 from ..config import KsanaPipelineConfig
-
+from ..models.model_key import WAN2_1, WAN2_2, X2V_TYPES
 from .wan_x2v import KsanaWanX2VPipeline
-
-from ..models.model_key import X2V_TYPES, WAN2_2, WAN2_1
 
 
 def create_ksana_pipeline(pipeline_config: KsanaPipelineConfig):

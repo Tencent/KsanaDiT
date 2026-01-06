@@ -1,18 +1,18 @@
-import os
 import argparse
+import os
+
 import torch
 
 os.environ["KSANA_LOGGER_LEVEL"] = "INFO"
 
 from ksana import KsanaGenerator
 from ksana.config import (
-    KsanaModelConfig,
+    KsanaAttentionConfig,
     KsanaDistributedConfig,
+    KsanaModelConfig,
     KsanaRuntimeConfig,
     KsanaSampleConfig,
-    KsanaAttentionConfig,
 )
-
 from ksana.operations import KsanaAttentionBackend
 
 prompts = [

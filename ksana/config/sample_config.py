@@ -1,6 +1,7 @@
 from dataclasses import dataclass, field
+
 from ..sample_solvers import SUPPORTED_SOLVERS
-from ..utils.const import DEFAULT_DENOISE, DEFAULT_BATCH_PER_PROMPT
+from ..utils.const import DEFAULT_BATCH_PER_PROMPT, DEFAULT_DENOISE
 
 
 @dataclass(frozen=True)

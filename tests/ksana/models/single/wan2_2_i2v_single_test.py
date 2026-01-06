@@ -1,10 +1,12 @@
 import unittest
+
+import torch
+
 from ksana import KsanaGenerator
 from ksana.config import (
     KsanaRuntimeConfig,
     KsanaSampleConfig,
 )
-import torch
 
 prompts = [
     "缓慢的平移镜头，在外滩边上，有清风吹过。镜头从远到近，女孩在手舞足蹈的跳舞，舞姿非常美丽，镜头从远景到近景，给出了女孩的特写和细节。",

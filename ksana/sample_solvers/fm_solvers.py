@@ -1,4 +1,5 @@
-# Copied from https://github.com/huggingface/diffusers/blob/main/src/diffusers/schedulers/scheduling_dpmsolver_multistep.py
+# Copied from
+# https://github.com/huggingface/diffusers/blob/main/src/diffusers/schedulers/scheduling_dpmsolver_multistep.py
 # Convert dpm solver for flow matching
 # Copyright 2024-2025 The Alibaba Wan Team Authors. All rights reserved.
 
@@ -16,7 +17,8 @@ from diffusers.schedulers.scheduling_utils import (
 )
 from diffusers.utils import deprecate, is_scipy_available
 from diffusers.utils.torch_utils import randn_tensor
-from ..utils.sample_solver import get_sigmas_with_denoise, apply_sigma_shift
+
+from ..utils.sample_solver import apply_sigma_shift, get_sigmas_with_denoise
 
 if is_scipy_available():
     pass
@@ -150,7 +152,10 @@ class FlowDPMSolverMultistepScheduler(SchedulerMixin, ConfigMixin):
         invert_sigmas: bool = False,
     ):
         if algorithm_type in ["dpmsolver", "sde-dpmsolver"]:
-            deprecation_message = f"algorithm_type {algorithm_type} is deprecated and will be removed in a future version. Choose from `dpmsolver++` or `sde-dpmsolver++` instead"
+            deprecation_message = (
+                f"algorithm_type {algorithm_type} is deprecated and will be removed in a future"
+                " version. Choose from `dpmsolver++` or `sde-dpmsolver++` instead"
+            )
             deprecate(
                 "algorithm_types dpmsolver and sde-dpmsolver",
                 "1.0.0",
@@ -177,7 +182,8 @@ class FlowDPMSolverMultistepScheduler(SchedulerMixin, ConfigMixin):
 
         if algorithm_type not in ["dpmsolver++", "sde-dpmsolver++"] and final_sigmas_type == "zero":
             raise ValueError(
-                f"`final_sigmas_type` {final_sigmas_type} is not supported for `algorithm_type` {algorithm_type}. Please choose `sigma_min` instead."
+                f"`final_sigmas_type` {final_sigmas_type} is not supported for `algorithm_type` {algorithm_type}."
+                " Please choose `sigma_min` instead."
             )
 
         # setable values
@@ -225,7 +231,8 @@ class FlowDPMSolverMultistepScheduler(SchedulerMixin, ConfigMixin):
         """
         self._begin_index = begin_index
 
-    # Modified from diffusers.schedulers.scheduling_flow_match_euler_discrete.FlowMatchEulerDiscreteScheduler.set_timesteps
+    # Modified from diffusers.schedulers.scheduling_flow_match_euler_discrete
+    # .FlowMatchEulerDiscreteScheduler.set_timesteps
     def set_timesteps(
         self,
         num_inference_steps: Union[int, None] = None,
@@ -370,7 +377,8 @@ class FlowDPMSolverMultistepScheduler(SchedulerMixin, ConfigMixin):
             deprecate(
                 "timesteps",
                 "1.0.0",
-                "Passing `timesteps` is deprecated and has no effect as model output conversion is now handled via an internal counter `self.step_index`",
+                "Passing `timesteps` is deprecated and has no effect as model output conversion is now handled via an"
+                " internal counter `self.step_index`",
             )
 
         # DPM-Solver++ needs to solve an integral of the data prediction model.
@@ -408,7 +416,8 @@ class FlowDPMSolverMultistepScheduler(SchedulerMixin, ConfigMixin):
 
             return epsilon
 
-    # Copied from diffusers.schedulers.scheduling_dpmsolver_multistep.DPMSolverMultistepScheduler.dpm_solver_first_order_update
+    # Copied from diffusers.schedulers.scheduling_dpmsolver_multistep
+    # .DPMSolverMultistepScheduler.dpm_solver_first_order_update
     def dpm_solver_first_order_update(
         self,
         model_output: torch.Tensor,
@@ -439,14 +448,16 @@ class FlowDPMSolverMultistepScheduler(SchedulerMixin, ConfigMixin):
             deprecate(
                 "timesteps",
                 "1.0.0",
-                "Passing `timesteps` is deprecated and has no effect as model output conversion is now handled via an internal counter `self.step_index`",
+                "Passing `timesteps` is deprecated and has no effect as model output conversion is now handled via an"
+                " internal counter `self.step_index`",
             )
 
         if prev_timestep is not None:
             deprecate(
                 "prev_timestep",
                 "1.0.0",
-                "Passing `prev_timestep` is deprecated and has no effect as model output conversion is now handled via an internal counter `self.step_index`",
+                "Passing `prev_timestep` is deprecated and has no effect as model output conversion is now handled via"
+                " an internal counter `self.step_index`",
             )
 
         sigma_t, sigma_s = (
@@ -479,7 +490,8 @@ class FlowDPMSolverMultistepScheduler(SchedulerMixin, ConfigMixin):
             )
         return x_t  # pyright: ignore
 
-    # Copied from diffusers.schedulers.scheduling_dpmsolver_multistep.DPMSolverMultistepScheduler.multistep_dpm_solver_second_order_update
+    # Copied from diffusers.schedulers.scheduling_dpmsolver_multistep
+    # .DPMSolverMultistepScheduler.multistep_dpm_solver_second_order_update
     def multistep_dpm_solver_second_order_update(
         self,
         model_output_list: List[torch.Tensor],
@@ -510,14 +522,16 @@ class FlowDPMSolverMultistepScheduler(SchedulerMixin, ConfigMixin):
             deprecate(
                 "timestep_list",
                 "1.0.0",
-                "Passing `timestep_list` is deprecated and has no effect as model output conversion is now handled via an internal counter `self.step_index`",
+                "Passing `timestep_list` is deprecated and has no effect as model output conversion is now handled via"
+                " an internal counter `self.step_index`",
             )
 
         if prev_timestep is not None:
             deprecate(
                 "prev_timestep",
                 "1.0.0",
-                "Passing `prev_timestep` is deprecated and has no effect as model output conversion is now handled via an internal counter `self.step_index`",
+                "Passing `prev_timestep` is deprecated and has no effect as model output conversion is now handled via"
+                " an internal counter `self.step_index`",
             )
 
         sigma_t, sigma_s0, sigma_s1 = (
@@ -601,7 +615,8 @@ class FlowDPMSolverMultistepScheduler(SchedulerMixin, ConfigMixin):
                 )
         return x_t  # pyright: ignore
 
-    # Copied from diffusers.schedulers.scheduling_dpmsolver_multistep.DPMSolverMultistepScheduler.multistep_dpm_solver_third_order_update
+    # Copied from diffusers.schedulers.scheduling_dpmsolver_multistep
+    # .DPMSolverMultistepScheduler.multistep_dpm_solver_third_order_update
     def multistep_dpm_solver_third_order_update(
         self,
         model_output_list: List[torch.Tensor],
@@ -632,14 +647,16 @@ class FlowDPMSolverMultistepScheduler(SchedulerMixin, ConfigMixin):
             deprecate(
                 "timestep_list",
                 "1.0.0",
-                "Passing `timestep_list` is deprecated and has no effect as model output conversion is now handled via an internal counter `self.step_index`",
+                "Passing `timestep_list` is deprecated and has no effect as model output conversion is now handled via"
+                " an internal counter `self.step_index`",
             )
 
         if prev_timestep is not None:
             deprecate(
                 "prev_timestep",
                 "1.0.0",
-                "Passing `prev_timestep` is deprecated and has no effect as model output conversion is now handled via an internal counter `self.step_index`",
+                "Passing `prev_timestep` is deprecated and has no effect as model output conversion is now handled via"
+                " an internal counter `self.step_index`",
             )
 
         sigma_t, sigma_s0, sigma_s1, sigma_s2 = (

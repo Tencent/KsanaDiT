@@ -1,28 +1,26 @@
-from abc import ABC, abstractmethod
-import torch
-from torch.nn.utils.rnn import pad_sequence
-
-from tqdm import tqdm
 import math
-
 import random
 import sys
-
+from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
+
+import torch
+from torch.nn.utils.rnn import pad_sequence
+from tqdm import tqdm
+
+from ..cache import create_hybrid_cache
 from ..config import (
-    KsanaSampleConfig,
-    KsanaRuntimeConfig,
-    KsanaPipelineConfig,
     KsanaModelConfig,
+    KsanaPipelineConfig,
+    KsanaRuntimeConfig,
+    KsanaSampleConfig,
 )
-from ..utils import log, print_recursive, time_range, MemoryProfiler, is_dir, evolve_with_recommend
+from ..config.cache_config import KsanaCacheConfig, KsanaHybridCacheConfig, warp_as_hybrid_cache
+from ..models.base_model import KsanaModel
+from ..models.model_pool import KsanaModelPool
 from ..sample_solvers import get_sample_scheduler
 from ..scheduler import KsanaScheduler
-from ..cache import create_hybrid_cache
-
-from ..config.cache_config import KsanaCacheConfig, KsanaHybridCacheConfig, warp_as_hybrid_cache
-from ..models.model_pool import KsanaModelPool
-from ..models.base_model import KsanaModel
+from ..utils import MemoryProfiler, evolve_with_recommend, is_dir, log, print_recursive, time_range
 
 
 @dataclass(frozen=True)
@@ -96,12 +94,14 @@ class KsanaX2XPipeline(ABC):
         lora: None | str | list[list[dict], list[dict]] = None,
     ) -> list[KsanaModel]:
         if not is_dir(model_path):
-            assert (
-                text_checkpoint_dir is not None
-            ), f"text_checkpoint_dir must be provided when loading from local checkpoint with diffusion model {model_path}"
-            assert (
-                vae_checkpoint_dir is not None
-            ), f"vae_checkpoint_dir must be provided when loading from local checkpoint with diffusion model {model_path}"
+            assert text_checkpoint_dir is not None, (
+                "text_checkpoint_dir must be provided when loading from local checkpoint"
+                f" with diffusion model {model_path}"
+            )
+            assert vae_checkpoint_dir is not None, (
+                "vae_checkpoint_dir must be provided when loading from local checkpoint"
+                f" with diffusion model {model_path}"
+            )
         else:
             text_checkpoint_dir = model_path
             vae_checkpoint_dir = model_path
@@ -160,7 +160,8 @@ class KsanaX2XPipeline(ABC):
         all_prompts = prompts_positive + prompts_negative
         all_embeddings_list = text_encoder.forward(all_prompts)
 
-        # TODO(qiannan): self.text_encoder.forward tokenizer的时候是填充到相同长度了，但是返回是裁剪了，所以如果返回不裁剪，就不需要pad了
+        # TODO(qiannan): self.text_encoder.forward tokenizer的时候是填充到相同长度了，
+        # 但是返回是裁剪了，所以如果返回不裁剪，就不需要pad了
         # Pad the combined list of tensors to the max length in the entire batch.
         all_padded_embeddings = pad_sequence(all_embeddings_list, batch_first=True, padding_value=0.0)
 
@@ -300,7 +301,8 @@ class KsanaX2XPipeline(ABC):
                 )
             return img_latents.shape
         else:
-            # TODO: here should not used vae model params insider forward transformer, need create noise outside pipeline
+            # TODO: here should not used vae model params insider forward transformer,
+            # need create noise outside pipeline
             assert (
                 self.vae_z_dim is not None and self.vae_stride is not None
             ), f"self.vae_z_dim {self.vae_z_dim}, self.vae_stride {self.vae_stride}"
@@ -604,7 +606,8 @@ class KsanaX2XPipeline(ABC):
                     img_latents[strategy_item.start : strategy_item.end] if img_latents is not None else None
                 )
                 log.info(
-                    f"batch {batch_idx} strategy start = {strategy_item.start}, end = {strategy_item.end} combine = {strategy_item.combine_cond_uncond}"
+                    f"batch {batch_idx} strategy start = {strategy_item.start}, end = {strategy_item.end} "
+                    f"combine = {strategy_item.combine_cond_uncond}"
                 )
                 MemoryProfiler.record_memory(f"batch_{strategy_item.start}-{strategy_item.end}_before_inference_loop")
 

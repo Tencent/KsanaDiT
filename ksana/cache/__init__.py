@@ -1,23 +1,21 @@
 from ..config.cache_config import (
+    CustomStepCacheConfig,
+    DBCacheConfig,
+    DCacheConfig,
+    EasyCacheConfig,
     KsanaCacheConfig,
     KsanaHybridCacheConfig,
-    DCacheConfig,
-    CustomStepCacheConfig,
-    TeaCacheConfig,
-    EasyCacheConfig,
     MagCacheConfig,
-    DBCacheConfig,
+    TeaCacheConfig,
 )
-
+from ..models.model_key import KsanaModelKey
 from .base_cache import KsanaCache, KsanaHybridCache
-from .dcache import DCache
 from .custom_cache import CustomStepCache
-from .teacache import TeaCache
+from .dbcache import DBCache
+from .dcache import DCache
 from .easycache import EasyCache
 from .magcache import MagCache
-from .dbcache import DBCache
-
-from ..models.model_key import KsanaModelKey
+from .teacache import TeaCache
 
 
 def _create_cache(model_key: KsanaModelKey, config: KsanaCacheConfig):

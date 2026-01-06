@@ -1,10 +1,11 @@
 import unittest
-import torch
 from unittest.mock import patch
 
-from ksana.scheduler.scheduler import KsanaScheduler
-from ksana.config.pipeline_config import KsanaPipelineConfig
+import torch
+
 from ksana.config.model_config import KsanaModelConfig
+from ksana.config.pipeline_config import KsanaPipelineConfig
+from ksana.scheduler.scheduler import KsanaScheduler
 
 
 class TestKsanaScheduler(unittest.TestCase):

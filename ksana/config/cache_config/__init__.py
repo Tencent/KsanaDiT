@@ -1,16 +1,16 @@
 from .base import (
-    KsanaCacheConfig,
     KsanaBlockCacheConfig,
-    KsanaStepCacheConfig,
+    KsanaCacheConfig,
     KsanaHybridCacheConfig,
+    KsanaStepCacheConfig,
     warp_as_hybrid_cache,
 )
 from .custom_cache import CustomStepCacheConfig
-from .dcache import DCacheConfig
 from .dbcache import DBCacheConfig
-from .teacache import TeaCacheConfig
-from .magcache import MagCacheConfig
+from .dcache import DCacheConfig
 from .easycache import EasyCacheConfig
+from .magcache import MagCacheConfig
+from .teacache import TeaCacheConfig
 
 __all__ = [
     warp_as_hybrid_cache,

@@ -1,5 +1,7 @@
 from dataclasses import dataclass, field
+
 from easydict import EasyDict
+
 from .model_config import KsanaModelConfig
 
 

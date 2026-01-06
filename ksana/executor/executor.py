@@ -1,34 +1,30 @@
+import gc
+import os
 from abc import ABC
+from datetime import datetime
+from functools import partial
 
 import torch
-import os
-import gc
-from datetime import datetime
 import torch.distributed as dist
-from functools import partial
+import torchvision.transforms.functional as tvtf
 from PIL import Image
 
-from ..models import KsanaDiffusionModel
-from ..utils import log, time_range, save_video, merge_video_audio, is_dir
 from ..config import (
     KsanaDistributedConfig,
-    KsanaSampleConfig,
-    KsanaRuntimeConfig,
     KsanaModelConfig,
     KsanaPipelineConfig,
+    KsanaRuntimeConfig,
+    KsanaSampleConfig,
 )
-
-from ..utils.types import evolve_with_recommend
-from ..utils.logger import init_logging
-
-from ..pipelines import create_ksana_pipeline
-
-from ..distributed import shard_model
-from ..models.model_pool import KsanaModelPool
-from ..models.model_key import KsanaModelKey
-from ..models import KsanaVAE
 from ..config.cache_config import KsanaCacheConfig, KsanaHybridCacheConfig
-import torchvision.transforms.functional as tvtf
+from ..distributed import shard_model
+from ..models import KsanaDiffusionModel, KsanaVAE
+from ..models.model_key import KsanaModelKey
+from ..models.model_pool import KsanaModelPool
+from ..pipelines import create_ksana_pipeline
+from ..utils import is_dir, log, merge_video_audio, save_video, time_range
+from ..utils.logger import init_logging
+from ..utils.types import evolve_with_recommend
 
 
 class KsanaExecutor(ABC):
@@ -125,11 +121,13 @@ class KsanaExecutor(ABC):
         if isinstance(model_path, (list, tuple)):
             if text_checkpoint_dir is None:
                 raise ValueError(
-                    f"text_checkpoint_dir must be provided when loading from local checkpoint with diffusion model {model_path}"
+                    f"text_checkpoint_dir must be provided when loading from local checkpoint "
+                    f"with diffusion model {model_path}"
                 )
             if vae_checkpoint_dir is None:
                 raise ValueError(
-                    f"vae_checkpoint_dir must be provided when loading from local checkpoint with diffusion model {model_path}"
+                    f"vae_checkpoint_dir must be provided when loading from local checkpoint "
+                    f"with diffusion model {model_path}"
                 )
         if len(kwargs) > 0:
             log.warning(f"kwargs {kwargs} are not used")

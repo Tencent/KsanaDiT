@@ -1,9 +1,9 @@
-import torch.distributed as dist
-import torch
 import os
-
 import socket
 from contextlib import closing
+
+import torch
+import torch.distributed as dist
 
 
 def get_free_port():

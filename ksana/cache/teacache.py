@@ -1,8 +1,9 @@
 import torch
-from .base_cache import KsanaStepCache
+
 from ..config.cache_config import TeaCacheConfig
-from ..utils import log
 from ..models.model_key import KsanaModelKey
+from ..utils import log
+from .base_cache import KsanaStepCache
 
 
 class TeaCache(KsanaStepCache):

@@ -1,15 +1,17 @@
 import unittest
+
+import torch
+
 from ksana import KsanaGenerator
 from ksana.config import (
+    KsanaAttentionConfig,
     KsanaModelConfig,
-    KsanaTorchCompileConfig,
     KsanaRuntimeConfig,
     KsanaSampleConfig,
-    KsanaAttentionConfig,
+    KsanaTorchCompileConfig,
 )
-from ksana.config.cache_config import DCacheConfig, KsanaHybridCacheConfig, DBCacheConfig
+from ksana.config.cache_config import DBCacheConfig, DCacheConfig, KsanaHybridCacheConfig
 from ksana.operations import KsanaAttentionBackend, KsanaLinearBackend
-import torch
 
 prompts = [
     "街头摄影，戴耳机的酷女孩滑板，纽约街头，涂鸦墙背景，动态姿势，风吹头发，黄金时刻光线，主体清晰背景虚化，街头潮牌。",

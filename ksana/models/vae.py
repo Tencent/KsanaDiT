@@ -1,13 +1,14 @@
-import torch
 import os
-import numpy as np
 
-from .wan import Wan2_1_VAE, Wan2_2_VAE
-from .base_model import KsanaModel
-from ..utils.types import any_key_in_str
+import numpy as np
+import torch
+
+from ..models.model_key import WAN2_1, WAN2_2, KsanaModelKey
 from ..utils.logger import log
 from ..utils.profile import time_range
-from ..models.model_key import KsanaModelKey, WAN2_2, WAN2_1
+from ..utils.types import any_key_in_str
+from .base_model import KsanaModel
+from .wan import Wan2_1_VAE, Wan2_2_VAE
 
 
 class KsanaVAE(KsanaModel):
@@ -154,7 +155,10 @@ class KsanaVAE(KsanaModel):
             y.shape[2],
             lat_h,
             lat_w,
-        ), f"vae encode shape must be [bs, 16, lat_f, lat_h, lat_w], but got {y.shape}, {[bs, self.z_dim, y.shape[2], lat_h, lat_w]}"
+        ), (
+            "vae encode shape must be [bs, 16, lat_f, lat_h, lat_w], "
+            f"but got {y.shape}, {[bs, self.z_dim, y.shape[2], lat_h, lat_w]}"
+        )
 
         del merge_batch
 

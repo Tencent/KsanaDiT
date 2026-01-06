@@ -1,26 +1,24 @@
 import unittest
+
 import torch
 
-from ksana.config.cache_config import (
-    DCacheConfig,
-    CustomStepCacheConfig,
-    TeaCacheConfig,
-    EasyCacheConfig,
-    MagCacheConfig,
-    DBCacheConfig,
-)
-
 from ksana.cache import (
-    DCache,
     CustomStepCache,
-    TeaCache,
+    DBCache,
+    DCache,
     EasyCache,
     MagCache,
-    DBCache,
+    TeaCache,
 )
-
 from ksana.cache.base_cache import KsanaBlockCache
-
+from ksana.config.cache_config import (
+    CustomStepCacheConfig,
+    DBCacheConfig,
+    DCacheConfig,
+    EasyCacheConfig,
+    MagCacheConfig,
+    TeaCacheConfig,
+)
 from ksana.models.model_key import KsanaModelKey
 
 

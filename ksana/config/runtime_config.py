@@ -2,10 +2,10 @@ from dataclasses import dataclass, field
 
 from ..utils.const import (
     DEFAULT_OFFLOAD_MODEL,
-    DEFAULT_RETURN_FRAMES,
     DEFAULT_OUTPUTS_VIDEO_DIR,
-    DEFAULT_SAVE_VIDEO,
+    DEFAULT_RETURN_FRAMES,
     DEFAULT_ROPE_FUNC_TYPE,
+    DEFAULT_SAVE_VIDEO,
 )
 
 
