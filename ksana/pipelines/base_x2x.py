@@ -53,7 +53,6 @@ class KsanaX2XPipeline(ABC):
         self.vae_key = None
         self.diffusion_model_keys = None
         self.has_lora = False
-        self.model_load_warm_up_done = False
 
     @abstractmethod
     def load_text_encoder(self, checkpoint_dir, shard_fn=None) -> KsanaModel:
@@ -494,18 +493,11 @@ class KsanaX2XPipeline(ABC):
                 model.model.set_rope_function(rope_value)
 
     @time_range
-    def model_load_warm_up(self, high_model, low_model, device, offload_device):
-        if self.model_load_warm_up_done:
-            return
-        high_model.to(offload_device)
-        if low_model:
-            low_model.to(offload_device)
+    def preallocate_pinned_memory(self, high_model, low_model, offload_device):
         # NOTE: preallocate pinned memory at warm up stage to avoid CPU OOM when merging lora
         for model in [high_model, low_model]:
             if model:
-                model.load_warm_up(device, offload_device)
-
-        self.model_load_warm_up_done = True
+                model.preallocate_pinned_memory(offload_device)
 
     def change_to_hybrid_cache(
         self, cache_configs: list[KsanaCacheConfig | KsanaHybridCacheConfig], target_len: int
@@ -562,7 +554,7 @@ class KsanaX2XPipeline(ABC):
         ), f"high_model.run_dtype {high_model.run_dtype}, low_model.run_dtype {low_model.run_dtype} should be same"
         run_dtype = high_model.run_dtype
         self._apply_rope_function_to_models(diffusion_models, runtime_config.rope_function)
-        self.model_load_warm_up(high_model, low_model, device, offload_device)
+        self.preallocate_pinned_memory(high_model, low_model, offload_device)
 
         log.debug("positive, negtive:")
         print_recursive(positive, log.debug)

@@ -40,18 +40,19 @@ class KsanaDiffusionModel(KsanaModel):
         self._pinned_params = {}
         # NOTE: use more memory when using pinned memory.
         self._use_pinned_memory = True
+        self._preallocated_pinned_memory = False
 
     @time_range
     def preallocate_pinned_memory(self, offload_device):
+        if self._preallocated_pinned_memory or not self._use_pinned_memory or offload_device.type != "cpu":
+            return
+
         # fp8_gemm_dynamic uses torchao Float8Tensor weights which are not compatible with
         # our pinned-memory swap (it mutates `.data` and can error with incompatible tensor type).
         if getattr(self.model_config, "linear_backend", None) == "fp8_gemm_dynamic":
             return
 
         # 按dtype分组分配统一的 pinned memory buffer
-        if not self._use_pinned_memory or offload_device.type != "cpu":
-            return
-
         dtype_groups = {}  # {dtype: [(name, shape, numel), ...]}
 
         for name, param in self.model.named_parameters():
@@ -92,6 +93,7 @@ class KsanaDiffusionModel(KsanaModel):
         log.info(
             f"Unified pinned buffer allocated successfully, total: {total_memory_gb:.2f} GB across {len(dtype_groups)} dtype(s)"
         )
+        self._preallocated_pinned_memory = True
 
     @abstractmethod
     def get_model_key(self) -> KsanaModelKey:
@@ -150,11 +152,6 @@ class KsanaDiffusionModel(KsanaModel):
 
         return model
 
-    def load_warm_up(self, device, offload_device):
-        self.preallocate_pinned_memory(offload_device)
-        self.to(device=device)
-        self.to(device=offload_device)
-
     def to(self, device=None, **kwargs):
         """
         将模型移动到指定设备
@@ -202,9 +199,6 @@ class KsanaDiffusionModel(KsanaModel):
         def _process_tensor(name, tensor, key_prefix=""):
             if tensor.is_cuda:
                 key = f"{key_prefix}{name}" if key_prefix else name
-                # 创建或复用 pinned memory
-                if key not in self._pinned_params:
-                    self._pinned_params[key] = torch.empty_like(tensor, pin_memory=True)
                 # GPU -> Pinned Memory
                 self._pinned_params[key].copy_(tensor, non_blocking=True)
                 # 直接使用 pinned memory
@@ -233,8 +227,6 @@ class KsanaDiffusionModel(KsanaModel):
                 else:
                     # 如果不在 pinned memory，先转到 pinned memory
                     key = f"{key_prefix}{name}" if key_prefix else name
-                    if key not in self._pinned_params:
-                        self._pinned_params[key] = torch.empty_like(tensor, pin_memory=True)
                     self._pinned_params[key].copy_(tensor)
                     tensor.data = self._pinned_params[key].to(device, non_blocking=True)
 
