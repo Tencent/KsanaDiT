@@ -1,7 +1,7 @@
 from .attn_config import attention_config
-from .cache import KsanaComfyDBCache, custom_step_cache, dcache, easy_cache, hybrid_cache, mag_cache, teacache
+from .cache import KsanaNodeDBCache, custom_step_cache, dcache, easy_cache, hybrid_cache, mag_cache, teacache
 from .generate import generate
-from .load import KsanaComfyModelLoader
+from .load import KsanaNodeModelLoader
 from .lora import build_loras_list
 from .torch_compile import torch_compile_config
 from .types import (
@@ -20,7 +20,7 @@ from .types import (
     KSANA_VAE_ENCODE_OUTPUT,
     KSANA_VAE_MODEL,
 )
-from .vae import KsanaComfyVAELoader, vae_decode, vae_encode
+from .vae import KsanaNodeVAELoader, vae_decode, vae_encode
 
 __all__ = [
     KSANA_DIFFUSION_MODEL,
@@ -43,10 +43,10 @@ __all__ = [
     teacache,
     easy_cache,
     mag_cache,
-    KsanaComfyModelLoader,
-    KsanaComfyDBCache,
+    KsanaNodeModelLoader,
+    KsanaNodeDBCache,
     generate,
-    KsanaComfyVAELoader,
+    KsanaNodeVAELoader,
     vae_encode,
     vae_decode,
     build_loras_list,

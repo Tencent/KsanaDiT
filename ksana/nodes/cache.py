@@ -89,7 +89,7 @@ def mag_cache(threshold, K, cache_device, start_step, end_step, name=None):
     return MagCacheConfig(threshold, K, cache_device, start_step, end_step, name=name)
 
 
-class KsanaComfyDBCache:
+class KsanaNodeDBCache:
     # TODO(jason): optimize the default values
     PRESETS = {
         "conservative": {

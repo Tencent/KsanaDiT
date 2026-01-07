@@ -29,7 +29,7 @@ class TestNodes(unittest.TestCase):
         for model_name, expect_key in zip(model_names, expect_keys):
             high_noise_model_path = os.path.join(COMFY_MODEL_ROOT, model_name[0])
             low_noise_model_path = os.path.join(COMFY_MODEL_ROOT, model_name[1]) if model_name[1] else None
-            output = nodes.KsanaComfyModelLoader.load(
+            output = nodes.KsanaNodeModelLoader.load(
                 high_noise_model_path=high_noise_model_path,
                 low_noise_model_path=low_noise_model_path,
             )
@@ -70,7 +70,7 @@ class TestNodes(unittest.TestCase):
     #     for model_name, expect_key in zip(model_names, expect_keys):
     #         high_noise_model_path = os.path.join(COMFY_MODEL_ROOT, model_name[0])
     #         low_noise_model_path = os.path.join(COMFY_MODEL_ROOT, model_name[1]) if model_name[1] else None
-    #         output = nodes.KsanaComfyModelLoader.load(
+    #         output = nodes.KsanaNodeModelLoader.load(
     #             high_noise_model_path=high_noise_model_path,
     #             low_noise_model_path=low_noise_model_path,
     #         )

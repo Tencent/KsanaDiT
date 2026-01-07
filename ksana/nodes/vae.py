@@ -4,10 +4,10 @@ from ksana import get_generator
 from ksana.config import KsanaDistributedConfig
 from ksana.utils import get_gpu_count, log
 
-from .output_types import KsanaComfyVAEEncodeOutput
+from .output_types import KsanaNodeVAEEncodeOutput
 
 
-class KsanaComfyVAELoader:
+class KsanaNodeVAELoader:
     LOADED_MODEL = None
 
     @classmethod
@@ -63,7 +63,7 @@ def vae_encode(
         end_image=end_image,
         mask=mask,
     )
-    return KsanaComfyVAEEncodeOutput(
+    return KsanaNodeVAEEncodeOutput(
         samples=latents,
         with_end_image=with_end_image,
         batch_per_prompt=int(batch_size),
