@@ -16,5 +16,5 @@ class CustomStepCacheConfig(KsanaStepCacheConfig):
             self.steps = [self.steps]
         if self.scales is None:
             self.scales = 1.0
-        if isinstance(self.scales, float):
+        if not isinstance(self.scales, list):
             self.scales = [self.scales] * len(self.steps)

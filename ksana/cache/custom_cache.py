@@ -44,7 +44,6 @@ class CustomStepCache(KsanaStepCache):
     @disable_dynamo()
     def __call__(self, phase: str, x: torch.Tensor, step_iter: int, timestep: int, **kwargs) -> torch.Tensor:
         base_info = f"phase {phase} step_iter {step_iter} timestep {timestep}"
-        log.debug(f"[HIT cache] {base_info}")
         if self.prev_diff[phase] is None:
             log.error(f"prev_diff is None, call valid_for or update cache firstly for {base_info}")
             return None
@@ -52,6 +51,7 @@ class CustomStepCache(KsanaStepCache):
         idx = self.config.steps.index(step_iter)
         cur_diff = self.prev_diff[phase]
         output = x + cur_diff.to(device=x.device, dtype=x.dtype) * self.config.scales[idx]
+        log.info(f"[HIT cache] {base_info}")
         return output
 
     @disable_dynamo()

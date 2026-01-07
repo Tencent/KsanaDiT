@@ -1,4 +1,4 @@
-import folder_paths
+import os
 
 from ksana import get_generator
 from ksana.config import KsanaAttentionConfig, KsanaDistributedConfig, KsanaModelConfig
@@ -15,12 +15,12 @@ class KsanaComfyModelLoader:
     @classmethod
     def load(
         cls,
-        model_name,
+        high_noise_model_path: str,
+        low_noise_model_path: str = None,
         run_dtype="float16",
         linear_backend: KsanaLinearBackend | str = KsanaLinearBackend.DEFAULT,
         attention_config: KsanaAttentionConfig | None = None,
         num_gpus="default",
-        low_noise_model_name="Empty",
         model_boundary=None,
         torch_compile_args=None,
         lora=None,
@@ -30,7 +30,7 @@ class KsanaComfyModelLoader:
         if comfy_progress_bar_func is None:
             comfyui_progress_bar = None
         else:
-            comfyui_progress_bar = comfy_progress_bar_func(1 if low_noise_model_name == "Empty" else 2)
+            comfyui_progress_bar = comfy_progress_bar_func(1 if low_noise_model_path is None else 2)
 
         def comfy_bar_callback():
             if comfyui_progress_bar is None:
@@ -55,18 +55,18 @@ class KsanaComfyModelLoader:
                 high_model_loras_list = lora
         log.info(f"high_model_loras_list: {high_model_loras_list}, low_model_loras_list: {low_model_loras_list}")
 
-        MemoryProfiler.record_memory(f"before_load_{model_name}, {low_noise_model_name}")
-        high_model_path = folder_paths.get_full_path("diffusion_models", model_name)
-        low_model_path = None
-        if low_noise_model_name is not None:
-            low_model_path = folder_paths.get_full_path("diffusion_models", low_noise_model_name)
+        MemoryProfiler.record_memory("before_load_model")
 
         ksana_generator = get_generator(dist_config=KsanaDistributedConfig(num_gpus=num_gpus))
         if cls.LOADED_MODEL is not None:
             ksana_generator.clear_models(cls.LOADED_MODEL)
         try:
             cls.LOADED_MODEL = ksana_generator.load_diffusion_model(
-                model_path=(high_model_path, low_model_path) if low_model_path is not None else high_model_path,
+                model_path=(
+                    (high_noise_model_path, low_noise_model_path)
+                    if low_noise_model_path is not None
+                    else high_noise_model_path
+                ),
                 model_config=model_config,
                 comfy_bar_callback=comfy_bar_callback,
                 lora=[high_model_loras_list, low_model_loras_list],
@@ -74,10 +74,10 @@ class KsanaComfyModelLoader:
         except Exception as e:
             log.warning(f"load_diffusion_model failed, because {e}")
             cls.LOADED_MODEL = None
-        MemoryProfiler.record_memory(f"after_load_{model_name}, {low_noise_model_name}")
+        MemoryProfiler.record_memory("after_load_model")
         return KsanaComfyModelLoaderOutput(
             model=cls.LOADED_MODEL,
-            model_name=model_name,  # TODO(qian): need remove
+            model_name=os.path.basename(high_noise_model_path),  # TODO(qian): need remove
             run_dtype=model_config.run_dtype,
             boundary=model_boundary,
         )

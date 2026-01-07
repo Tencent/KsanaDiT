@@ -14,7 +14,7 @@ from ksana.config import (
     KsanaSampleConfig,
     KsanaTorchCompileConfig,
 )
-from ksana.config.cache_config import DBCacheConfig, DCacheConfig, KsanaHybridCacheConfig
+from ksana.config.cache_config import CustomStepCacheConfig, DBCacheConfig, DCacheConfig, KsanaHybridCacheConfig
 from ksana.operations import KsanaAttentionBackend, KsanaLinearBackend
 
 prompts = [
@@ -104,9 +104,7 @@ def run_advanced(args):
     generator = KsanaGenerator.from_models(
         f"{args.model_dir}/Wan2.2-T2V-A14B",
         model_config=model_config,
-        dist_config=KsanaDistributedConfig(
-            num_gpus=args.num_gpus,
-        ),
+        dist_config=KsanaDistributedConfig(num_gpus=args.num_gpus),
     )
 
     runtime_config = KsanaRuntimeConfig(
@@ -124,6 +122,43 @@ def run_advanced(args):
         step_cache=DCacheConfig(fast_degree=50),
         block_cache=DBCacheConfig(),
     )
+
+    # Generate the video
+    video = generator.generate(
+        prompts[0], sample_config=sample_config, runtime_config=runtime_config, cache_config=cache_config
+    )
+    print("video shape:", video.shape)
+
+
+def run_fast(args):
+    model_config = KsanaModelConfig(
+        run_dtype=torch.float16,
+        attention_config=KsanaAttentionConfig(backend=KsanaAttentionBackend.FLASH_ATTN),
+        torch_compile_config=KsanaTorchCompileConfig(mode="max-autotune-no-cudagraphs"),
+    )
+    generator = KsanaGenerator.from_models(
+        f"{args.model_dir}/Wan2.2-T2V-A14B",
+        model_config=model_config,
+        lora=f"{args.model_dir}/Wan2.2-Lightning/Wan2.2-T2V-A14B-4steps-lora-rank64-Seko-V1",
+        dist_config=KsanaDistributedConfig(num_gpus=args.num_gpus),
+    )
+
+    runtime_config = KsanaRuntimeConfig(
+        size=(1280, 720),
+        seed=SEED,
+        frame_num=81,
+        return_frames=True,
+        output_folder="outputs",
+        save_video=True,
+        rope_function="comfy",
+        boundary=0.9,
+    )
+
+    sample_config = KsanaSampleConfig(
+        steps=4, cfg_scale=1.0, shift=5.0, solver="euler", sigmas=[1.0, 0.9375001, 0.6333333, 0.225, 0.0000]
+    )
+
+    cache_config = CustomStepCacheConfig(steps=3, scales=1.1)
 
     # Generate the video
     video = generator.generate(
@@ -160,3 +195,4 @@ if __name__ == "__main__":
     run_fp8_models(args)
     run_with_lora(args)
     run_advanced(args)
+    run_fast(args)

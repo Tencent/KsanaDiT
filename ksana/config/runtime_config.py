@@ -26,3 +26,7 @@ class KsanaRuntimeConfig:
     return_frames: bool | None = field(default=DEFAULT_RETURN_FRAMES)
     output_folder: str | None = field(default=DEFAULT_OUTPUTS_VIDEO_DIR)
     save_video: bool | None = field(default=DEFAULT_SAVE_VIDEO)
+
+    def __post_init__(self):
+        if self.rope_function not in ["comfy", "default"]:
+            raise ValueError("rope_function must be either 'comfy' or 'default'")
