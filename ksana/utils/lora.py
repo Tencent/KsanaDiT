@@ -94,6 +94,7 @@ def get_weight_scale(model_sd, weight_name: str, device=None):
 def merge_lora_weight(
     model_sd: dict,
     lora_sd: dict,
+    run_dtype: torch.dtype,
     lora_down_key: str = ".lora_down.weight",
     lora_up_key: str = ".lora_up.weight",
     strength: float = 1.0,
@@ -116,9 +117,9 @@ def merge_lora_weight(
             if value.dtype in [torch.float8_e4m3fn, torch.float8_e5m2]:
                 # FP8 类型需要先转换为 float32 再计算
                 scale = get_weight_scale(model_sd, key, device=value.device)
-                value.data = (value.to(dtype=torch.float32) * scale.to(dtype=torch.float32)) + delta_W
+                value.data = ((value.to(dtype=torch.float32) * scale.to(dtype=torch.float32)) + delta_W).to(run_dtype)
             else:
-                value.data = value.data + delta_W
+                value.data = (value.data + delta_W).to(run_dtype)
             merged_cnt += 1
     log.info(f"merged {merged_cnt} lora weights")
     return model_sd
@@ -129,7 +130,7 @@ def build_loras_list(lora_path: str, strength=1.0):
 
 
 @time_range
-def load_state_dict_and_merge_lora(model_path: str, loras_list, device=None):
+def load_state_dict_and_merge_lora(model_path: str, loras_list, run_dtype: torch.dtype, device=None):
     sd = {}
 
     need_merge = loras_list is not None and len(loras_list) > 0
@@ -156,7 +157,7 @@ def load_state_dict_and_merge_lora(model_path: str, loras_list, device=None):
         for lora in loras_list:
             log.info(f"start to merge lora: {lora['path']}")
             lora_sd = load_file_to_state_dict(lora["path"], device=device)
-            base_sd = merge_lora_weight(base_sd, lora_sd, strength=lora["strength"])
+            base_sd = merge_lora_weight(base_sd, lora_sd, run_dtype, strength=lora["strength"])
             del lora_sd
 
         log.debug("start to offload to cpu")

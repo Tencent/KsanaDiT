@@ -139,7 +139,9 @@ class KsanaWanX2VPipeline(KsanaX2XPipeline):
             for i in range(len(load_model_path_or_files)):
                 one_model_path = load_model_path_or_files[i]
                 loras_list = list_of_loras_list[i] if list_of_loras_list is not None else None
-                model_state_dict = load_state_dict_and_merge_lora(one_model_path, loras_list, device=device)
+                model_state_dict = load_state_dict_and_merge_lora(
+                    one_model_path, loras_list, model_config.run_dtype, device=device
+                )
                 one_model = self.load_one_diffusion_model(
                     model_config=model_config,
                     model_state_dict=model_state_dict,
@@ -155,7 +157,9 @@ class KsanaWanX2VPipeline(KsanaX2XPipeline):
             return res
         else:
             loras_list = list_of_loras_list[0] if list_of_loras_list is not None else None
-            model_state_dict = load_state_dict_and_merge_lora(load_model_path_or_files, loras_list, device=device)
+            model_state_dict = load_state_dict_and_merge_lora(
+                load_model_path_or_files, loras_list, model_config.run_dtype, device=device
+            )
             one_model = self.load_one_diffusion_model(
                 model_config=model_config,
                 model_state_dict=model_state_dict,
