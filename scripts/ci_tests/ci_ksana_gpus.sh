@@ -26,4 +26,4 @@ conda activate env-novelai
 export KSANA_TEST_PORT=${KSANA_TEST_PORT}
 export CUDA_VISIBLE_DEVICES=${GPU_CARDS}
 cd /ci_workspace/${BK_CI_GIT_REPO_HEAD_COMMIT_ID}/
-pytest -s -v tests/ksana/models/gpus/
+pytest -s -v tests/ksana/gpus/

@@ -72,7 +72,7 @@ class KsanaComfyModelLoader:
                 lora=[high_model_loras_list, low_model_loras_list],
             )
         except Exception as e:
-            log.warning(f"load_diffusion_model failed, because {e}")
+            log.error(f"load_diffusion_model failed, because {e}")
             cls.LOADED_MODEL = None
         MemoryProfiler.record_memory("after_load_model")
         return KsanaComfyModelLoaderOutput(
