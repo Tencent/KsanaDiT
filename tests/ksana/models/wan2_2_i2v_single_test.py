@@ -2,7 +2,7 @@ import unittest
 
 import torch
 
-from ksana import KsanaGenerator
+from ksana import KsanaEngine
 from ksana.config import (
     KsanaRuntimeConfig,
     KsanaSampleConfig,
@@ -25,8 +25,8 @@ class TestKsanaI2V(unittest.TestCase):
 
     def test_simple_i2v(self):
         print("-----------------test_simple_i2v-----------------")
-        generator = KsanaGenerator.from_models("./Wan2.2-I2V-A14B")
-        videos = generator.generate(
+        engine = KsanaEngine.from_models("./Wan2.2-I2V-A14B")
+        videos = engine.generate(
             prompts[0],
             img_path="./examples/images/input.png",
             sample_config=KsanaSampleConfig(steps=TEST_STEPS),
@@ -43,7 +43,7 @@ class TestKsanaI2V(unittest.TestCase):
             self.assertEqual(list(videos.shape), [1, 3, TEST_FRAME_NUM, 576, 576])
         mean0 = videos.cpu().abs().mean().item()
 
-        videos = generator.generate(
+        videos = engine.generate(
             prompts,
             img_path="./examples/images/start_image.png",
             end_img_path="./examples/images/end_image.png",

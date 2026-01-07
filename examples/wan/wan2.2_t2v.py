@@ -5,7 +5,7 @@ import torch
 
 os.environ["KSANA_LOGGER_LEVEL"] = "INFO"
 
-from ksana import KsanaGenerator
+from ksana import KsanaEngine
 from ksana.config import (
     KsanaAttentionConfig,
     KsanaDistributedConfig,
@@ -26,11 +26,11 @@ SEED = 1234
 
 
 def run_simple(args):
-    generator = KsanaGenerator.from_models(
+    engine = KsanaEngine.from_models(
         f"{args.model_dir}/Wan2.2-T2V-A14B", dist_config=KsanaDistributedConfig(num_gpus=args.num_gpus)
     )
 
-    video = generator.generate(
+    video = engine.generate(
         prompts[0],
         sample_config=KsanaSampleConfig(steps=40),
         runtime_config=KsanaRuntimeConfig(
@@ -61,7 +61,7 @@ def run_fp8_models(args):
         torch_compile_config=KsanaTorchCompileConfig(),
     )
 
-    generator = KsanaGenerator.from_models(
+    engine = KsanaEngine.from_models(
         (high_noise_model_path, low_noise_model_path),  # high go first
         text_checkpoint_dir=text_dir,
         vae_checkpoint_dir=vae_dir,
@@ -71,7 +71,7 @@ def run_fp8_models(args):
     high_cache_config = DCacheConfig(fast_degree=55)
     low_cache_config = DCacheConfig(fast_degree=45)
 
-    video = generator.generate(
+    video = engine.generate(
         prompts[0],
         sample_config=KsanaSampleConfig(steps=40),
         runtime_config=KsanaRuntimeConfig(
@@ -86,13 +86,13 @@ def run_fp8_models(args):
 
 
 def run_with_lora(args):
-    generator = KsanaGenerator.from_models(
+    engine = KsanaEngine.from_models(
         f"{args.model_dir}/Wan2.2-T2V-A14B",
         lora=f"{args.model_dir}/Wan2.2-Lightning/Wan2.2-T2V-A14B-4steps-lora-rank64-Seko-V1",
         dist_config=KsanaDistributedConfig(num_gpus=args.num_gpus),
     )
 
-    generator.generate(prompts, runtime_config=KsanaRuntimeConfig(seed=SEED), cache_config=DCacheConfig())
+    engine.generate(prompts, runtime_config=KsanaRuntimeConfig(seed=SEED), cache_config=DCacheConfig())
 
 
 def run_advanced(args):
@@ -101,7 +101,7 @@ def run_advanced(args):
         attention_config=KsanaAttentionConfig(backend=KsanaAttentionBackend.FLASH_ATTN),
         torch_compile_config=KsanaTorchCompileConfig(),
     )
-    generator = KsanaGenerator.from_models(
+    engine = KsanaEngine.from_models(
         f"{args.model_dir}/Wan2.2-T2V-A14B",
         model_config=model_config,
         dist_config=KsanaDistributedConfig(num_gpus=args.num_gpus),
@@ -124,7 +124,7 @@ def run_advanced(args):
     )
 
     # Generate the video
-    video = generator.generate(
+    video = engine.generate(
         prompts[0], sample_config=sample_config, runtime_config=runtime_config, cache_config=cache_config
     )
     print("video shape:", video.shape)
@@ -136,7 +136,7 @@ def run_fast(args):
         attention_config=KsanaAttentionConfig(backend=KsanaAttentionBackend.FLASH_ATTN),
         torch_compile_config=KsanaTorchCompileConfig(mode="max-autotune-no-cudagraphs"),
     )
-    generator = KsanaGenerator.from_models(
+    engine = KsanaEngine.from_models(
         f"{args.model_dir}/Wan2.2-T2V-A14B",
         model_config=model_config,
         lora=f"{args.model_dir}/Wan2.2-Lightning/Wan2.2-T2V-A14B-4steps-lora-rank64-Seko-V1",
@@ -161,7 +161,7 @@ def run_fast(args):
     cache_config = CustomStepCacheConfig(steps=3, scales=1.1)
 
     # Generate the video
-    video = generator.generate(
+    video = engine.generate(
         prompts[0], sample_config=sample_config, runtime_config=runtime_config, cache_config=cache_config
     )
     print("video shape:", video.shape)

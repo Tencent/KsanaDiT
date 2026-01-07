@@ -1,6 +1,6 @@
 try:
     from .config import KsanaTorchCompileConfig
-    from .generator import KsanaGenerator, get_generator
+    from .engine import KsanaEngine, get_engine
     from .models import KsanaDiffusionModel
     from .utils import KSANA_LOGGER_LEVEL, KSANA_MEMORY_PROFILER  # noqa: F401
 except Exception as e:
@@ -14,4 +14,4 @@ except Exception as e:
     print(f"error line number: {error_frame.lineno}")
     print(f"error code: {error_frame.line}")
 
-__all__ = ["get_generator", "KsanaDiffusionModel", "KsanaGenerator", "KsanaTorchCompileConfig"]
+__all__ = ["get_engine", "KsanaDiffusionModel", "KsanaEngine", "KsanaTorchCompileConfig"]

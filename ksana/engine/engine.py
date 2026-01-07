@@ -11,11 +11,11 @@ from ..utils import log, singleton
 from ..utils.distribute import get_gpu_count, get_torchrun_env, is_launched_by_torchrun
 
 
-def get_generator(*args, **kwargs):
+def get_engine(*args, **kwargs):
     """
-    Get the generator instance.
+    Get the engine instance.
     """
-    return KsanaGenerator(*args, **kwargs)
+    return KsanaEngine(*args, **kwargs)
 
 
 def pop_keys_in_kwargs(to_be_removed_keys, kwargs):
@@ -27,9 +27,9 @@ def pop_keys_in_kwargs(to_be_removed_keys, kwargs):
 
 
 @singleton
-class KsanaGenerator(ABC):
+class KsanaEngine(ABC):
     """
-    Base class for all Ksana generators.
+    Base class for all Ksana engines.
     """
 
     FUNC_KEY_PRE_ALL = "func_key_pre_all"
@@ -42,9 +42,9 @@ class KsanaGenerator(ABC):
 
     def __init__(self, dist_config: KsanaDistributedConfig = KsanaDistributedConfig(), offload_device="cpu"):
         """
-        Initialize the KsanaGenerator.
+        Initialize the KsanaEngine.
         """
-        log.info(f"Initializing KsanaGenerator with dist_config: {dist_config}, offload_device: {offload_device}")
+        log.info(f"Initializing KsanaEngine with dist_config: {dist_config}, offload_device: {offload_device}")
         self.num_gpus = dist_config.num_gpus
         self._is_ray = False
         self.init_executors(dist_config=dist_config, offload_device=offload_device)
@@ -162,12 +162,12 @@ class KsanaGenerator(ABC):
         **kwargs,
     ):
         """
-        create generator from pretrained models for local usage.
+        create engine from pretrained models for local usage.
         """
         model_config = model_config or KsanaModelConfig()
         dist_config = dist_config or KsanaDistributedConfig()
-        generator = get_generator(dist_config=dist_config, offload_device=offload_device)
-        generator.load_models(
+        engine = get_engine(dist_config=dist_config, offload_device=offload_device)
+        engine.load_models(
             model_path,
             text_checkpoint_dir=text_checkpoint_dir,
             vae_checkpoint_dir=vae_checkpoint_dir,
@@ -175,7 +175,7 @@ class KsanaGenerator(ABC):
             model_config=model_config,
             **kwargs,
         )
-        return generator
+        return engine
 
     @auto_dispatch
     def load_diffusion_model(self, *args, **kwargs):
@@ -206,6 +206,7 @@ class KsanaGenerator(ABC):
     @auto_dispatch
     def generate(self, *args, **kwargs):
         def pre_func_all(*args, **kwargs):
+            # Note: here covers ray and gpus
             if self.num_gpus > 1:
                 runtime_config = kwargs.get("runtime_config", None)
                 seed = runtime_config.seed if runtime_config else None

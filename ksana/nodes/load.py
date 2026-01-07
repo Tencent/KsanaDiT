@@ -1,6 +1,6 @@
 import os
 
-from ksana import get_generator
+from ksana import get_engine
 from ksana.config import KsanaAttentionConfig, KsanaDistributedConfig, KsanaModelConfig
 from ksana.operations import KsanaLinearBackend
 from ksana.utils import get_gpu_count, log
@@ -57,11 +57,11 @@ class KsanaNodeModelLoader:
 
         MemoryProfiler.record_memory("before_load_model")
 
-        ksana_generator = get_generator(dist_config=KsanaDistributedConfig(num_gpus=num_gpus))
+        ksana_engine = get_engine(dist_config=KsanaDistributedConfig(num_gpus=num_gpus))
         if cls.LOADED_MODEL is not None:
-            ksana_generator.clear_models(cls.LOADED_MODEL)
+            ksana_engine.clear_models(cls.LOADED_MODEL)
         try:
-            cls.LOADED_MODEL = ksana_generator.load_diffusion_model(
+            cls.LOADED_MODEL = ksana_engine.load_diffusion_model(
                 model_path=(
                     (high_noise_model_path, low_noise_model_path)
                     if low_noise_model_path is not None

@@ -1,4 +1,4 @@
-from ksana import get_generator
+from ksana import get_engine
 from ksana.config import KsanaRuntimeConfig, KsanaSampleConfig
 from ksana.models.diffusion import KsanaDiffusionModel
 from ksana.utils import log
@@ -64,8 +64,8 @@ def generate(
     ksana_model = model.model
     run_dtype = model.run_dtype
     boundary = model.boundary
-    ksana_generator = get_generator()
-    MemoryProfiler.record_memory("before_ksana_generator_generate_with_tensors")
+    ksana_engine = get_engine()
+    MemoryProfiler.record_memory("before_ksana_engine_generate_with_tensors")
 
     latent_shape = latent_image.samples.shape
     _prepare_memory_for_ksana_models(
@@ -89,7 +89,7 @@ def generate(
     batch_per_prompt = [batch_per_prompt] * num_prompts
 
     # TODO: maybe need to latent_format process_in for positive/negative?
-    samples = ksana_generator.forward_diffusion_models_with_tensors(
+    samples = ksana_engine.forward_diffusion_models_with_tensors(
         model_keys=ksana_model,
         positive=positive[0][0],
         negative=negative[0][0],
@@ -111,7 +111,7 @@ def generate(
         cache_configs=cache_configs,
         comfy_bar_callback=comfy_bar_callback,
     )
-    MemoryProfiler.record_memory("after_ksana_generator_generate_with_tensors")
+    MemoryProfiler.record_memory("after_ksana_engine_generate_with_tensors")
     if len(samples.shape) == 4:
         samples = samples.unsqueeze(0)
 
