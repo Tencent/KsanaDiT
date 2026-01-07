@@ -3,7 +3,7 @@ import unittest
 
 import torch
 
-from ksana import KsanaGenerator
+from ksana import KsanaEngine
 from ksana.config import (
     KsanaDistributedConfig,
     KsanaRuntimeConfig,
@@ -29,10 +29,10 @@ class TestKsanaGpus(unittest.TestCase):
 
     def test_simple_gpus(self):
         print("-----------------test_simple_gpus-----------------")
-        generator = KsanaGenerator.from_models(
+        engine = KsanaEngine.from_models(
             "./Wan2.2-T2V-A14B", dist_config=KsanaDistributedConfig(num_gpus=2, port=TEST_PORT)
         )
-        videos = generator.generate(
+        videos = engine.generate(
             prompts,
             sample_config=KsanaSampleConfig(steps=TEST_STEPS),
             runtime_config=KsanaRuntimeConfig(
@@ -52,7 +52,7 @@ class TestKsanaGpus(unittest.TestCase):
         with self.subTest(msg="Mean 1 Check"):
             self.assertAlmostEqual(mean1, 0.44206780195236206, places=TEST_EPS_PLACE)
 
-        videos = generator.generate(
+        videos = engine.generate(
             prompts[0],
             sample_config=KsanaSampleConfig(steps=TEST_STEPS),
             runtime_config=KsanaRuntimeConfig(

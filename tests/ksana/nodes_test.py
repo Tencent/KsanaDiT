@@ -2,7 +2,7 @@ import os
 import unittest
 
 import ksana.nodes as nodes
-from ksana import get_generator
+from ksana import get_engine
 from ksana.models.model_key import KsanaModelKey
 
 COMFY_MODEL_ROOT = "/data/stable-diffusion-webui/models/diffusion_models"
@@ -12,9 +12,9 @@ COMFY_MODEL_ROOT = "/data/stable-diffusion-webui/models/diffusion_models"
 class TestNodes(unittest.TestCase):
     def test_model_loader(self):
         print("-----------------test_model_loader-----------------")
-        # TODO(TJ): add generator gpus
-        ksana_generator = get_generator()
-        ksana_generator.clear_models()
+        # TODO(TJ): add engine gpus
+        ksana_engine = get_engine()
+        ksana_engine.clear_models()
 
         model_names = [
             ["wan2.2_t2v_high_noise_14B_fp8_scaled.safetensors", "wan2.2_t2v_low_noise_14B_fp8_scaled.safetensors"],
@@ -34,6 +34,8 @@ class TestNodes(unittest.TestCase):
                 low_noise_model_path=low_noise_model_path,
             )
             self.assertEqual(output.model, expect_key)
+
+    #         ksana_engine.generate()
 
     # def test_attn_linear(self):
     #     model_names = [
@@ -63,7 +65,7 @@ class TestNodes(unittest.TestCase):
     #             target_shape[4],
     #             dtype=torch.float32,
     #             device=device,
-    #             generator=seed_g,
+    #             engine=seed_g,
     #         ).to(dtype)
 
     #     torch.random.manual_seed(321)

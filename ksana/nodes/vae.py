@@ -1,6 +1,6 @@
 import torch
 
-from ksana import get_generator
+from ksana import get_engine
 from ksana.config import KsanaDistributedConfig
 from ksana.utils import get_gpu_count, log
 
@@ -13,10 +13,10 @@ class KsanaNodeVAELoader:
     @classmethod
     def load(cls, vae_path):
         num_gpus = get_gpu_count()
-        ksana_generator = get_generator(dist_config=KsanaDistributedConfig(num_gpus=num_gpus))
+        ksana_engine = get_engine(dist_config=KsanaDistributedConfig(num_gpus=num_gpus))
         if cls.LOADED_MODEL is not None:
-            ksana_generator.clear_models(cls.LOADED_MODEL)
-        cls.LOADED_MODEL = ksana_generator.load_vae_model(model_path=vae_path)
+            ksana_engine.clear_models(cls.LOADED_MODEL)
+        cls.LOADED_MODEL = ksana_engine.load_vae_model(model_path=vae_path)
         return cls.LOADED_MODEL
 
 
@@ -30,7 +30,7 @@ def vae_encode(
     height=None,
     batch_size=None,
 ):
-    ksana_generator = get_generator()
+    ksana_engine = get_engine()
     log.info(f"encoder vae: {vae}")
     if isinstance(start_image, torch.Tensor) and start_image.ndim == 3:
         start_image = start_image.unsqueeze(0)
@@ -54,7 +54,7 @@ def vae_encode(
 
     with_end_image = end_image is not None
 
-    latents = ksana_generator.forward_vae_encode(
+    latents = ksana_engine.forward_vae_encode(
         vae_key=vae,
         frame_num=num_frames,
         width=width,
@@ -77,11 +77,11 @@ def _comfy_process_output(image):
 def vae_decode(vae, latent):
     latents = latent.samples
     with_end_image = latent.with_end_image
-    ksana_generator = get_generator()
+    ksana_engine = get_engine()
     log.info(f"latent{latents.shape}, {latents.device}")
     if isinstance(latents, torch.Tensor) and latents.ndim == 4:
         latents = latents.unsqueeze(0)
-    images = ksana_generator.forward_vae_decode(
+    images = ksana_engine.forward_vae_decode(
         vae_key=vae,
         latents=latents,
         with_end_image=with_end_image,
