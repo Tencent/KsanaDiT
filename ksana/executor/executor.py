@@ -100,6 +100,7 @@ class KsanaExecutor(ABC):
     def clear_models(self, model_keys: list[KsanaModelKey] | KsanaModelKey = None):
         if self.model_pool is None:
             return
+        log.info(f"clear models {model_keys}")
         self.model_pool.clear_models(model_keys)
 
     def load_models(

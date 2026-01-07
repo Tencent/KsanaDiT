@@ -5,6 +5,7 @@ import numpy as np
 import torch
 
 from ksana.config.sample_config import KsanaSampleConfig
+from ksana.nodes.output_types import KsanaComfyVAEEncodeOutput
 from ksana.utils import evolve_with_recommend, singleton
 from ksana.utils.debug import print_recursive
 from ksana.utils.logger import log
@@ -114,6 +115,15 @@ class TestPrint(unittest.TestCase):
 
     def test_print_recursive_torch_float(self):
         obj = {"a": 1, "b": torch.tensor([1, 2, 3]).to(torch.float16), "c": {"d": 5}}
+        for print_func in [print, log.info]:
+            print_recursive(obj, print_func)
+
+    def test_print_recursive_obj_torch_float(self):
+        obj = KsanaComfyVAEEncodeOutput(
+            samples=torch.tensor([1, 2, 3]).to(torch.float16),
+            with_end_image=True,
+            batch_per_prompt=1,
+        )
         for print_func in [print, log.info]:
             print_recursive(obj, print_func)
 

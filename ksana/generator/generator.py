@@ -142,11 +142,11 @@ class KsanaGenerator(ABC):
         return wrapper
 
     @auto_dispatch
-    def load_models(self, model_path, **kwargs):
+    def load_models(self, *args, **kwargs):
         pass
 
     @auto_dispatch
-    def clear_models(self, model_keys):
+    def clear_models(self, *args, **kwargs):
         pass
 
     @staticmethod

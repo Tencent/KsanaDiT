@@ -44,7 +44,7 @@ class KsanaModelPool:
         clear all if model_keys is None
         """
         if model_keys is None:
-            log.info("clear all models")
+            log.info("clear all models if input model_keys is None")
             self.loaded_models.clear()
             self.loaded_models = {}
             gc.collect()
