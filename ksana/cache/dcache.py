@@ -75,8 +75,6 @@ class DCache(KsanaStepCache):
     @staticmethod
     @disable_dynamo()
     def get_unify_degree(degree_func, timestep):
-        # import ipdb
-        # ipdb.set_trace()
         unify_degree = degree_func(timestep)
         unify_degree = abs(unify_degree)
         if hasattr(unify_degree, "__len__"):

@@ -5,6 +5,7 @@ from .load import KsanaComfyModelLoader
 from .lora import build_loras_list
 from .torch_compile import torch_compile_config
 from .types import (
+    KSANA_ATTENTION_CONFIG,
     KSANA_CACHE_CONFIG,
     KSANA_CATEGORY_CACHE,
     KSANA_CATEGORY_CONFIGS,
@@ -28,6 +29,7 @@ __all__ = [
     KSANA_CATEGORY_UTILS,
     KSANA_CATEGORY_CONFIGS,
     KSANA_TORCH_COMPILE,
+    KSANA_ATTENTION_CONFIG,
     KSANA_LORA,
     KSANA_CATEGORY_LORA,
     KSANA_GENERATE_OUTPUT,
