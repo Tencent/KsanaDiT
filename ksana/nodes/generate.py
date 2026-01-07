@@ -10,7 +10,7 @@ from ksana.utils.memory import (
 )
 from ksana.utils.profile import MemoryProfiler
 
-from .output_types import KsanaComfyGeneratorOutput
+from .output_types import KsanaNodeGeneratorOutput
 
 
 def _prepare_memory_for_ksana_models(model_name_str, latent_shape, run_dtype, comfy_device, comfy_free_mem_func):
@@ -115,7 +115,7 @@ def generate(
     if len(samples.shape) == 4:
         samples = samples.unsqueeze(0)
 
-    return KsanaComfyGeneratorOutput(
+    return KsanaNodeGeneratorOutput(
         samples=samples,
         with_end_image=latent_image.with_end_image,
     )

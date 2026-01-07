@@ -6,10 +6,10 @@ from ksana.operations import KsanaLinearBackend
 from ksana.utils import get_gpu_count, log
 from ksana.utils.profile import MemoryProfiler
 
-from .output_types import KsanaComfyModelLoaderOutput
+from .output_types import KsanaNodeModelLoaderOutput
 
 
-class KsanaComfyModelLoader:
+class KsanaNodeModelLoader:
     LOADED_MODEL = None
 
     @classmethod
@@ -75,7 +75,7 @@ class KsanaComfyModelLoader:
             log.error(f"load_diffusion_model failed, because {e}")
             cls.LOADED_MODEL = None
         MemoryProfiler.record_memory("after_load_model")
-        return KsanaComfyModelLoaderOutput(
+        return KsanaNodeModelLoaderOutput(
             model=cls.LOADED_MODEL,
             model_name=os.path.basename(high_noise_model_path),  # TODO(qian): need remove
             run_dtype=model_config.run_dtype,
