@@ -35,8 +35,8 @@ def run_simple(args):
         sample_config=KsanaSampleConfig(steps=40),
         runtime_config=KsanaRuntimeConfig(
             seed=SEED,
-            size=(1280, 720),
-            frame_num=81,
+            size=(512, 512),
+            frame_num=17,
             return_frames=True,
         ),
     )
@@ -80,7 +80,7 @@ def run_start_and_end_with_lora(args):
         runtime_config=KsanaRuntimeConfig(
             seed=SEED,
             size=(512, 512),
-            frame_num=81,
+            frame_num=49,
             return_frames=True,
         ),
     )
