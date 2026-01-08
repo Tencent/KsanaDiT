@@ -9,9 +9,7 @@ from einops import rearrange
 
 from ksana.utils import load_file_to_state_dict, remove_prefix_from_sd_inplace
 
-__all__ = [
-    "Wan2_1_VAE",
-]
+__all__ = ["Wan2_1_VAE"]
 
 CACHE_T = 2
 
@@ -129,7 +127,8 @@ class Resample(nn.Module):
                     cache_x = x[:, :, -1:, :, :].clone()
                     # if cache_x.shape[2] < 2 and feat_cache[idx] is not None and feat_cache[idx]!='Rep':
                     #     # cache last frame of last two chunk
-                    #     cache_x = torch.cat([feat_cache[idx][:, :, -1, :, :].unsqueeze(2).to(cache_x.device), cache_x], dim=2)
+                    #     cache_x = torch.cat([feat_cache[idx][:, :, -1, :, :].unsqueeze(2).to(
+                    #               cache_x.device), cache_x], dim=2)
 
                     x = self.time_conv(torch.cat([feat_cache[idx][:, :, -1:, :, :], x], 2))
                     feat_cache[idx] = cache_x

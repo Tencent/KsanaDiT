@@ -9,9 +9,7 @@ from einops import rearrange
 
 from ksana.utils import load_file_to_state_dict, remove_prefix_from_sd_inplace
 
-__all__ = [
-    "Wan2_2_VAE",
-]
+__all__ = ["Wan2_2_VAE"]
 
 CACHE_T = 2
 
