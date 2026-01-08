@@ -2,6 +2,10 @@ from __future__ import annotations
 
 import torch
 
+from ksana.config import KsanaAttentionBackend, KsanaAttentionConfig
+
+from .base import KsanaAttentionBackendImpl
+
 try:
     from flash_attn import flash_attn_varlen_func as flash_attn_2_func
 
@@ -18,8 +22,6 @@ except ModuleNotFoundError:
     flash_attn_3_func = None  # type: ignore[assignment]
     _FLASH_ATTN_3_AVAILABLE = False
 
-from .base import KsanaAttentionBackend, KsanaAttentionBackendImpl
-
 
 class FlashAttentionImpl(KsanaAttentionBackendImpl):
 
@@ -34,6 +36,7 @@ class FlashAttentionImpl(KsanaAttentionBackendImpl):
 
     def __init__(
         self,
+        attention_config: KsanaAttentionConfig,
         num_heads: int,
         head_size: int,
         causal: bool,
@@ -46,6 +49,8 @@ class FlashAttentionImpl(KsanaAttentionBackendImpl):
         self.num_heads = num_heads
         self.head_size = head_size
         self.num_kv_heads = num_kv_heads or num_heads
+        self.attention_config = attention_config
+        self.check_config()
 
     def forward(
         self,

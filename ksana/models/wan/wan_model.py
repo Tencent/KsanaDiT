@@ -8,7 +8,7 @@ from diffusers.configuration_utils import ConfigMixin, register_to_config
 from diffusers.models.modeling_utils import ModelMixin
 
 from ksana.cache import KsanaHybridCache
-from ksana.utils import gather_forward, get_rank_id, time_range
+from ksana.utils import all_to_all, gather_forward, get_rank_id, get_world_size, time_range
 from ksana.utils.rope import EmbedND, apply_comfyui_rope, apply_default_rope
 
 __all__ = ["WanModel"]
@@ -51,7 +51,16 @@ def rope_params(max_seq_len, dim, theta=10000):
 
 
 class WanSelfAttention(nn.Module):
-    def __init__(self, dim, num_heads, window_size=(-1, -1), qk_norm=True, eps=1e-6, operation_settings={}):
+    def __init__(
+        self,
+        dim,
+        num_heads,
+        window_size=(-1, -1),
+        qk_norm=True,
+        eps=1e-6,
+        block_id=-1,
+        operation_settings={},
+    ):
         assert dim % num_heads == 0
         super().__init__()
         self.dim = dim
@@ -60,7 +69,7 @@ class WanSelfAttention(nn.Module):
         self.window_size = window_size
         self.qk_norm = qk_norm
         self.eps = eps
-
+        self.block_id = block_id
         # layers
         device = operation_settings.get("device")
         dtype = operation_settings.get("dtype")
@@ -89,7 +98,25 @@ class WanSelfAttention(nn.Module):
             causal=False,
         )
 
-    def forward(self, x, seq_lens, grid_sizes, freqs, rope_func="default"):
+        # seq_parallel related
+        self.sp_rank = get_rank_id()
+        self.sp_size = get_world_size()
+
+    def _gather_qkv(self, q, k, v):
+        if self.sp_size == 1:
+            return q, k, v
+        # all to all
+        q = all_to_all(q, scatter_dim=2, gather_dim=1)
+        k = all_to_all(k, scatter_dim=2, gather_dim=1)
+        v = all_to_all(v, scatter_dim=2, gather_dim=1)
+        return q, k, v
+
+    def _gather_attn_output(self, x):
+        if self.sp_size == 1:
+            return x
+        return all_to_all(x, scatter_dim=1, gather_dim=2)
+
+    def forward(self, x, seq_lens, grid_sizes, freqs, step_iter, latent_shape, rope_func="default"):
         r"""
         Args:
             x(Tensor): Shape [B, L, num_heads, C / num_heads]
@@ -109,22 +136,24 @@ class WanSelfAttention(nn.Module):
         q, k, v = qkv_fn(x)
 
         if rope_func == "comfy":
-            q = apply_comfyui_rope(q, freqs)
-            k = apply_comfyui_rope(k, freqs)
+            q = apply_comfyui_rope(q, freqs, sp_rank=self.sp_rank, sp_size=self.sp_size)
+            k = apply_comfyui_rope(k, freqs, sp_rank=self.sp_rank, sp_size=self.sp_size)
         else:
-            q = apply_default_rope(q, grid_sizes, freqs)
-            k = apply_default_rope(k, grid_sizes, freqs)
+            q = apply_default_rope(q, grid_sizes, freqs, sp_rank=self.sp_rank, sp_size=self.sp_size)
+            k = apply_default_rope(k, grid_sizes, freqs, sp_rank=self.sp_rank, sp_size=self.sp_size)
 
-        x = self.attention(
-            q,
-            k,
-            v,
-            k_lens=seq_lens,
-            window_size=self.window_size,
-        )
+        q, k, v = self._gather_qkv(q, k, v)
 
-        # output
-        x = x.flatten(2)
+        kwargs = {
+            "k_lens": seq_lens,
+            "window_size": self.window_size,
+            "latent_shape": list(latent_shape),
+            "step_iter": step_iter,
+            "block_id": self.block_id,
+        }
+        x = self.attention(q, k, v, **kwargs)
+
+        x = self._gather_attn_output(x).flatten(2)
         x = self.o(x)
         return x
 
@@ -145,7 +174,7 @@ class WanCrossAttention(WanSelfAttention):
         v = self.v(context).view(b, -1, n, d)
 
         # compute attention
-        x = self.attention(q, k, v, k_lens=context_lens)
+        x = self.attention(q, k, v, k_lens=context_lens, dense_only=True)
 
         # output
         x = x.flatten(2)
@@ -159,6 +188,7 @@ class WanAttentionBlock(nn.Module):
         dim,
         ffn_dim,
         num_heads,
+        block_id,
         window_size=(-1, -1),
         qk_norm=True,
         cross_attn_norm=False,
@@ -181,7 +211,13 @@ class WanAttentionBlock(nn.Module):
             dim, eps, elementwise_affine=False, device=device, dtype=dtype
         )
         self.self_attn = WanSelfAttention(
-            dim, num_heads, window_size, qk_norm, eps, operation_settings=operation_settings
+            dim,
+            num_heads,
+            window_size,
+            qk_norm,
+            eps,
+            block_id=block_id,
+            operation_settings=operation_settings,
         )
         self.norm3 = (
             operation_settings.get("operations").LayerNorm(
@@ -213,6 +249,8 @@ class WanAttentionBlock(nn.Module):
         freqs,
         context,
         context_lens,
+        step_iter=None,
+        latent_shape=None,
         rope_func="default",
     ):
         r"""
@@ -241,7 +279,9 @@ class WanAttentionBlock(nn.Module):
             seq_lens,
             grid_sizes,
             freqs,
+            step_iter=step_iter,
             rope_func=rope_func,
+            latent_shape=latent_shape,
         )
         x = torch.addcmul(x, y, repeat_e(e[2], x))
         del y
@@ -412,13 +452,14 @@ class WanModel(ModelMixin, ConfigMixin):
                     dim,
                     ffn_dim,
                     num_heads,
+                    block_id,
                     window_size,
                     qk_norm,
                     cross_attn_norm,
                     eps,
                     operation_settings=operation_settings,
                 )
-                for _ in range(num_layers)
+                for block_id in range(num_layers)
             ]
         )
 
@@ -533,6 +574,8 @@ class WanModel(ModelMixin, ConfigMixin):
             Tensor:
                 Denoised video tensor with shape [B, C_out, F, H / 8, W / 8]
         """
+        latent_shape = x.shape
+
         # x [bs, 16, f, h, w], y [bs, 20, f, h, w]
         if self.model_type == "i2v" and y is None:
             raise ValueError("y must be provided for i2v model")
@@ -607,14 +650,17 @@ class WanModel(ModelMixin, ConfigMixin):
             freqs=rope_freqs,  # [1024, 64]
             context=context,  # [bs, text_len:512, 5120]
             context_lens=context_lens,
+            step_iter=step_iter,
+            latent_shape=latent_shape,
             rope_func=self.rope_func,
         )
+
         # x: [bs, seqlen, 5120]
         if cache is None:
             for block in self.blocks:
                 x = block(x, **kwargs)
         else:
-            x = self._forward_with_cache(x, cache, phase, step_iter, timestep, **kwargs)
+            x = self._forward_with_cache(x, cache, phase, timestep, **kwargs)
 
         # head
         # [bs, seqlen, 5120] => [bs, seqlen, 64], e:[bs, seqlen, freq_dim=>self.dim:5120]
@@ -626,7 +672,7 @@ class WanModel(ModelMixin, ConfigMixin):
         x = self.unpatchify(x, grid_sizes)
         return x
 
-    def _forward_with_cache(self, x, cache, phase, step_iter, timestep, **kwargs):
+    def _forward_with_cache(self, x, cache, phase, timestep, *, step_iter, **kwargs):
         step_cache, block_cache = cache.step_cache, cache.block_cache
         if step_cache is not None and step_cache.valid_for(phase=phase, x=x, step_iter=step_iter, timestep=timestep):
             x = step_cache(phase=phase, x=x, step_iter=step_iter, timestep=timestep)
@@ -639,7 +685,7 @@ class WanModel(ModelMixin, ConfigMixin):
             x = block_cache(phase=phase, x=x, step_iter=step_iter, timestep=timestep, blocks=self.blocks, **kwargs)
         else:
             for block in self.blocks:
-                x = block(x, **kwargs)
+                x = block(x, step_iter=step_iter, **kwargs)
 
         if step_cache is not None:
             step_cache.update_cache(phase=phase, x=x, step_iter=step_iter, timestep=timestep)

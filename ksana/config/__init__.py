@@ -1,4 +1,4 @@
-from .attention_config import KsanaAttentionConfig
+from .attention_config import KsanaAttentionBackend, KsanaAttentionConfig, KsanaRadialSageAttentionConfig
 from .cache_config import (
     CustomStepCacheConfig,
     DBCacheConfig,
@@ -17,6 +17,7 @@ from .sample_config import KsanaSampleConfig
 from .torch_compile_config import KsanaTorchCompileConfig
 
 __all__ = [
+    "KsanaAttentionBackend",
     "KsanaAttentionConfig",
     "KsanaCacheConfig",
     "KsanaHybridCacheConfig",
@@ -32,4 +33,5 @@ __all__ = [
     "KsanaRuntimeConfig",
     "KsanaTorchCompileConfig",
     "KsanaDistributedConfig",
+    "KsanaRadialSageAttentionConfig",
 ]

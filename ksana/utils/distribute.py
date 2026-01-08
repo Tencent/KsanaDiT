@@ -77,6 +77,8 @@ def is_multi_process() -> bool:
 
 
 def get_world_size():
+    if not dist.is_initialized():
+        return 1
     return dist.get_world_size()
 
 

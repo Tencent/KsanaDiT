@@ -7,15 +7,17 @@ os.environ["KSANA_LOGGER_LEVEL"] = "INFO"
 
 from ksana import KsanaEngine
 from ksana.config import (
+    KsanaAttentionBackend,
     KsanaAttentionConfig,
     KsanaDistributedConfig,
     KsanaModelConfig,
+    KsanaRadialSageAttentionConfig,
     KsanaRuntimeConfig,
     KsanaSampleConfig,
     KsanaTorchCompileConfig,
 )
 from ksana.config.cache_config import CustomStepCacheConfig, DBCacheConfig, DCacheConfig, KsanaHybridCacheConfig
-from ksana.operations import KsanaAttentionBackend, KsanaLinearBackend
+from ksana.operations import KsanaLinearBackend
 
 prompts = [
     "街头摄影，戴耳机的酷女孩滑板，纽约街头，涂鸦墙背景，动态姿势，风吹头发，黄金时刻光线，主体清晰背景虚化，街头潮牌。",
@@ -86,13 +88,23 @@ def run_fp8_models(args):
 
 
 def run_with_lora(args):
-    engine = KsanaEngine.from_models(
-        f"{args.model_dir}/Wan2.2-T2V-A14B",
-        lora=f"{args.model_dir}/Wan2.2-Lightning/Wan2.2-T2V-A14B-4steps-lora-rank64-Seko-V1",
-        dist_config=KsanaDistributedConfig(num_gpus=args.num_gpus),
+    radial_sage_attn_config = KsanaRadialSageAttentionConfig(
+        dense_blocks_num=10,
+        dense_attn_steps=1,
+        decay_factor=0.2,
+        block_size=64,
+        dense_attention_config=KsanaAttentionConfig(backend=KsanaAttentionBackend.SAGE_ATTN),
     )
 
-    engine.generate(prompts, runtime_config=KsanaRuntimeConfig(seed=SEED), cache_config=DCacheConfig())
+    model_config = KsanaModelConfig(attention_config=radial_sage_attn_config)
+
+    engine = KsanaEngine.from_models(
+        f"{args.model_dir}/Wan2.2-T2V-A14B",
+        dist_config=KsanaDistributedConfig(num_gpus=args.num_gpus),
+        model_config=model_config,
+    )
+
+    engine.generate(prompts, runtime_config=KsanaRuntimeConfig(size=(512, 512), seed=SEED), cache_config=DCacheConfig())
 
 
 def run_advanced(args):

@@ -1,28 +1,58 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from enum import Enum
 
 import torch
 
+from ksana.config import KsanaAttentionBackend, KsanaAttentionConfig
+from ksana.utils.logger import log
 
-class KsanaAttentionBackend(Enum):
-    SAGE_ATTN = "sage_attention"
-    FLASH_ATTN = "flash_attention"
-    TORCH_SDPA = "torch_sdpa"
+_ATTN_BACKEND_TO_IMPL = None
 
-    @staticmethod
-    def get_supported_list() -> list[str]:
-        return [b.value for b in KsanaAttentionBackend]
 
-    @staticmethod
-    def support(type: str) -> bool:
-        if isinstance(type, str):
-            return type in KsanaAttentionBackend.get_supported_list()
-        elif isinstance(type, KsanaAttentionBackend):
-            return True
+def get_backend_mapping():
+    global _ATTN_BACKEND_TO_IMPL
+
+    if _ATTN_BACKEND_TO_IMPL is None:
+        # lazy import to avoid circular import
+        from .flash_attn import FlashAttentionImpl
+        from .radial_sage_attn.radial_sage_attn import RadialSageAttentionImpl
+        from .sage_attn import SageAttentionImpl
+        from .sdpa import SDPAImpl
+
+        _ATTN_BACKEND_TO_IMPL = {
+            FlashAttentionImpl.type(): FlashAttentionImpl,
+            SageAttentionImpl.type(): SageAttentionImpl,
+            SDPAImpl.type(): SDPAImpl,
+            RadialSageAttentionImpl.type(): RadialSageAttentionImpl,
+        }
+
+    return _ATTN_BACKEND_TO_IMPL
+
+
+def get_attention_backend_impl(attention_config: KsanaAttentionConfig, **kwargs) -> KsanaAttentionBackendImpl:
+    backend_mapping = get_backend_mapping()
+    attn_backend = attention_config.backend
+    if not KsanaAttentionBackend.support(attn_backend):
+        raise ValueError(
+            f"attn_backend:{attn_backend} is not in supported_list:{ KsanaAttentionBackend.get_supported_list()}"
+        )
+    # input attn backend at first
+    for backend_type in [attn_backend] + KsanaAttentionBackend.get_supported_list():
+        backend_type = KsanaAttentionBackend(backend_type)
+        backend_impl = backend_mapping.get(backend_type, None)
+        if backend_impl is None:
+            raise ValueError(f"{backend_type} not in {backend_mapping.keys()}")
+        if backend_impl.supports(**kwargs):
+            log.debug(f"Using {backend_impl.type()} backend for {kwargs}")
+            return backend_impl
         else:
-            return False
+            log.debug(f"{backend_impl.type()} backend unavailable for {kwargs}")
+            continue
+
+    raise RuntimeError(
+        f"No compatible attention({KsanaAttentionBackend.get_supported_list()}) backend available for {kwargs}. "
+    )
 
 
 class KsanaAttentionBackendImpl(ABC):
@@ -31,6 +61,7 @@ class KsanaAttentionBackendImpl(ABC):
     @abstractmethod
     def __init__(
         self,
+        attention_config: KsanaAttentionConfig,
         num_heads: int,
         head_size: int,
         causal: bool,
@@ -49,6 +80,12 @@ class KsanaAttentionBackendImpl(ABC):
     @abstractmethod
     def supports(**kwargs) -> bool:
         raise NotImplementedError
+
+    def check_config(self):
+        if KsanaAttentionBackend(self.attention_config.backend) != self.type():
+            raise ValueError(
+                f"Attention config {self.attention_config.backend} does not match implementation type {self.type()}"
+            )
 
     def preprocess_qkv(
         self,

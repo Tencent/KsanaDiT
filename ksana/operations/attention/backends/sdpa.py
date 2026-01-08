@@ -1,7 +1,9 @@
 import torch
 import torch.nn.functional as F
 
-from .base import KsanaAttentionBackend, KsanaAttentionBackendImpl
+from ksana.config import KsanaAttentionBackend, KsanaAttentionConfig
+
+from .base import KsanaAttentionBackendImpl
 
 
 class SDPAImpl(KsanaAttentionBackendImpl):
@@ -15,6 +17,7 @@ class SDPAImpl(KsanaAttentionBackendImpl):
 
     def __init__(
         self,
+        attention_config: KsanaAttentionConfig,
         num_heads: int,
         head_size: int,
         causal: bool,
@@ -25,6 +28,8 @@ class SDPAImpl(KsanaAttentionBackendImpl):
         self.causal = causal
         self.softmax_scale = softmax_scale
         self.dropout = float(extra_impl_args.get("dropout_p", 0.0))
+        self.attention_config = attention_config
+        self.check_config()
 
     def forward(
         self,

@@ -5,8 +5,9 @@ import torch
 
 import ksana.nodes as nodes
 from ksana import KsanaAttentionConfig, get_engine
+from ksana.config import KsanaAttentionBackend
 from ksana.models.model_key import KsanaModelKey
-from ksana.operations import KsanaAttentionBackend, KsanaLinearBackend
+from ksana.operations import KsanaLinearBackend
 
 COMFY_MODEL_ROOT = "/data/stable-diffusion-webui/models/diffusion_models"
 SEED = 321
