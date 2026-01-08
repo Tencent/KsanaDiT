@@ -42,9 +42,9 @@ global g_ksana_profiler
 g_ksana_profiler = Profiler()
 
 
-class ksanaProfiler:
+class KsanaProfiler:
     def __init__(self, name=None):
-        self.name = name if name else "ksanaProfiler"
+        self.name = name if name else "KsanaProfiler"
         self.profiler = g_ksana_profiler
 
     def __enter__(self):
