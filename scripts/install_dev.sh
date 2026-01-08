@@ -1,6 +1,6 @@
 #!/bin/bash
 
-pip uninstall -y ksana
+pip uninstall -y ksana-dit
 
 pwd
 pip install -e .

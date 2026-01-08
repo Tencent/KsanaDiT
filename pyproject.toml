@@ -3,7 +3,7 @@ requires = ["setuptools>=64", "setuptools_scm>=8"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "ksana"
+name = "ksana-dit"
 dynamic = ["version"]
 description = "KsanaDit"
 authors = [{ name = "KsanaDit", email = "KsanaDiT@venus.com" }]
@@ -71,7 +71,7 @@ local_scheme = "node-and-date"
 
 [tool.setuptools.packages.find]  # 包发现规则
 where = ["."]
-exclude = ["tests*", "assets*", "docker*", "docs", "scripts*", "comfyui*"]
+exclude = ["tests*", "assets*", "docker*", "docs", "scripts*", "comfyui*", "examples*"]
 
 # 包含数据文件（如配置文件）
 [tool.setuptools.package-data]
