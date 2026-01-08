@@ -1,7 +1,7 @@
 from dataclasses import dataclass, field
 
 from ..sample_solvers import SUPPORTED_SOLVERS
-from ..utils.const import DEFAULT_BATCH_PER_PROMPT, DEFAULT_DENOISE
+from ..utils.const import DEFAULT_DENOISE
 
 
 @dataclass(frozen=True)
@@ -12,7 +12,6 @@ class KsanaSampleConfig:
     solver: str | None = field(default=None)
     denoise: float | None = field(default=DEFAULT_DENOISE)
     sigmas: list[float] | None = field(default=None)
-    batch_per_prompt: int | list[int] | None = field(default=DEFAULT_BATCH_PER_PROMPT)
 
     def __post_init__(self):
         assert (

@@ -53,18 +53,19 @@ class TestKsana(unittest.TestCase):
         with self.subTest(msg="Mean 1 Check"):
             self.assertAlmostEqual(mean1, 0.4420677423477173, places=5)
 
-    def test_batch_per_prompt(self):
-        print("-----------------test_batch_per_prompt-----------------")
+    def test_batch_size_per_prompt(self):
+        print("-----------------test_batch_size_per_prompt-----------------")
         engine = KsanaEngine.from_models("./Wan2.2-T2V-A14B")
         videos = engine.generate(
             prompts[0],
-            sample_config=KsanaSampleConfig(steps=TEST_STEPS, batch_per_prompt=2),
+            sample_config=KsanaSampleConfig(steps=TEST_STEPS),
             runtime_config=KsanaRuntimeConfig(
                 seed=SEED,
                 size=TEST_SIZE,
                 frame_num=TEST_FRAME_NUM,
                 return_frames=True,
                 save_video=True,
+                batch_size_per_prompt=2,
             ),
         )
         with self.subTest(msg="Shape Check"):

@@ -184,17 +184,14 @@ class KsanaX2XPipeline(ABC):
         return src
 
     def get_run_model(self, high_model, low_model, timestep_id: int, boundary: float, device=None, offload_device=None):
-        if low_model is None:
-            return high_model
-        assert boundary is not None, "boundary must be provided when low_model is not None"
         assert device is not None, "device must be provided"
-
-        # 判断应该使用哪个模型
-        use_high = timestep_id >= boundary
-
+        if low_model is not None and boundary is None:
+            raise ValueError("boundary must be provided when low_model is not None")
+        use_high = low_model is None or (boundary is not None and timestep_id >= boundary)
         if use_high:
-            if low_model.device != offload_device:
-                low_model.to(offload_device)
+            if low_model is not None:
+                if low_model.device != offload_device:
+                    low_model.to(offload_device)
             if high_model.device != device:
                 high_model.to(device)
             return high_model
@@ -218,8 +215,11 @@ class KsanaX2XPipeline(ABC):
         high_model = diffusion_models
         low_model = None
         if hasattr(diffusion_models, "__len__"):
-            assert len(diffusion_models) == 2, f"size of model must be 2, but got {len(diffusion_models)}"
-            high_model, low_model = diffusion_models
+            if len(diffusion_models) == 1:
+                high_model = diffusion_models[0]
+            else:
+                assert len(diffusion_models) <= 2, f"size of model must be 2, but got {len(diffusion_models)}"
+                high_model, low_model = diffusion_models
         if isinstance(sample_config.cfg_scale, float):
             high_sample_guide_scale = sample_config.cfg_scale
             low_sample_guide_scale = None if low_model is None else sample_config.cfg_scale
@@ -267,14 +267,14 @@ class KsanaX2XPipeline(ABC):
         }
         return evolve_with_recommend(sample_config, sample_default_args)
 
-    def expand_conditioning_by_batch_per_prompt(
+    def expand_conditioning_by_batch_size_per_prompt(
         self,
         positive: torch.Tensor,
         negative: torch.Tensor,
-        batch_per_prompt: list[int],
+        batch_size_per_prompt: list[int],
         img_latents: torch.Tensor | None = None,
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor | None]:
-        repeats = torch.tensor(batch_per_prompt, dtype=torch.int64, device=positive.device)
+        repeats = torch.tensor(batch_size_per_prompt, dtype=torch.int64, device=positive.device)
         positive = positive.repeat_interleave(repeats, dim=0)
         negative = negative.repeat_interleave(repeats, dim=0)
 
@@ -297,7 +297,8 @@ class KsanaX2XPipeline(ABC):
             ), f"img_latents.shape {img_latents.shape} dim must be 5:(bs, z_dim:16, f, h, w)"
             if img_latents.shape[0] != total_batch:
                 raise ValueError(
-                    f"img_latents.shape[0] ({img_latents.shape[0]}) must match sum(batch_per_prompt) ({total_batch})"
+                    f"img_latents.shape[0] ({img_latents.shape[0]}) must match "
+                    f"sum(batch_size_per_prompt) ({total_batch})"
                 )
             return img_latents.shape
         else:
@@ -567,15 +568,19 @@ class KsanaX2XPipeline(ABC):
         negative = self.cast_to(negative, run_dtype, device)
 
         num_prompts = positive.shape[0]
-        batch_per_prompt = sample_config.batch_per_prompt
-        total_batch = sum(batch_per_prompt)
+        batch_size_per_prompt = runtime_config.batch_size_per_prompt
+        total_batch = sum(batch_size_per_prompt)
         if total_batch != num_prompts:
-            positive, negative, img_latents = self.expand_conditioning_by_batch_per_prompt(
-                positive, negative, img_latents=img_latents, batch_per_prompt=batch_per_prompt
+            positive, negative, img_latents = self.expand_conditioning_by_batch_size_per_prompt(
+                positive, negative, img_latents=img_latents, batch_size_per_prompt=batch_size_per_prompt
             )
-
         default_pipeline_config = self.pipeline_config.default_config
-        boundary = None if low_model is None else runtime_config.boundary * default_pipeline_config.num_train_timesteps
+        boundary = (
+            high_model.model_config.boundary if high_model.model_config.boundary else default_pipeline_config.boundary
+        )
+        boundary = (
+            None if low_model is None or boundary is None else boundary * default_pipeline_config.num_train_timesteps
+        )
         noise_shape = self.get_noise_shape(
             img_latents, num_prompts, runtime_config.frame_num, runtime_config.size, total_batch
         )

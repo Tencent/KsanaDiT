@@ -265,26 +265,28 @@ class KsanaExecutor(ABC):
                 raise ValueError(f"prompt length ({len(prompts)}) must match target length ({target_len})")
         return prompts
 
-    def _valid_sample_config(self, sample_config: KsanaSampleConfig, num_prompts):
+    def _valid_sample_config(self, sample_config: KsanaSampleConfig):
         sample_config = sample_config if sample_config else KsanaSampleConfig()
-        # valid: batch_per_prompt to list
-        batch_per_prompt = sample_config.batch_per_prompt
-        if batch_per_prompt is None:
-            batch_per_prompt = [1] * num_prompts
-        elif isinstance(batch_per_prompt, int):
-            batch_per_prompt = [batch_per_prompt] * num_prompts
-        elif isinstance(batch_per_prompt, (list, tuple)):
-            if len(batch_per_prompt) != num_prompts:
-                raise ValueError(
-                    f"len(batch_per_prompt) ({len(batch_per_prompt)}) must match num_prompts ({num_prompts})"
-                )
-        else:
-            raise TypeError(f"batch_per_prompt must be int|list[int]|None, got {type(batch_per_prompt)}")
-        sample_config = evolve_with_recommend(sample_config, {"batch_per_prompt": batch_per_prompt}, force_update=True)
         return sample_config
 
-    def _valid_runtime_config(self, runtime_config: KsanaRuntimeConfig):
+    def _valid_runtime_config(self, runtime_config: KsanaRuntimeConfig, num_prompts: int):
         runtime_config = runtime_config if runtime_config else KsanaRuntimeConfig()
+        # valid: batch_size_per_prompt to list
+        batch_size_per_prompt = runtime_config.batch_size_per_prompt
+        if batch_size_per_prompt is None:
+            batch_size_per_prompt = [1] * num_prompts
+        elif isinstance(batch_size_per_prompt, int):
+            batch_size_per_prompt = [batch_size_per_prompt] * num_prompts
+        elif isinstance(batch_size_per_prompt, (list, tuple)):
+            if len(batch_size_per_prompt) != num_prompts:
+                raise ValueError(
+                    f"len(batch_size_per_prompt) ({len(batch_size_per_prompt)}) must match num_prompts ({num_prompts})"
+                )
+        else:
+            raise TypeError(f"batch_size_per_prompt must be int|list[int]|None, got {type(batch_size_per_prompt)}")
+        runtime_config = evolve_with_recommend(
+            runtime_config, {"batch_size_per_prompt": batch_size_per_prompt}, force_update=True
+        )
         return runtime_config
 
     def _valid_images(self, img_path, prompts_list_len: int):
@@ -312,8 +314,8 @@ class KsanaExecutor(ABC):
     ):
         prompts_list = self._valid_input_prompt(prompt)
         prompts_negative_list = self._valid_input_prompt(prompt_negative, len(prompts_list))
-        sample_config = self._valid_sample_config(sample_config, num_prompts=len(prompts_list))
-        runtime_config = self._valid_runtime_config(runtime_config)
+        sample_config = self._valid_sample_config(sample_config)
+        runtime_config = self._valid_runtime_config(runtime_config, num_prompts=len(prompts_list))
         img_path = self._valid_images(img_path, len(prompts_list))
         end_img_path = self._valid_images(end_img_path, len(prompts_list))
         with_end_image = end_img_path is not None
@@ -363,7 +365,7 @@ class KsanaExecutor(ABC):
             gc.collect()
             torch.cuda.synchronize()
 
-        self.save_videos(videos, prompts_list, runtime_config, sample_config.batch_per_prompt)
+        self.save_videos(videos, prompts_list, runtime_config)
         # videos shape [bs, ch:3, f, h, w]
         return videos if (self.rank_id == 0 and runtime_config.return_frames) else None
 
@@ -439,7 +441,7 @@ class KsanaExecutor(ABC):
             audio_path = "tts.wav"
             merge_video_audio(video_path=save_file, audio_path=audio_path)
 
-    def save_videos(self, videos, prompts_list, runtime_config, batch_per_prompt: list[int]):
+    def save_videos(self, videos, prompts_list, runtime_config):
         if self.rank_id != 0 or not runtime_config.save_video:
             return
         out_size = (
@@ -448,8 +450,9 @@ class KsanaExecutor(ABC):
             else self.pipeline.pipeline_config.default_config.get("size", (None, None))
         )
         video_idx = 0
-        for i in range(len(batch_per_prompt)):
-            for j in range(batch_per_prompt[i]):
+        batch_size_per_prompt = runtime_config.batch_size_per_prompt
+        for i in range(len(batch_size_per_prompt)):
+            for j in range(batch_size_per_prompt[i]):
                 video = videos[video_idx]
                 prompt_text = prompts_list[i]
                 save_path = self.get_save_path(runtime_config.output_folder, out_size, prompt_text, j)

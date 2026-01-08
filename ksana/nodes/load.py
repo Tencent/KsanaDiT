@@ -42,6 +42,7 @@ class KsanaNodeModelLoader:
             linear_backend=KsanaLinearBackend(linear_backend),
             attention_config=KsanaAttentionConfig() if attention_config is None else attention_config,
             torch_compile_config=torch_compile_args,
+            boundary=model_boundary,
         )
 
         high_model_loras_list = []
@@ -79,5 +80,4 @@ class KsanaNodeModelLoader:
             model=cls.LOADED_MODEL,
             model_name=os.path.basename(high_noise_model_path),  # TODO(qian): need remove
             run_dtype=model_config.run_dtype,
-            boundary=model_boundary,
         )

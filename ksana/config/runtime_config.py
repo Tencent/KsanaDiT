@@ -1,6 +1,7 @@
 from dataclasses import dataclass, field
 
 from ..utils.const import (
+    DEFAULT_BATCHSIZE_PER_PROMPT,
     DEFAULT_OFFLOAD_MODEL,
     DEFAULT_OUTPUTS_VIDEO_DIR,
     DEFAULT_RETURN_FRAMES,
@@ -17,10 +18,11 @@ class KsanaRuntimeConfig:
 
     size: tuple[int, int] | None = field(default=None, metadata={"help": "width and height of target size"})
     frame_num: int | None = field(default=None, metadata={"help": "number of frames to generate"})
-    batch_size_per_prompt: int | list[int] | None = field(default=1, metadata={"help": "batch size per prompt"})
+    batch_size_per_prompt: int | list[int] | None = field(
+        default=DEFAULT_BATCHSIZE_PER_PROMPT, metadata={"help": "batch size per prompt"}
+    )
     seed: int | None = field(default=None)
     offload_model: bool | None = field(default=DEFAULT_OFFLOAD_MODEL)
-    boundary: float | None = field(default=None)
     rope_function: str | None = field(default=DEFAULT_ROPE_FUNC_TYPE)
 
     return_frames: bool | None = field(default=DEFAULT_RETURN_FRAMES)
