@@ -1,37 +1,10 @@
 import torch
 import torch.nn as nn
 
+from ksana.config import KsanaAttentionConfig
+
 from ...utils.logger import log
-from .backends import FlashAttentionImpl, KsanaAttentionBackend, KsanaAttentionBackendImpl, SageAttentionImpl, SDPAImpl
-
-_ATTN_BACKEND_TO_IMPL = {
-    FlashAttentionImpl.type(): FlashAttentionImpl,
-    SageAttentionImpl.type(): SageAttentionImpl,
-    SDPAImpl.type(): SDPAImpl,
-}
-
-
-def _get_attention_backend_impl(attn_backend: KsanaAttentionBackend, **kwargs) -> KsanaAttentionBackendImpl:
-    if not KsanaAttentionBackend.support(attn_backend):
-        raise ValueError(
-            f"attn_backend:{attn_backend} is not in supported_list:{ KsanaAttentionBackend.get_supported_list()}"
-        )
-    # input attn backend at first
-    for backend_type in [attn_backend] + KsanaAttentionBackend.get_supported_list():
-        backend_type = KsanaAttentionBackend(backend_type)
-        backend_impl = _ATTN_BACKEND_TO_IMPL.get(backend_type, None)
-        if backend_impl is None:
-            raise ValueError(f"{backend_type} not in {_ATTN_BACKEND_TO_IMPL.keys()}")
-        if backend_impl.supports(**kwargs):
-            log.debug(f"Using {backend_impl.type()} backend for {kwargs}")
-            return backend_impl
-        else:
-            log.debug(f"{backend_impl.type()} backend unavailable for {kwargs}")
-            continue
-
-    raise RuntimeError(
-        f"No compatible attention({KsanaAttentionBackend.get_supported_list}) backend available for {kwargs}. "
-    )
+from .backends import KsanaAttentionBackendImpl, get_attention_backend_impl
 
 
 class KsanaAttentionOp(nn.Module):
@@ -43,8 +16,7 @@ class KsanaAttentionOp(nn.Module):
         num_kv_heads: int | None = None,
         softmax_scale: float | None = None,
         causal: bool = False,
-        attention_config=None,
-        **extra_impl_args,
+        attention_config: KsanaAttentionConfig = None,
     ) -> None:
         super().__init__()
         self.num_heads = num_heads
@@ -56,7 +28,6 @@ class KsanaAttentionOp(nn.Module):
             raise ValueError("attention_config should not be None")
         self.attention_config = attention_config
         log.debug(f"KsanaAttentionOp with config: {self.attention_config}")
-        self.extra_impl_args = extra_impl_args
 
         self._attn_impl: KsanaAttentionBackendImpl | None = None
         self._attn_impl_dtype: torch.dtype | None = None
@@ -69,18 +40,18 @@ class KsanaAttentionOp(nn.Module):
         if self._attn_impl is not None and dtype == self._attn_impl_dtype:
             return
 
-        backend_impl = _get_attention_backend_impl(
-            attn_backend=self.attention_config.backend,
+        backend_impl = get_attention_backend_impl(
+            attention_config=self.attention_config,
             head_size=self.head_size,
             dtype=dtype,
         )
         self._attn_impl = backend_impl(
+            attention_config=self.attention_config,
             num_heads=self.num_heads,
             head_size=self.head_size,
             causal=self.causal,
             softmax_scale=self.softmax_scale,
             num_kv_heads=self.num_kv_heads,
-            **self.extra_impl_args,
         )
         self._attn_impl_dtype = dtype
 

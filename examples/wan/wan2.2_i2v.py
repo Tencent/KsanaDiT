@@ -7,13 +7,13 @@ os.environ["KSANA_LOGGER_LEVEL"] = "INFO"
 
 from ksana import KsanaEngine
 from ksana.config import (
+    KsanaAttentionBackend,
     KsanaAttentionConfig,
     KsanaDistributedConfig,
     KsanaModelConfig,
     KsanaRuntimeConfig,
     KsanaSampleConfig,
 )
-from ksana.operations import KsanaAttentionBackend
 
 prompts = [
     "女孩扇子轻微挥动,吹口仙气后,手上的闪电飞到空中开始打雷",

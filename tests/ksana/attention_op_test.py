@@ -3,8 +3,8 @@ import unittest
 import torch
 import torch.nn.functional as F
 
-from ksana.config import KsanaAttentionConfig
-from ksana.operations.attention import KsanaAttentionBackend, pick_attn_op
+from ksana.config import KsanaAttentionBackend, KsanaAttentionConfig
+from ksana.operations.attention import pick_attn_op
 
 B, L, H, D = 2, 32, 64, 128  # batch, seq_len, num_heads, head_dim
 

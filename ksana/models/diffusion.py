@@ -1,4 +1,3 @@
-import types
 from abc import abstractmethod
 
 import torch
@@ -7,7 +6,6 @@ import torch.distributed as dist
 from ksana.operations import KsanaLinearBackend, build_ops
 
 from ..config import KsanaDistributedConfig, KsanaModelConfig
-from ..distributed import sp_attn_forward
 from ..models.model_key import WAN2_1, WAN2_2, X2V_TYPES, KsanaModelKey
 from ..utils import log, time_range
 from ..utils.quantize import maybe_apply_dynamic_fp8_quant
@@ -137,10 +135,6 @@ class KsanaDiffusionModel(KsanaModel):
         return model
 
     def prepare_distributed_model(self, model, use_sp, dit_fsdp, shard_fn, convert_model_dtype=False):
-        if use_sp:
-            for block in model.blocks:
-                block.self_attn.forward = types.MethodType(sp_attn_forward, block.self_attn)
-
         if dist.is_initialized():
             dist.barrier()
 

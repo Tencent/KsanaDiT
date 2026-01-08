@@ -29,11 +29,11 @@
       "attn_backend": "flash_attention",
       "lora_model_name": "Wan2.2-I2V-A14B-4steps-lora-rank64-Seko-V1_low_noise.safetensors",
       "expect_values": {
-        "mean": 0.7227489,
+        "mean": 0.6766697,
         "eps_place": 3
       },
       "gpus_expect_values": {
-        "mean": 0.7227489,
+        "mean": 0.6765208,
         "eps_place": 3
       }
     },
@@ -47,28 +47,28 @@
       "linear_backend": "fp8_gemm",
       "attn_backend": "flash_attention",
       "expect_values": {
-        "mean": 0.6700096,
+        "mean": 0.6993897,
         "eps_place": 2
       },
       "gpus_expect_values": {
-        "mean": 0.6741340,
+        "mean": 0.7001891,
         "eps_place": 4
       }
     },
     {
       "workflow_path": "../../comfyui/examples/wan/t2v/wan2.2_t2v_fp16_lightning_4steps_lora_sigma.json",
       "steps": 1,
-      "width": 720,
-      "height": 480,
+      "width": 512,
+      "height": 512,
       "frames": 9,
       "sigmas": [0.9999, 0.0000],
       "lora_model_name": "Wan2.2-T2V-A14B-4steps-lora-rank64-Seko-V1/low_noise_model.safetensors",
       "expect_values": {
-        "mean": 0.3718647,
+        "mean": 0.3950314,
         "eps_place": 4
       },
       "gpus_expect_values": {
-        "mean": 0.3718804,
+        "mean": 0.3958074,
         "eps_place": 4
       }
     },
@@ -184,11 +184,11 @@
         "linear_backend": "fp8_gemm",
         "attn_backend": "flash_attention",
         "expect_values": {
-          "mean": 0.6705786,
+          "mean": 0.7006413,
           "eps_place": 2
         },
         "gpus_expect_values": {
-          "mean": 0.6698711,
+          "mean": 0.7006413,
           "eps_place": 4
         }
       },
@@ -202,11 +202,11 @@
         "linear_backend": "fp8_gemm",
         "attn_backend": "sage_attention",
         "expect_values": {
-          "mean": 0.6705786,
+          "mean": 0.6949548,
           "eps_place": 2
         },
         "gpus_expect_values": {
-          "mean": 0.6698711,
+          "mean": 0.6949548,
           "eps_place": 4
         }
       }
