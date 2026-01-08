@@ -66,7 +66,7 @@ def vae_encode(
     return KsanaNodeVAEEncodeOutput(
         samples=latents,
         with_end_image=with_end_image,
-        batch_per_prompt=int(batch_size),
+        batch_size_per_prompt=int(batch_size),
     )
 
 

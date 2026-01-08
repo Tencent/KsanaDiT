@@ -39,61 +39,61 @@ class TestSingleton(unittest.TestCase):
 
 class TestEvolve(unittest.TestCase):
     def test_dataclass(self):
-        input_config = KsanaSampleConfig(batch_per_prompt=4, shift=None, steps=1)
-        recommend_config = KsanaSampleConfig(shift=0.3, batch_per_prompt=8)
+        input_config = KsanaSampleConfig(cfg_scale=4, shift=None, steps=1)
+        recommend_config = KsanaSampleConfig(shift=0.3, cfg_scale=8)
         out_config = evolve_with_recommend(input_config, recommend_config)
         self.assertEqual(out_config.shift, 0.3)  # only update None
         self.assertEqual(out_config.steps, 1)
-        self.assertEqual(out_config.batch_per_prompt, 4)
+        self.assertEqual(out_config.cfg_scale, 4)
 
         out_config = evolve_with_recommend(input_config, recommend_config, force_update=True)
         self.assertEqual(out_config.steps, 1)
         self.assertEqual(out_config.shift, 0.3)
-        self.assertEqual(out_config.batch_per_prompt, 8)
+        self.assertEqual(out_config.cfg_scale, 8)
 
-        out_config = evolve_with_recommend(out_config, {"batch_per_prompt": 9})
+        out_config = evolve_with_recommend(out_config, {"cfg_scale": 9})
         self.assertEqual(out_config.steps, 1)
         self.assertEqual(out_config.shift, 0.3)
-        self.assertEqual(out_config.batch_per_prompt, 8)
+        self.assertEqual(out_config.cfg_scale, 8)
 
-        out_config = evolve_with_recommend(out_config, {"batch_per_prompt": 9}, force_update=True)
+        out_config = evolve_with_recommend(out_config, {"cfg_scale": 9}, force_update=True)
         self.assertEqual(out_config.steps, 1)
         self.assertEqual(out_config.shift, 0.3)
-        self.assertEqual(out_config.batch_per_prompt, 9)
+        self.assertEqual(out_config.cfg_scale, 9)
 
         # do not update None
-        out_config = evolve_with_recommend(out_config, {"batch_per_prompt": None}, force_update=True)
-        self.assertEqual(out_config.batch_per_prompt, 9)
+        out_config = evolve_with_recommend(out_config, {"cfg_scale": None}, force_update=True)
+        self.assertEqual(out_config.cfg_scale, 9)
 
     def test_dict(self):
-        input_config = dict(cfg_scale=None, batch_per_prompt=4, thisother="a")
-        recommend_config = dict(cfg_scale=5.5, shift=0.3, batch_per_prompt=8, other="s")
+        input_config = dict(cfg_scale=None, steps=4, thisother="a")
+        recommend_config = dict(cfg_scale=5.5, shift=0.3, steps=8, other="s")
         out_config = evolve_with_recommend(input_config, recommend_config)
         self.assertEqual(out_config.get("cfg_scale"), 5.5)
         self.assertEqual(out_config.get("shift"), None)
         self.assertEqual(out_config.get("other"), None)
-        self.assertEqual(out_config.get("batch_per_prompt"), 4)
+        self.assertEqual(out_config.get("steps"), 4)
         self.assertEqual(out_config.get("thisother"), "a")
 
         out_config = evolve_with_recommend(input_config, recommend_config, force_update=True)
         self.assertEqual(out_config.get("cfg_scale"), 5.5)
         self.assertEqual(out_config.get("shift"), None)
         self.assertEqual(out_config.get("other"), None)
-        self.assertEqual(out_config.get("batch_per_prompt"), 8)
+        self.assertEqual(out_config.get("steps"), 8)
         self.assertEqual(out_config.get("thisother"), "a")
 
-        out_config = evolve_with_recommend(out_config, {"batch_per_prompt": 1, "thisother": "o"})
+        out_config = evolve_with_recommend(out_config, {"steps": 1, "thisother": "o"})
         self.assertEqual(out_config.get("cfg_scale"), 5.5)
         self.assertEqual(out_config.get("shift"), None)
         self.assertEqual(out_config.get("other"), None)
-        self.assertEqual(out_config.get("batch_per_prompt"), 8)
+        self.assertEqual(out_config.get("steps"), 8)
         self.assertEqual(out_config.get("thisother"), "a")
 
-        out_config = evolve_with_recommend(out_config, {"batch_per_prompt": 1, "thisother": "o"}, force_update=True)
+        out_config = evolve_with_recommend(out_config, {"steps": 1, "thisother": "o"}, force_update=True)
         self.assertEqual(out_config.get("cfg_scale"), 5.5)
         self.assertEqual(out_config.get("shift"), None)
         self.assertEqual(out_config.get("other"), None)
-        self.assertEqual(out_config.get("batch_per_prompt"), 1)
+        self.assertEqual(out_config.get("steps"), 1)
         self.assertEqual(out_config.get("thisother"), "o")
 
 
@@ -122,7 +122,7 @@ class TestPrint(unittest.TestCase):
         obj = KsanaNodeVAEEncodeOutput(
             samples=torch.tensor([1, 2, 3]).to(torch.float16),
             with_end_image=True,
-            batch_per_prompt=1,
+            batch_size_per_prompt=1,
         )
         for print_func in [print, log.info]:
             print_recursive(obj, print_func)

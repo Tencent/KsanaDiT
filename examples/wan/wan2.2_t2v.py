@@ -135,6 +135,7 @@ def run_fast(args):
         run_dtype=torch.float16,
         attention_config=KsanaAttentionConfig(backend=KsanaAttentionBackend.FLASH_ATTN),
         torch_compile_config=KsanaTorchCompileConfig(mode="max-autotune-no-cudagraphs"),
+        boundary=0.9,
     )
     engine = KsanaEngine.from_models(
         f"{args.model_dir}/Wan2.2-T2V-A14B",
@@ -151,7 +152,6 @@ def run_fast(args):
         output_folder="outputs",
         save_video=True,
         rope_function="comfy",
-        boundary=0.9,
     )
 
     sample_config = KsanaSampleConfig(

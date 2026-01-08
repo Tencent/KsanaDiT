@@ -3,6 +3,7 @@ from .cache import KsanaNodeDBCache, custom_step_cache, dcache, easy_cache, hybr
 from .generate import generate
 from .load import KsanaNodeModelLoader
 from .lora import build_loras_list
+from .output_types import KsanaNodeGeneratorOutput, KsanaNodeModelLoaderOutput, KsanaNodeVAEEncodeOutput
 from .torch_compile import torch_compile_config
 from .types import (
     KSANA_ATTENTION_CONFIG,
@@ -52,4 +53,7 @@ __all__ = [
     build_loras_list,
     torch_compile_config,
     attention_config,
+    KsanaNodeModelLoaderOutput,
+    KsanaNodeGeneratorOutput,
+    KsanaNodeVAEEncodeOutput,
 ]

@@ -44,7 +44,7 @@ def generate(
     steps,
     seed,
     scheduler="simple",
-    solver_name="uni_pic",
+    solver_name="uni_pc",
     sample_guide_scale=4.0,
     sample_shift=5.0,
     denoise=1.0,
@@ -63,18 +63,18 @@ def generate(
 
     ksana_model = model.model
     run_dtype = model.run_dtype
-    boundary = model.boundary
     ksana_engine = get_engine()
     MemoryProfiler.record_memory("before_ksana_engine_generate_with_tensors")
 
     latent_shape = latent_image.samples.shape
-    _prepare_memory_for_ksana_models(
-        model.model_name,
-        latent_shape=latent_shape,
-        run_dtype=run_dtype,
-        comfy_device=comfy_device,
-        comfy_free_mem_func=comfy_free_mem_func,
-    )
+    if comfy_free_mem_func is not None and comfy_device is not None:
+        _prepare_memory_for_ksana_models(
+            model.model_name,
+            latent_shape=latent_shape,
+            run_dtype=run_dtype,
+            comfy_device=comfy_device,
+            comfy_free_mem_func=comfy_free_mem_func,
+        )
     if comfy_progress_bar_func is not None:
         comfyui_progress_bar = comfy_progress_bar_func(steps)
 
@@ -85,8 +85,8 @@ def generate(
     if cache_configs is not None and not isinstance(cache_configs, list):
         cache_configs = [cache_configs]
     num_prompts = positive[0][0].shape[0]
-    batch_per_prompt = latent_image.batch_per_prompt
-    batch_per_prompt = [batch_per_prompt] * num_prompts
+    batch_size_per_prompt = latent_image.batch_size_per_prompt
+    batch_size_per_prompt = [batch_size_per_prompt] * num_prompts
 
     # TODO: maybe need to latent_format process_in for positive/negative?
     samples = ksana_engine.forward_diffusion_models_with_tensors(
@@ -101,12 +101,11 @@ def generate(
             solver=solver_name,
             denoise=denoise,
             sigmas=sigmas,
-            batch_per_prompt=batch_per_prompt,
         ),
         runtime_config=KsanaRuntimeConfig(
             seed=seed,
-            boundary=boundary,
             rope_function=rope_function,
+            batch_size_per_prompt=batch_size_per_prompt,
         ),
         cache_configs=cache_configs,
         comfy_bar_callback=comfy_bar_callback,

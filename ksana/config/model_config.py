@@ -13,6 +13,7 @@ class KsanaModelConfig:
     linear_backend: KsanaLinearBackend = field(default=KsanaLinearBackend.FP16_GEMM)
     attention_config: KsanaAttentionConfig = field(default=KsanaAttentionConfig())
     torch_compile_config: KsanaTorchCompileConfig | None = field(default=None)
+    boundary: float | None = field(default=None, metadata={"help": "boundary for if have two models"})
 
     def __post_init__(self):
         assert self.run_dtype in [
