@@ -16,7 +16,7 @@ rm -rf /data/ComfyUI/custom_nodes/KsanaDiT
 
 cd /ci_workspace/${BK_CI_GIT_REPO_HEAD_COMMIT_ID}/
 python -m build --wheel
-pip uninstall -y ksana
+pip uninstall -y ksana-dit
 pip install dist/ksana*
 
 mkdir -p /data/ComfyUI/custom_nodes/ComfyUI_KsanaDiT
