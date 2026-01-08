@@ -27,3 +27,6 @@ export KSANA_TEST_PORT=${KSANA_TEST_PORT}
 export CUDA_VISIBLE_DEVICES=${GPU_CARDS}
 cd /ci_workspace/${BK_CI_GIT_REPO_HEAD_COMMIT_ID}/
 pytest -s -v tests/ksana/gpus/
+
+# TODO: use torchrun way to run test
+# torchrun --nproc_per_node=2 tests/ksana/gpus/nodes_test.py
