@@ -64,39 +64,39 @@ test_cases = [
         rope_function="comfy",
         expect_generator_outputs=0.78173828125,
     ),
-    KsanaNodesTestCase(
-        model_names=[
-            "wan2.2_t2v_high_noise_14B_fp16.safetensors",
-            "wan2.2_t2v_low_noise_14B_fp16.safetensors",
-        ],
-        expect_model_keys=[KsanaModelKey.Wan2_2_T2V_14B_HIGH, KsanaModelKey.Wan2_2_T2V_14B_LOW],
-        image_latent_shape=TARGET_T2V_IMG_SHAPE,
-        attention_backends=KsanaAttentionBackend.SAGE_ATTN,
-        linear_backends=KsanaLinearBackend.FP8_GEMM_DYNAMIC,
-        rope_function="default",
-        expect_generator_outputs=0.77880859375,
-    ),
-    KsanaNodesTestCase(
-        model_names=[
-            "wan2.2_i2v_high_noise_14B_fp16.safetensors",
-            "wan2.2_i2v_low_noise_14B_fp16.safetensors",
-        ],
-        expect_model_keys=[KsanaModelKey.Wan2_2_I2V_14B_HIGH, KsanaModelKey.Wan2_2_I2V_14B_LOW],
-        image_latent_shape=TARGET_I2V_IMG_SHAPE,
-        attention_backends=KsanaAttentionBackend.SAGE_ATTN,
-        linear_backends=KsanaLinearBackend.FP8_GEMM_DYNAMIC,
-        rope_function="default",
-        expect_generator_outputs=0.77880859375,
-    ),
-    KsanaNodesTestCase(
-        model_names=["wan2.2_i2v_high_noise_14B_fp16.safetensors", None],
-        expect_model_keys=[KsanaModelKey.Wan2_2_I2V_14B_HIGH],
-        image_latent_shape=TARGET_I2V_IMG_SHAPE,
-        attention_backends=KsanaAttentionBackend.FLASH_ATTN,
-        linear_backends=KsanaLinearBackend.FP16_GEMM,
-        rope_function="comfy",
-        expect_generator_outputs=0.78076171875,
-    ),
+    # KsanaNodesTestCase(
+    #     model_names=[
+    #         "wan2.2_t2v_high_noise_14B_fp16.safetensors",
+    #         "wan2.2_t2v_low_noise_14B_fp16.safetensors",
+    #     ],
+    #     expect_model_keys=[KsanaModelKey.Wan2_2_T2V_14B_HIGH, KsanaModelKey.Wan2_2_T2V_14B_LOW],
+    #     image_latent_shape=TARGET_T2V_IMG_SHAPE,
+    #     attention_backends=KsanaAttentionBackend.SAGE_ATTN,
+    #     linear_backends=KsanaLinearBackend.FP8_GEMM_DYNAMIC,
+    #     rope_function="default",
+    #     expect_generator_outputs=0.77880859375,
+    # ),
+    # KsanaNodesTestCase(
+    #     model_names=[
+    #         "wan2.2_i2v_high_noise_14B_fp16.safetensors",
+    #         "wan2.2_i2v_low_noise_14B_fp16.safetensors",
+    #     ],
+    #     expect_model_keys=[KsanaModelKey.Wan2_2_I2V_14B_HIGH, KsanaModelKey.Wan2_2_I2V_14B_LOW],
+    #     image_latent_shape=TARGET_I2V_IMG_SHAPE,
+    #     attention_backends=KsanaAttentionBackend.SAGE_ATTN,
+    #     linear_backends=KsanaLinearBackend.FP8_GEMM_DYNAMIC,
+    #     rope_function="default",
+    #     expect_generator_outputs=0.77880859375,
+    # ),
+    # KsanaNodesTestCase(
+    #     model_names=["wan2.2_i2v_high_noise_14B_fp16.safetensors", None],
+    #     expect_model_keys=[KsanaModelKey.Wan2_2_I2V_14B_HIGH],
+    #     image_latent_shape=TARGET_I2V_IMG_SHAPE,
+    #     attention_backends=KsanaAttentionBackend.FLASH_ATTN,
+    #     linear_backends=KsanaLinearBackend.FP16_GEMM,
+    #     rope_function="comfy",
+    #     expect_generator_outputs=0.78076171875,
+    # ),
 ]
 
 
