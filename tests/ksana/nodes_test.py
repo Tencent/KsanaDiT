@@ -53,7 +53,7 @@ test_cases = [
         linear_backends=KsanaLinearBackend.DEFAULT,
         rope_function="default",
         expect_model_keys=[KsanaModelKey.Wan2_2_I2V_14B_HIGH, KsanaModelKey.Wan2_2_I2V_14B_LOW],
-        expect_generator_outputs=0.78076171875,
+        expect_generator_outputs=0.79736328125,
     ),
     KsanaNodesTestCase(
         model_names=["wan2.2_t2v_low_noise_14B_fp8_scaled.safetensors", None],
@@ -62,41 +62,41 @@ test_cases = [
         attention_backends=KsanaAttentionBackend.FLASH_ATTN,
         linear_backends=KsanaLinearBackend.FP8_GEMM,
         rope_function="comfy",
-        expect_generator_outputs=0.78173828125,
+        expect_generator_outputs=0.80517578125,
     ),
-    # KsanaNodesTestCase(
-    #     model_names=[
-    #         "wan2.2_t2v_high_noise_14B_fp16.safetensors",
-    #         "wan2.2_t2v_low_noise_14B_fp16.safetensors",
-    #     ],
-    #     expect_model_keys=[KsanaModelKey.Wan2_2_T2V_14B_HIGH, KsanaModelKey.Wan2_2_T2V_14B_LOW],
-    #     image_latent_shape=TARGET_T2V_IMG_SHAPE,
-    #     attention_backends=KsanaAttentionBackend.SAGE_ATTN,
-    #     linear_backends=KsanaLinearBackend.FP8_GEMM_DYNAMIC,
-    #     rope_function="default",
-    #     expect_generator_outputs=0.77880859375,
-    # ),
-    # KsanaNodesTestCase(
-    #     model_names=[
-    #         "wan2.2_i2v_high_noise_14B_fp16.safetensors",
-    #         "wan2.2_i2v_low_noise_14B_fp16.safetensors",
-    #     ],
-    #     expect_model_keys=[KsanaModelKey.Wan2_2_I2V_14B_HIGH, KsanaModelKey.Wan2_2_I2V_14B_LOW],
-    #     image_latent_shape=TARGET_I2V_IMG_SHAPE,
-    #     attention_backends=KsanaAttentionBackend.SAGE_ATTN,
-    #     linear_backends=KsanaLinearBackend.FP8_GEMM_DYNAMIC,
-    #     rope_function="default",
-    #     expect_generator_outputs=0.77880859375,
-    # ),
-    # KsanaNodesTestCase(
-    #     model_names=["wan2.2_i2v_high_noise_14B_fp16.safetensors", None],
-    #     expect_model_keys=[KsanaModelKey.Wan2_2_I2V_14B_HIGH],
-    #     image_latent_shape=TARGET_I2V_IMG_SHAPE,
-    #     attention_backends=KsanaAttentionBackend.FLASH_ATTN,
-    #     linear_backends=KsanaLinearBackend.FP16_GEMM,
-    #     rope_function="comfy",
-    #     expect_generator_outputs=0.78076171875,
-    # ),
+    KsanaNodesTestCase(
+        model_names=[
+            "wan2.2_t2v_high_noise_14B_fp16.safetensors",
+            "wan2.2_t2v_low_noise_14B_fp16.safetensors",
+        ],
+        expect_model_keys=[KsanaModelKey.Wan2_2_T2V_14B_HIGH, KsanaModelKey.Wan2_2_T2V_14B_LOW],
+        image_latent_shape=TARGET_T2V_IMG_SHAPE,
+        attention_backends=KsanaAttentionBackend.SAGE_ATTN,
+        linear_backends=KsanaLinearBackend.FP8_GEMM_DYNAMIC,
+        rope_function="default",
+        expect_generator_outputs=0.77880859375,
+    ),
+    KsanaNodesTestCase(
+        model_names=[
+            "wan2.2_i2v_high_noise_14B_fp16.safetensors",
+            "wan2.2_i2v_low_noise_14B_fp16.safetensors",
+        ],
+        expect_model_keys=[KsanaModelKey.Wan2_2_I2V_14B_HIGH, KsanaModelKey.Wan2_2_I2V_14B_LOW],
+        image_latent_shape=TARGET_I2V_IMG_SHAPE,
+        attention_backends=KsanaAttentionBackend.SAGE_ATTN,
+        linear_backends=KsanaLinearBackend.FP16_GEMM,
+        rope_function="default",
+        expect_generator_outputs=0.7939453125,
+    ),
+    KsanaNodesTestCase(
+        model_names=["wan2.2_i2v_high_noise_14B_fp16.safetensors", None],
+        expect_model_keys=[KsanaModelKey.Wan2_2_I2V_14B_HIGH],
+        image_latent_shape=TARGET_I2V_IMG_SHAPE,
+        attention_backends=KsanaAttentionBackend.FLASH_ATTN,
+        linear_backends=KsanaLinearBackend.FP8_GEMM_DYNAMIC,
+        rope_function="comfy",
+        expect_generator_outputs=0.7939453125,
+    ),
 ]
 
 
@@ -158,16 +158,15 @@ class TestNodes(unittest.TestCase):
                 low_sample_guide_scale=3.0,
             )
             generate_output = generate_output.samples
-            print(f"----------- generate_output.shape: {generate_output.shape}")
             with self.subTest(msg="generate Shape Check"):
-                target_latent_shape = test_case.image_latent_shape
+                target_latent_shape = test_case.image_latent_shape.copy()
                 target_latent_shape[1] = 16  # always 16
                 self.assertEqual(list(generate_output.shape), target_latent_shape)
 
             mean = generate_output.cpu().abs().mean().item()
-            print(f"----------- mean: {mean}")
-            # with self.subTest(msg="generate output Mean Check"):
-            # self.assertAlmostEqual(mean, test_case.expect_generator_outputs, places=TEST_EPS_PLACE)
+            print(f"KsanaNodesTestCase:{test_case} output mean: {mean}")
+            with self.subTest(msg="generate output Mean Check"):
+                self.assertAlmostEqual(mean, test_case.expect_generator_outputs, places=TEST_EPS_PLACE)
 
 
 if __name__ == "__main__":
