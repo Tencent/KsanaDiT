@@ -24,6 +24,7 @@ from ..models.model_pool import KsanaModelPool
 from ..pipelines import create_ksana_pipeline
 from ..utils import is_dir, log, merge_video_audio, save_video, time_range
 from ..utils.logger import init_logging
+from ..utils.media import save_image
 from ..utils.types import evolve_with_recommend
 
 
@@ -136,7 +137,7 @@ class KsanaExecutor(ABC):
         self.pipeline = self.create_pipeline(
             dir=model_path if text_checkpoint_dir is None else text_checkpoint_dir, model_config=model_config
         )
-        load_to_deivce = self.device if self.dist_config.num_gpus > 1 else self.offload_device
+        load_to_deivce = self.offload_device
         model_list = self.pipeline.load_models(
             model_path=model_path,
             text_checkpoint_dir=text_checkpoint_dir,
@@ -166,7 +167,7 @@ class KsanaExecutor(ABC):
             # only create one pipeline for both model
             dir_path = model_path[0]
         self.pipeline = self.create_pipeline(dir=dir_path, model_config=model_config)
-        load_to_deivce = self.device if self.dist_config.num_gpus > 1 else self.offload_device
+        load_to_deivce = self.offload_device
         diffusion_model_list = self.pipeline.load_diffusion_model(
             model_path=model_path,
             lora=lora,
@@ -184,10 +185,7 @@ class KsanaExecutor(ABC):
     def load_vae_model(self, model_path, **kwargs) -> KsanaModelKey:
         if len(kwargs) > 0:
             log.warning(f"kwargs {kwargs} are not in used")
-        vae = KsanaVAE(
-            model_path=model_path,
-            device=self.offload_device,
-        )
+        vae = KsanaVAE(model_path=model_path, device=self.offload_device)
         self.model_pool.update_model(vae)
         return vae.get_model_key()
 
@@ -219,6 +217,8 @@ class KsanaExecutor(ABC):
         prompts_list_len: int,
         runtime_config: KsanaRuntimeConfig,
     ):
+        if img_path is None:
+            return None
         img_batch = self.load_image(img_path, device=self.offload_device)
         if end_img_path is not None:
             end_img_batch = self.load_image(end_img_path, device=self.offload_device)
@@ -330,15 +330,12 @@ class KsanaExecutor(ABC):
             offload_model=runtime_config.offload_model,
         )
 
-        # encode img if have
-        img_latents = None
-        if img_path is not None:
-            img_latents = self.images_to_latents(
-                img_path=img_path,
-                end_img_path=end_img_path,
-                prompts_list_len=len(prompts_list),
-                runtime_config=runtime_config,
-            )
+        img_latents = self.images_to_latents(
+            img_path=img_path,
+            end_img_path=end_img_path,
+            prompts_list_len=len(prompts_list),
+            runtime_config=runtime_config,
+        )
 
         cache_configs = None
         if cache_config is not None and not isinstance(cache_config, list):
@@ -356,20 +353,28 @@ class KsanaExecutor(ABC):
             offload_device=self.offload_device,
         )
         # TODO: multi-cards vae
-        vae_model = self.model_pool.get_model(self.pipeline.vae_key)
-        videos = vae_model.forward_decode(
-            latents=latents, local_rank=self.rank_id, device=self.device, with_end_image=with_end_image
+        outputs = self.pipeline.forward_vae(
+            model_pool=self.model_pool,
+            latents=latents,
+            local_rank=self.rank_id,
+            device=self.device,
+            offload_device=self.offload_device,
+            offload_model=runtime_config.offload_model,
+            with_end_image=with_end_image,
         )
         del latents
         if runtime_config.offload_model:
             gc.collect()
             torch.cuda.synchronize()
 
-        self.save_videos(videos, prompts_list, runtime_config)
-        # videos shape [bs, ch:3, f, h, w]
-        return videos if (self.rank_id == 0 and runtime_config.return_frames) else None
+        if runtime_config.save_output:
+            if runtime_config.frame_num is not None:
+                self.save_outputs(outputs, prompts_list, runtime_config, self.save_one_video, ".mp4")
+            else:
+                self.save_outputs(outputs, prompts_list, runtime_config, self.save_one_image, ".png")
 
-    @time_range
+        return outputs if self.rank_id == 0 and runtime_config.return_frames else None
+
     def forward_vae_encode(
         self, vae_key, *, frame_num: int, width: int, height: int, start_image=None, end_image=None, mask=None
     ):
@@ -414,10 +419,9 @@ class KsanaExecutor(ABC):
         # only resturn latents on rank 0, since all rank have the same latents
         return latents if self.rank_id == 0 else None
 
-    def get_save_path(self, output_folder, out_size, prompt_text, save_id):
+    def get_save_path(self, output_folder, out_size, prompt_text, save_id, suffix=".mp4"):
         formatted_time = datetime.now().strftime("%Y%m%d_%H%M%S")
         formatted_prompt = prompt_text.replace(" ", "_").replace("/", "_")[:30]
-        suffix = ".mp4"
         save_file = (
             f"{self.pipeline.save_name}_{self.dist_config.num_gpus}cards_{out_size[0]}x{out_size[1]}_{formatted_time}_{formatted_prompt}_{save_id}"
             + suffix
@@ -441,20 +445,28 @@ class KsanaExecutor(ABC):
             audio_path = "tts.wav"
             merge_video_audio(video_path=save_file, audio_path=audio_path)
 
-    def save_videos(self, videos, prompts_list, runtime_config):
-        if self.rank_id != 0 or not runtime_config.save_video:
+    def save_one_image(self, image, save_file):
+        if self.rank_id != 0:
             return
+        log.info(f"Saving generated image to {save_file}")
+        os.makedirs(os.path.dirname(save_file), exist_ok=True)
+        save_image(image, save_file)
+
+    def save_outputs(self, outputs, prompts_list, runtime_config: list[int], save_one_func, suffix: str):
+        if self.rank_id != 0:
+            return
+
         out_size = (
             runtime_config.size
             if runtime_config.size is not None
             else self.pipeline.pipeline_config.default_config.get("size", (None, None))
         )
-        video_idx = 0
+        output_idx = 0
         batch_size_per_prompt = runtime_config.batch_size_per_prompt
         for i in range(len(batch_size_per_prompt)):
             for j in range(batch_size_per_prompt[i]):
-                video = videos[video_idx]
+                output = outputs[output_idx]
                 prompt_text = prompts_list[i]
-                save_path = self.get_save_path(runtime_config.output_folder, out_size, prompt_text, j)
-                self.save_one_video(video, save_path)
-                video_idx += 1
+                save_path = self.get_save_path(runtime_config.output_folder, out_size, prompt_text, j, suffix=suffix)
+                save_one_func(output, save_path)
+                output_idx += 1

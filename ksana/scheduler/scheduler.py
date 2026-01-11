@@ -3,7 +3,7 @@ from typing import List
 
 import torch
 
-from ..utils.memory import MEMORY_USAGE_FACTOR_MAP, MODEL_SIZE_MAP, estimate_ksana_model_memory, get_available_memory
+from ..utils.memory import MODEL_MEMORY_CONFIG, estimate_ksana_model_memory, get_available_memory
 
 
 @dataclass(frozen=True)
@@ -18,25 +18,26 @@ class KsanaScheduler:
     Ksana调度器，负责批处理逻辑和内存管理
     """
 
-    def __init__(self, pipeline_config):
-        self.pipeline_config = pipeline_config
+    def __init__(self):
+        pass
 
-    def _estimate_memory_for_batch(self, latent_shape, batch_size: int, run_dtype):
+    def _estimate_memory_for_batch(self, model_key, latent_shape, batch_size: int, run_dtype):
         shape = list(latent_shape)
         shape[0] = batch_size
 
-        model_weight_memory = MODEL_SIZE_MAP.get(self.pipeline_config.model_size, 28 * 1024 * 1024 * 1024)  # 默认28GB
+        memory_config = MODEL_MEMORY_CONFIG.get(model_key)
+        if memory_config is None:
+            raise ValueError(f"Unknown model key: {model_key}")
 
-        memory_usage_factor = MEMORY_USAGE_FACTOR_MAP.get(
-            (self.pipeline_config.model_name, self.pipeline_config.task_type, self.pipeline_config.model_size), 1.0
-        )
+        model_weight_memory = memory_config["model_size"]
+        memory_usage_factor = memory_config["usage_factor"]
 
         memory_required, minimum_required = estimate_ksana_model_memory(
             model_weight_memory, shape, run_dtype, memory_usage_factor
         )
         return memory_required, minimum_required
 
-    def build_batch_strategy(self, latent_shape, total_batch: int, run_dtype, device: torch.device):
+    def build_batch_strategy(self, model_key, latent_shape, total_batch: int, run_dtype, device: torch.device):
         """
         latent_shape: latent张量的形状, [bs, z_dim, f, h, w]
         """
@@ -50,7 +51,7 @@ class KsanaScheduler:
             combine_cfg = True
 
             while chunk > 0:
-                memory_double, _ = self._estimate_memory_for_batch(latent_shape, chunk, run_dtype)
+                memory_double, _ = self._estimate_memory_for_batch(model_key, latent_shape, chunk, run_dtype)
                 if memory_double <= safe_memory:
                     break
                 chunk -= 1

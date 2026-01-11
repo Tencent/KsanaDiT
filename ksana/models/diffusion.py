@@ -6,32 +6,32 @@ import torch.distributed as dist
 from ksana.operations import KsanaLinearBackend, build_ops
 
 from ..config import KsanaDistributedConfig, KsanaModelConfig
-from ..models.model_key import WAN2_1, WAN2_2, X2V_TYPES, KsanaModelKey
+from ..models.model_key import QWEN_IMAGE, WAN2_1, WAN2_2, X2V_TYPES, KsanaModelKey
 from ..utils import log, time_range
 from ..utils.quantize import maybe_apply_dynamic_fp8_quant
 from ..utils.torch_compile import apply_torch_compile
 from ..utils.types import any_key_in_str
 from .base_model import KsanaModel
+from .qwen.configs import qwen_image_t2i
+from .qwen.transformer import QwenImageTransformer2DModel
 from .wan import WanModel
 from .wan.configs import WAN2_2_CONFIGS
 
 
 class KsanaDiffusionModel(KsanaModel):
-    def __init__(self, model_config: KsanaModelConfig, pipeline_config, dist_config: KsanaDistributedConfig):
+    def __init__(self, model_config: KsanaModelConfig, pipeline_config, dist_config: KsanaDistributedConfig | None):
         self.model_name = pipeline_config.model_name
         self.task_type = pipeline_config.task_type
         self.model_size = pipeline_config.model_size
         self.model_config = model_config
         self.pipeline_config = pipeline_config
-        self.dist_config = dist_config
-
+        self.dist_config = dist_config or KsanaDistributedConfig()
+        sp_size = self.dist_config.ulysses_size
+        num_heads = self.pipeline_config.default_config.num_heads
         if self.dist_config.ulysses_size > 1:
-            assert self.pipeline_config.default_config.num_heads % self.dist_config.ulysses_size == 0, (
-                f"`{self.pipeline_config.default_config.num_heads}` cannot be divided evenly "
-                f"by `{self.dist_config.ulysses_size}`."
-            )
-        if dist_config.use_sp:
-            self.sp_size = dist_config.num_gpus
+            assert num_heads % sp_size == 0, f"`{num_heads}` can't be divided by `{sp_size}`."
+        if self.dist_config.use_sp:
+            self.sp_size = self.dist_config.num_gpus
         else:
             self.sp_size = 1
         log.info(f"KsanaDiffusionModel init with {self.model_config} {self.dist_config}")
@@ -258,8 +258,11 @@ class KsanaDiffusionModel(KsanaModel):
         if model_name in WAN2_2:
             config_type = f"{task_type}-{model_size}"
             return WAN2_2_CONFIGS[config_type]
-        else:
-            raise ValueError(f"model_name {model_name} not supported")
+        if model_name in QWEN_IMAGE:
+            if task_type != "t2i":
+                raise ValueError(f"task_type {task_type} is not supported for qwen-image")
+            return qwen_image_t2i
+        raise ValueError(f"model_name {model_name} not supported")
 
     @property
     def full_model_name(self):
@@ -275,6 +278,13 @@ class KsanaDiffusionModel(KsanaModel):
         return (model_name, model_type, model_size)
         """
         lower_model_name = full_model_name.lower()
+        if any_key_in_str(QWEN_IMAGE, lower_model_name) is not None:
+            model_name = QWEN_IMAGE[0]
+            model_type = "t2i"
+            model_size = "20B"
+            log.info(f"model_name:{model_name}, task_type: {model_type}, model_size: {model_size}")
+            return model_name, model_type, model_size
+
         idx = any_key_in_str(X2V_TYPES, lower_model_name)
         model_name = None
         if idx is None:
@@ -353,6 +363,7 @@ class KsanaWanModel(KsanaDiffusionModel):
             model_state_dict,
             attention_config=self.model_config.attention_config,
             linear_backend=self.model_config.linear_backend,
+            rms_dtype=self.model_config.rms_dtype,
         )
         log.info(f"load_device:{load_device}, offload_device:{offload_device}")
         default_model_config = self.pipeline_config.default_config
@@ -400,3 +411,91 @@ class KsanaWanModel(KsanaDiffusionModel):
 
         # Note: apply torch compile should be after all weight loading and merging
         self.model = apply_torch_compile(self.model, self.model_config.torch_compile_config)
+
+
+class KsanaQwenImageModel(KsanaDiffusionModel):
+    def __init__(self, model_config: KsanaModelConfig, pipeline_config, dist_config: KsanaDistributedConfig = None):
+        super().__init__(model_config=model_config, pipeline_config=pipeline_config, dist_config=dist_config)
+        self.model = None
+
+    def get_model_key(self) -> KsanaModelKey:
+        return KsanaModelKey.QwenImage
+
+    @time_range
+    def load(
+        self,
+        model_state_dict: dict,
+        *,
+        input_model_config: dict,
+        load_device=None,
+        offload_device=None,
+        shard_fn=None,
+        **kwargs,
+    ):
+        load_device = load_device or torch.device("cuda")
+        log.info(f"{self.model_config=}")
+
+        operations = build_ops(
+            self.run_dtype,
+            model_state_dict,
+            attention_config=self.model_config.attention_config,
+            linear_backend=self.model_config.linear_backend,
+            rms_dtype=self.model_config.rms_dtype,
+        )
+
+        self.model = QwenImageTransformer2DModel(
+            patch_size=input_model_config.patch_size,
+            in_channels=input_model_config.in_channels,
+            out_channels=input_model_config.out_channels,
+            num_layers=input_model_config.num_layers,
+            attention_head_dim=input_model_config.attention_head_dim,
+            num_attention_heads=input_model_config.num_attention_heads,
+            joint_attention_dim=input_model_config.joint_attention_dim,
+            axes_dims_rope=tuple(input_model_config.axes_dims_rope),
+            operations=operations,
+            device=offload_device,
+            dtype=self.run_dtype,
+            sp_size=self.dist_config.ulysses_size,
+        )
+
+        self.model.to(load_device, dtype=self.run_dtype)
+
+        with time_range("load_state_dict"):
+            self.model.load_state_dict(model_state_dict, strict=False)
+
+        self.model.eval().requires_grad_(False)
+        if shard_fn is not None and self.dist_config is not None:
+            self.model = self.prepare_distributed_model(
+                model=self.model,
+                use_sp=self.dist_config.use_sp,
+                dit_fsdp=self.dist_config.dit_fsdp,
+                shard_fn=shard_fn,
+            )
+
+        self.model = apply_torch_compile(self.model, self.model_config.torch_compile_config)
+
+    def forward(
+        self,
+        x: torch.Tensor,
+        t: torch.Tensor,
+        context: torch.Tensor,
+        context_mask: torch.Tensor = None,
+        img_shapes: list = None,
+        txt_seq_lens: list = None,
+        **kwargs,
+    ) -> torch.Tensor:
+        timestep = t / 1000.0
+
+        out = self.model(
+            hidden_states=x,
+            encoder_hidden_states=context,
+            encoder_hidden_states_mask=context_mask,
+            timestep=timestep,
+            img_shapes=img_shapes,
+            txt_seq_lens=txt_seq_lens,
+            return_dict=False,
+        )
+
+        if isinstance(out, (tuple, list)):
+            return out[0]
+        return out

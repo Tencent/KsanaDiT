@@ -14,6 +14,7 @@ from ..config import (
     KsanaPipelineConfig,
     KsanaRuntimeConfig,
     KsanaSampleConfig,
+    KsanaSolverBackend,
 )
 from ..config.cache_config import KsanaCacheConfig, KsanaHybridCacheConfig, warp_as_hybrid_cache
 from ..models.base_model import KsanaModel
@@ -32,7 +33,7 @@ class KsanaDefaultArgs:
     steps: int = field(default=50)
     cfg_scale: float | tuple[float, float] = field(default=None)
     sample_shift: float = field(default=None)
-    sample_solver: str | None = field(default=None)
+    sample_solver: KsanaSolverBackend | None = field(default=None)
 
 
 class KsanaX2XPipeline(ABC):
@@ -44,7 +45,7 @@ class KsanaX2XPipeline(ABC):
         """
         self.pipeline_config = pipeline_config
         self.default_args = KsanaDefaultArgs()
-        self.scheduler = KsanaScheduler(pipeline_config)
+        self.scheduler = KsanaScheduler()
 
         # Note: only save model_key, do NOT pass model itself
         self.text_encoder_key = None
@@ -470,7 +471,7 @@ class KsanaX2XPipeline(ABC):
                 return_dict=False,
                 generator=seed_g,
             )
-            noise_latents_batch = temp_x0 if sample_config_solver_name == "euler" else temp_x0[0]
+            noise_latents_batch = temp_x0 if sample_config_solver_name == KsanaSolverBackend.EULER else temp_x0[0]
             MemoryProfiler.record_memory(f"inference_step_{iter_id}_after_sample_scheduler")
             if comfy_bar_callback is not None:
                 if bar_info is not None:
@@ -596,7 +597,9 @@ class KsanaX2XPipeline(ABC):
 
         with torch.no_grad():
             # 构建动态批处理策略
-            batch_strategy = self.scheduler.build_batch_strategy(noise_latents.shape, total_batch, run_dtype, device)
+            batch_strategy = self.scheduler.build_batch_strategy(
+                high_model.get_model_key(), noise_latents.shape, total_batch, run_dtype, device
+            )
 
             # 计算全局进度信息
             total_steps_per_batch = sample_config.steps
@@ -679,7 +682,8 @@ class KsanaX2XPipeline(ABC):
         device: torch.device = None,
         offload_device: torch.device = None,
     ):
-        log.info("start generate video")
+        # Shared diffusion path for both video and image tasks; keep logs task-agnostic.
+        log.info(f"start generate {self.task_type} ({self.model_name})")
         if model_pool is None:
             raise ValueError("model_pool must not be None")
         diffusion_models = model_pool.get_models(self.diffusion_model_keys)

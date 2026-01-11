@@ -21,7 +21,7 @@ class KsanaNodeVAELoader:
 
 
 def vae_encode(
-    vae,
+    vae=None,
     start_image=None,
     end_image=None,
     mask=None,
@@ -30,6 +30,21 @@ def vae_encode(
     height=None,
     batch_size=None,
 ):
+    if vae is None:
+        if width is None or height is None:
+            raise ValueError("width/height required if vae is None")
+        if num_frames == 1:
+            latent = torch.zeros([batch_size, 16, height // 8, width // 8], device=torch.device("cpu"))
+        else:
+            latent = torch.zeros(
+                [batch_size, 16, ((num_frames - 1) // 4) + 1, height // 8, width // 8], device=torch.device("cpu")
+            )
+        return KsanaNodeVAEEncodeOutput(
+            samples=latent,
+            with_end_image=False,
+            batch_size_per_prompt=batch_size,
+        )
+
     ksana_engine = get_engine()
     log.info(f"encoder vae: {vae}")
     if isinstance(start_image, torch.Tensor) and start_image.ndim == 3:

@@ -2,9 +2,11 @@ from enum import Enum, auto, unique
 
 WAN2_2 = ["wan2.2", "wan22", "wan2_2", "wan_2_2", "wan_2.2"]
 WAN2_1 = ["wan2.1", "wan21", "wan2_1", "wan_2_1", "wan_2.1"]
+QWEN_IMAGE = ["qwen-image", "qwen_image"]
 
 # TODO: support "s2v", "ti2v"
 X2V_TYPES = ["t2v", "i2v"]
+X2I_TYPES = ["t2i"]
 
 # model type means: wan2.1, wan2.2, qwen
 # model key means: combine of "{model_type}_{task_type}_{model_size}"
@@ -18,6 +20,9 @@ class KsanaModelKey(Enum):
     """
 
     T5TextEncoder = auto()
+    Qwen2VLTextEncoder = auto()
+    QwenImage = auto()
+    QwenImageVAE = auto()
     VAE_WAN2_1 = auto()
     VAE_WAN2_2 = auto()
     Wan2_2_T2V_14B_HIGH = auto()

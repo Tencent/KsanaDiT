@@ -2,6 +2,20 @@
   "independent_tests":
   [
     {
+      "workflow_path": "../../comfyui/benchmarks/qwen/qwen_image_bf16.json",
+      "steps": 1,
+      "image_width": 480,
+      "image_height": 480,
+      "expect_values": {
+        "mean": 0.0853746,
+        "eps_place": 4
+      },
+      "gpus_expect_values": {
+        "mean": 0.0856160,
+        "eps_place": 4
+      }
+    },
+    {
       "workflow_path": "../../comfyui/benchmarks/wan/wan2.2_t2v_fp16_lightning.json",
       "steps": 1,
       "width": 720,

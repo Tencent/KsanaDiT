@@ -1,0 +1,61 @@
+import os
+import unittest
+
+import torch
+
+from ksana import KsanaEngine
+from ksana.config import (
+    KsanaDistributedConfig,
+    KsanaModelConfig,
+    KsanaRuntimeConfig,
+    KsanaSampleConfig,
+)
+
+QWEN_IMAGE_DIR = "./Qwen-Image"
+
+prompts = [
+    "街头摄影，纽约街头，涂鸦墙背景，戴耳机的酷女孩滑板，动态姿势，黄金时刻光线，主体清晰背景虚化，超写实。",
+    "新中式，戴发簪的女子，改良汉服（半透明丝绸），竹林，雾气，空灵氛围，丁达尔效应，清冷优雅，超写实。",
+]
+
+SEED = 123
+TEST_DTYPE = torch.bfloat16
+TEST_SIZE = (512, 512)  # (W, H)
+TEST_STEPS = 5
+TEST_EPS_PLACE = 7
+TEST_PORT = int(os.environ.get("KSANA_TEST_PORT", 29500))
+
+
+class TestKsanaQwenImageT2I(unittest.TestCase):
+    def _assert_image_tensor_ok(self, image: torch.Tensor, *, expected_wh: tuple[int, int]):
+        self.assertIsInstance(image, torch.Tensor)
+        self.assertEqual(image.ndim, 4)  # [B, C, H, W]
+        self.assertEqual(list(image.shape[:2]), [1, 3])
+        self.assertEqual(list(image.shape[2:]), [expected_wh[1], expected_wh[0]])
+
+    def test_simple(self):
+        print("-----------------qwen_image test_simple-----------------")
+        generator = KsanaEngine.from_models(
+            QWEN_IMAGE_DIR,
+            model_config=KsanaModelConfig(run_dtype=TEST_DTYPE),
+            dist_config=KsanaDistributedConfig(num_gpus=2, port=TEST_PORT),
+            offload_device="cpu",
+        )
+        image = generator.generate(
+            prompts[0],
+            sample_config=KsanaSampleConfig(steps=TEST_STEPS),
+            runtime_config=KsanaRuntimeConfig(
+                seed=SEED,
+                size=TEST_SIZE,
+                return_frames=True,
+                save_output=False,
+                offload_model=True,
+            ),
+        )
+        self._assert_image_tensor_ok(image, expected_wh=TEST_SIZE)
+        mean = image.detach().float().mean().item()
+        self.assertAlmostEqual(mean, 0.30722299218177795, places=TEST_EPS_PLACE)
+
+
+if __name__ == "__main__":
+    unittest.main()

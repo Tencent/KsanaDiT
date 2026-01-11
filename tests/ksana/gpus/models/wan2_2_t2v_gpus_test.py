@@ -40,7 +40,7 @@ class TestKsanaGpus(unittest.TestCase):
                 size=TEST_SIZE,
                 frame_num=TEST_FRAME_NUM,
                 return_frames=True,
-                save_video=True,
+                save_output=True,
             ),
         )
         with self.subTest(msg="bs2 Shape Check"):
@@ -61,7 +61,7 @@ class TestKsanaGpus(unittest.TestCase):
                 frame_num=TEST_FRAME_NUM,
                 rope_function="comfy",
                 return_frames=True,
-                save_video=True,
+                save_output=True,
             ),
         )
         with self.subTest(msg="bs1 Shape Check"):

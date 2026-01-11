@@ -1,19 +1,22 @@
 import os
+from pathlib import Path
 
 import numpy as np
 import torch
 
-from ..models.model_key import WAN2_1, WAN2_2, KsanaModelKey
+from ..models.model_key import QWEN_IMAGE, WAN2_1, WAN2_2, KsanaModelKey
 from ..utils.logger import log
 from ..utils.profile import time_range
 from ..utils.types import any_key_in_str
 from .base_model import KsanaModel
+from .qwen.vae import KsanaQwenImageVAE
 from .wan import Wan2_1_VAE, Wan2_2_VAE
 
 
 class KsanaVAE(KsanaModel):
     def __init__(self, model_path, device, vae_type=None, dtype=torch.float):
         self.device = device
+        self.dtype = dtype
         if vae_type is None:
             vae_type = KsanaVAE.get_model_type_from_path(model_path)
         if vae_type in WAN2_1:
@@ -30,8 +33,11 @@ class KsanaVAE(KsanaModel):
                 device=device,
             )
             self._key = KsanaModelKey.VAE_WAN2_2
+        elif vae_type in QWEN_IMAGE:
+            self.model = KsanaQwenImageVAE(vae_path=model_path, device=device, dtype=dtype)
+            self._key = KsanaModelKey.QwenImageVAE
         else:
-            raise ValueError(f"model_name {self.model_name} not supported")
+            raise ValueError(f"vae_type {vae_type} not supported")
 
         self.z_dim = self.model.model.z_dim
         # Note: wan 14B: (4, 8, 8), 5B: (4, 16, 16)
@@ -45,12 +51,20 @@ class KsanaVAE(KsanaModel):
     @staticmethod
     def get_model_type_from_path(model_path: str):
         file_name = os.path.basename(model_path).lower()
+        if (
+            Path(model_path).is_file()
+            and any_key_in_str(QWEN_IMAGE, file_name) is not None
+            and file_name.find("hf") == -1
+        ):
+            return WAN2_1[0]
         if any_key_in_str(WAN2_2, file_name) is not None:
             return WAN2_2[0]
         elif any_key_in_str(WAN2_1, file_name) is not None:
             return WAN2_1[0]
+        elif any_key_in_str(QWEN_IMAGE, file_name) is not None:
+            return QWEN_IMAGE[0]
         else:
-            raise ValueError(f"model_path {model_path} not in support list {WAN2_2 + WAN2_1}")
+            raise ValueError(f"model_path {model_path} not in support list {WAN2_2 + WAN2_1 + QWEN_IMAGE}")
 
     @time_range("vae_decode")
     def decode(self, latents, with_end_image: bool = False):

@@ -13,6 +13,7 @@ from ksana.config import (
     KsanaModelConfig,
     KsanaRuntimeConfig,
     KsanaSampleConfig,
+    KsanaSolverBackend,
 )
 
 prompts = [
@@ -70,7 +71,11 @@ def run_start_and_end_with_lora(args):
     )
 
     sample_config = KsanaSampleConfig(
-        steps=4, cfg_scale=1.0, shift=1.0, solver="euler", sigmas=[1.0, 0.9375001, 0.8333333, 0.625, 0.0000]
+        steps=4,
+        cfg_scale=1.0,
+        shift=1.0,
+        solver=KsanaSolverBackend.EULER,
+        sigmas=[1.0, 0.9375001, 0.8333333, 0.625, 0.0000],
     )
     video = engine.generate(
         prompts[2],

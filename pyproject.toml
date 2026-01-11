@@ -46,7 +46,7 @@ dependencies = [
 # triton                                         3.3.0
 # tritonclient                                   2.51.0
 # trpc_triton                                    0.0.5a4
-# transformers                                   4.51.3
+# transformers                                   4.57.2
 
 
 [project.urls]
