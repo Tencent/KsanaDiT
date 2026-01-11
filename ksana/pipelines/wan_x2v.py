@@ -1,7 +1,7 @@
 import os
 from dataclasses import dataclass, field
 
-from ..config import KsanaModelConfig, KsanaPipelineConfig
+from ..config import KsanaModelConfig, KsanaPipelineConfig, KsanaSolverBackend
 from ..models import KsanaT5Encoder, KsanaVAE, KsanaWanModel
 from ..models.base_model import KsanaModel
 from ..models.model_key import WAN2_1, WAN2_2, X2V_TYPES
@@ -15,7 +15,7 @@ from .base_x2x import KsanaDefaultArgs, KsanaX2XPipeline
 @dataclass(frozen=True)
 class Wan2_2DefaultArgs(KsanaDefaultArgs):
     steps: int = field(default=50)
-    sample_solver: str = field(default="uni_pc")
+    sample_solver: KsanaSolverBackend = field(default=KsanaSolverBackend.UNI_PC)
 
 
 @dataclass(frozen=True)
@@ -23,7 +23,7 @@ class WanLightLoraDefaultArgs(Wan2_2DefaultArgs):
     steps: int = field(default=4)
     cfg_scale: float | tuple[float, float] = field(default=(1.0, 1.0))
     sample_shift: float = field(default=5.0)
-    sample_solver: str = field(default="euler")
+    sample_solver: KsanaSolverBackend = field(default=KsanaSolverBackend.EULER)
 
 
 class KsanaWanX2VPipeline(KsanaX2XPipeline):
@@ -171,3 +171,23 @@ class KsanaWanX2VPipeline(KsanaX2XPipeline):
             if comfy_bar_callback is not None:
                 comfy_bar_callback()
             return [one_model]
+
+    def forward_vae(
+        self,
+        model_pool,
+        latents,
+        local_rank,
+        device=None,
+        offload_device=None,
+        offload_model=False,
+        with_end_image=False,
+    ):
+        vae_model = model_pool.get_model(self.vae_key)
+        outputs = vae_model.forward_decode(
+            latents=latents, local_rank=local_rank, device=device, with_end_image=with_end_image
+        )
+
+        if offload_model and offload_device is not None:
+            vae_model.to(offload_device)
+
+        return outputs

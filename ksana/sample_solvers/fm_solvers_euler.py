@@ -85,3 +85,138 @@ class EulerScheduler(FlowMatchEulerDiscreteScheduler):
         x_t_next = sample + (sigma_next - sigma) * model_output
         self._step_index += 1
         return x_t_next
+
+
+def calculate_shift(
+    seq_len: int,
+    base_seq_len: int = 256,
+    max_seq_len: int = 4096,
+    base_shift: float = 0.5,
+    max_shift: float = 1.15,
+) -> float:
+    # adopted from diffusers/src/diffusers/pipelines/qwenimage/pipeline_qwenimage.py::calculate_shift
+    m = (max_shift - base_shift) / (max_seq_len - base_seq_len)
+    b = base_shift - m * base_seq_len
+    return seq_len * m + b
+
+
+class FlowMatchEulerScheduler:
+    """
+    adopted from diffusers/src/diffusers/schedulers/scheduling_flow_match_euler_discrete.py
+    and diffusers/src/diffusers/pipelines/qwenimage/pipeline_qwenimage.py
+    """
+
+    def __init__(
+        self,
+        num_train_timesteps: int = 1000,
+        shift: float = 1.0,
+        device: torch.device | str = "cuda",
+    ):
+        self.num_train_timesteps = num_train_timesteps
+        self.shift = shift
+        self.device = device
+        self.init_noise_sigma = 1.0
+
+        self.timesteps: Tensor = None
+        self.sigmas: Tensor = None
+        self._step_index: int = None
+
+    @staticmethod
+    def _time_shift_exponential(mu: float, sigma: float, t: np.ndarray) -> np.ndarray:
+        return np.exp(mu) / (np.exp(mu) + np.power((1.0 / t - 1.0), sigma))
+
+    def index_for_timestep(self, timestep: Tensor, schedule_timesteps: Tensor | None = None) -> int:
+        if schedule_timesteps is None:
+            schedule_timesteps = self.timesteps
+        indices = (schedule_timesteps == timestep).nonzero()
+        pos = 1 if len(indices) > 1 else 0
+        return indices[pos].item()
+
+    def set_timesteps(
+        self,
+        num_inference_steps: int,
+        device: torch.device | str | None = None,
+        shift: float = None,
+        denoise: float = 1.0,
+    ):
+        device = device or self.device
+        mu = shift if shift is not None else self.shift
+
+        steps = int(max(num_inference_steps, 1))
+        base_end = 1.0 / float(steps)
+        base_sigmas = np.linspace(1.0, base_end, steps, dtype=np.float32)
+
+        if denoise is not None and denoise < 0.9999 and denoise > 0.0:
+            new_steps = int(steps / denoise)
+            full = np.linspace(1.0, 1.0 / float(new_steps), new_steps, dtype=np.float32)
+            base_sigmas = full[-steps:]
+
+        shifted = self._time_shift_exponential(mu=float(mu), sigma=1.0, t=base_sigmas)
+        shifted = np.concatenate([shifted, np.array([0.0], dtype=np.float32)])
+
+        self.sigmas = torch.from_numpy(shifted).to(dtype=torch.float32, device=device)
+        self.timesteps = self.sigmas[:-1] * float(self.num_train_timesteps)
+        self._step_index = None
+
+    def _init_step_index(self, timestep: Tensor):
+        try:
+            self._step_index = self.index_for_timestep(timestep)
+        except Exception:
+            self._step_index = (self.timesteps - timestep).abs().argmin().item()
+
+    @property
+    def step_index(self) -> int:
+        return self._step_index
+
+    def step(
+        self,
+        model_output: Tensor,
+        timestep: Tensor,
+        sample: Tensor,
+        **kwargs,
+    ) -> Tensor:
+        if self._step_index is None:
+            self._init_step_index(timestep)
+
+        sample = sample.to(torch.float32)
+
+        sigma = self.sigmas[self._step_index].to(sample.device)
+        sigma_next = self.sigmas[self._step_index + 1].to(sample.device)
+
+        while sigma.ndim < sample.ndim:
+            sigma = sigma.unsqueeze(-1)
+            sigma_next = sigma_next.unsqueeze(-1)
+
+        prev_sample = sample + (sigma_next - sigma) * model_output
+        self._step_index += 1
+        return prev_sample
+
+    def add_noise(
+        self,
+        original_samples: Tensor,
+        noise: Tensor,
+        timesteps: Tensor,
+    ) -> Tensor:
+        sigmas = timesteps / self.num_train_timesteps
+        while sigmas.ndim < original_samples.ndim:
+            sigmas = sigmas.unsqueeze(-1)
+        return (1 - sigmas) * original_samples + sigmas * noise
+
+    def get_velocity(
+        self,
+        sample: Tensor,
+        noise: Tensor,
+        timesteps: Tensor,
+    ) -> Tensor:
+        return noise - sample
+
+    def scale_noise(
+        self,
+        sample: Tensor,
+        timestep: Tensor,
+        noise: Tensor,
+    ) -> Tensor:
+        sigma = timestep / self.num_train_timesteps
+        while sigma.ndim < sample.ndim:
+            sigma = sigma.unsqueeze(-1)
+        return (1 - sigma) * sample + sigma * noise

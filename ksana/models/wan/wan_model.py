@@ -77,16 +77,17 @@ class WanSelfAttention(nn.Module):
         self.k = operation_settings.get("operations").Linear(dim, dim, device=device, dtype=dtype)
         self.v = operation_settings.get("operations").Linear(dim, dim, device=device, dtype=dtype)
         self.o = operation_settings.get("operations").Linear(dim, dim, device=device, dtype=dtype)
+        rms_dtype = operation_settings.get("rms_dtype")
         self.norm_q = (
             operation_settings.get("operations").RMSNorm(
-                dim, eps=eps, elementwise_affine=True, device=device, dtype=torch.float32
+                dim, eps=eps, elementwise_affine=True, device=device, dtype=torch.float32, rms_dtype=rms_dtype
             )
             if qk_norm
             else nn.Identity()
         )
         self.norm_k = (
             operation_settings.get("operations").RMSNorm(
-                dim, eps=eps, elementwise_affine=True, device=device, dtype=torch.float32
+                dim, eps=eps, elementwise_affine=True, device=device, dtype=torch.float32, rms_dtype=rms_dtype
             )
             if qk_norm
             else nn.Identity()
@@ -443,6 +444,7 @@ class WanModel(ModelMixin, ConfigMixin):
             "operations": operations,
             "device": device,
             "dtype": dtype,
+            "rms_dtype": getattr(operations, "rms_dtype", None),
         }
 
         # blocks

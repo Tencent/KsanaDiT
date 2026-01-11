@@ -186,3 +186,13 @@ def batch_safetensors_by_size(model_dir, max_batch_size_gb=32):
         batches.append(current_batch)
 
     return batches
+
+
+def load_state_dict_from_path(path: str, device=None) -> dict:
+    p = Path(path)
+    if p.is_dir():
+        return load_sharded_safetensors(str(p), device=device)
+    elif p.is_file():
+        return load_file_to_state_dict(str(p), device=device)
+    else:
+        raise FileNotFoundError(f"Path does not exist or is not a file/directory: {path}")

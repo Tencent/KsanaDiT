@@ -13,7 +13,7 @@ from .distributed_config import KsanaDistributedConfig
 from .model_config import KsanaModelConfig
 from .pipeline_config import KsanaPipelineConfig
 from .runtime_config import KsanaRuntimeConfig
-from .sample_config import KsanaSampleConfig
+from .sample_config import KsanaSampleConfig, KsanaSolverBackend
 from .torch_compile_config import KsanaTorchCompileConfig
 
 __all__ = [
@@ -28,6 +28,7 @@ __all__ = [
     "MagCacheConfig",
     "EasyCacheConfig",
     "KsanaSampleConfig",
+    "KsanaSolverBackend",
     "KsanaModelConfig",
     "KsanaPipelineConfig",
     "KsanaRuntimeConfig",

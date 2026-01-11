@@ -26,6 +26,7 @@ ln -sf /dockerdata/ci-models/single/comfy_models .
 ln -sf /dockerdata/ci-models/single/Wan2.2-Lightning .
 ln -sf /dockerdata/ci-models/single/Wan2.2-T2V-A14B .
 ln -sf /dockerdata/ci-models/single/Wan2.2-I2V-A14B .
+ln -sf /dockerdata/ci-models/single/Qwen-Image .
 
 mkdir -p /data/stable-diffusion-webui
 ln -sf /dockerdata/ci-models/single/comfy_models /data/stable-diffusion-webui/models

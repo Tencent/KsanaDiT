@@ -3,8 +3,7 @@ from unittest.mock import patch
 
 import torch
 
-from ksana.config.model_config import KsanaModelConfig
-from ksana.config.pipeline_config import KsanaPipelineConfig
+from ksana.models.model_key import KsanaModelKey
 from ksana.scheduler.scheduler import KsanaScheduler
 
 
@@ -13,11 +12,7 @@ class TestKsanaScheduler(unittest.TestCase):
 
     def setUp(self):
         """设置测试环境"""
-        model_config = KsanaModelConfig(run_dtype=torch.float16)
-        self.pipeline_config = KsanaPipelineConfig(
-            model_name="wan2.2", task_type="t2v", model_size="A14B", model_config=model_config
-        )
-        self.scheduler = KsanaScheduler(self.pipeline_config)
+        self.scheduler = KsanaScheduler()
         self.latent_shape = [1, 16, 8, 64, 64]  # [batch_size, z_dim, frames, height, width]
         self.device = torch.device("cuda:0")
 
@@ -28,7 +23,9 @@ class TestKsanaScheduler(unittest.TestCase):
         mock_get_memory.return_value = 100 * 1024 * 1024 * 1024  # 100GB
 
         total_batch = 4
-        strategy = self.scheduler.build_batch_strategy(self.latent_shape, total_batch, torch.float16, self.device)
+        strategy = self.scheduler.build_batch_strategy(
+            KsanaModelKey.Wan2_2_T2V_14B_HIGH, self.latent_shape, total_batch, torch.float16, self.device
+        )
 
         # 内存充足时应该只有一个批次，包含所有样本
         self.assertEqual(len(strategy), 1)
@@ -43,7 +40,9 @@ class TestKsanaScheduler(unittest.TestCase):
         mock_get_memory.return_value = 100 * 1024 * 1024  # 100MB
 
         total_batch = 3
-        strategy = self.scheduler.build_batch_strategy(self.latent_shape, total_batch, torch.float16, self.device)
+        strategy = self.scheduler.build_batch_strategy(
+            KsanaModelKey.Wan2_2_T2V_14B_HIGH, self.latent_shape, total_batch, torch.float16, self.device
+        )
 
         # 内存不足时应该分成多个单样本批次
         self.assertEqual(len(strategy), 3)

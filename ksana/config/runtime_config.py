@@ -6,7 +6,7 @@ from ..utils.const import (
     DEFAULT_OUTPUTS_VIDEO_DIR,
     DEFAULT_RETURN_FRAMES,
     DEFAULT_ROPE_FUNC_TYPE,
-    DEFAULT_SAVE_VIDEO,
+    DEFAULT_SAVE_OUTPUT,
 )
 
 
@@ -27,7 +27,7 @@ class KsanaRuntimeConfig:
 
     return_frames: bool | None = field(default=DEFAULT_RETURN_FRAMES)
     output_folder: str | None = field(default=DEFAULT_OUTPUTS_VIDEO_DIR)
-    save_video: bool | None = field(default=DEFAULT_SAVE_VIDEO)
+    save_output: bool | None = field(default=DEFAULT_SAVE_OUTPUT)
 
     def __post_init__(self):
         if self.rope_function not in ["comfy", "default"]:

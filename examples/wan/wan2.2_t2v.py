@@ -14,6 +14,7 @@ from ksana.config import (
     KsanaRadialSageAttentionConfig,
     KsanaRuntimeConfig,
     KsanaSampleConfig,
+    KsanaSolverBackend,
     KsanaTorchCompileConfig,
 )
 from ksana.config.cache_config import CustomStepCacheConfig, DBCacheConfig, DCacheConfig, KsanaHybridCacheConfig
@@ -125,10 +126,10 @@ def run_advanced(args):
         frame_num=17,
         return_frames=True,
         output_folder="outputs",
-        save_video=True,
+        save_output=True,
     )
 
-    sample_config = KsanaSampleConfig(steps=40, cfg_scale=3.0, shift=12.0, solver="uni_pc")
+    sample_config = KsanaSampleConfig(steps=40, cfg_scale=3.0, shift=12.0, solver=KsanaSolverBackend.UNI_PC)
 
     cache_config = KsanaHybridCacheConfig(
         step_cache=DCacheConfig(fast_degree=50),
@@ -162,12 +163,16 @@ def run_fast(args):
         frame_num=81,
         return_frames=True,
         output_folder="outputs",
-        save_video=True,
+        save_output=True,
         rope_function="comfy",
     )
 
     sample_config = KsanaSampleConfig(
-        steps=4, cfg_scale=1.0, shift=5.0, solver="euler", sigmas=[1.0, 0.9375001, 0.6333333, 0.225, 0.0000]
+        steps=4,
+        cfg_scale=1.0,
+        shift=5.0,
+        solver=KsanaSolverBackend.EULER,
+        sigmas=[1.0, 0.9375001, 0.6333333, 0.225, 0.0000],
     )
 
     cache_config = CustomStepCacheConfig(steps=3, scales=1.1)

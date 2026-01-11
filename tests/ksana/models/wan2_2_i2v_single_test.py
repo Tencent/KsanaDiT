@@ -35,7 +35,7 @@ class TestKsanaI2V(unittest.TestCase):
                 size=TEST_SIZE,
                 frame_num=TEST_FRAME_NUM,
                 return_frames=True,
-                save_video=True,
+                save_output=True,
             ),
         )
         with self.subTest(msg="bs1 Shape Check"):
@@ -54,7 +54,7 @@ class TestKsanaI2V(unittest.TestCase):
                 frame_num=TEST_FRAME_NUM,
                 return_frames=True,
                 rope_function="comfy",
-                save_video=True,
+                save_output=True,
             ),
         )
         mean1 = videos[0].cpu().abs().mean().item()

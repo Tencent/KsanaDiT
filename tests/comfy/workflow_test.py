@@ -98,9 +98,14 @@ def modify_workflow_params(api_prompt: dict, params: dict) -> dict:
                 inputs["string"] = sigmas_str
 
         elif class_type == "LoadImage":
-            # start and end just use the same input image
             if "input_image" in params and "image" in inputs:
                 inputs["image"] = os.path.abspath(params["input_image"])
+
+        elif class_type == "KsanaEmptyImageLatentNode":
+            if "image_width" in params and "width" in inputs:
+                inputs["width"] = params["image_width"]
+            if "height" in params and "image_height" in inputs:
+                inputs["height"] = params["image_height"]
 
     return api_prompt
 
@@ -165,18 +170,6 @@ def run_workflows_batch(
     port: int,
     restart_server: bool,
 ) -> bool:
-    """批量运行 workflow 测试
-
-    Args:
-        workflow_configs: workflow 配置列表,每个配置是一个字典
-        seed: 随机种子,会覆盖配置中的 seed
-        num_gpus: GPU 数量,用于选择期望值
-        port: ComfyUI 服务器端口
-        restart_server: 是否每次测试前重启服务器
-
-    Returns:
-        是否所有测试都成功
-    """
     all_success = True
 
     if not restart_server:
@@ -210,7 +203,6 @@ def run_workflows_batch(
             else:
                 logger.error(f"✗ Workflow [{j}/{len(configs)}] 失败! 耗时: {workflow_elapsed:.2f} 秒")
                 all_success = False
-                # break
             if restart_server:
                 stop_server(server_process)
 

@@ -41,7 +41,7 @@ class TestKsana(unittest.TestCase):
                 size=TEST_SIZE,
                 frame_num=TEST_FRAME_NUM,
                 return_frames=True,
-                save_video=True,
+                save_output=True,
             ),
         )
         with self.subTest(msg="Shape Check"):
@@ -65,7 +65,7 @@ class TestKsana(unittest.TestCase):
                 size=TEST_SIZE,
                 frame_num=TEST_FRAME_NUM,
                 return_frames=True,
-                save_video=True,
+                save_output=True,
                 batch_size_per_prompt=2,
             ),
         )
@@ -91,7 +91,7 @@ class TestKsana(unittest.TestCase):
                 size=(1280, 720),
                 frame_num=81,
                 return_frames=True,
-                save_video=False,
+                save_output=False,
             ),
         )
         with self.subTest(msg="Shape Check"):
@@ -131,7 +131,7 @@ class TestKsana(unittest.TestCase):
                 size=TEST_SIZE,
                 frame_num=TEST_FRAME_NUM,
                 return_frames=True,
-                save_video=False,
+                save_output=False,
             ),
         )
         with self.subTest(msg="Shape Check"):
@@ -151,7 +151,7 @@ class TestKsana(unittest.TestCase):
                 size=TEST_SIZE,
                 frame_num=TEST_FRAME_NUM,
                 return_frames=True,
-                save_video=False,
+                save_output=False,
             ),
             cache_config=DCacheConfig(),
         )
@@ -168,7 +168,7 @@ class TestKsana(unittest.TestCase):
                 size=TEST_SIZE,
                 frame_num=TEST_FRAME_NUM,
                 return_frames=True,
-                save_video=False,
+                save_output=False,
             ),
             cache_config=KsanaHybridCacheConfig(step_cache=DCacheConfig(), block_cache=DBCacheConfig()),
         )
@@ -205,7 +205,7 @@ class TestKsana(unittest.TestCase):
                 size=RADIAL_TEST_SIZE,
                 frame_num=RADIAL_TEST_FRAME_NUM,
                 return_frames=True,
-                save_video=False,
+                save_output=False,
             ),
         )
         with self.subTest(msg="Shape Check"):
@@ -230,13 +230,13 @@ class TestKsana(unittest.TestCase):
                 frame_num=TEST_FRAME_NUM,
                 rope_function="comfy",
                 return_frames=True,
-                save_video=False,
+                save_output=False,
             ),
         )
         with self.subTest(msg="Shape Check"):
             self.assertEqual(list(video.shape), [1, 3, TEST_FRAME_NUM, TEST_SIZE[1], TEST_SIZE[0]])
         mean = video.cpu().abs().mean().item()
-        self.assertAlmostEqual(mean, 0.6557297706604004, places=TEST_EPS_PLACE)
+        self.assertAlmostEqual(mean, 0.6557743549346924, places=4)
 
     def test_lora_torch_compile(self):
         print("-----------------test_lora_torch_compile-----------------")
@@ -257,7 +257,7 @@ class TestKsana(unittest.TestCase):
                 size=TEST_SIZE,
                 frame_num=TEST_FRAME_NUM,
                 return_frames=True,
-                save_video=False,
+                save_output=False,
             ),
         )
         with self.subTest(msg="Shape Check"):

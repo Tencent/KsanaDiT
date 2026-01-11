@@ -39,21 +39,38 @@ class LayerNorm(torch.nn.LayerNorm):
 
 
 class RMSNorm(torch.nn.RMSNorm):
+    def __init__(self, *args, rms_dtype=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.rms_dtype = rms_dtype
+
     def reset_parameters(self):
         self.bias = None
         return None
 
-    def fp32_rmsnorm(self, input):
+    def float_rmsnorm(self, input):
+        """RMSNorm with float precision - converts input to float32 for computation"""
+
         def _norm(x):
             return x * torch.rsqrt(x.pow(2).mean(dim=-1, keepdim=True) + self.eps)
 
         return (_norm(input.float()) * self.weight).type_as(input)
 
+    def half_rmsnorm(self, input):
+        """RMSNorm with half precision - keeps input in original dtype"""
+
+        def _norm(x):
+            return x * torch.rsqrt(x.pow(2).mean(dim=-1, keepdim=True) + self.eps)
+
+        return (_norm(input) * self.weight).type_as(input)
+
     def forward(self, *args, **kwargs):
-        if self.weight.dtype == torch.float32:
-            return self.fp32_rmsnorm(*args, **kwargs)
-        else:
-            return super().forward(*args, **kwargs)
+        if hasattr(self, "rms_dtype") and self.rms_dtype is not None:
+            if self.rms_dtype in [torch.float16, torch.bfloat16]:
+                return self.half_rmsnorm(*args, **kwargs)
+        elif self.weight.dtype == torch.float32:
+            return self.float_rmsnorm(*args, **kwargs)
+
+        return super().forward(*args, **kwargs)
 
 
 class ConvTranspose2d(torch.nn.ConvTranspose2d):
@@ -104,6 +121,7 @@ def build_ops(
     linear_backend: str,
     attention_config=None,
     load_device=None,
+    rms_dtype=None,
 ):
     ops = Ops()
     ops.register("Conv1d", Conv1d)
@@ -117,4 +135,5 @@ def build_ops(
     ops.register("Embedding", Embedding)
     ops.register("Linear", pick_linear(run_dtype, state_dict, linear_backend, load_device))
     ops.register("Attn", pick_attn_op(attention_config))
+    ops.rms_dtype = rms_dtype
     return ops

@@ -6,6 +6,7 @@ import subprocess
 import imageio
 import torch
 import torchvision
+from PIL import Image
 
 from .logger import log
 
@@ -103,3 +104,25 @@ def save_video(tensor, save_file=None, fps=30, suffix=".mp4", nrow=8, normalize=
         writer.close()
     except Exception as e:
         log.info(f"save_video failed, error: {e}")
+
+
+def save_image(tensor: torch.Tensor, path: str):
+    """Save tensor as image file."""
+    img = tensor.squeeze(0).permute(1, 2, 0).detach().cpu().float().numpy()
+    img = (img * 255).clip(0, 255).astype("uint8")
+    Image.fromarray(img).save(path)
+    print(f"Saved image to {path}")
+
+
+def save_images(images: torch.Tensor, save_paths: list[str]):
+    if images.dim() != 4:
+        raise ValueError(f"Expected 4D tensor (B, C, H, W), got {images.dim()}D tensor")
+
+    batch_size = images.shape[0]
+    if len(save_paths) != batch_size:
+        raise ValueError(f"Number of save paths ({len(save_paths)}) must match batch size ({batch_size})")
+
+    for i, save_path in enumerate(save_paths):
+        # Create directory if it doesn't exist
+        os.makedirs(os.path.dirname(save_path), exist_ok=True)
+        save_image(images[i : i + 1], save_path)
