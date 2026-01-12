@@ -70,8 +70,8 @@ def generate(
         raise RuntimeError("Ksana diffusion model key list is empty; model loading likely failed.")
     run_dtype = model.run_dtype
     ksana_engine = get_engine()
-    MemoryProfiler.record_memory("before_ksana_engine_generate_with_tensors")
 
+    MemoryProfiler.record_memory("before_ksana_engine_generate_with_tensors")
     model_key = ksana_model[0] if isinstance(ksana_model, (list, tuple)) else ksana_model
     latent_shape = latent_image.samples.shape
     if comfy_free_mem_func is not None and comfy_device is not None:
@@ -120,7 +120,9 @@ def generate(
         comfy_bar_callback=comfy_bar_callback,
     )
     MemoryProfiler.record_memory("after_ksana_engine_generate_with_tensors")
-    if len(samples.shape) == 4:
+
+    # Note: only rank 0 return tensor, so maybe None
+    if samples is not None and len(samples.shape) == 4:
         samples = samples.unsqueeze(0)
 
     return KsanaNodeGeneratorOutput(
