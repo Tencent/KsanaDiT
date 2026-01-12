@@ -3,7 +3,7 @@ from .distribute import all_to_all, gather_forward, get_gpu_count, get_rank_id, 
 from .env import KSANA_LOGGER_LEVEL, KSANA_MEMORY_PROFILER
 from .instance import singleton
 from .load import load_file_to_state_dict, load_sharded_safetensors, remove_prefix_from_sd_inplace
-from .logger import init_logging, log
+from .logger import log, reset_logging
 from .lora import load_state_dict_and_merge_lora, model_safe_downcast
 from .media import merge_video_audio, save_video
 from .ops import cast_bias_weight, stochastic_rounding, supports_fp8_compute
@@ -18,7 +18,7 @@ __all__ = [
     "MemoryProfiler",
     "nvtx_range",
     "log",
-    "init_logging",
+    "reset_logging",
     "singleton",
     "evolve_with_recommend",
     "is_dir",

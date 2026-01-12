@@ -15,6 +15,7 @@ from ksana.config import (
     KsanaSampleConfig,
     KsanaSolverBackend,
 )
+from ksana.utils.distribute import get_gpu_count
 
 prompts = [
     "女孩扇子轻微挥动,吹口仙气后,手上的闪电飞到空中开始打雷",
@@ -23,11 +24,12 @@ prompts = [
 ]
 
 SEED = 1234
+NUM_GPUS = get_gpu_count()
 
 
 def run_simple(args):
     engine = KsanaEngine.from_models(
-        f"{args.model_dir}/Wan2.2-I2V-A14B", dist_config=KsanaDistributedConfig(num_gpus=args.num_gpus)
+        f"{args.model_dir}/Wan2.2-I2V-A14B", dist_config=KsanaDistributedConfig(num_gpus=NUM_GPUS)
     )
 
     video = engine.generate(
@@ -65,7 +67,7 @@ def run_start_and_end_with_lora(args):
 
     engine = KsanaEngine.from_models(
         f"{args.model_dir}/Wan2.2-I2V-A14B",
-        dist_config=KsanaDistributedConfig(num_gpus=args.num_gpus),
+        dist_config=KsanaDistributedConfig(num_gpus=NUM_GPUS),
         model_config=model_config,
         lora=f"{args.model_dir}/Wan2.2-Lightning/Wan2.2-I2V-A14B-4steps-lora-rank64-Seko-V1",
     )
@@ -98,8 +100,8 @@ if __name__ == "__main__":
     - single card run:
         python examples/wan/wan2.2_i2v.py
     - run with multi-gpus has two ways:
-        - CUDA_VISIBLE_DEVICES=4,5 python examples/wan/wan2.2_i2v.py --num_gpus=2
-        - CUDA_VISIBLE_DEVICES=4,5 torchrun --nproc_per_node=2 examples/wan/wan2.2_i2v.py --num_gpus=2
+        - CUDA_VISIBLE_DEVICES=4,5 python examples/wan/wan2.2_i2v.py
+        - CUDA_VISIBLE_DEVICES=4,5 torchrun --nproc_per_node=2 examples/wan/wan2.2_i2v.py
     """
     parser = argparse.ArgumentParser(description="Wan2.2 视频生成示例")
     parser.add_argument(
@@ -113,12 +115,6 @@ if __name__ == "__main__":
         type=str,
         default="./examples/images/input.png",
         help="输入图片路径",
-    )
-    parser.add_argument(
-        "--num_gpus",
-        type=int,
-        default=1,
-        help="使用的 GPU 数量",
     )
 
     args = parser.parse_args()

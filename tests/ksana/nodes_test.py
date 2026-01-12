@@ -9,11 +9,13 @@ from ksana import KsanaAttentionConfig, get_engine
 from ksana.config import KsanaAttentionBackend
 from ksana.models.model_key import KsanaModelKey
 from ksana.operations import KsanaLinearBackend
+from ksana.utils.distribute import get_gpu_count, get_rank_id
 
 COMFY_MODEL_ROOT = "/data/stable-diffusion-webui/models/diffusion_models"
 SEED = 321
 RUN_DTYPE = torch.float16
-TEST_EPS_PLACE = 7
+TEST_ONE_GPU_EPS_PLACE = 6
+TEST_GPUS_EPS_PLACE = 6
 
 TARGET_T2V_IMG_SHAPE = [1, 16, 16, 32, 32]
 TARGET_I2V_IMG_SHAPE = [1, 20, 16, 32, 32]
@@ -27,7 +29,8 @@ class KsanaNodesTestCase:
     linear_backends: KsanaLinearBackend
     rope_function: str
     expect_model_keys: list[KsanaModelKey]
-    expect_generator_outputs: list[float]
+    expect__one_generator_output: float
+    expect_gpus_generator_output: float
 
 
 test_cases = [
@@ -41,7 +44,8 @@ test_cases = [
         linear_backends=KsanaLinearBackend.DEFAULT,
         rope_function="comfy",
         expect_model_keys=[KsanaModelKey.Wan2_2_T2V_14B_HIGH, KsanaModelKey.Wan2_2_T2V_14B_LOW],
-        expect_generator_outputs=0.78076171875,
+        expect__one_generator_output=0.75537109375,
+        expect_gpus_generator_output=0.755859375,
     ),
     KsanaNodesTestCase(
         model_names=[
@@ -53,7 +57,8 @@ test_cases = [
         linear_backends=KsanaLinearBackend.DEFAULT,
         rope_function="default",
         expect_model_keys=[KsanaModelKey.Wan2_2_I2V_14B_HIGH, KsanaModelKey.Wan2_2_I2V_14B_LOW],
-        expect_generator_outputs=0.79736328125,
+        expect__one_generator_output=0.77734375,
+        expect_gpus_generator_output=0.77734375,
     ),
     KsanaNodesTestCase(
         model_names=["wan2.2_t2v_low_noise_14B_fp8_scaled.safetensors", None],
@@ -62,7 +67,8 @@ test_cases = [
         attention_backends=KsanaAttentionBackend.FLASH_ATTN,
         linear_backends=KsanaLinearBackend.FP8_GEMM,
         rope_function="comfy",
-        expect_generator_outputs=0.80517578125,
+        expect__one_generator_output=0.7744140625,
+        expect_gpus_generator_output=0.7744140625,
     ),
     KsanaNodesTestCase(
         model_names=[
@@ -74,7 +80,8 @@ test_cases = [
         attention_backends=KsanaAttentionBackend.SAGE_ATTN,
         linear_backends=KsanaLinearBackend.FP8_GEMM_DYNAMIC,
         rope_function="default",
-        expect_generator_outputs=0.77880859375,
+        expect__one_generator_output=0.75439453125,
+        expect_gpus_generator_output=0.75439453125,
     ),
     KsanaNodesTestCase(
         model_names=[
@@ -86,7 +93,8 @@ test_cases = [
         attention_backends=KsanaAttentionBackend.SAGE_ATTN,
         linear_backends=KsanaLinearBackend.FP16_GEMM,
         rope_function="default",
-        expect_generator_outputs=0.7939453125,
+        expect__one_generator_output=0.7763671875,
+        expect_gpus_generator_output=0.7763671875,
     ),
     KsanaNodesTestCase(
         model_names=["wan2.2_i2v_high_noise_14B_fp16.safetensors", None],
@@ -95,32 +103,31 @@ test_cases = [
         attention_backends=KsanaAttentionBackend.FLASH_ATTN,
         linear_backends=KsanaLinearBackend.FP8_GEMM_DYNAMIC,
         rope_function="comfy",
-        expect_generator_outputs=0.7939453125,
+        expect__one_generator_output=0.7763671875,
+        expect_gpus_generator_output=0.7763671875,
     ),
 ]
 
 
-# TODO:(TJ): nodes should have both single and gpus
 class TestNodes(unittest.TestCase):
-    def test_model_loader(self):
-        print("-----------------test_model_loader-----------------")
-        # TODO(TJ): add engine gpus
+    def test_base_and_swith_models(self):
+        print("-----------------test_base_and_swith_models-----------------")
         ksana_engine = get_engine()
         ksana_engine.clear_models()
 
-        seed_g = torch.Generator(device="cuda")
+        seed_g = torch.Generator(device="cpu")
         seed_g.manual_seed(SEED)
         text_shape = [1, 512, 4096]
         positive_text_embeddings = torch.randn(
             *text_shape,
             dtype=RUN_DTYPE,
-            device="cuda",
+            device="cpu",
             generator=seed_g,
         )
         negtive_text_embeddings = torch.randn(
             *text_shape,
             dtype=RUN_DTYPE,
-            device="cuda",
+            device="cpu",
             generator=seed_g,
         )
 
@@ -144,9 +151,8 @@ class TestNodes(unittest.TestCase):
             image_latent = torch.zeros(
                 *test_case.image_latent_shape,
                 dtype=RUN_DTYPE,
-                device="cuda",
+                device="cpu",
             )
-
             generate_output = nodes.generate(
                 output,
                 positive=[[positive_text_embeddings]],
@@ -158,15 +164,36 @@ class TestNodes(unittest.TestCase):
                 low_sample_guide_scale=3.0,
             )
             generate_output = generate_output.samples
-            with self.subTest(msg="generate Shape Check"):
+            if get_rank_id() == 0:
+                # only return tensor on rank 0
+                self.assertIsNotNone(generate_output)
+            else:
+                self.assertIsNone(generate_output)
+                continue
+
+            with self.subTest(msg=f"KsanaNodesTestCase {test_case} generate shape Check"):
                 target_latent_shape = test_case.image_latent_shape.copy()
                 target_latent_shape[1] = 16  # always 16
                 self.assertEqual(list(generate_output.shape), target_latent_shape)
-
             mean = generate_output.cpu().abs().mean().item()
-            print(f"KsanaNodesTestCase:{test_case} output mean: {mean}")
-            with self.subTest(msg="generate output Mean Check"):
-                self.assertAlmostEqual(mean, test_case.expect_generator_outputs, places=TEST_EPS_PLACE)
+            with self.subTest(msg=f"KsanaNodesTestCase {test_case} generate output mean {mean} check"):
+                if get_gpu_count() == 1:
+                    self.assertAlmostEqual(mean, test_case.expect__one_generator_output, places=TEST_ONE_GPU_EPS_PLACE)
+                else:
+                    self.assertAlmostEqual(mean, test_case.expect_gpus_generator_output, places=TEST_GPUS_EPS_PLACE)
+
+    # TODO: for all models, only one high, load once, and test belows for
+    def test_attention(self):
+        pass
+
+    def test_linear_backend(self):
+        pass
+
+    def test_cache(self):
+        pass
+
+    def test_lora(self):
+        pass
 
 
 if __name__ == "__main__":

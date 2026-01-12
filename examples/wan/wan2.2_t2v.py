@@ -19,6 +19,7 @@ from ksana.config import (
 )
 from ksana.config.cache_config import CustomStepCacheConfig, DBCacheConfig, DCacheConfig, KsanaHybridCacheConfig
 from ksana.operations import KsanaLinearBackend
+from ksana.utils.distribute import get_gpu_count
 
 prompts = [
     "街头摄影，戴耳机的酷女孩滑板，纽约街头，涂鸦墙背景，动态姿势，风吹头发，黄金时刻光线，主体清晰背景虚化，街头潮牌。",
@@ -26,11 +27,12 @@ prompts = [
 ]
 
 SEED = 1234
+NUM_GPUS = get_gpu_count()
 
 
 def run_simple(args):
     engine = KsanaEngine.from_models(
-        f"{args.model_dir}/Wan2.2-T2V-A14B", dist_config=KsanaDistributedConfig(num_gpus=args.num_gpus)
+        f"{args.model_dir}/Wan2.2-T2V-A14B", dist_config=KsanaDistributedConfig(num_gpus=NUM_GPUS)
     )
 
     video = engine.generate(
@@ -68,7 +70,7 @@ def run_fp8_models(args):
         (high_noise_model_path, low_noise_model_path),  # high go first
         text_checkpoint_dir=text_dir,
         vae_checkpoint_dir=vae_dir,
-        dist_config=KsanaDistributedConfig(num_gpus=args.num_gpus),
+        dist_config=KsanaDistributedConfig(num_gpus=NUM_GPUS),
         model_config=model_config,
     )
     high_cache_config = DCacheConfig(fast_degree=55)
@@ -101,7 +103,7 @@ def run_with_lora(args):
 
     engine = KsanaEngine.from_models(
         f"{args.model_dir}/Wan2.2-T2V-A14B",
-        dist_config=KsanaDistributedConfig(num_gpus=args.num_gpus),
+        dist_config=KsanaDistributedConfig(num_gpus=NUM_GPUS),
         model_config=model_config,
     )
 
@@ -117,7 +119,7 @@ def run_advanced(args):
     engine = KsanaEngine.from_models(
         f"{args.model_dir}/Wan2.2-T2V-A14B",
         model_config=model_config,
-        dist_config=KsanaDistributedConfig(num_gpus=args.num_gpus),
+        dist_config=KsanaDistributedConfig(num_gpus=NUM_GPUS),
     )
 
     runtime_config = KsanaRuntimeConfig(
@@ -154,7 +156,7 @@ def run_fast(args):
         f"{args.model_dir}/Wan2.2-T2V-A14B",
         model_config=model_config,
         lora=f"{args.model_dir}/Wan2.2-Lightning/Wan2.2-T2V-A14B-4steps-lora-rank64-Seko-V1",
-        dist_config=KsanaDistributedConfig(num_gpus=args.num_gpus),
+        dist_config=KsanaDistributedConfig(num_gpus=NUM_GPUS),
     )
 
     runtime_config = KsanaRuntimeConfig(
@@ -189,8 +191,8 @@ if __name__ == "__main__":
     - single card run:
         python examples/wan/wan2.2_t2v.py
     - run with multi-gpus has two ways:
-        - CUDA_VISIBLE_DEVICES=4,5 python examples/wan/wan2.2_t2v.py --num_gpus=2
-        - CUDA_VISIBLE_DEVICES=4,5 torchrun --nproc_per_node=2 examples/wan/wan2.2_t2v.py --num_gpus=2
+        - CUDA_VISIBLE_DEVICES=4,5 python examples/wan/wan2.2_t2v.py
+        - CUDA_VISIBLE_DEVICES=4,5 torchrun --nproc_per_node=2 examples/wan/wan2.2_t2v.py
     """
     parser = argparse.ArgumentParser(description="Wan2.2 视频生成示例")
     parser.add_argument(
@@ -198,12 +200,6 @@ if __name__ == "__main__":
         type=str,
         default="./",
         help="模型目录路径",
-    )
-    parser.add_argument(
-        "--num_gpus",
-        type=int,
-        default=1,
-        help="使用的 GPU 数量",
     )
 
     args = parser.parse_args()

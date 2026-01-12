@@ -23,7 +23,7 @@ from ..models.model_key import KsanaModelKey
 from ..models.model_pool import KsanaModelPool
 from ..pipelines import create_ksana_pipeline
 from ..utils import is_dir, log, merge_video_audio, save_video, time_range
-from ..utils.logger import init_logging
+from ..utils.logger import reset_logging
 from ..utils.media import save_image
 from ..utils.types import evolve_with_recommend
 
@@ -50,7 +50,7 @@ class KsanaExecutor(ABC):
         self.shard_fn = None
         self.dist_config = KsanaDistributedConfig(num_gpus=1, use_sp=False, dit_fsdp=False, ulysses_size=1)
         log.info(f"create executor with device_id {self.device_id}, offload_device {self.offload_device}")
-        init_logging()
+        reset_logging()
 
     def init_torch_dist_group(self, rank_id, dist_config: KsanaDistributedConfig):
         """r initialize sequence parallel group."""
@@ -69,7 +69,7 @@ class KsanaExecutor(ABC):
                 world_size=dist_config.num_gpus,
             )
         log.info(f"init distributed group with rank_id {self.rank_id}, world_size {self.world_size}")
-        init_logging(rank_id)
+        reset_logging(rank_id)
         self.shard_fn = partial(shard_model, device_id=self.device_id) if self.dist_config.dit_fsdp else None
 
     def create_pipeline(self, dir, model_config: KsanaModelConfig = None):

@@ -1,12 +1,13 @@
 from dataclasses import dataclass, field
 
-from ..utils.distribute import get_free_port
+from ..utils.const import DEFAULT_DIST_PORT
+from ..utils.distribute import get_free_port, get_gpu_count
 
 
 @dataclass()
 class KsanaDistributedConfig:
-    num_gpus: int = field(default=1, metadata={"help": "total number of gpus"})
-    port: int | None = field(default=29500, metadata={"help": "port for distributed communication"})
+    num_gpus: int = field(default=get_gpu_count(), metadata={"help": "total number of gpus"})
+    port: int | None = field(default=DEFAULT_DIST_PORT, metadata={"help": "port for distributed communication"})
 
     use_sp: bool | None = field(default=None, metadata={"help": "use sequence parallel"})
     dit_fsdp: bool | None = field(default=None, metadata={"help": "use fully sharded data parallel"})
