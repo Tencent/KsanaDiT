@@ -21,7 +21,6 @@ class KsanaNodeModelLoader:
         rms_dtype="float",
         linear_backend: KsanaLinearBackend | str = KsanaLinearBackend.DEFAULT,
         attention_config: KsanaAttentionConfig | None = None,
-        num_gpus="default",
         model_boundary=None,
         torch_compile_args=None,
         lora=None,
@@ -34,7 +33,7 @@ class KsanaNodeModelLoader:
                 log.warning("qwen-image detected: forcing run_dtype to bfloat16 for numerical stability.")
                 run_dtype = "bfloat16"
 
-        num_gpus = get_gpu_count() if num_gpus == "default" else int(num_gpus)
+        num_gpus = get_gpu_count()
         if comfy_progress_bar_func is None:
             comfyui_progress_bar = None
         else:
