@@ -27,4 +27,4 @@ export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 export CUDA_VISIBLE_DEVICES=${GPU_CARDS}
 
 cd /ci_workspace/${BK_CI_GIT_REPO_HEAD_COMMIT_ID}/
-python examples/${EXAMPLES}.py --num_gpus ${gpu_count}
+python examples/${EXAMPLES}.py
