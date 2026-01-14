@@ -8,6 +8,7 @@ from ksana.operations import KsanaLinearBackend, build_ops
 from ..config import KsanaDistributedConfig, KsanaModelConfig
 from ..models.model_key import QWEN_IMAGE, WAN2_1, WAN2_2, X2V_TYPES, KsanaModelKey
 from ..utils import log, time_range
+from ..utils.load import load_state_dict
 from ..utils.quantize import maybe_apply_dynamic_fp8_quant
 from ..utils.torch_compile import apply_torch_compile
 from ..utils.types import any_key_in_str
@@ -125,12 +126,7 @@ class KsanaDiffusionModel(KsanaModel):
                 to_load[k[len(unet_prefix) :]] = sd.pop(k)
 
         to_load = model.model_config.process_unet_state_dict(to_load)
-        m, u = model.load_state_dict(to_load, strict=False)
-        if len(m) > 0:
-            log.warning("unet missing: {}".format(m))
-
-        if len(u) > 0:
-            log.warning("unet unexpected: {}".format(u))
+        load_state_dict(model, to_load, strict=False)
         del to_load
         return model
 
@@ -392,11 +388,7 @@ class KsanaWanModel(KsanaDiffusionModel):
             )
         log.debug(f"model: {self.model}")
         with time_range("load_state_dict"):
-            load_result = self.model.load_state_dict(model_state_dict, strict=False)
-        if load_result.missing_keys or load_result.unexpected_keys:
-            log.warning(
-                f"load_result: missing keys:{load_result.missing_keys}, unexpected keys:{load_result.unexpected_keys}"
-            )
+            load_state_dict(self.model, model_state_dict, strict=False)
 
         self.model.eval().requires_grad_(False)
         self.model = self.prepare_distributed_model(
@@ -461,7 +453,7 @@ class KsanaQwenImageModel(KsanaDiffusionModel):
         self.model.to(load_device, dtype=self.run_dtype)
 
         with time_range("load_state_dict"):
-            self.model.load_state_dict(model_state_dict, strict=False)
+            load_state_dict(self.model, model_state_dict, strict=False)
 
         self.model.eval().requires_grad_(False)
         if shard_fn is not None and self.dist_config is not None:

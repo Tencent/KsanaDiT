@@ -72,11 +72,34 @@ def remove_prefix_from_sd_inplace(state_dict: dict, prefix: str) -> dict:
         return state_dict
 
     keys_to_update = [key for key in state_dict if key.startswith(prefix)]
+    if len(keys_to_update) > 0:
+        log.info(f"{len(keys_to_update)} keys with multiple prefixes are to be deleted.")
 
     for old_key in keys_to_update:
         state_dict[old_key.removeprefix(prefix)] = state_dict.pop(old_key)
 
     return state_dict
+
+
+def unet_prefix_from_state_dict(state_dict):
+    # Note: candidates 里面内容的顺序不能随意调换
+    candidates = [
+        "model.diffusion_model.",  # qwen models
+        "model.",  # wan models
+    ]
+    counts = {k: 0 for k in candidates}
+    for k in state_dict:
+        for c in candidates:
+            if k.startswith(c):
+                counts[c] += 1
+                break
+    top = max(counts, key=counts.get)
+    return top
+
+
+def remove_comfyui_prefix_from_state_dict(state_dict: dict) -> dict:
+    detected_prefix = unet_prefix_from_state_dict(state_dict)
+    return remove_prefix_from_sd_inplace(state_dict, detected_prefix)
 
 
 def load_file_to_state_dict(ckpt, device=None):
@@ -87,12 +110,15 @@ def load_file_to_state_dict(ckpt, device=None):
 
     # 根据文件扩展名选择加载方式
     ckpt_path = Path(ckpt)
+
     if ckpt_path.suffix == ".safetensors":
-        return safetensors.torch.load_file(ckpt, device=str(device))
+        state_dict = safetensors.torch.load_file(ckpt, device=str(device))
     elif ckpt_path.suffix in [".pt", ".pth"]:
-        return torch.load(ckpt, map_location=device)
+        state_dict = torch.load(ckpt, map_location=device)
     else:
         raise ValueError(f"Unsupported file format: {ckpt_path.suffix}. Supported formats: .safetensors, .pt, .pth")
+    state_dict = remove_comfyui_prefix_from_state_dict(state_dict)
+    return state_dict
 
 
 def load_sharded_safetensors(model_dir, device=None):
@@ -188,11 +214,13 @@ def batch_safetensors_by_size(model_dir, max_batch_size_gb=32):
     return batches
 
 
-def load_state_dict_from_path(path: str, device=None) -> dict:
-    p = Path(path)
-    if p.is_dir():
-        return load_sharded_safetensors(str(p), device=device)
-    elif p.is_file():
-        return load_file_to_state_dict(str(p), device=device)
-    else:
-        raise FileNotFoundError(f"Path does not exist or is not a file/directory: {path}")
+def load_state_dict(model, state_dict, assign=False, strict=False):
+    load_result = model.load_state_dict(state_dict, strict=strict, assign=assign)
+    if load_result.missing_keys:
+        error_msg = (
+            f"Runtime Error: Detected {len(load_result.missing_keys)} missing model parameters during weight loading."
+        )
+        raise RuntimeError(error_msg)
+    if load_result.unexpected_keys:
+        log.warning(f"Detected {len(load_result.unexpected_keys)} unexpected keys")
+    return load_result

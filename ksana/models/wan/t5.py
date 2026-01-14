@@ -8,6 +8,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from ksana.utils import load_file_to_state_dict
+from ksana.utils.load import load_state_dict
 
 from .tokenizers import HuggingfaceTokenizer
 
@@ -451,7 +452,7 @@ class T5EncoderModel:
             umt5_xxl(encoder_only=True, return_tokenizer=False, dtype=dtype, device=device).eval().requires_grad_(False)
         )
         logging.info(f"loading {checkpoint_path}")
-        model.load_state_dict(load_file_to_state_dict(checkpoint_path, device="cpu"))
+        load_state_dict(model, load_file_to_state_dict(checkpoint_path, device="cpu"))
         self.model = model
         if shard_fn is not None:
             self.model = shard_fn(self.model, sync_module_states=False)
