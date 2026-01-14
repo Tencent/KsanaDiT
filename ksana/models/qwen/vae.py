@@ -13,7 +13,8 @@ import torch.cuda.amp as amp
 import torch.nn as nn
 import torch.nn.functional as F
 
-from ...utils.load import load_state_dict_from_path
+from ...utils.load import load_state_dict
+from ...utils.lora import load_state_dict_and_merge_lora
 from ..model_key import KsanaModelKey
 
 CACHE_T = 2
@@ -428,11 +429,11 @@ class KsanaQwenImageVAE:
         dtype: torch.dtype = torch.bfloat16,
         **_kwargs,
     ):
-        vae_path = os.path.join(vae_path, "vae")
         path = Path(vae_path)
         config = None
         if path.is_dir():
-            config_path = path / "config.json"
+            vae_path = os.path.join(vae_path, "vae")
+            config_path = Path(vae_path) / "config.json"
             with open(config_path) as f:
                 config = json.load(f)
         elif path.is_file():
@@ -459,8 +460,8 @@ class KsanaQwenImageVAE:
             latents_std=self.latents_std,
         )
 
-        state_dict = load_state_dict_from_path(vae_path, device=str(device))
-        self.model.load_state_dict(state_dict, strict=False)
+        state_dict = load_state_dict_and_merge_lora(vae_path, device=str(device))
+        load_state_dict(self.model, state_dict, strict=False)
         self.model.to(device, dtype=dtype)
         self._key = KsanaModelKey.QwenImageVAE
 

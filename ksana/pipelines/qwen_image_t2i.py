@@ -18,7 +18,7 @@ from ..models.qwen import KsanaQwen2VLTextEncoder
 from ..models.vae import KsanaVAE
 from ..sample_solvers import calculate_shift, get_sample_scheduler
 from ..utils import log, time_range
-from ..utils.load import load_state_dict_from_path
+from ..utils.lora import load_state_dict_and_merge_lora
 from .base_x2x import KsanaDefaultArgs, KsanaX2XPipeline
 
 
@@ -74,10 +74,10 @@ class KsanaQwenImageT2IPipeline(KsanaX2XPipeline):
         load_device = str(device) if device is not None else "cuda"
         default_cfg = self.pipeline_config.default_config
         if os.path.isfile(model_path):
-            state_dict = load_state_dict_from_path(model_path, device=load_device)
+            state_dict = load_state_dict_and_merge_lora(model_path, device=load_device)
         else:
             transformer_dir = os.path.join(model_path, default_cfg.transformer_subdir)
-            state_dict = load_state_dict_from_path(transformer_dir, device=load_device)
+            state_dict = load_state_dict_and_merge_lora(transformer_dir, device=load_device)
 
         model.load(
             model_state_dict=state_dict,

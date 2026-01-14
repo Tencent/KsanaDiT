@@ -130,9 +130,11 @@ def build_loras_list(lora_path: str, strength=1.0):
 
 
 @time_range
-def load_state_dict_and_merge_lora(model_path: str, loras_list, run_dtype: torch.dtype, device=None):
+def load_state_dict_and_merge_lora(model_path: str, loras_list=None, run_dtype: torch.dtype = None, device=None):
     sd = {}
 
+    if loras_list is not None and run_dtype is None:
+        raise RuntimeError("run_dtype cannot be None when loras_list is provided.")
     need_merge = loras_list is not None and len(loras_list) > 0
     if not need_merge:
         device = "cpu"

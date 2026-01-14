@@ -367,10 +367,12 @@ class KsanaExecutor(ABC):
             gc.collect()
             torch.cuda.synchronize()
 
-        if runtime_config.save_output:
-            if runtime_config.frame_num is not None:
+        if runtime_config.save_output and self.rank_id == 0:
+            if len(outputs.shape) > 4:
+                # [B,C,F,H,W]
                 self.save_outputs(outputs, prompts_list, runtime_config, self.save_one_video, ".mp4")
             else:
+                # [B,C,H,W]
                 self.save_outputs(outputs, prompts_list, runtime_config, self.save_one_image, ".png")
 
         return outputs if self.rank_id == 0 and runtime_config.return_frames else None
