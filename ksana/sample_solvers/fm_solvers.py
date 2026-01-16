@@ -552,49 +552,49 @@ class FlowDPMSolverMultistepScheduler(SchedulerMixin, ConfigMixin):
 
         h, h_0 = lambda_t - lambda_s0, lambda_s0 - lambda_s1
         r0 = h_0 / h
-        D0, D1 = m0, (1.0 / r0) * (m0 - m1)
+        _d0_, _d1_ = m0, (1.0 / r0) * (m0 - m1)
         if self.config.algorithm_type == "dpmsolver++":
             # See https://arxiv.org/abs/2211.01095 for detailed derivations
             if self.config.solver_type == "midpoint":
                 x_t = (
                     (sigma_t / sigma_s0) * sample
-                    - (alpha_t * (torch.exp(-h) - 1.0)) * D0
-                    - 0.5 * (alpha_t * (torch.exp(-h) - 1.0)) * D1
+                    - (alpha_t * (torch.exp(-h) - 1.0)) * _d0_
+                    - 0.5 * (alpha_t * (torch.exp(-h) - 1.0)) * _d1_
                 )
             elif self.config.solver_type == "heun":
                 x_t = (
                     (sigma_t / sigma_s0) * sample
-                    - (alpha_t * (torch.exp(-h) - 1.0)) * D0
-                    + (alpha_t * ((torch.exp(-h) - 1.0) / h + 1.0)) * D1
+                    - (alpha_t * (torch.exp(-h) - 1.0)) * _d0_
+                    + (alpha_t * ((torch.exp(-h) - 1.0) / h + 1.0)) * _d1_
                 )
         elif self.config.algorithm_type == "dpmsolver":
             # See https://arxiv.org/abs/2206.00927 for detailed derivations
             if self.config.solver_type == "midpoint":
                 x_t = (
                     (alpha_t / alpha_s0) * sample
-                    - (sigma_t * (torch.exp(h) - 1.0)) * D0
-                    - 0.5 * (sigma_t * (torch.exp(h) - 1.0)) * D1
+                    - (sigma_t * (torch.exp(h) - 1.0)) * _d0_
+                    - 0.5 * (sigma_t * (torch.exp(h) - 1.0)) * _d1_
                 )
             elif self.config.solver_type == "heun":
                 x_t = (
                     (alpha_t / alpha_s0) * sample
-                    - (sigma_t * (torch.exp(h) - 1.0)) * D0
-                    - (sigma_t * ((torch.exp(h) - 1.0) / h - 1.0)) * D1
+                    - (sigma_t * (torch.exp(h) - 1.0)) * _d0_
+                    - (sigma_t * ((torch.exp(h) - 1.0) / h - 1.0)) * _d1_
                 )
         elif self.config.algorithm_type == "sde-dpmsolver++":
             assert noise is not None
             if self.config.solver_type == "midpoint":
                 x_t = (
                     (sigma_t / sigma_s0 * torch.exp(-h)) * sample
-                    + (alpha_t * (1 - torch.exp(-2.0 * h))) * D0
-                    + 0.5 * (alpha_t * (1 - torch.exp(-2.0 * h))) * D1
+                    + (alpha_t * (1 - torch.exp(-2.0 * h))) * _d0_
+                    + 0.5 * (alpha_t * (1 - torch.exp(-2.0 * h))) * _d1_
                     + sigma_t * torch.sqrt(1.0 - torch.exp(-2 * h)) * noise
                 )
             elif self.config.solver_type == "heun":
                 x_t = (
                     (sigma_t / sigma_s0 * torch.exp(-h)) * sample
-                    + (alpha_t * (1 - torch.exp(-2.0 * h))) * D0
-                    + (alpha_t * ((1.0 - torch.exp(-2.0 * h)) / (-2.0 * h) + 1.0)) * D1
+                    + (alpha_t * (1 - torch.exp(-2.0 * h))) * _d0_
+                    + (alpha_t * ((1.0 - torch.exp(-2.0 * h)) / (-2.0 * h) + 1.0)) * _d1_
                     + sigma_t * torch.sqrt(1.0 - torch.exp(-2 * h)) * noise
                 )
         elif self.config.algorithm_type == "sde-dpmsolver":
@@ -602,15 +602,15 @@ class FlowDPMSolverMultistepScheduler(SchedulerMixin, ConfigMixin):
             if self.config.solver_type == "midpoint":
                 x_t = (
                     (alpha_t / alpha_s0) * sample
-                    - 2.0 * (sigma_t * (torch.exp(h) - 1.0)) * D0
-                    - (sigma_t * (torch.exp(h) - 1.0)) * D1
+                    - 2.0 * (sigma_t * (torch.exp(h) - 1.0)) * _d0_
+                    - (sigma_t * (torch.exp(h) - 1.0)) * _d1_
                     + sigma_t * torch.sqrt(torch.exp(2 * h) - 1.0) * noise
                 )
             elif self.config.solver_type == "heun":
                 x_t = (
                     (alpha_t / alpha_s0) * sample
-                    - 2.0 * (sigma_t * (torch.exp(h) - 1.0)) * D0
-                    - 2.0 * (sigma_t * ((torch.exp(h) - 1.0) / h - 1.0)) * D1
+                    - 2.0 * (sigma_t * (torch.exp(h) - 1.0)) * _d0_
+                    - 2.0 * (sigma_t * ((torch.exp(h) - 1.0) / h - 1.0)) * _d1_
                     + sigma_t * torch.sqrt(torch.exp(2 * h) - 1.0) * noise
                 )
         return x_t  # pyright: ignore
@@ -680,25 +680,25 @@ class FlowDPMSolverMultistepScheduler(SchedulerMixin, ConfigMixin):
 
         h, h_0, h_1 = lambda_t - lambda_s0, lambda_s0 - lambda_s1, lambda_s1 - lambda_s2
         r0, r1 = h_0 / h, h_1 / h
-        D0 = m0
-        D1_0, D1_1 = (1.0 / r0) * (m0 - m1), (1.0 / r1) * (m1 - m2)
-        D1 = D1_0 + (r0 / (r0 + r1)) * (D1_0 - D1_1)
-        D2 = (1.0 / (r0 + r1)) * (D1_0 - D1_1)
+        _d0_ = m0
+        _d1_0_, _d1_1_ = (1.0 / r0) * (m0 - m1), (1.0 / r1) * (m1 - m2)
+        _d1_ = _d1_0_ + (r0 / (r0 + r1)) * (_d1_0_ - _d1_1_)
+        _d2_ = (1.0 / (r0 + r1)) * (_d1_0_ - _d1_1_)
         if self.config.algorithm_type == "dpmsolver++":
             # See https://arxiv.org/abs/2206.00927 for detailed derivations
             x_t = (
                 (sigma_t / sigma_s0) * sample
-                - (alpha_t * (torch.exp(-h) - 1.0)) * D0
-                + (alpha_t * ((torch.exp(-h) - 1.0) / h + 1.0)) * D1
-                - (alpha_t * ((torch.exp(-h) - 1.0 + h) / h**2 - 0.5)) * D2
+                - (alpha_t * (torch.exp(-h) - 1.0)) * _d0_
+                + (alpha_t * ((torch.exp(-h) - 1.0) / h + 1.0)) * _d1_
+                - (alpha_t * ((torch.exp(-h) - 1.0 + h) / h**2 - 0.5)) * _d2_
             )
         elif self.config.algorithm_type == "dpmsolver":
             # See https://arxiv.org/abs/2206.00927 for detailed derivations
             x_t = (
                 (alpha_t / alpha_s0) * sample
-                - (sigma_t * (torch.exp(h) - 1.0)) * D0
-                - (sigma_t * ((torch.exp(h) - 1.0) / h - 1.0)) * D1
-                - (sigma_t * ((torch.exp(h) - 1.0 - h) / h**2 - 0.5)) * D2
+                - (sigma_t * (torch.exp(h) - 1.0)) * _d0_
+                - (sigma_t * ((torch.exp(h) - 1.0) / h - 1.0)) * _d1_
+                - (sigma_t * ((torch.exp(h) - 1.0 - h) / h**2 - 0.5)) * _d2_
             )
         return x_t  # pyright: ignore
 

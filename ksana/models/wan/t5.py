@@ -305,7 +305,7 @@ class T5Decoder(nn.Module):
         self.apply(init_weights)
 
     def forward(self, ids, mask=None, encoder_states=None, encoder_mask=None):
-        b, s = ids.size()
+        _, s = ids.size()
 
         # causal mask
         if mask is None:
@@ -374,11 +374,13 @@ def _t5(
     encoder_only=False,
     decoder_only=False,
     return_tokenizer=False,
-    tokenizer_kwargs={},
+    tokenizer_kwargs=None,
     dtype=torch.float32,
     device="cpu",
     **kwargs,
 ):
+    if tokenizer_kwargs is None:
+        tokenizer_kwargs = {}
     # sanity check
     assert not (encoder_only and decoder_only)
 

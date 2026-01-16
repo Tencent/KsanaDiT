@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import torch
 
-##################### default rope ###########################
+# #################### default rope ###########################
 
 
 def _split_default_rope_freqs(freqs: torch.Tensor, half_dim: int) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
@@ -109,7 +109,7 @@ def apply_default_rope(
     return torch.stack(outputs, dim=0).type_as(x)
 
 
-##################### comfy rope ###########################
+# #################### comfy rope ###########################
 
 
 def _pad_comfy_freqs_cis(freqs_cis: torch.Tensor, target_len: int) -> torch.Tensor:

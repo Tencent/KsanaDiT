@@ -87,7 +87,7 @@ class KsanaNodeModelLoader:
                 comfy_bar_callback=comfy_bar_callback,
                 lora=[high_model_loras_list, low_model_loras_list],
             )
-        except Exception as e:
+        except Exception as e:  # pylint: disable=broad-except
             cls.LOADED_MODEL = None
             log.exception("load_diffusion_model failed")
             raise RuntimeError(

@@ -1,5 +1,5 @@
 from ksana import get_engine
-from ksana.config import KsanaRuntimeConfig, KsanaSampleConfig, KsanaSolverBackend
+from ksana.config import KsanaRuntimeConfig, KsanaSampleConfig, KsanaSolverType
 from ksana.utils import log
 from ksana.utils.memory import (
     MODEL_MEMORY_CONFIG,
@@ -28,7 +28,7 @@ def _prepare_memory_for_ksana_models(model_key, latent_shape, run_dtype, comfy_d
             comfy_free_mem_func(total_memory_required, comfy_device, keep_loaded=[])
 
         log.debug(f"Final free memory: {get_available_memory(comfy_device) / (1024*1024):.1f} MB")
-    except Exception as e:
+    except Exception as e:  # pylint: disable=broad-except
         raise RuntimeError(f"Failed to prepare memory for KsanaDiT models: {e}")
 
 
@@ -40,7 +40,7 @@ def generate(
     steps,
     seed,
     scheduler="simple",
-    solver_name=KsanaSolverBackend.UNI_PC,
+    solver_name=KsanaSolverType.UNI_PC,
     sample_guide_scale=4.0,
     sample_shift=5.0,
     denoise=1.0,
@@ -54,29 +54,28 @@ def generate(
 ):
     # Convert string solver_name to enum
     if isinstance(solver_name, str):
-        solver_name = KsanaSolverBackend(solver_name)
+        solver_name = KsanaSolverType(solver_name)
     if sigmas is not None:
         expected_lengths = steps + 1
         if len(sigmas) != expected_lengths:
             raise RuntimeError(f"sigmas length ({len(sigmas)}) must be equal to steps + 1 ({expected_lengths})")
 
-    ksana_model = model.model
-    if ksana_model is None:
+    diffusion_model_key = model.model
+    if diffusion_model_key is None:
         raise RuntimeError(
             "Ksana diffusion model is not loaded (model=None). "
             "Check that `KsanaModelLoaderNode` succeeded and that the requested diffusion model file exists."
         )
-    if isinstance(ksana_model, (list, tuple)) and len(ksana_model) == 0:
-        raise RuntimeError("Ksana diffusion model key list is empty; model loading likely failed.")
+    if isinstance(diffusion_model_key, (list, tuple)):
+        raise RuntimeError("Ksana diffusion model key can not be list or tuple.")
     run_dtype = model.run_dtype
     ksana_engine = get_engine()
 
     MemoryProfiler.record_memory("before_ksana_engine_generate_with_tensors")
-    model_key = ksana_model[0] if isinstance(ksana_model, (list, tuple)) else ksana_model
     latent_shape = latent_image.samples.shape
     if comfy_free_mem_func is not None and comfy_device is not None:
         _prepare_memory_for_ksana_models(
-            model_key,
+            diffusion_model_key,
             latent_shape=latent_shape,
             run_dtype=run_dtype,
             comfy_device=comfy_device,
@@ -92,17 +91,17 @@ def generate(
     if cache_configs is not None and not isinstance(cache_configs, list):
         cache_configs = [cache_configs]
     num_prompts = positive[0][0].shape[0]
-    batch_size_per_prompt = latent_image.batch_size_per_prompt
-    batch_size_per_prompt = [batch_size_per_prompt] * num_prompts
+    batch_size_per_prompts = latent_image.batch_size_per_prompts
+    batch_size_per_prompts = [batch_size_per_prompts] * num_prompts
 
     if sample_shift is not None and float(sample_shift) < 0:
         sample_shift = None
     # TODO: maybe need to latent_format process_in for positive/negative?
-    samples = ksana_engine.forward_diffusion_models_with_tensors(
-        model_keys=ksana_model,
+    samples = ksana_engine.forward_generator(
+        model_key=diffusion_model_key,
         positive=positive[0][0],
         negative=negative[0][0],
-        img_latents=latent_image.samples,  # [1, 16, 5, h/, w/]
+        img_latents=latent_image.samples,  # [bs, 16, 5, h/, w/]
         sample_config=KsanaSampleConfig(
             steps=steps,
             cfg_scale=(sample_guide_scale, low_sample_guide_scale),
@@ -114,7 +113,7 @@ def generate(
         runtime_config=KsanaRuntimeConfig(
             seed=seed,
             rope_function=rope_function,
-            batch_size_per_prompt=batch_size_per_prompt,
+            batch_size_per_prompts=batch_size_per_prompts,
         ),
         cache_configs=cache_configs,
         comfy_bar_callback=comfy_bar_callback,

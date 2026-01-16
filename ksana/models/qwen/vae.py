@@ -6,7 +6,7 @@ Reference (Diffusers):
 import json
 import os
 from pathlib import Path
-from typing import List, Optional, Tuple, Union
+from typing import Tuple, Union
 
 import torch
 import torch.cuda.amp as amp
@@ -97,7 +97,9 @@ class QwenImageResample(nn.Module):
         else:
             self.resample = nn.Identity()
 
-    def forward(self, x, feat_cache=None, feat_idx=[0]):
+    def forward(self, x, feat_cache=None, feat_idx=None):
+        if feat_idx is None:
+            feat_idx = [0]
         b, c, t, h, w = x.size()
         if self.mode == "upsample3d":
             if feat_cache is not None:
@@ -152,7 +154,9 @@ class QwenImageResidualBlock(nn.Module):
         self.conv2 = QwenImageCausalConv3d(out_dim, out_dim, 3, padding=1)
         self.conv_shortcut = QwenImageCausalConv3d(in_dim, out_dim, 1) if in_dim != out_dim else nn.Identity()
 
-    def forward(self, x, feat_cache=None, feat_idx=[0]):
+    def forward(self, x, feat_cache=None, feat_idx=None):
+        if feat_idx is None:
+            feat_idx = [0]
         h = self.conv_shortcut(x)
         x = self.norm1(x)
         x = self.nonlinearity(x)
@@ -223,7 +227,9 @@ class QwenImageMidBlock(nn.Module):
         self.attentions = nn.ModuleList(attentions)
         self.resnets = nn.ModuleList(resnets)
 
-    def forward(self, x, feat_cache=None, feat_idx=[0]):
+    def forward(self, x, feat_cache=None, feat_idx=None):
+        if feat_idx is None:
+            feat_idx = [0]
         x = self.resnets[0](x, feat_cache, feat_idx)
         for attn, resnet in zip(self.attentions, self.resnets[1:]):
             if attn is not None:
@@ -239,7 +245,7 @@ class QwenImageUpBlock(nn.Module):
         out_dim: int,
         num_res_blocks: int,
         dropout: float = 0.0,
-        upsample_mode: Optional[str] = None,
+        upsample_mode: str = None,
         non_linearity: str = "silu",
     ):
         super().__init__()
@@ -251,7 +257,9 @@ class QwenImageUpBlock(nn.Module):
         self.resnets = nn.ModuleList(resnets)
         self.upsamplers = nn.ModuleList([QwenImageResample(out_dim, mode=upsample_mode)]) if upsample_mode else None
 
-    def forward(self, x, feat_cache=None, feat_idx=[0]):
+    def forward(self, x, feat_cache=None, feat_idx=None):
+        if feat_idx is None:
+            feat_idx = [0]
         for resnet in self.resnets:
             x = resnet(x, feat_cache, feat_idx) if feat_cache is not None else resnet(x)
         if self.upsamplers is not None:
@@ -264,13 +272,19 @@ class QwenImageDecoder3d(nn.Module):
         self,
         dim: int = 128,
         z_dim: int = 4,
-        dim_mult: List[int] = [1, 2, 4, 4],
+        dim_mult: list[int] = None,
         num_res_blocks: int = 2,
-        attn_scales: List[float] = [],
-        temperal_upsample: List[bool] = [False, True, True],
+        attn_scales: list[float] = None,
+        temperal_upsample: list[bool] = None,
         dropout: float = 0.0,
         non_linearity: str = "silu",
     ):
+        if dim_mult is None:
+            dim_mult = [1, 2, 4, 4]
+        if attn_scales is None:
+            attn_scales = []
+        if temperal_upsample is None:
+            temperal_upsample = [False, True, True]
         super().__init__()
         self.nonlinearity = get_activation(non_linearity)
 
@@ -292,7 +306,9 @@ class QwenImageDecoder3d(nn.Module):
         self.norm_out = QwenImageRMSNorm(dims[-1], images=False)
         self.conv_out = QwenImageCausalConv3d(dims[-1], 3, 3, padding=1)
 
-    def forward(self, x, feat_cache=None, feat_idx=[0]):
+    def forward(self, x, feat_cache=None, feat_idx=None):
+        if feat_idx is None:
+            feat_idx = [0]
         if feat_cache is not None:
             idx = feat_idx[0]
             cache_x = x[:, :, -CACHE_T:, :, :].clone()
@@ -328,14 +344,20 @@ class AutoencoderKLQwenImage(nn.Module):
         self,
         base_dim: int = 96,
         z_dim: int = 16,
-        dim_mult: Tuple[int, ...] = (1, 2, 4, 4),
+        dim_mult: list[int] = None,
         num_res_blocks: int = 2,
-        attn_scales: List[float] = [],
-        temperal_downsample: List[bool] = [False, True, True],
+        attn_scales: list[float] = None,
+        temperal_downsample: list[bool] = None,
         dropout: float = 0.0,
-        latents_mean: Optional[List[float]] = None,
-        latents_std: Optional[List[float]] = None,
+        latents_mean: list[float] = None,
+        latents_std: list[float] = None,
     ):
+        if dim_mult is None:
+            dim_mult = [1, 2, 4, 4]
+        if attn_scales is None:
+            attn_scales = []
+        if temperal_downsample is None:
+            temperal_downsample = [False, True, True]
         super().__init__()
         self.z_dim = z_dim
         self.temperal_downsample = temperal_downsample
@@ -357,7 +379,7 @@ class AutoencoderKLQwenImage(nn.Module):
         self._feat_map = [None] * conv_num
 
     def decode(self, z: torch.Tensor) -> Tuple[torch.Tensor]:
-        _, _, num_frame, height, width = z.shape
+        _, _, num_frame, _, _ = z.shape
         self.clear_cache()
         x = self.post_quant_conv(z)
 
@@ -427,12 +449,13 @@ class KsanaQwenImageVAE:
         vae_path: str,
         device: torch.device,
         dtype: torch.dtype = torch.bfloat16,
-        **_kwargs,
+        default_settings=None,  # pylint: disable=unused-argument
     ):
         path = Path(vae_path)
         config = None
         if path.is_dir():
             vae_path = os.path.join(vae_path, "vae")
+            # TODO: remove config.json
             config_path = Path(vae_path) / "config.json"
             with open(config_path) as f:
                 config = json.load(f)

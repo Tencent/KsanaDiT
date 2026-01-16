@@ -71,7 +71,7 @@ class Fp8Linear(torch.nn.Linear):
                 out = fp8_linear(self, input)
                 if out is not None:
                     return out
-            except Exception as e:
+            except Exception as e:  # pylint: disable=broad-except
                 logging.info("Exception during fp8 op: {}".format(e))
 
         weight, bias = cast_bias_weight(self, input)

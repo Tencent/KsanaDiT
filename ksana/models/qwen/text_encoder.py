@@ -10,10 +10,9 @@ import torch
 from transformers import AutoTokenizer, Qwen2_5_VLForConditionalGeneration
 
 from ..base_model import KsanaModel
-from ..model_key import KsanaModelKey
 
 
-class KsanaQwen2VLTextEncoder(KsanaModel):
+class KsanaQwen2VLTextEncoderModel(KsanaModel):
     def __init__(
         self,
         checkpoint_dir: str,
@@ -99,6 +98,3 @@ class KsanaQwen2VLTextEncoder(KsanaModel):
         if self.device != device:
             self.model.to(device)
         self.device = device
-
-    def get_model_key(self) -> KsanaModelKey:
-        return KsanaModelKey.Qwen2VLTextEncoder

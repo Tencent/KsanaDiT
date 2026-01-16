@@ -1,0 +1,8 @@
+_base_modules :
+  # Note: keep include in order
+  - "common.yaml"
+  - "wan/modules/common.yaml"
+  - "wan/modules/t5_encoder.yaml"
+  - "wan/modules/14b.yaml"
+  - "wan/modules/i2v.yaml"
+  - "wan/modules/vae_2_1.yaml"

@@ -1,0 +1,7 @@
+
+runtime_config:
+  boundary: 0.875
+
+sample_config:
+  shift: 12.0
+  cfg_scale: [4.0, 3.0]  # high noise, low noise

@@ -42,7 +42,7 @@ def vae_encode(
         return KsanaNodeVAEEncodeOutput(
             samples=latent,
             with_end_image=False,
-            batch_size_per_prompt=batch_size,
+            batch_size_per_prompts=batch_size,
         )
 
     ksana_engine = get_engine()
@@ -53,10 +53,10 @@ def vae_encode(
     if isinstance(end_image, torch.Tensor) and end_image.ndim == 3:
         end_image = end_image.unsqueeze(0)
         print(f"end_image{end_image.shape}, {end_image.device}")
-    CHANNELS = 3
-    if start_image is not None and start_image.shape[3] == CHANNELS:
+    channels = 3
+    if start_image is not None and start_image.shape[3] == channels:
         start_image = start_image.permute(0, 3, 1, 2)
-    if end_image is not None and end_image.shape[3] == CHANNELS:
+    if end_image is not None and end_image.shape[3] == channels:
         end_image = end_image.permute(0, 3, 1, 2)
 
     def preprocess_image(image):
@@ -70,18 +70,18 @@ def vae_encode(
     with_end_image = end_image is not None
 
     latents = ksana_engine.forward_vae_encode(
-        vae_key=vae,
-        frame_num=num_frames,
-        width=width,
-        height=height,
-        start_image=start_image,
-        end_image=end_image,
+        model_key=vae,
+        target_f=num_frames,
+        target_h=width,
+        target_w=height,
+        start_img=start_image,
+        end_img=end_image,
         mask=mask,
     )
     return KsanaNodeVAEEncodeOutput(
         samples=latents,
         with_end_image=with_end_image,
-        batch_size_per_prompt=int(batch_size),
+        batch_size_per_prompts=int(batch_size),
     )
 
 
@@ -97,7 +97,7 @@ def vae_decode(vae, latent):
     if isinstance(latents, torch.Tensor) and latents.ndim == 4:
         latents = latents.unsqueeze(0)
     images = ksana_engine.forward_vae_decode(
-        vae_key=vae,
+        model_key=vae,
         latents=latents,
         with_end_image=with_end_image,
     )

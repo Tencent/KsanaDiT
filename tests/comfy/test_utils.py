@@ -338,7 +338,7 @@ def _get_workflow_result_media(prompt_id: str, server_address: str) -> Tuple[boo
                     return True, media_data
         logger.warning("在 workflow 输出中未找到任何媒体文件。")
         return True, None
-    except Exception as e:
+    except Exception as e:  # pylint: disable=broad-except
         logger.error(f"获取或下载媒体文件时出错: {e}")
         return False, None
 
@@ -381,7 +381,7 @@ def check_media_data(media_data: bytes, expect_values: dict) -> bool:
                 f"✗ Image check failed. Mean: {mean:.7f}, Expected Mean: {expected_mean:.7f}, Tolerance: {tolerance}"
             )
             return False
-    except Exception as e:
+    except Exception as e:  # pylint: disable=broad-except
         logger.error(f"✗ Failed to process and check image/video data: {e}")
         return False
 

@@ -1,0 +1,6 @@
+vae:
+  checkpoint : "Wan2.2_VAE.pth"
+  stride : [4, 16, 16]
+
+diffusion:
+  patch_size: [1, 2, 2]

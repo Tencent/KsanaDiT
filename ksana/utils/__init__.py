@@ -1,6 +1,7 @@
 from .debug import print_recursive
 from .distribute import all_to_all, gather_forward, get_gpu_count, get_rank_id, get_world_size
 from .env import KSANA_LOGGER_LEVEL, KSANA_MEMORY_PROFILER
+from .factory import Factory
 from .instance import singleton
 from .load import load_file_to_state_dict, load_sharded_safetensors, remove_prefix_from_sd_inplace
 from .logger import log, reset_logging
@@ -9,9 +10,10 @@ from .media import merge_video_audio, save_video
 from .ops import cast_bias_weight, stochastic_rounding, supports_fp8_compute
 from .profile import KsanaProfiler, MemoryProfiler, nvtx_range, time_range
 from .sample_solver import apply_sigma_shift, get_sigmas_with_denoise
-from .types import any_key_in_str, evolve_with_recommend, is_dir
+from .types import any_key_in_str, evolve_with_recommend, is_dir, is_file_or_dir, str_to_list
 
 __all__ = [
+    "Factory",
     "KSANA_LOGGER_LEVEL",
     "KSANA_MEMORY_PROFILER",
     "KsanaProfiler",
@@ -22,6 +24,8 @@ __all__ = [
     "singleton",
     "evolve_with_recommend",
     "is_dir",
+    "str_to_list",
+    "is_file_or_dir",
     "any_key_in_str",
     "print_recursive",
     "time_range",

@@ -1,6 +1,7 @@
 import copy
 import os
 from dataclasses import is_dataclass, replace
+from pathlib import Path
 
 
 def evolve_with_recommend(input_config, recommend_config, force_update=False):
@@ -44,6 +45,27 @@ def evolve_with_recommend(input_config, recommend_config, force_update=False):
         for attr, val_rec in change_dict.items():
             set_value_in_obj(out_config, attr, val_rec)
     return out_config
+
+
+def str_to_list(input_str: str | list[str] | None) -> list[str]:
+    if input_str is None:
+        input_str = []
+    if isinstance(input_str, str):
+        input_str = [input_str]
+    elif isinstance(input_str, (list, tuple)):
+        input_str = list(input_str)
+    else:
+        raise TypeError(f"input must be str or list[str], got {type(input_str)}")
+    if len(input_str) == 0:
+        raise ValueError(f"input must not be empty, but got {input_str}")
+    return input_str
+
+
+def is_file_or_dir(path):
+    path = Path(path)
+    if not path.exists():
+        return False
+    return path.is_file() or path.is_dir()
 
 
 def is_dir(path):

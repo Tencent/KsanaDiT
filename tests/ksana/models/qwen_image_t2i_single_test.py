@@ -2,7 +2,7 @@ import unittest
 
 import torch
 
-from ksana import KsanaEngine
+from ksana import KsanaPipeline
 from ksana.config import (
     KsanaModelConfig,
     KsanaRuntimeConfig,
@@ -32,7 +32,7 @@ class TestKsanaQwenImageT2I(unittest.TestCase):
 
     def test_simple(self):
         print("-----------------qwen_image test_simple-----------------")
-        generator = KsanaEngine.from_models(
+        generator = KsanaPipeline.from_models(
             QWEN_IMAGE_DIR,
             model_config=KsanaModelConfig(run_dtype=TEST_DTYPE),
             offload_device="cpu",
@@ -54,7 +54,7 @@ class TestKsanaQwenImageT2I(unittest.TestCase):
 
     def test_batch_prompts(self):
         print("-----------------qwen_image test_batch_prompts-----------------")
-        generator = KsanaEngine.from_models(
+        generator = KsanaPipeline.from_models(
             QWEN_IMAGE_DIR,
             model_config=KsanaModelConfig(run_dtype=TEST_DTYPE),
             offload_device="cpu",

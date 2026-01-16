@@ -33,6 +33,7 @@ dependencies = [
   "imageio-ffmpeg >= 0.4.8",
   # "sageattention >= 2.1.1",
   # "spas_sage_attn >= 0.1.0"
+  "omegaconf >= 2.3.0",
 ]
 
 # wan2.2 deps:

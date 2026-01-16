@@ -1,0 +1,15 @@
+_base_modules :
+  # Note: keep include in order
+  - "common.yaml"
+  - "wan/modules/common.yaml"
+  - "wan/modules/t5_encoder.yaml"
+  - "wan/modules/14b.yaml"
+  - "wan/modules/t2v.yaml"
+  - "wan/modules/vae_2_1.yaml"
+
+
+cache:
+  dcache:
+    coeffs:
+      high: [1.79787941e-06,        -6.73669299e-03,        9.45476817e00,        -5.89111662e03,        1.37508591e06]
+      low: [ -4.67923490e-09,        9.48489344e-06,        -6.97084940e-03,        2.12416998e00,        -1.65571475e02,]

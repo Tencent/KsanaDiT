@@ -1,0 +1,7 @@
+
+sample_config:
+  solver: "uni_pc"
+  steps: 40
+  cfg_scale: [3.0, 4.0]  # low noise, high noise
+
+  num_train_timesteps: 1000

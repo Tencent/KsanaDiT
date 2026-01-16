@@ -1,0 +1,19 @@
+
+sample_config:
+  steps: 50
+  solver: "flowmatch_euler"
+  cfg_scale: 4
+  num_train_timesteps: 1000
+  base_shift: 0.5
+  max_shift: 1.15
+
+scheduler_subdir: "scheduler"
+
+diffusion:
+  checkpoint: "transformer"
+  num_heads: 24
+  patch_size: 2
+
+runtime_config:
+  target_size: [1024, 1024]
+  param_dtype: ${torch_dtype:bfloat16}

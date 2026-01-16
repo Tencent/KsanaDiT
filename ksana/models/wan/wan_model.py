@@ -55,12 +55,16 @@ class WanSelfAttention(nn.Module):
         self,
         dim,
         num_heads,
-        window_size=(-1, -1),
+        window_size=None,
         qk_norm=True,
         eps=1e-6,
         block_id=-1,
-        operation_settings={},
+        operation_settings=None,
     ):
+        if window_size is None:
+            window_size = (-1, -1)
+        if operation_settings is None:
+            operation_settings = {}
         assert dim % num_heads == 0
         super().__init__()
         self.dim = dim
@@ -190,12 +194,16 @@ class WanAttentionBlock(nn.Module):
         ffn_dim,
         num_heads,
         block_id,
-        window_size=(-1, -1),
+        window_size=None,
         qk_norm=True,
         cross_attn_norm=False,
         eps=1e-6,
-        operation_settings={},
+        operation_settings=None,
     ):
+        if window_size is None:
+            window_size = (-1, -1)
+        if operation_settings is None:
+            operation_settings = {}
         super().__init__()
         self.dim = dim
         self.ffn_dim = ffn_dim
@@ -296,7 +304,9 @@ class WanAttentionBlock(nn.Module):
 
 
 class Head(nn.Module):
-    def __init__(self, dim, out_dim, patch_size, eps=1e-6, operation_settings={}):
+    def __init__(self, dim, out_dim, patch_size, eps=1e-6, operation_settings=None):
+        if operation_settings is None:
+            operation_settings = {}
         super().__init__()
         self.dim = dim
         self.out_dim = out_dim
@@ -345,7 +355,7 @@ class WanModel(ModelMixin, ConfigMixin):
     @register_to_config
     def __init__(
         self,
-        model_type="t2v",
+        is_i2v_type=False,
         patch_size=(1, 2, 2),
         text_len=512,
         in_dim=16,
@@ -404,9 +414,7 @@ class WanModel(ModelMixin, ConfigMixin):
         """
 
         super().__init__()
-
-        assert model_type in ["t2v", "i2v", "ti2v", "s2v"]
-        self.model_type = model_type
+        self.is_i2v_type = is_i2v_type
 
         self.patch_size = patch_size
         self.text_len = text_len
@@ -579,7 +587,7 @@ class WanModel(ModelMixin, ConfigMixin):
         latent_shape = x.shape
 
         # x [bs, 16, f, h, w], y [bs, 20, f, h, w]
-        if self.model_type == "i2v" and y is None:
+        if self.is_i2v_type and y is None:
             raise ValueError("y must be provided for i2v model")
         # params
         device = self.patch_embedding.weight.device

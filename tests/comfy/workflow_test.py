@@ -150,11 +150,11 @@ def test_workflow(workflow_path: str, params: dict, expect_values: Optional[dict
         try:
             error_data = json.loads(error_content)
             logger.error(json.dumps(error_data, indent=2, ensure_ascii=False))
-        except Exception as e:
+        except Exception as e:  # pylint: disable=broad-except
             logger.error(error_content, e)
         return False
 
-    except Exception as e:
+    except Exception as e:  # pylint: disable=broad-except
         logger.error(f"✗ 测试失败: {e}")
         import traceback
 
@@ -373,7 +373,7 @@ def main():
     except KeyboardInterrupt:
         logger.info("\n测试中断")
 
-    except Exception as e:
+    except Exception as e:  # pylint: disable=broad-except
         logger.error(f"✗ 测试失败: {e}")
         import traceback
 

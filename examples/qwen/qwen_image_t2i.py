@@ -5,12 +5,12 @@ import torch
 
 os.environ["KSANA_LOGGER_LEVEL"] = "INFO"
 
-from ksana import KsanaEngine
+from ksana import KsanaPipeline
 from ksana.config import (
     KsanaModelConfig,
     KsanaRuntimeConfig,
     KsanaSampleConfig,
-    KsanaSolverBackend,
+    KsanaSolverType,
 )
 from ksana.utils.media import save_image
 
@@ -22,7 +22,7 @@ SEED = 42
 
 
 def run_simple(args):
-    generator = KsanaEngine.from_models(
+    generator = KsanaPipeline.from_models(
         args.model_dir,
         model_config=KsanaModelConfig(run_dtype=torch.bfloat16),
         offload_device="cpu",
@@ -34,7 +34,7 @@ def run_simple(args):
         sample_config=KsanaSampleConfig(
             steps=20,
             cfg_scale=4.0,
-            solver=KsanaSolverBackend.FLOWMATCH_EULER,
+            solver=KsanaSolverType.FLOWMATCH_EULER,
         ),
         runtime_config=KsanaRuntimeConfig(
             seed=SEED,

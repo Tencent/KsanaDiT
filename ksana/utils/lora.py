@@ -54,7 +54,7 @@ def model_safe_downcast(
                     param.data = param.data.to(dtype)
 
         # Downcast buffers
-        for buffer_name, buffer in module.named_buffers(recurse=False):
+        for _, buffer in module.named_buffers(recurse=False):
             if buffer is not None:
                 buffer.data = buffer.data.to(dtype)
     return model
@@ -113,19 +113,20 @@ def merge_lora_weight(
             scaling_factor = lora_alpha / rank
             assert lora_up.dtype == torch.float32
             assert lora_down.dtype == torch.float32
-            delta_W = strength * scaling_factor * torch.matmul(lora_up, lora_down)
+            delta_w_ = strength * scaling_factor * torch.matmul(lora_up, lora_down)
             if value.dtype in [torch.float8_e4m3fn, torch.float8_e5m2]:
                 # FP8 类型需要先转换为 float32 再计算
                 scale = get_weight_scale(model_sd, key, device=value.device)
-                value.data = ((value.to(dtype=torch.float32) * scale.to(dtype=torch.float32)) + delta_W).to(run_dtype)
+                value.data = ((value.to(dtype=torch.float32) * scale.to(dtype=torch.float32)) + delta_w_).to(run_dtype)
             else:
-                value.data = (value.data + delta_W).to(run_dtype)
+                value.data = (value.data + delta_w_).to(run_dtype)
             merged_cnt += 1
     log.info(f"merged {merged_cnt} lora weights")
     return model_sd
 
 
 def build_loras_list(lora_path: str, strength=1.0):
+    # TODO(rock): remove list, not useful
     return [{"path": lora_path, "strength": strength}]
 
 
@@ -163,7 +164,7 @@ def load_state_dict_and_merge_lora(model_path: str, loras_list=None, run_dtype: 
             del lora_sd
 
         log.debug("start to offload to cpu")
-        for key, value in base_sd.items():
+        for _, value in base_sd.items():
             value.data = value.to("cpu")
         sd.update(base_sd)
     return sd

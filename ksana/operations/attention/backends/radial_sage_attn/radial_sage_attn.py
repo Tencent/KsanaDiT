@@ -71,9 +71,11 @@ class RadialSageAttentionImpl(KsanaAttentionBackendImpl):
         k_lens: torch.Tensor | None = None,
         step_iter: int = -1,
         block_id: int = -1,
-        latent_shape: list[int] = {},
+        latent_shape: list[int] = None,
         **kwargs,
     ) -> torch.Tensor:
+        if latent_shape is None:
+            latent_shape = {}
         if dense_only or step_iter < self.dense_attn_steps or block_id < self.dense_blocks_num:
             # dense attention
             return self.dense_attn(
@@ -131,11 +133,11 @@ class RadialSageAttentionImpl(KsanaAttentionBackendImpl):
             input_mask = RadialSageAttentionImpl._global_cache[cache_key]
         else:
             bs = query.shape[0]
-            video_mask = self.mask_map.queryLogMask(
+            video_mask = self.mask_map.query_log_mask(
                 query.shape[1], "radial", block_size=block_size, decay_factor=self.decay_factor
             )
 
-            # based on https://github.com/mit-han-lab/radial-attention/blob/3ec33ce9633adadadcbb7692c8a1983d5e82d15a/radial_attn/attn_mask.py#L7
+            # based on https://github.com/mit-han-lab/radial-attention/blob/3ec33ce9633adadadcbb7692c8a1983d5e82d15a/radial_attn/attn_mask.py#L7 # noqa: E501 # pylint: disable=line-too-long
             if block_size == 128:
                 mask = torch.repeat_interleave(video_mask, 2, dim=1)
             elif block_size == 64:

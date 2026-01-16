@@ -4,8 +4,8 @@ from . import log
 
 try:
     # Avoid Dynamo compiling cache helpers that use numpy/Python control flow
-    from torch._dynamo import disable as disable_dynamo
-except Exception:
+    from torch._dynamo import disable as disable_dynamo  # pylint: disable=unused-import
+except ImportError:
 
     def disable_dynamo(fn=None):
         return fn if fn is not None else (lambda f: f)
@@ -20,7 +20,7 @@ def apply_torch_compile(model, torch_compile_config=None):
         torch._dynamo.config.force_parameter_static_shapes = torch_compile_config.force_parameter_static_shapes
         try:
             torch._dynamo.config.recompile_limit = torch_compile_config.dynamo_recompile_limit
-        except Exception as e:
+        except Exception as e:  # pylint: disable=broad-except
             log.warning(f"Could not set recompile_limit: {e}")
 
     if torch_compile_config.compile_transformer_blocks_only:
@@ -45,7 +45,7 @@ def apply_torch_compile(model, torch_compile_config=None):
                     dynamic=torch_compile_config.dynamic,
                 )
                 compiled_cnt += 1
-            except Exception as e:
+            except Exception as e:  # pylint: disable=broad-except
                 log.warning(f"torch.compile block[{i}] failed: {e}")
         log.info(f"Applied torch.compile to {compiled_cnt}/{len(blocks)} transformer blocks.")
     else:

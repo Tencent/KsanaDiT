@@ -22,7 +22,7 @@ from ksana.config.cache_config import (
 from ksana.models.model_key import KsanaModelKey
 
 
-def check_cache_apis(class_type, config_type, model_key=KsanaModelKey.Wan2_2_T2V_14B_HIGH):
+def check_cache_apis(class_type, config_type, model_key=KsanaModelKey.Wan2_2_T2V_14B):
     cache_config = config_type(steps=0) if config_type is CustomStepCacheConfig else config_type()
     cache = class_type(model_key, cache_config)
     x = torch.randn(1, 14, 14, 14)
@@ -84,7 +84,7 @@ class TestCacheAPIs(unittest.TestCase):
             try:
                 check_cache_apis(class_type, config_type)
                 self.assertTrue(True)
-            except Exception as e:
+            except Exception as e:  # pylint: disable=broad-except
                 self.fail(f"check_cache_apis({class_type.__name__}, {config_type.__name__}) failed with error: {e}")
 
 

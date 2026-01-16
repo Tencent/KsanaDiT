@@ -7,19 +7,19 @@ from ksana.config import KsanaAttentionBackend, KsanaAttentionConfig
 from .base import KsanaAttentionBackendImpl
 
 try:
-    from flash_attn import flash_attn_varlen_func as flash_attn_2_func
+    from flash_attn import flash_attn_varlen_func as FLASH_ATTN_2_FUNC
 
     _FLASH_ATTN_2_AVAILABLE = True
 except ModuleNotFoundError:
-    flash_attn_2_func = None  # type: ignore[assignment]
+    FLASH_ATTN_2_FUNC = None
     _FLASH_ATTN_2_AVAILABLE = False
 
 try:
-    from flash_attn_interface import flash_attn_varlen_func as flash_attn_3_func
+    from flash_attn_interface import flash_attn_varlen_func as FLASH_ATTN_3_FUNC
 
     _FLASH_ATTN_3_AVAILABLE = True
 except ModuleNotFoundError:
-    flash_attn_3_func = None  # type: ignore[assignment]
+    FLASH_ATTN_3_FUNC = None  # pylint: disable=invalid-name
     _FLASH_ATTN_3_AVAILABLE = False
 
 
@@ -88,7 +88,7 @@ class FlashAttentionImpl(KsanaAttentionBackendImpl):
                 torch.bfloat16 if torch.cuda.is_available() and torch.cuda.is_bf16_supported() else torch.float16
             )
 
-        batch, seqlen_q, num_heads, head_dim = query.shape
+        batch, seqlen_q, num_heads, head_dim = query.shape  # pylint: disable=unused-variable
         seqlen_k = key.shape[1]
         out_dtype = original_dtype
 
@@ -125,7 +125,7 @@ class FlashAttentionImpl(KsanaAttentionBackendImpl):
         cumulative_k = cumulative_k.to(device=device)
 
         if (fa_version is None or fa_version == 3) and _FLASH_ATTN_3_AVAILABLE:
-            attn_out = flash_attn_3_func(  # type: ignore[misc]
+            attn_out = FLASH_ATTN_3_FUNC(  # type: ignore[misc]
                 q=flat_q,
                 k=flat_k,
                 v=flat_v,
@@ -140,7 +140,7 @@ class FlashAttentionImpl(KsanaAttentionBackendImpl):
         else:
             if not _FLASH_ATTN_2_AVAILABLE:
                 raise RuntimeError("flash_attn module not found. Install FlashAttention or disable this backend.")
-            attn_out = flash_attn_2_func(  # type: ignore[misc]
+            attn_out = FLASH_ATTN_2_FUNC(  # type: ignore[misc]
                 q=flat_q,
                 k=flat_k,
                 v=flat_v,

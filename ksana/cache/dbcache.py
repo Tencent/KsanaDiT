@@ -4,13 +4,13 @@ DBCache (Dual Block Cache) for KsanaDiT.
 This is a deep integration of cache-dit's DBCache algorithm into KsanaDiT,
 
 DBCache leverages the feature similarity between adjacent timesteps in the
-diffusion process. By computing L1 diff of residuals after the first Fn blocks,
+diffusion process. By computing L1 diff of residuals after the first _f_n blocks,
 it decides whether to reuse cached residuals from previous steps or compute
 all blocks.
 
 Architecture:
     ┌──────────────┬─────────────────────────┬───────────────────┐
-    │   Fn Blocks  │      Mn Blocks          │    Bn Blocks      │
+    │   _f_n Blocks  │      _m_n Blocks          │    _b_n Blocks      │
     │   (前n个)    │   (中间blocks)          │    (后n个)        │
     │   总是计算    │   可能被跳过/缓存        │    总是计算        │
     │   计算稳定diff│   复用cached residual   │    修正近似误差    │
@@ -36,10 +36,10 @@ from ..utils.torch_compile import disable_dynamo
 from ..utils.types import evolve_with_recommend
 
 RECOMMEND_DBCACHE_CONFIGS = {
-    KsanaModelKey.Wan2_2_T2V_14B_HIGH: DBCacheConfig(
-        name=KsanaModelKey.Wan2_2_T2V_14B_HIGH.name,
-        Fn_compute_blocks=1,
-        Bn_compute_blocks=0,
+    KsanaModelKey.Wan2_2_T2V_14B: DBCacheConfig(
+        name=KsanaModelKey.Wan2_2_T2V_14B.name,
+        fn_compute_blocks=1,
+        bn_compute_blocks=0,
         residual_diff_threshold=0.08,
         max_warmup_steps=4,
         warmup_interval=1,
@@ -48,18 +48,7 @@ RECOMMEND_DBCACHE_CONFIGS = {
         enable_separate_cfg=True,
         num_blocks=40,
     ),
-    KsanaModelKey.Wan2_2_T2V_14B_LOW: DBCacheConfig(
-        name=KsanaModelKey.Wan2_2_T2V_14B_LOW.name,
-        Fn_compute_blocks=1,
-        Bn_compute_blocks=0,
-        residual_diff_threshold=0.08,
-        max_warmup_steps=2,
-        warmup_interval=1,
-        max_cached_steps=20,
-        max_continuous_cached_steps=2,
-        enable_separate_cfg=True,
-        num_blocks=40,
-    ),
+    # TODO(TJ): add high and low config
 }
 
 
@@ -124,46 +113,46 @@ class DBCacheContext:
         return False
 
     @property
-    def Fn_blocks_range(self) -> Tuple[int, int]:
-        """Return the range of Fn blocks [start, end)."""
-        return (0, self.config.Fn_compute_blocks)
+    def fn_blocks_range(self) -> Tuple[int, int]:
+        """Return the range of _f_n blocks [start, end)."""
+        return (0, self.config.fn_compute_blocks)
 
     @property
-    def Mn_blocks_range(self) -> Tuple[int, int]:
-        """Return the range of Mn blocks [start, end)."""
-        Fn = self.config.Fn_compute_blocks
-        Bn = self.config.Bn_compute_blocks
-        if Bn == 0:
-            return (Fn, self.num_blocks)
-        return (Fn, self.num_blocks - Bn)
+    def mn_blocks_range(self) -> Tuple[int, int]:
+        """Return the range of _m_n blocks [start, end)."""
+        _f_n = self.config.fn_compute_blocks
+        _b_n = self.config.bn_compute_blocks
+        if _b_n == 0:
+            return (_f_n, self.num_blocks)
+        return (_f_n, self.num_blocks - _b_n)
 
     @property
-    def Bn_blocks_range(self) -> Tuple[int, int]:
-        """Return the range of Bn blocks [start, end)."""
-        Bn = self.config.Bn_compute_blocks
-        if Bn == 0:
+    def bn_blocks_range(self) -> Tuple[int, int]:
+        """Return the range of _b_n blocks [start, end)."""
+        _b_n = self.config.bn_compute_blocks
+        if _b_n == 0:
             return (self.num_blocks, self.num_blocks)
-        return (self.num_blocks - Bn, self.num_blocks)
+        return (self.num_blocks - _b_n, self.num_blocks)
 
 
 @dataclass
 class CacheBuffer:
     """Buffer for storing cached tensors."""
 
-    Fn_residual: Optional[torch.Tensor] = None
-    Bn_residual: Optional[torch.Tensor] = None
-    Bn_encoder_residual: Optional[torch.Tensor] = None
+    f_n_residual: Optional[torch.Tensor] = None
+    b_n_residual: Optional[torch.Tensor] = None
+    b_n_encoder_residual: Optional[torch.Tensor] = None
 
     # For TaylorSeer calibration
-    prev_Fn_residuals: list = field(default_factory=list)
-    prev_Bn_residuals: list = field(default_factory=list)
+    prev_fn_residuals: list = field(default_factory=list)
+    prev_bn_residuals: list = field(default_factory=list)
 
     def clear(self):
-        self.Fn_residual = None
-        self.Bn_residual = None
-        self.Bn_encoder_residual = None
-        self.prev_Fn_residuals.clear()
-        self.prev_Bn_residuals.clear()
+        self.f_n_residual = None
+        self.b_n_residual = None
+        self.b_n_encoder_residual = None
+        self.prev_fn_residuals.clear()
+        self.prev_bn_residuals.clear()
 
 
 class DBCache(KsanaBlockCache):
@@ -171,9 +160,9 @@ class DBCache(KsanaBlockCache):
     DBCache (Dual Block Cache) implementation for KsanaDiT.
 
     This cache implementation uses the FnBn architecture:
-    - Fn blocks: First n blocks always compute for stable L1 diff calculation
-    - Mn blocks: Middle blocks may be skipped if L1 diff < threshold
-    - Bn blocks: Last n blocks always compute for precision refinement
+    - _f_n blocks: First n blocks always compute for stable L1 diff calculation
+    - _m_n blocks: Middle blocks may be skipped if L1 diff < threshold
+    - _b_n blocks: Last n blocks always compute for precision refinement
     """
 
     def __init__(
@@ -188,10 +177,10 @@ class DBCache(KsanaBlockCache):
         self.context = DBCacheContext(config, config.num_blocks)
 
         # Validate config
-        assert config.Fn_compute_blocks >= 0, "Fn_compute_blocks must be >= 0"
-        assert config.Bn_compute_blocks >= 0, "Bn_compute_blocks must be >= 0"
-        assert config.Fn_compute_blocks + config.Bn_compute_blocks <= config.num_blocks, (
-            f"Fn({config.Fn_compute_blocks}) + Bn({config.Bn_compute_blocks}) must "
+        assert config.fn_compute_blocks >= 0, "fn_compute_blocks must be >= 0"
+        assert config.bn_compute_blocks >= 0, "bn_compute_blocks must be >= 0"
+        assert config.fn_compute_blocks + config.bn_compute_blocks <= config.num_blocks, (
+            f"_f_n({config.fn_compute_blocks}) + _b_n({config.bn_compute_blocks}) must "
             + f"be <= num_blocks({config.num_blocks})"
         )
 
@@ -206,7 +195,7 @@ class DBCache(KsanaBlockCache):
         """
         Determine if we can use cache for current step.
 
-        This is called BEFORE Fn blocks computation to do early checking.
+        This is called BEFORE _f_n blocks computation to do early checking.
         The actual L1 diff check is done in compute_diff_and_decide().
         """
         self.context.mark_step_begin(phase)
@@ -218,7 +207,7 @@ class DBCache(KsanaBlockCache):
 
         # Check if previous buffer exists
         buffer = self.context.buffers[phase]
-        if buffer.Fn_residual is None:
+        if buffer.f_n_residual is None:
             log.debug(f"[DBCache] phase={phase} step={self.context.current_step}: no previous cache, force compute")
             return False
 
@@ -239,7 +228,7 @@ class DBCache(KsanaBlockCache):
     def compute_diff_and_decide(
         self,
         phase: str,
-        current_Fn_residual: torch.Tensor,
+        current_f_n_residual: torch.Tensor,
         parallelized: bool = False,
     ) -> bool:
         """
@@ -247,7 +236,7 @@ class DBCache(KsanaBlockCache):
 
         Args:
             phase: "cond" or "uncond"
-            current_Fn_residual: Residual after Fn blocks
+            current_f_n_residual: Residual after _f_n blocks
             parallelized: Whether running in distributed mode
 
         Returns:
@@ -255,23 +244,23 @@ class DBCache(KsanaBlockCache):
         """
         buffer = self.context.buffers[phase]
 
-        if buffer.Fn_residual is None:
+        if buffer.f_n_residual is None:
             return False
 
         # Compute relative L1 diff
-        prev_residual = buffer.Fn_residual
+        prev_residual = buffer.f_n_residual
 
         # Handle shape mismatch (e.g., context parallelism)
-        if prev_residual.shape != current_Fn_residual.shape:
-            log.debug(f"[DBCache] shape mismatch: prev={prev_residual.shape}, curr={current_Fn_residual.shape}")
+        if prev_residual.shape != current_f_n_residual.shape:
+            log.debug(f"[DBCache] shape mismatch: prev={prev_residual.shape}, curr={current_f_n_residual.shape}")
             return False
 
         # Compute L1 diff - use absolute diff normalized by mean of current residual
         # This is more stable than relative diff between consecutive residuals
-        diff = torch.abs(current_Fn_residual - prev_residual)
+        diff = torch.abs(current_f_n_residual - prev_residual)
 
         # Method 2: Relative to current residual magnitude (more stable)
-        current_magnitude = torch.abs(current_Fn_residual).mean() + 1e-8
+        current_magnitude = torch.abs(current_f_n_residual).mean() + 1e-8
         prev_magnitude = torch.abs(prev_residual).mean() + 1e-8
         avg_magnitude = (current_magnitude + prev_magnitude) / 2
         relative_diff = diff.mean() / avg_magnitude
@@ -306,12 +295,12 @@ class DBCache(KsanaBlockCache):
         Try to get cached residual for current step.
 
         Returns:
-            Tuple of (Bn_residual, Bn_encoder_residual) if cache is available,
+            Tuple of (b_n_residual, b_n_encoder_residual) if cache is available,
             (None, None) otherwise.
         """
         buffer = self.context.buffers[phase]
 
-        if buffer.Bn_residual is None:
+        if buffer.b_n_residual is None:
             return None, None
 
         # Update statistics
@@ -320,25 +309,25 @@ class DBCache(KsanaBlockCache):
         self.context.continuous_cached_steps += 1
 
         # Apply TaylorSeer calibration if enabled
-        if self.config.enable_taylorseer and len(buffer.prev_Bn_residuals) > 0:
+        if self.config.enable_taylorseer and len(buffer.prev_bn_residuals) > 0:
             calibrated_residual = self._apply_taylorseer(buffer)
-            return calibrated_residual, buffer.Bn_encoder_residual
+            return calibrated_residual, buffer.b_n_encoder_residual
 
-        return buffer.Bn_residual, buffer.Bn_encoder_residual
+        return buffer.b_n_residual, buffer.b_n_encoder_residual
 
     def _apply_taylorseer(self, buffer: CacheBuffer) -> torch.Tensor:
         """Apply TaylorSeer calibration to improve cached residual accuracy."""
-        order = min(self.config.taylorseer_order, len(buffer.prev_Bn_residuals))
+        order = min(self.config.taylorseer_order, len(buffer.prev_bn_residuals))
         if order == 0:
-            return buffer.Bn_residual
+            return buffer.b_n_residual
 
         # Taylor series approximation
         # F_pred(t-k) ≈ F(t) + Σ(Δ^i F(t) / i!) * (-k)^i
-        result = buffer.Bn_residual.clone()
+        result = buffer.b_n_residual.clone()
 
-        if order >= 1 and len(buffer.prev_Bn_residuals) >= 1:
+        if order >= 1 and len(buffer.prev_bn_residuals) >= 1:
             # First order: add the difference
-            delta = buffer.Bn_residual - buffer.prev_Bn_residuals[-1]
+            delta = buffer.b_n_residual - buffer.prev_bn_residuals[-1]
             result = result + delta
 
         return result
@@ -358,50 +347,49 @@ class DBCache(KsanaBlockCache):
             return x
         use_cache = False
         step = self.context.current_step
-        Fn_start, Fn_end = self.context.Fn_blocks_range
-        Mn_start, Mn_end = self.context.Mn_blocks_range
-        Bn_start, Bn_end = self.context.Bn_blocks_range
+        f_n_start, f_n_end = self.context.fn_blocks_range
+        m_n_start, m_n_end = self.context.mn_blocks_range
+        b_n_start, b_n_end = self.context.bn_blocks_range
 
         if self.valid_for(phase, x=x, step_iter=step_iter, timestep=timestep):
-            # Step 1: Always compute Fn blocks first
+            # Step 1: Always compute _f_n blocks first
             x_ori = x.clone()
-            for i in range(Fn_start, min(Fn_end, len(blocks))):
+            for i in range(f_n_start, min(f_n_end, len(blocks))):
                 x = blocks[i](x, **kwargs)
 
-            # Calculate Fn residual for diff comparison
-            Fn_residual = x - x_ori
+            # Calculate _f_n residual for diff comparison
+            f_n_residual = x - x_ori
 
             # Step 2: Check L1 diff to decide whether to use cache
-            if self.compute_diff_and_decide(phase, Fn_residual):
-                # Cache HIT: Use cached Mn+Bn residual
-                Bn_residual, _ = self.try_get_prev_cache(phase, x=x, step_iter=step_iter, timestep=timestep)
-                if Bn_residual is not None:
-                    x = x + Bn_residual.to(x.device)
+            if self.compute_diff_and_decide(phase, f_n_residual):
+                # Cache HIT: Use cached _m_n+_b_n residual
+                b_n_residual, _ = self.try_get_prev_cache(phase, x=x, step_iter=step_iter, timestep=timestep)
+                base_info = f"step={step} phase={phase}"
+                if b_n_residual is not None:
+                    x = x + b_n_residual.to(x.device)
                     use_cache = True
-                    log.info(
-                        f"step={step} phase={phase} cache=HIT skip Mn[{Mn_start},{Mn_end}) Bn[{Bn_start},{Bn_end})"
-                    )
+                    log.info(f"{base_info} cache=HIT skip _m_n[{m_n_start},{m_n_end}) _b_n[{b_n_start},{b_n_end})")
                 else:
-                    log.info(f"step={step} phase={phase} cache=MISS " f"reason=no_cached_residual")
+                    log.info(f"{base_info} cache=MISS " f"reason=no_cached_residual")
 
             if not use_cache:
-                # Cache MISS: Compute remaining Mn and Bn blocks
-                x_before_Mn = x.clone()
+                # Cache MISS: Compute remaining _m_n and _b_n blocks
+                x_before_m_n = x.clone()
 
-                # Compute Mn blocks
-                for i in range(Mn_start, min(Mn_end, len(blocks))):
+                # Compute _m_n blocks
+                for i in range(m_n_start, min(m_n_end, len(blocks))):
                     x = blocks[i](x, **kwargs)
 
-                # Compute Bn blocks
-                for i in range(Bn_start, min(Bn_end, len(blocks))):
+                # Compute _b_n blocks
+                for i in range(b_n_start, min(b_n_end, len(blocks))):
                     x = blocks[i](x, **kwargs)
 
                 # Update cache with new residuals
-                Bn_residual = x - x_before_Mn
-                self.update_states(phase, timestep, Fn_residual, Bn_residual)
+                b_n_residual = x - x_before_m_n
+                self.update_states(phase, timestep, f_n_residual, b_n_residual)
                 log.info(
                     f"[DBCache] step={step} phase={phase} cache=MISS "
-                    f"computed Mn[{Mn_start},{Mn_end}) Bn[{Bn_start},{Bn_end})"
+                    f"computed _m_n[{m_n_start},{m_n_end}) _b_n[{b_n_start},{b_n_end})"
                 )
         else:
             # Warmup or forced compute: run all blocks
@@ -409,7 +397,7 @@ class DBCache(KsanaBlockCache):
             for block in blocks:
                 x = block(x, **kwargs)
             # Still update cache for subsequent steps
-            # Use a simplified approach: treat entire residual as both Fn and Bn residual
+            # Use a simplified approach: treat entire residual as both _f_n and _b_n residual
             full_residual = x - x_ori
             self.update_states(phase, timestep, full_residual, full_residual)
             log.info(f"[DBCache] step={step} phase={phase} cache=MISS " f"warmup compute all blocks ({len(blocks)})")
@@ -422,9 +410,9 @@ class DBCache(KsanaBlockCache):
         self,
         phase: str,
         current_timestep: int,
-        Fn_residual: torch.Tensor,
-        Bn_residual: torch.Tensor,
-        Bn_encoder_residual: Optional[torch.Tensor] = None,
+        f_n_residual: torch.Tensor,
+        b_n_residual: torch.Tensor,
+        b_n_encoder_residual: Optional[torch.Tensor] = None,
     ):
         """
         Update cache buffers after computing all blocks.
@@ -432,26 +420,26 @@ class DBCache(KsanaBlockCache):
         Args:
             phase: "cond" or "uncond"
             current_timestep: Current diffusion timestep
-            Fn_residual: Residual after Fn blocks (for diff calculation)
-            Bn_residual: Residual of Mn blocks (to cache)
-            Bn_encoder_residual: Encoder residual (for dual-stream models)
+            f_n_residual: Residual after _f_n blocks (for diff calculation)
+            b_n_residual: Residual of _m_n blocks (to cache)
+            b_n_encoder_residual: Encoder residual (for dual-stream models)
         """
         buffer = self.context.buffers[phase]
 
         # Store for TaylorSeer
         if self.config.enable_taylorseer:
-            if buffer.Bn_residual is not None:
-                buffer.prev_Bn_residuals.append(buffer.Bn_residual.clone())
+            if buffer.b_n_residual is not None:
+                buffer.prev_bn_residuals.append(buffer.b_n_residual.clone())
                 # Keep only last N residuals
                 max_history = self.config.taylorseer_order + 1
-                if len(buffer.prev_Bn_residuals) > max_history:
-                    buffer.prev_Bn_residuals.pop(0)
+                if len(buffer.prev_bn_residuals) > max_history:
+                    buffer.prev_bn_residuals.pop(0)
 
         # Update buffers
-        buffer.Fn_residual = Fn_residual.clone()
-        buffer.Bn_residual = Bn_residual.clone()
-        if Bn_encoder_residual is not None:
-            buffer.Bn_encoder_residual = Bn_encoder_residual.clone()
+        buffer.f_n_residual = f_n_residual.clone()
+        buffer.b_n_residual = b_n_residual.clone()
+        if b_n_encoder_residual is not None:
+            buffer.b_n_encoder_residual = b_n_encoder_residual.clone()
 
         # Reset continuous cache counter
         self.context.continuous_cached_steps = 0
@@ -463,7 +451,7 @@ class DBCache(KsanaBlockCache):
     def advance_step_once(self, timestep: Any):
         try:
             ts_val = int(timestep) if isinstance(timestep, (int, float)) else int(timestep.item())
-        except Exception:
+        except Exception:  # pylint: disable=broad-except
             ts_val = None
 
         if ts_val is not None:
@@ -501,7 +489,7 @@ class DBCache(KsanaBlockCache):
 
         log.info(
             f"[DBCache] {self.model_key} Stats: "
-            f"Fn={self.config.Fn_compute_blocks}, Bn={self.config.Bn_compute_blocks}, "
+            f"_f_n={self.config.fn_compute_blocks}, _b_n={self.config.bn_compute_blocks}, "
             f"threshold={self.config.residual_diff_threshold}, "
             f"cond(cached={cond_cached}/{cond_total}, rate={cond_rate:.1f}%), "
             f"uncond(cached={uncond_cached}/{uncond_total}, rate={uncond_rate:.1f}%)"
@@ -528,13 +516,13 @@ class DBCache(KsanaBlockCache):
 
     def offload_to_cpu(self):
         for buffer in self.context.buffers.values():
-            if buffer.Fn_residual is not None:
-                buffer.Fn_residual = buffer.Fn_residual.cpu()
-            if buffer.Bn_residual is not None:
-                buffer.Bn_residual = buffer.Bn_residual.cpu()
-            if buffer.Bn_encoder_residual is not None:
-                buffer.Bn_encoder_residual = buffer.Bn_encoder_residual.cpu()
-            for i, t in enumerate(buffer.prev_Fn_residuals):
-                buffer.prev_Fn_residuals[i] = t.cpu()
-            for i, t in enumerate(buffer.prev_Bn_residuals):
-                buffer.prev_Bn_residuals[i] = t.cpu()
+            if buffer.f_n_residual is not None:
+                buffer.f_n_residual = buffer.f_n_residual.cpu()
+            if buffer.b_n_residual is not None:
+                buffer.b_n_residual = buffer.b_n_residual.cpu()
+            if buffer.b_n_encoder_residual is not None:
+                buffer.b_n_encoder_residual = buffer.b_n_encoder_residual.cpu()
+            for i, t in enumerate(buffer.prev_fn_residuals):
+                buffer.prev_fn_residuals[i] = t.cpu()
+            for i, t in enumerate(buffer.prev_bn_residuals):
+                buffer.prev_bn_residuals[i] = t.cpu()

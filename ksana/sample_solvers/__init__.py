@@ -1,6 +1,6 @@
 import torch
 
-from ..config.sample_config import KsanaSolverBackend
+from ..config.sample_config import KsanaSolverType
 from .fm_solvers import (
     FlowDPMSolverMultistepScheduler,  # noqa: F401
     get_sampling_sigmas,  # noqa: F401
@@ -9,7 +9,7 @@ from .fm_solvers import (
 from .fm_solvers_euler import EulerScheduler, FlowMatchEulerScheduler, calculate_shift
 from .fm_solvers_unipc import FlowUniPCMultistepScheduler
 
-SUPPORTED_SOLVERS = KsanaSolverBackend.get_supported_list()
+SUPPORTED_SOLVERS = KsanaSolverType.get_supported_list()
 
 
 def get_sample_scheduler(
@@ -20,7 +20,7 @@ def get_sample_scheduler(
 
         shift (`float`, *optional*, defaults to 5.0):
             Noise schedule shift parameter. Affects temporal dynamics
-        sample_solver (`KsanaSolverBackend`, *optional*, defaults to KsanaSolverBackend.UNI_PC):
+        sample_solver (`KsanaSolverType`, *optional*, defaults to KsanaSolverType.UNI_PC):
             Solver used to sample the video.
         sampling_steps (`int`, *optional*, defaults to 50):
             Number of diffusion sampling steps. Higher values improve quality but slow generation
@@ -29,7 +29,7 @@ def get_sample_scheduler(
     """
 
     sampling_sigmas = None
-    if sample_solver == KsanaSolverBackend.UNI_PC:
+    if sample_solver == KsanaSolverType.UNI_PC:
         sample_scheduler = FlowUniPCMultistepScheduler(
             num_train_timesteps=num_train_timesteps, shift=1, use_dynamic_shifting=False
         )
@@ -40,7 +40,7 @@ def get_sample_scheduler(
             sample_scheduler.sigmas = torch.tensor(sigmas, device=device, dtype=torch.float32)
             sample_scheduler.timesteps = (sample_scheduler.sigmas[:-1] * num_train_timesteps).to(torch.int64)
             sample_scheduler.num_inference_steps = len(sample_scheduler.timesteps)
-    # elif sample_solver == KsanaSolverBackend.DPM_PLUS_PLUS:
+    # elif sample_solver == KsanaSolverType.DPM_PLUS_PLUS:
     #     raise RuntimeError("Double shift operation may have issues; please check.")
     #     sample_scheduler = FlowDPMSolverMultistepScheduler(
     #         num_train_timesteps=num_train_timesteps, shift=1, use_dynamic_shifting=False
@@ -50,12 +50,13 @@ def get_sample_scheduler(
     #         retrieve_timesteps(sample_scheduler, device=device, sigmas=sampling_sigmas)
     #     else:
     #         sample_scheduler.sigmas = sigmas.to(device)
-    #         sample_scheduler.timesteps = (sample_scheduler.sigmas[:-1] * num_train_timesteps).to(torch.int64).to(device) # noqa: E501
+    #         sample_scheduler.timesteps = (sample_scheduler.sigmas[:-1]
+    # * num_train_timesteps).to(torch.int64).to(device)
     #         sample_scheduler.num_inference_steps = len(sample_scheduler.timesteps)
-    elif sample_solver == KsanaSolverBackend.EULER:
+    elif sample_solver == KsanaSolverType.EULER:
         sample_scheduler = EulerScheduler(num_train_timesteps=num_train_timesteps, shift=shift, device=device)
         sample_scheduler.set_timesteps(sampling_steps, device=device, denoise=denoise, sigmas=sigmas)
-    elif sample_solver == KsanaSolverBackend.FLOWMATCH_EULER:
+    elif sample_solver == KsanaSolverType.FLOWMATCH_EULER:
         if sigmas:
             raise RuntimeError(f"sigmas parameter is not supported for {sample_solver.value}.")
         sample_scheduler = FlowMatchEulerScheduler(num_train_timesteps=num_train_timesteps, shift=shift, device=device)
