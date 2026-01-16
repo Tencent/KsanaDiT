@@ -1,0 +1,6 @@
+
+vae:
+  checkpoint : "vae"
+  z_dim: 16
+  stride : [1, 8, 8]
+  scale_factor: 8

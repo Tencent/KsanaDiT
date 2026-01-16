@@ -1,0 +1,7 @@
+_base_modules :
+  # Note: keep include in order
+  - "common.yaml"
+  - "qwen/modules/common.yaml"
+  - "qwen/modules/text_encoder.yaml"
+  - "qwen/modules/20b.yaml"
+  - "qwen/modules/vae.yaml"

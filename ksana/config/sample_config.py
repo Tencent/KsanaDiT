@@ -6,7 +6,7 @@ from enum import Enum
 from ..utils.const import DEFAULT_DENOISE
 
 
-class KsanaSolverBackend(Enum):
+class KsanaSolverType(Enum):
     UNI_PC = "uni_pc"
     EULER = "euler"
     FLOWMATCH_EULER = "flowmatch_euler"
@@ -14,13 +14,13 @@ class KsanaSolverBackend(Enum):
 
     @staticmethod
     def get_supported_list() -> list[str]:
-        return [b.value for b in KsanaSolverBackend]
+        return [b.value for b in KsanaSolverType]
 
     @staticmethod
     def support(type: str) -> bool:
         if isinstance(type, str):
-            return type in KsanaSolverBackend.get_supported_list()
-        elif isinstance(type, KsanaSolverBackend):
+            return type in KsanaSolverType.get_supported_list()
+        elif isinstance(type, KsanaSolverType):
             return True
         else:
             return False
@@ -31,10 +31,10 @@ class KsanaSampleConfig:
     steps: int | None = field(default=None)
     cfg_scale: float | tuple[float, float] | None = field(default=None)
     shift: float | None = field(default=None)
-    solver: KsanaSolverBackend | None = field(default=None)
+    solver: KsanaSolverType | None = field(default=None)
     denoise: float | None = field(default=DEFAULT_DENOISE)
     sigmas: list[float] | None = field(default=None)
 
     def __post_init__(self):
-        if self.solver is not None and not isinstance(self.solver, KsanaSolverBackend):
-            raise ValueError(f"solver must be a KsanaSolverBackend enum, got {type(self.solver)}")
+        if self.solver is not None and not isinstance(self.solver, KsanaSolverType):
+            raise ValueError(f"solver must be a KsanaSolverType enum, got {type(self.solver)}")

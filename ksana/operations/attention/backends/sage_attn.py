@@ -9,7 +9,7 @@ try:
 
     _SAGE_AVAILABLE = True
 except ModuleNotFoundError:
-    sageattn = None  # type: ignore[assignment]
+    sageattn = None  # pylint: disable=invalid-name
     _SAGE_AVAILABLE = False
 
 

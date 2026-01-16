@@ -5,7 +5,7 @@ from abc import ABC
 import ray
 import torch.distributed as dist
 
-from ..config import KsanaDistributedConfig, KsanaModelConfig
+from ..config import KsanaDistributedConfig
 from ..executor import KsanaExecutor, RayKsanaExecutor
 from ..utils import log, singleton
 from ..utils.distribute import get_gpu_count, get_torchrun_env, is_launched_by_torchrun
@@ -89,7 +89,7 @@ class KsanaEngine(ABC):
         return self._check_key_in_map(map, key) and callable(map[key])
 
     def _get_rank_0_result(self, func_res: list, *args, **kwargs):
-        RANK_0_ID = 0
+        RANK_0_ID = 0  # pylint: disable=invalid-name
         return func_res[RANK_0_ID]
 
     @staticmethod
@@ -149,45 +149,21 @@ class KsanaEngine(ABC):
     def clear_models(self, *args, **kwargs):
         pass
 
-    @staticmethod
-    def from_models(
-        model_path,
-        *,
-        text_checkpoint_dir=None,
-        vae_checkpoint_dir=None,
-        lora: None | str | list[list[dict], list[dict]] = None,
-        model_config: KsanaModelConfig = None,
-        dist_config: KsanaDistributedConfig = None,
-        offload_device="cpu",
-        **kwargs,
-    ):
-        """
-        create engine from pretrained models for local usage.
-        """
-        model_config = model_config or KsanaModelConfig()
-        dist_config = dist_config or KsanaDistributedConfig()
-        engine = get_engine(dist_config=dist_config, offload_device=offload_device)
-        engine.load_models(
-            model_path,
-            text_checkpoint_dir=text_checkpoint_dir,
-            vae_checkpoint_dir=vae_checkpoint_dir,
-            lora=lora,
-            model_config=model_config,
-            **kwargs,
-        )
-        return engine
-
     @auto_dispatch
     def load_diffusion_model(self, *args, **kwargs):
         return {self.RAY_KEY_REMOVE_KWARGS: "comfy_bar_callback"}
 
     @auto_dispatch
-    def forward_diffusion_models_with_tensors(self, *args, **kwargs):
-        return {self.RAY_KEY_REMOVE_KWARGS: "comfy_bar_callback"}
+    def load_text_encoder(self, *args, **kwargs):
+        pass
 
     @auto_dispatch
     def load_vae_model(self, *args, **kwargs):
         pass
+
+    @auto_dispatch
+    def forward_generator(self, *args, **kwargs):
+        return {self.RAY_KEY_REMOVE_KWARGS: "comfy_bar_callback"}
 
     @auto_dispatch
     def forward_vae_encode(self, *args, **kwargs):

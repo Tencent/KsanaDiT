@@ -1,0 +1,6 @@
+
+sample_config:
+  steps: 4
+  solver: "euler"
+  shift: 5.0
+  cfg_scale: [1.0, 1.0]  # low noise, high noise

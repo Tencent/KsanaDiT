@@ -13,14 +13,14 @@ from pyinstrument import Profiler
 from .env import KSANA_MEMORY_PROFILER
 from .logger import log
 
-global g_cprofiler
-g_cprofiler = cProfile.Profile()
+global G_CPROFILER
+G_CPROFILER = cProfile.Profile()
 
 
-class cProfiler:
+class CProfiler:
     def __init__(self, name=None):
         self.name = name if name else "ksanaProfiler"
-        self.pr = g_cprofiler
+        self.pr = G_CPROFILER
 
     def __enter__(self):
         self.start = time.time()
@@ -38,14 +38,14 @@ class cProfiler:
         self.pr.dump_stats(filename)
 
 
-global g_ksana_profiler
-g_ksana_profiler = Profiler()
+global G_KSANA_PROFILER
+G_KSANA_PROFILER = Profiler()
 
 
 class KsanaProfiler:
     def __init__(self, name=None):
         self.name = name if name else "KsanaProfiler"
-        self.profiler = g_ksana_profiler
+        self.profiler = G_KSANA_PROFILER
 
     def __enter__(self):
         self.start = time.time()
@@ -135,7 +135,7 @@ def time_range(func_or_name: Optional[Union[Callable, str]] = None, print_func: 
         raise TypeError("Invalid argument type for time_range")
 
 
-class nvtx_range:
+class nvtx_range:  # pylint: disable=invalid-name
     def __init__(self, name=None, skip=True):
         """
         支持上下文管理器和装饰器的 NVTX 范围工具
@@ -185,11 +185,12 @@ class nvtx_range:
         return wrapper
 
 
+# TODO(qian): MemoryProfiler cloud be memory_range, like time_range, nvtx_range
 class MemoryProfiler:
     enabled = KSANA_MEMORY_PROFILER
 
-    # TODO: this method is very un-pythonic, change it to a more pythonic way
     @staticmethod
+    # TODO(qian): this method is very un-pythonic, change it to a more pythonic way
     def record_memory(tag: str, project_name: str = "KsanaDit"):
         """
         记录内存使用情况到CSV文件

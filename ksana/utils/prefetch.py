@@ -6,8 +6,8 @@ from .logger import log
 
 try:
     import fcntl  # Unix-only
-except Exception:  # pragma: no cover
-    fcntl = None
+except Exception:  # pylint: disable=broad-except
+    fcntl = None  # pylint: disable=invalid-name
 
 
 PREFETCH_BLOCK_SIZE_BYTES = 32 * 1024 * 1024
@@ -31,7 +31,7 @@ def _env_flag(name: str, default: bool) -> bool:
 def _env_int(name: str, default: int) -> int:
     try:
         return int(os.getenv(name, str(default)).strip())
-    except Exception:
+    except Exception:  # pylint: disable=broad-except
         return default
 
 
@@ -47,7 +47,7 @@ def _done_is_valid(done_path: str, ttl_sec: int) -> bool:
         return True
     try:
         return (time.time() - os.path.getmtime(done_path)) <= ttl_sec
-    except Exception:
+    except Exception:  # pylint: disable=broad-except
         return False
 
 
@@ -80,7 +80,7 @@ def maybe_prefetch_file(path: str) -> None:
             try:
                 with open(done_path, "w"):
                     pass
-            except Exception:
+            except Exception:  # pylint: disable=broad-except
                 pass
             _PREFETCHED_THIS_PROCESS.add(path)
         finally:
@@ -93,7 +93,7 @@ def _prefetch_impl(path: str) -> None:
     start = time.perf_counter()
     try:
         size = os.path.getsize(path)
-    except Exception:
+    except Exception:  # pylint: disable=broad-except
         size = None
     with open(path, "rb", buffering=0) as fp:
         while True:

@@ -161,7 +161,7 @@ class FlowMatchEulerScheduler:
     def _init_step_index(self, timestep: Tensor):
         try:
             self._step_index = self.index_for_timestep(timestep)
-        except Exception:
+        except Exception:  # pylint: disable=broad-except
             self._step_index = (self.timesteps - timestep).abs().argmin().item()
 
     @property

@@ -1,0 +1,10 @@
+
+runtime_config:
+  boundary: 0.9
+
+sample_config:
+  shift: 9.0
+  cfg_scale: [3.5, 3.5]  # high noise, low noise
+
+vae:
+  z_dim : 16

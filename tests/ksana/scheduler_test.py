@@ -24,7 +24,7 @@ class TestKsanaScheduler(unittest.TestCase):
 
         total_batch = 4
         strategy = self.scheduler.build_batch_strategy(
-            KsanaModelKey.Wan2_2_T2V_14B_HIGH, self.latent_shape, total_batch, torch.float16, self.device
+            KsanaModelKey.Wan2_2_T2V_14B, self.latent_shape, total_batch, torch.float16, self.device
         )
 
         # 内存充足时应该只有一个批次，包含所有样本
@@ -41,7 +41,7 @@ class TestKsanaScheduler(unittest.TestCase):
 
         total_batch = 3
         strategy = self.scheduler.build_batch_strategy(
-            KsanaModelKey.Wan2_2_T2V_14B_HIGH, self.latent_shape, total_batch, torch.float16, self.device
+            KsanaModelKey.Wan2_2_T2V_14B, self.latent_shape, total_batch, torch.float16, self.device
         )
 
         # 内存不足时应该分成多个单样本批次

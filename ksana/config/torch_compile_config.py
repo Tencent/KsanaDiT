@@ -23,10 +23,15 @@ class KsanaTorchCompileConfig:
             "max-autotune",
             "max-autotune-no-cudagraphs",
             "reduce-overhead",
-        ], f"mode must be in ['default', 'max-autotune', 'max-autotune-no-cudagraphs', 'reduce-overhead'], but got {self.mode}"
-        assert (
-            self.dynamo_recompile_limit > 0 and self.dynamo_recompile_limit <= 1024
-        ), f"dynamo_recompile_limit must be greater than 0 and less than or equal to 1024, but got {self.dynamo_recompile_limit}"
-        assert (
-            self.dynamo_cache_size_limit > 0 and self.dynamo_cache_size_limit <= 1024
-        ), f"dynamo_cache_size_limit must be greater than 0 and less than or equal to 1024, but got {self.dynamo_cache_size_limit}"
+        ], (
+            f"mode must be in ['default', 'max-autotune', 'max-autotune-no-cudagraphs', 'reduce-overhead'],"
+            f" but got {self.mode}"
+        )
+        assert self.dynamo_recompile_limit > 0 and self.dynamo_recompile_limit <= 1024, (
+            f"dynamo_recompile_limit must be greater than 0 and less than or equal to 1024, "
+            f"but got {self.dynamo_recompile_limit}"
+        )
+        assert self.dynamo_cache_size_limit > 0 and self.dynamo_cache_size_limit <= 1024, (
+            f"dynamo_cache_size_limit must be greater than 0 and less than or equal to 1024, "
+            f"but got {self.dynamo_cache_size_limit}"
+        )

@@ -62,11 +62,11 @@ def cast_bias_weight(s, input=None, dtype=None, device=None, bias_dtype=None):
     return weight, bias
 
 
-def calc_mantissa(abs_x, exponent, normal_mask, MANTISSA_BITS, EXPONENT_BIAS, generator=None):
+def calc_mantissa(abs_x, exponent, normal_mask, mantissa_bits, exponent_bias, generator=None):
     mantissa_scaled = torch.where(
         normal_mask,
-        (abs_x / (2.0 ** (exponent - EXPONENT_BIAS)) - 1.0) * (2**MANTISSA_BITS),
-        (abs_x / (2.0 ** (-EXPONENT_BIAS + 1 - MANTISSA_BITS))),
+        (abs_x / (2.0 ** (exponent - exponent_bias)) - 1.0) * (2**mantissa_bits),
+        (abs_x / (2.0 ** (-exponent_bias + 1 - mantissa_bits))),
     )
 
     mantissa_scaled += torch.rand(
@@ -76,15 +76,15 @@ def calc_mantissa(abs_x, exponent, normal_mask, MANTISSA_BITS, EXPONENT_BIAS, ge
         device=mantissa_scaled.device,
         generator=generator,
     )
-    return mantissa_scaled.floor() / (2**MANTISSA_BITS)
+    return mantissa_scaled.floor() / (2**mantissa_bits)
 
 
 # Not 100% sure about this
 def manual_stochastic_round_to_float8(x, dtype, generator=None):
     if dtype == torch.float8_e4m3fn:
-        EXPONENT_BITS, MANTISSA_BITS, EXPONENT_BIAS = 4, 3, 7
+        _exponent_bits, _mantissa_bits, _exponent_bias = 4, 3, 7
     elif dtype == torch.float8_e5m2:
-        EXPONENT_BITS, MANTISSA_BITS, EXPONENT_BIAS = 5, 2, 15
+        _exponent_bits, _mantissa_bits, _exponent_bias = 5, 2, 15
     else:
         raise ValueError("Unsupported dtype")
 
@@ -94,15 +94,15 @@ def manual_stochastic_round_to_float8(x, dtype, generator=None):
     sign = torch.where(abs_x == 0, 0, sign)
 
     # Combine exponent calculation and clamping
-    exponent = torch.clamp(torch.floor(torch.log2(abs_x)) + EXPONENT_BIAS, 0, 2**EXPONENT_BITS - 1)
+    exponent = torch.clamp(torch.floor(torch.log2(abs_x)) + _exponent_bias, 0, 2**_exponent_bits - 1)
 
     # Combine mantissa calculation and rounding
     normal_mask = ~(exponent == 0)
 
-    abs_x[:] = calc_mantissa(abs_x, exponent, normal_mask, MANTISSA_BITS, EXPONENT_BIAS, generator=generator)
+    abs_x[:] = calc_mantissa(abs_x, exponent, normal_mask, _mantissa_bits, _exponent_bias, generator=generator)
 
     sign *= torch.where(
-        normal_mask, (2.0 ** (exponent - EXPONENT_BIAS)) * (1.0 + abs_x), (2.0 ** (-EXPONENT_BIAS + 1)) * abs_x
+        normal_mask, (2.0 ** (exponent - _exponent_bias)) * (1.0 + abs_x), (2.0 ** (-_exponent_bias + 1)) * abs_x
     )
 
     inf = torch.finfo(dtype)

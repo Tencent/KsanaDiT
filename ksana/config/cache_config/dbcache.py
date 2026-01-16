@@ -6,8 +6,8 @@ from .base import KsanaBlockCacheConfig
 @dataclass
 class DBCacheConfig(KsanaBlockCacheConfig):
     name: str = field(default="DBCache")
-    Fn_compute_blocks: int | None = field(default=None)
-    Bn_compute_blocks: int | None = field(default=None)
+    fn_compute_blocks: int | None = field(default=None)
+    bn_compute_blocks: int | None = field(default=None)
     residual_diff_threshold: float | None = field(default=None)
     max_warmup_steps: int | None = field(default=None)
     warmup_interval: int | None = field(default=None)

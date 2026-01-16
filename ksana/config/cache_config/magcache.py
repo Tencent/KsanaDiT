@@ -7,7 +7,7 @@ from .base import KsanaStepCacheConfig
 class MagCacheConfig(KsanaStepCacheConfig):
     name: str = field(default="MagCache")
     threshold: float | None = field(default=None)
-    K: int | None = field(default=None)
+    k: int | None = field(default=None)
     cache_device: str | None = field(default=None)
     start_step: int | None = field(default=None)
     end_step: int | None = field(default=None)

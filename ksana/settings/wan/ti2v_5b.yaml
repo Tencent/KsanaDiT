@@ -1,0 +1,16 @@
+_base_modules :
+  # Note: keep include in order
+  - "common.yaml"
+  - "wan/modules/common.yaml"
+  - "wan/modules/t5_encoder.yaml"
+  - "wan/modules/5b.yaml"
+  - "wan/modules/vae_2_2.yaml"
+
+infer:
+  frame_num: 121
+
+sample_config:
+  steps: 50
+  fps : 24
+  shift: 5.0
+  cfg_scale: 5.0

@@ -28,4 +28,13 @@ export CUDA_VISIBLE_DEVICES=${GPU_CARDS}
 cd /ci_workspace/${BK_CI_GIT_REPO_HEAD_COMMIT_ID}/
 pytest -s -v tests/ksana/gpus/
 
-torchrun --nproc_per_node=2 tests/ksana/nodes_test.py
+
+for file in "tests/ksana/nodes/*.py"; do
+    [ -e "$file" ] || continue
+    echo "running $file"
+    torchrun --nproc_per_node=2 "$file"
+    if [ $? -ne 0 ]; then
+        echo "failed $file"
+        exit 1
+    fi
+done

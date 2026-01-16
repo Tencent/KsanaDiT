@@ -36,7 +36,7 @@ class CausalConv3d(nn.Conv3d):
         return super().forward(x)
 
 
-class RMS_norm(nn.Module):
+class RmsNorm(nn.Module):
     def __init__(self, dim, channel_first=True, images=True, bias=False):
         super().__init__()
         broadcastable_dims = (1, 1, 1) if not images else (1, 1)
@@ -86,7 +86,9 @@ class Resample(nn.Module):
         else:
             self.resample = nn.Identity()
 
-    def forward(self, x, feat_cache=None, feat_idx=[0]):
+    def forward(self, x, feat_cache=None, feat_idx=None):
+        if feat_idx is None:
+            feat_idx = [0]
         b, c, t, h, w = x.size()
         if self.mode == "upsample3d":
             if feat_cache is not None:
@@ -139,7 +141,7 @@ class Resample(nn.Module):
     def init_weight(self, conv):
         conv_weight = conv.weight
         nn.init.zeros_(conv_weight)
-        c1, c2, t, h, w = conv_weight.size()
+        c1, c2, t, h, w = conv_weight.size()  # pylint: disable=unused-variable
         one_matrix = torch.eye(c1, c2)
         init_matrix = one_matrix
         nn.init.zeros_(conv_weight)
@@ -151,7 +153,7 @@ class Resample(nn.Module):
     def init_weight2(self, conv):
         conv_weight = conv.weight.data
         nn.init.zeros_(conv_weight)
-        c1, c2, t, h, w = conv_weight.size()
+        c1, c2, t, h, w = conv_weight.size()  # pylint: disable=unused-variable
         init_matrix = torch.eye(c1 // 2, c2)
         # init_matrix = repeat(init_matrix, 'o ... -> (o 2) ...').permute(1,0,2).contiguous().reshape(c1,c2)
         conv_weight[: c1 // 2, :, -1, 0, 0] = init_matrix
@@ -168,17 +170,19 @@ class ResidualBlock(nn.Module):
 
         # layers
         self.residual = nn.Sequential(
-            RMS_norm(in_dim, images=False),
+            RmsNorm(in_dim, images=False),
             nn.SiLU(),
             CausalConv3d(in_dim, out_dim, 3, padding=1),
-            RMS_norm(out_dim, images=False),
+            RmsNorm(out_dim, images=False),
             nn.SiLU(),
             nn.Dropout(dropout),
             CausalConv3d(out_dim, out_dim, 3, padding=1),
         )
         self.shortcut = CausalConv3d(in_dim, out_dim, 1) if in_dim != out_dim else nn.Identity()
 
-    def forward(self, x, feat_cache=None, feat_idx=[0]):
+    def forward(self, x, feat_cache=None, feat_idx=None):
+        if feat_idx is None:
+            feat_idx = [0]
         h = self.shortcut(x)
         for layer in self.residual:
             if isinstance(layer, CausalConv3d) and feat_cache is not None:
@@ -207,7 +211,7 @@ class AttentionBlock(nn.Module):
         self.dim = dim
 
         # layers
-        self.norm = RMS_norm(dim)
+        self.norm = RmsNorm(dim)
         self.to_qkv = nn.Conv2d(dim, dim * 3, 1)
         self.proj = nn.Conv2d(dim, dim, 1)
 
@@ -241,12 +245,18 @@ class Encoder3d(nn.Module):
         self,
         dim=128,
         z_dim=4,
-        dim_mult=[1, 2, 4, 4],
+        dim_mult=None,
         num_res_blocks=2,
-        attn_scales=[],
-        temperal_downsample=[True, True, False],
+        attn_scales=None,
+        temperal_downsample=None,
         dropout=0.0,
     ):
+        if attn_scales is None:
+            attn_scales = []
+        if dim_mult is None:
+            dim_mult = [1, 2, 4, 4]
+        if temperal_downsample is None:
+            temperal_downsample = [True, True, False]
         super().__init__()
         self.dim = dim
         self.z_dim = z_dim
@@ -285,11 +295,11 @@ class Encoder3d(nn.Module):
         )
 
         # output blocks
-        self.head = nn.Sequential(
-            RMS_norm(out_dim, images=False), nn.SiLU(), CausalConv3d(out_dim, z_dim, 3, padding=1)
-        )
+        self.head = nn.Sequential(RmsNorm(out_dim, images=False), nn.SiLU(), CausalConv3d(out_dim, z_dim, 3, padding=1))
 
-    def forward(self, x, feat_cache=None, feat_idx=[0]):
+    def forward(self, x, feat_cache=None, feat_idx=None):
+        if feat_idx is None:
+            feat_idx = [0]
         if feat_cache is not None:
             idx = feat_idx[0]
             cache_x = x[:, :, -CACHE_T:, :, :].clone()
@@ -302,21 +312,21 @@ class Encoder3d(nn.Module):
         else:
             x = self.conv1(x)
 
-        ## downsamples
+        # downsamples
         for layer in self.downsamples:
             if feat_cache is not None:
                 x = layer(x, feat_cache, feat_idx)
             else:
                 x = layer(x)
 
-        ## middle
+        # middle
         for layer in self.middle:
             if isinstance(layer, ResidualBlock) and feat_cache is not None:
                 x = layer(x, feat_cache, feat_idx)
             else:
                 x = layer(x)
 
-        ## head
+        # head
         for layer in self.head:
             if isinstance(layer, CausalConv3d) and feat_cache is not None:
                 idx = feat_idx[0]
@@ -339,12 +349,18 @@ class Decoder3d(nn.Module):
         self,
         dim=128,
         z_dim=4,
-        dim_mult=[1, 2, 4, 4],
+        dim_mult=None,
         num_res_blocks=2,
-        attn_scales=[],
-        temperal_upsample=[False, True, True],
+        attn_scales=None,
+        temperal_upsample=None,
         dropout=0.0,
     ):
+        if attn_scales is None:
+            attn_scales = []
+        if dim_mult is None:
+            dim_mult = [1, 2, 4, 4]
+        if temperal_upsample is None:
+            temperal_upsample = [False, True, True]
         super().__init__()
         self.dim = dim
         self.z_dim = z_dim
@@ -385,10 +401,12 @@ class Decoder3d(nn.Module):
         self.upsamples = nn.Sequential(*upsamples)
 
         # output blocks
-        self.head = nn.Sequential(RMS_norm(out_dim, images=False), nn.SiLU(), CausalConv3d(out_dim, 3, 3, padding=1))
+        self.head = nn.Sequential(RmsNorm(out_dim, images=False), nn.SiLU(), CausalConv3d(out_dim, 3, 3, padding=1))
 
-    def forward(self, x, feat_cache=None, feat_idx=[0]):
-        ## conv1
+    def forward(self, x, feat_cache=None, feat_idx=None):
+        if feat_idx is None:
+            feat_idx = [0]
+        # conv1
         if feat_cache is not None:
             idx = feat_idx[0]
             cache_x = x[:, :, -CACHE_T:, :, :].clone()
@@ -401,21 +419,21 @@ class Decoder3d(nn.Module):
         else:
             x = self.conv1(x)
 
-        ## middle
+        # middle
         for layer in self.middle:
             if isinstance(layer, ResidualBlock) and feat_cache is not None:
                 x = layer(x, feat_cache, feat_idx)
             else:
                 x = layer(x)
 
-        ## upsamples
+        # upsamples
         for layer in self.upsamples:
             if feat_cache is not None:
                 x = layer(x, feat_cache, feat_idx)
             else:
                 x = layer(x)
 
-        ## head
+        # head
         for layer in self.head:
             if isinstance(layer, CausalConv3d) and feat_cache is not None:
                 idx = feat_idx[0]
@@ -441,17 +459,23 @@ def count_conv3d(model):
     return count
 
 
-class WanVAE_(nn.Module):
+class WanVAE(nn.Module):
     def __init__(
         self,
         dim=128,
         z_dim=4,
-        dim_mult=[1, 2, 4, 4],
+        dim_mult=None,
         num_res_blocks=2,
-        attn_scales=[],
-        temperal_downsample=[True, True, False],
+        attn_scales=None,
+        temperal_downsample=None,
         dropout=0.0,
     ):
+        if attn_scales is None:
+            attn_scales = []
+        if dim_mult is None:
+            dim_mult = [1, 2, 4, 4]
+        if temperal_downsample is None:
+            temperal_downsample = [True, True, False]
         super().__init__()
         self.dim = dim
         self.z_dim = z_dim
@@ -477,10 +501,10 @@ class WanVAE_(nn.Module):
 
     def encode(self, x, scale):
         self.clear_cache()
-        ## cache
+        # cache
         t = x.shape[2]
         iter_ = 1 + (t - 1) // 4
-        ## 对encode输入的x，按时间拆分为1、4、4、4....
+        # 对encode输入的x，按时间拆分为1、4、4、4....
         for i in range(iter_):
             self._enc_conv_idx = [0]
             if i == 0:
@@ -492,7 +516,7 @@ class WanVAE_(nn.Module):
                     feat_idx=self._enc_conv_idx,
                 )
                 out = torch.cat([out, out_], 2)
-        mu, log_var = self.conv1(out).chunk(2, dim=1)
+        mu, _ = self.conv1(out).chunk(2, dim=1)
         if isinstance(scale[0], torch.Tensor):
             mu = (mu - scale[0].view(1, self.z_dim, 1, 1, 1)) * scale[1].view(1, self.z_dim, 1, 1, 1)
         else:
@@ -619,7 +643,7 @@ def _video_vae(pretrained_path=None, z_dim=None, device="cpu", **kwargs):
 
     # init model
     with torch.device("meta"):
-        model = WanVAE_(**cfg)
+        model = WanVAE(**cfg)
 
     # load checkpoint
     logging.info(f"loading {pretrained_path}")
@@ -629,7 +653,7 @@ def _video_vae(pretrained_path=None, z_dim=None, device="cpu", **kwargs):
     return model
 
 
-class Wan2_1_VAE:
+class Wan2_1_VAE:  # pylint: disable=invalid-name
     def __init__(self, z_dim=16, vae_pth="cache/vae_step_411000.pth", dtype=torch.float, device="cuda"):
         self.dtype = dtype
         self.device = device

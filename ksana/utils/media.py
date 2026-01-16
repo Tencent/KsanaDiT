@@ -65,7 +65,7 @@ def merge_video_audio(video_path: str, audio_path: str):
         shutil.move(temp_output, video_path)
         log.info(f"Merge completed, saved to {video_path}")
 
-    except Exception as e:
+    except Exception as e:  # pylint: disable=broad-except
         if os.path.exists(temp_output):
             os.remove(temp_output)
         log.error(f"merge_video_audio failed with error: {e}")
@@ -102,7 +102,7 @@ def save_video(tensor, save_file=None, fps=30, suffix=".mp4", nrow=8, normalize=
         for frame in tensor.numpy():
             writer.append_data(frame)
         writer.close()
-    except Exception as e:
+    except Exception as e:  # pylint: disable=broad-except
         log.info(f"save_video failed, error: {e}")
 
 

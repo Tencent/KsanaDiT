@@ -1,0 +1,30 @@
+
+runtime_config:
+  target_size: [1280, 720]
+  frame_num: 81
+  param_dtype: ${torch_dtype:bfloat16}
+  boundary: 0.9
+
+  # TODO(qian): only used in comfyui yet, remove or use it anywhere
+  comfyui_memory_usage_base_dim: 2222
+
+sample_config:
+  steps: 40
+  cfg_scale: [4.0, 3.0]  # high noise, low noise
+  shift: 12.0
+  solver: "uni_pc"
+  fps : 16
+  num_train_timesteps: 1000
+
+vae:
+  checkpoint : "Wan2.1_VAE.pth"
+  z_dim: 16
+  stride : [4, 8, 8]
+
+diffusion:
+  patch_size: [1, 2, 2]
+
+  low_noise_checkpoint : "low_noise_model"
+  high_noise_checkpoint : "high_noise_model"
+  low_noise_lora_checkpoint : "low_noise_model.safetensors"
+  high_noise_lora_checkpoint : "high_noise_model.safetensors"

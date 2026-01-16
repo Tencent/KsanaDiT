@@ -21,7 +21,7 @@ def _patch_float8_tensor_dispatch():
     if _FP8_TENSOR_PATCHED:
         return True
 
-    Float8Tensor = None
+    Float8Tensor = None  # pylint: disable=invalid-name
     try:
         from torchao.quantization import Float8Tensor
     except ImportError:
@@ -90,7 +90,7 @@ def _patch_float8_tensor_dispatch():
         if device is not None:
             try:
                 return _move_float8_tensor_to_device(tensor, device)
-            except Exception as e:
+            except Exception as e:  # pylint: disable=broad-except
                 log.warning(f"Failed to handle aten.to.dtype_layout: {e}")
                 raise
 
@@ -128,7 +128,7 @@ def _patch_float8_tensor_dispatch():
             Float8Tensor._ATEN_OP_OR_TORCH_FN_TABLE[Float8Tensor][aten.to.dtype] = handle_to_dtype_layout
             log.info("Registered handler for aten.to.dtype")
 
-    except Exception as e:
+    except Exception as e:  # pylint: disable=broad-except
         log.warning(f"Failed to register aten.to handlers: {e}")
         original_dispatch = Float8Tensor.__torch_dispatch__
 
@@ -141,7 +141,7 @@ def _patch_float8_tensor_dispatch():
                 if device is not None:
                     try:
                         return _move_float8_tensor_to_device(tensor, device)
-                    except Exception as e:
+                    except Exception as e:  # pylint: disable=broad-except
                         log.warning(f"Fallback dispatch failed: {e}")
 
             return original_dispatch.__func__(cls, func, types, args, kwargs)
@@ -192,7 +192,7 @@ def apply_dynamic_fp8_quant(module: torch.nn.Module):
             from torchao.quantization import float8_dynamic_activation_float8_weight
 
             fp8_config = float8_dynamic_activation_float8_weight()
-    except Exception as e:  # pragma: no cover - optional dependency
+    except Exception as e:  # pylint: disable=broad-except
         log.warning(f"torchao.quantization is not available, skip FP8 dynamic quantization: {e}")
         return
 
@@ -319,7 +319,7 @@ def apply_dynamic_fp8_quant(module: torch.nn.Module):
                 "  4. torchao version incompatibility"
             )
 
-    except Exception as e:
+    except Exception as e:  # pylint: disable=broad-except
         # Fail soft so that a bad torchao install or unsupported module does not break overall loading.
         log.warning(f"Failed to apply dynamic FP8 quantization via torchao, continue without FP8: {e}")
         import traceback

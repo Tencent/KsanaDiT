@@ -1,15 +1,19 @@
 from .base_model import KsanaModel
-from .diffusion import KsanaDiffusionModel, KsanaQwenImageModel, KsanaWanModel
+from .diffusion_model import KsanaDiffusionModel, KsanaQwenImageModel, KsanaWanModel
+from .model_key import KsanaModelKey
 from .model_pool import KsanaModelPool
-from .text_encoder import KsanaT5Encoder
-from .vae import KsanaVAE
+from .qwen import KsanaQwen2VLTextEncoderModel  # TODO: romove me
+from .text_encoder_model import KsanaT5TextEncoderModel
+from .vae_model import KsanaVAEModel
 
 __all__ = [
     "KsanaModel",
+    "KsanaModelKey",
     "KsanaDiffusionModel",
     "KsanaWanModel",
-    "KsanaT5Encoder",
-    "KsanaVAE",
+    "KsanaT5TextEncoderModel",
+    "KsanaQwen2VLTextEncoderModel",
+    "KsanaVAEModel",
     "KsanaModelPool",
     "KsanaQwenImageModel",
 ]

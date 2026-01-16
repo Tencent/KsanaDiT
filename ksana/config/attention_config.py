@@ -11,7 +11,9 @@ class KsanaAttentionBackend(Enum):
     RADIAL_SAGE_ATTN = "radial_sage_attention"
 
     @staticmethod
-    def get_supported_list(exclude: list[KsanaAttentionBackend] = []) -> list[str]:
+    def get_supported_list(exclude: list[KsanaAttentionBackend] = None) -> list[str]:
+        if exclude is None:
+            exclude = []
         return [b.value for b in KsanaAttentionBackend if b not in exclude]
 
     @staticmethod

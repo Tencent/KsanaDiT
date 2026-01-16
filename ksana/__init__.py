@@ -1,9 +1,14 @@
 try:
     from .config import KsanaAttentionConfig, KsanaRuntimeConfig, KsanaSampleConfig, KsanaTorchCompileConfig
+    from .decoders import *  # noqa: F403
+    from .encoders import *  # noqa: F403
     from .engine import KsanaEngine, get_engine
+    from .generators import *  # noqa: F403
+    from .loaders import *  # noqa: F403
     from .models import KsanaDiffusionModel
+    from .pipelines import KsanaPipeline
     from .utils import KSANA_LOGGER_LEVEL, KSANA_MEMORY_PROFILER  # noqa: F401
-except Exception as e:
+except Exception as e:  # pylint: disable=broad-except
     print(f"[import error][ksana]: {str(e)}")
     import traceback
 
@@ -16,6 +21,7 @@ except Exception as e:
 
 __all__ = [
     "get_engine",
+    "KsanaPipeline",
     "KsanaDiffusionModel",
     "KsanaEngine",
     "KsanaTorchCompileConfig",

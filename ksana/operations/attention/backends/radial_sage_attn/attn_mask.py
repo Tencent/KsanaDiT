@@ -3,7 +3,7 @@ import torch
 from tqdm import tqdm
 
 
-def shrinkMaskStrict(mask, block_size):
+def shrink_mask_strict(mask, block_size):
     seqlen = mask.shape[0]
     block_num = seqlen // block_size
     mask = mask[: block_num * block_size, : block_num * block_size].view(block_num, block_size, block_num, block_size)
@@ -83,7 +83,7 @@ def gen_log_mask_shrinked(device, s, video_token_num, num_frame, block_size, spa
             ] = local_mask
 
             # shrink the mask
-            block_mask = shrinkMaskStrict(padded_local_mask, block_size)
+            block_mask = shrink_mask_strict(padded_local_mask, block_size)
 
             # set the block mask to the final log mask
             block_row_start = (i * token_per_frame) // block_size
@@ -106,7 +106,7 @@ class MaskMap:
         self.block_size = block_size
         self.device = device
 
-    def queryLogMask(self, seq_len, sparse_type, block_size=None, decay_factor=0.5):
+    def query_log_mask(self, seq_len, sparse_type, block_size=None, decay_factor=0.5):
         block_size = block_size or self.block_size
         log_mask = torch.ones((seq_len // block_size, seq_len // block_size), device=self.device, dtype=torch.bool)
         if self.log_mask is None:

@@ -85,16 +85,16 @@ def easy_cache(reuse_thresh, start_percent, end_percent, verbose, name=None):
     return EasyCacheConfig(reuse_thresh, start_percent, end_percent, verbose, name=name)
 
 
-def mag_cache(threshold, K, cache_device, start_step, end_step, name=None):
-    return MagCacheConfig(threshold, K, cache_device, start_step, end_step, name=name)
+def mag_cache(threshold, k, cache_device, start_step, end_step, name=None):
+    return MagCacheConfig(threshold, k, cache_device, start_step, end_step, name=name)
 
 
 class KsanaNodeDBCache:
     # TODO(jason): optimize the default values
     PRESETS = {
         "conservative": {
-            "Fn_compute_blocks": 10,
-            "Bn_compute_blocks": 8,
+            "fn_compute_blocks": 10,
+            "bn_compute_blocks": 8,
             "residual_diff_threshold": 0.08,
             "max_warmup_steps": 6,
             "max_cached_steps": -1,
@@ -103,8 +103,8 @@ class KsanaNodeDBCache:
             "taylorseer_order": 0,
         },
         "balanced": {
-            "Fn_compute_blocks": 8,
-            "Bn_compute_blocks": 6,
+            "fn_compute_blocks": 8,
+            "bn_compute_blocks": 6,
             "residual_diff_threshold": 0.12,
             "max_warmup_steps": 5,
             "max_cached_steps": -1,
@@ -113,8 +113,8 @@ class KsanaNodeDBCache:
             "taylorseer_order": 2,
         },
         "aggressive": {
-            "Fn_compute_blocks": 6,
-            "Bn_compute_blocks": 4,
+            "fn_compute_blocks": 6,
+            "bn_compute_blocks": 4,
             "residual_diff_threshold": 0.18,
             "max_warmup_steps": 4,
             "max_cached_steps": -1,
@@ -125,8 +125,8 @@ class KsanaNodeDBCache:
         },
         # Wan2.2 specific presets
         "wan22_high": {
-            "Fn_compute_blocks": 1,
-            "Bn_compute_blocks": 0,
+            "fn_compute_blocks": 1,
+            "bn_compute_blocks": 0,
             "residual_diff_threshold": 0.16,
             "max_warmup_steps": 2,
             "max_cached_steps": 12,
@@ -135,8 +135,8 @@ class KsanaNodeDBCache:
             "taylorseer_order": 1,
         },
         "wan22_low": {
-            "Fn_compute_blocks": 1,
-            "Bn_compute_blocks": 0,
+            "fn_compute_blocks": 1,
+            "bn_compute_blocks": 0,
             "residual_diff_threshold": 0.24,
             "max_warmup_steps": 2,
             "max_cached_steps": 30,
@@ -149,8 +149,8 @@ class KsanaNodeDBCache:
     @classmethod
     def dbcache(
         self,
-        Fn_compute_blocks=8,
-        Bn_compute_blocks=6,
+        fn_compute_blocks=8,
+        bn_compute_blocks=6,
         residual_diff_threshold=0.12,
         max_warmup_steps=5,
         warmup_interval=1,
@@ -165,8 +165,8 @@ class KsanaNodeDBCache:
     ):
         if preset != "custom" and preset in self.PRESETS:
             preset_config = self.PRESETS[preset]
-            Fn_compute_blocks = preset_config.get("Fn_compute_blocks", Fn_compute_blocks)
-            Bn_compute_blocks = preset_config.get("Bn_compute_blocks", Bn_compute_blocks)
+            fn_compute_blocks = preset_config.get("fn_compute_blocks", fn_compute_blocks)
+            bn_compute_blocks = preset_config.get("bn_compute_blocks", bn_compute_blocks)
             residual_diff_threshold = preset_config.get("residual_diff_threshold", residual_diff_threshold)
             max_warmup_steps = preset_config.get("max_warmup_steps", max_warmup_steps)
             max_cached_steps = preset_config.get("max_cached_steps", max_cached_steps)
@@ -176,8 +176,8 @@ class KsanaNodeDBCache:
             num_blocks = preset_config.get("num_blocks", num_blocks)
 
         return DBCacheConfig(
-            Fn_compute_blocks=Fn_compute_blocks,
-            Bn_compute_blocks=Bn_compute_blocks,
+            fn_compute_blocks=fn_compute_blocks,
+            bn_compute_blocks=bn_compute_blocks,
             residual_diff_threshold=residual_diff_threshold,
             max_warmup_steps=max_warmup_steps,
             warmup_interval=warmup_interval,

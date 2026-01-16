@@ -1,724 +1,429 @@
-import math
-import random
-import sys
-from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
+from __future__ import annotations
+
+import gc
+import os
+from abc import ABC
+from datetime import datetime
+from pathlib import Path
 
 import torch
-from torch.nn.utils.rnn import pad_sequence
-from tqdm import tqdm
+import torchvision.transforms.functional as tvtf
+from PIL import Image
 
-from ..cache import create_hybrid_cache
 from ..config import (
+    KsanaDistributedConfig,
     KsanaModelConfig,
-    KsanaPipelineConfig,
     KsanaRuntimeConfig,
     KsanaSampleConfig,
-    KsanaSolverBackend,
+    KsanaSolverType,
 )
-from ..config.cache_config import KsanaCacheConfig, KsanaHybridCacheConfig, warp_as_hybrid_cache
+from ..config.cache_config import KsanaCacheConfig, KsanaHybridCacheConfig
+from ..engine import KsanaEngine, get_engine
+from ..models import KsanaT5TextEncoderModel
 from ..models.base_model import KsanaModel
-from ..models.model_pool import KsanaModelPool
-from ..sample_solvers import get_sample_scheduler
-from ..scheduler import KsanaScheduler
-from ..utils import MemoryProfiler, evolve_with_recommend, is_dir, log, print_recursive, time_range
+from ..models.model_key import KsanaModelKey, get_model_key_from_path
+from ..settings import load_default_settings
+from ..units import KsanaUnitFactory, KsanaUnitType
+from ..utils import log, merge_video_audio, time_range
+from ..utils.lora import build_loras_list
+from ..utils.media import save_image, save_video
+from ..utils.types import evolve_with_recommend, str_to_list
 
 
-@dataclass(frozen=True)
-class KsanaDefaultArgs:
-    """
-    Base configuration class for Ksana executors.
-    """
+class KsanaPipeline(ABC):
+    def __init__(self, model_key: KsanaModelKey, engine: KsanaEngine, offload_device):
+        self.pipeline_key = model_key
+        self.engine = engine
+        self.offload_device = offload_device
+        self.default_settings = None
 
-    steps: int = field(default=50)
-    cfg_scale: float | tuple[float, float] = field(default=None)
-    sample_shift: float = field(default=None)
-    sample_solver: KsanaSolverBackend | None = field(default=None)
-
-
-class KsanaX2XPipeline(ABC):
-    def __init__(self, pipeline_config: KsanaPipelineConfig):
-        """_summary_
-
-        Args:
-            pipeline_config (_type_): _description_
-        """
-        self.pipeline_config = pipeline_config
-        self.default_args = KsanaDefaultArgs()
-        self.scheduler = KsanaScheduler()
-
-        # Note: only save model_key, do NOT pass model itself
-        self.text_encoder_key = None
-        self.vae_key = None
-        self.diffusion_model_keys = None
+        # lora info for save name
         self.has_lora = False
 
-    @abstractmethod
-    def load_text_encoder(self, checkpoint_dir, shard_fn=None) -> KsanaModel:
-        pass
+        # save model keys
+        self.vae_model_key = None
+        self.diffusion_model_key = None
+        # TODO(rock): use text_encoder key when support load_text_encoder node
+        self.text_encoder_model = None
 
-    @abstractmethod
-    def load_vae(self, checkpoint_dir, device) -> KsanaModel:
-        pass
+    @property
+    def model_key(self) -> KsanaModelKey:
+        return self.pipeline_key
+
+    @property
+    def pipeline_name(self):
+        return f"{self.pipeline_key.name}"
 
     def clear(self):
         self.text_encoder_key = None
-        self.vae_key = None
+        self.vae_model_key = None
         self.diffusion_model_keys = None
         self.has_lora = False
 
-    @abstractmethod
-    def load_diffusion_model(
-        self,
+    def _valid_sample_config(self, sample_config: KsanaSampleConfig, default_configs):
+        sample_config = sample_config if sample_config else KsanaSampleConfig()
+        recommend_configs = {
+            "steps": getattr(default_configs, "steps", None),
+            "cfg_scale": getattr(default_configs, "cfg_scale", None),
+            "shift": getattr(default_configs, "shift", None),
+            "solver": (
+                KsanaSolverType(default_configs.solver)
+                if isinstance(getattr(default_configs, "solver", None), str)
+                else None
+            ),
+            "denoise": getattr(default_configs, "denoise", None),
+        }
+        sample_config = evolve_with_recommend(sample_config, recommend_configs)
+        return sample_config
+
+    def _valid_runtime_config(self, runtime_config: KsanaRuntimeConfig, default_configs, num_prompts: int):
+        runtime_config = runtime_config or KsanaRuntimeConfig()
+        # valid: batch_size_per_prompts to list
+        batch_size_per_prompts = runtime_config.batch_size_per_prompts
+        if batch_size_per_prompts is None:
+            batch_size_per_prompts = [1] * num_prompts
+        elif isinstance(batch_size_per_prompts, int):
+            batch_size_per_prompts = [batch_size_per_prompts] * num_prompts
+        elif isinstance(batch_size_per_prompts, (list, tuple)):
+            if len(batch_size_per_prompts) != num_prompts:
+                raise ValueError(
+                    f"batch_size_per_prompts({batch_size_per_prompts}) len must match num_prompts ({num_prompts})"
+                )
+        else:
+            raise TypeError(
+                f"batch_size_per_prompts must be int/list[int]/None, but got {type(batch_size_per_prompts)}"
+            )
+        runtime_config = evolve_with_recommend(
+            runtime_config,
+            {"batch_size_per_prompts": batch_size_per_prompts},
+            force_update=True,
+        )
+        recommend_configs = {
+            "size": getattr(default_configs, "target_size", None),
+            "frame_num": getattr(default_configs, "frame_num", None),
+        }
+        runtime_config = evolve_with_recommend(
+            runtime_config,
+            recommend_configs,
+            force_update=False,
+        )
+        return runtime_config
+
+    # TODO(TJ): use cache yamls
+    def _valid_cache_config(self, cache_config: KsanaCacheConfig, default_configs):  # pylint: disable=unused-argument
+        if cache_config is None:
+            return None
+        return [cache_config] if cache_config is not isinstance(cache_config, list) else cache_config
+
+    def _valid_images(self, img_path, prompts_list_len: int):
+        if img_path is None:
+            return None
+        img_path = str_to_list(img_path)
+        if len(img_path) != 1 and len(img_path) != prompts_list_len:
+            raise ValueError(
+                f"img_path length ({len(img_path)}) must match prompt list length ({prompts_list_len}) "
+                "or only one image"
+            )
+        return img_path
+
+    def _save_one_video(self, video, save_path, is_s2v=False):
+        save_video(
+            tensor=video[None],
+            save_file=save_path,
+            fps=self.default_settings.sample_config.fps,
+            nrow=1,
+            normalize=True,
+            value_range=(-1, 1),
+        )
+        if is_s2v:
+            audio_path = "tts.wav"
+            merge_video_audio(video_path=save_path, audio_path=audio_path)
+
+    def _get_save_filename(
+        self, out_size: list[int], prompt_text: str, has_lora: bool, num_cards: int, batch_id: int, suffix=".mp4"
+    ):
+        formatted_time = datetime.now().strftime("%Y%m%d_%H%M%S")
+        formatted_prompt = prompt_text.replace(" ", "_").replace("/", "_")[:30]
+        lora_str = "_with_lora" if has_lora else ""
+        return (
+            f"{self.pipeline_name}_{num_cards}cards_w{out_size[0]}_h{out_size[1]}{lora_str}"
+            + f"_{formatted_time}_{formatted_prompt}_{batch_id}{suffix}"
+        )
+
+    def _save_outputs(
+        self, outputs, input_prompt: str | list[str], has_lora: bool, runtime_config, save_one_func, suffix: str
+    ):
+        input_prompt = str_to_list(input_prompt)
+        out_size = runtime_config.size
+        output_idx = 0
+        prompt_len = len(input_prompt)
+        batch_size_per_prompts = runtime_config.batch_size_per_prompts
+        if prompt_len != len(batch_size_per_prompts):
+            raise RuntimeError(
+                f"len({prompt_len}) of input_prompt({input_prompt}) "
+                f"must match len({len(batch_size_per_prompts)}) of batch_size_per_prompts({batch_size_per_prompts})."
+            )
+        num_cards = self.engine.num_gpus
+        for prmopt_id in range(prompt_len):
+            for j in range(batch_size_per_prompts[prmopt_id]):
+                prompt_text = input_prompt[prmopt_id]
+                output = outputs[output_idx]
+                save_filename = self._get_save_filename(out_size, prompt_text, has_lora, num_cards, j, suffix=suffix)
+                save_path = os.path.join(runtime_config.output_folder, save_filename)
+                os.makedirs(os.path.dirname(save_path), exist_ok=True)
+                log.info(f"Saving generated image to {save_path}")
+                save_one_func(output, save_path)
+                output_idx += 1
+
+    @staticmethod
+    def _valid_input_model_paths(model_path, text_checkpoint_dir, vae_checkpoint_dir):
+        if isinstance(model_path, (list, tuple)):
+            if not Path(text_checkpoint_dir).is_dir():
+                raise ValueError(
+                    f"text_checkpoint_dir must be provided when loading from local checkpoint "
+                    f"with diffusion model {model_path}"
+                )
+            if not Path(vae_checkpoint_dir).is_dir():
+                raise ValueError(
+                    f"vae_checkpoint_dir must be provided when loading from local checkpoint "
+                    f"with diffusion model {model_path}"
+                )
+            model_path = list(model_path)
+        elif Path(model_path).is_dir():
+            text_checkpoint_dir = text_checkpoint_dir or model_path
+            vae_checkpoint_dir = vae_checkpoint_dir or model_path
+        else:
+            raise ValueError(f"model_path {model_path} should be a directory or list of diffusion model files")
+        return model_path, text_checkpoint_dir, vae_checkpoint_dir
+
+    @staticmethod
+    def from_models(
         model_path,
         *,
-        lora: None | str | list[list[dict], list[dict]] = None,
         model_config: KsanaModelConfig = None,
-        dist_config=None,
-        device=None,
-        offload_device=None,
-        shard_fn=None,
+        dist_config: KsanaDistributedConfig = None,
+        text_checkpoint_dir=None,
+        vae_checkpoint_dir=None,
+        lora: None | str | list[list[dict], list[dict]] = None,
+        offload_device="cpu",
     ) -> list[KsanaModel]:
-        pass
+        log.info(f"Loading models from {model_path}")
+        model_path, text_checkpoint_dir, vae_checkpoint_dir = KsanaPipeline._valid_input_model_paths(
+            model_path, text_checkpoint_dir, vae_checkpoint_dir
+        )
+        model_config = model_config or KsanaModelConfig()
+        dist_config = dist_config or KsanaDistributedConfig()
+        engine = get_engine(dist_config=dist_config, offload_device=offload_device)
+        model_key = get_model_key_from_path(model_path if text_checkpoint_dir is None else text_checkpoint_dir)
+
+        # maybe need create pipeline from registered factory
+        pipeline = KsanaPipeline(model_key, engine, offload_device)
+        pipeline.load_models(
+            model_path,
+            model_config=model_config,
+            text_checkpoint_dir=text_checkpoint_dir,
+            vae_checkpoint_dir=vae_checkpoint_dir,
+            lora=lora,
+        )
+        return pipeline
+
+    def _load_text_encoder(self, text_checkpoint_dir, default_text_settings):
+        if self.pipeline_key in [KsanaModelKey.Wan2_2_I2V_14B, KsanaModelKey.Wan2_2_T2V_14B]:
+            text_encoder = KsanaT5TextEncoderModel(
+                model_key=KsanaModelKey.T5TextEncoder,
+                default_settings=default_text_settings,
+                checkpoint_path=os.path.join(text_checkpoint_dir, default_text_settings.checkpoint),
+                tokenizer_path=os.path.join(text_checkpoint_dir, default_text_settings.tokenizer),
+                dtype=default_text_settings.dtype,
+                device=torch.device("cpu"),
+            )
+        else:
+            raise ValueError(f"text_encoder {self.pipeline_key} not supported in pipeline")
+        if self.offload_device:
+            text_encoder.to(self.offload_device)
+        return text_encoder
+
+    def _valid_input_models_path(self, model_path, diffusion_default_settings):
+        load_model_path = model_path
+        if self.model_key in [KsanaModelKey.Wan2_2_I2V_14B, KsanaModelKey.Wan2_2_T2V_14B]:
+            load_model_path = [
+                os.path.join(model_path, diffusion_default_settings.high_noise_checkpoint),
+                os.path.join(model_path, diffusion_default_settings.low_noise_checkpoint),
+            ]
+        else:
+            load_model_path = model_path
+        return load_model_path
+
+    def _valid_input_lora(self, lora: str | list[str], diffusion_default_settings):
+        if lora is None:
+            return None
+        list_of_loras_list = None
+        if self.model_key in [KsanaModelKey.Wan2_2_I2V_14B, KsanaModelKey.Wan2_2_T2V_14B]:
+            if Path(lora).is_dir():
+                lora_dir = lora
+                list_of_loras_list = []
+                list_of_loras_list.append(
+                    build_loras_list(os.path.join(lora_dir, diffusion_default_settings.high_noise_lora_checkpoint))
+                )
+                list_of_loras_list.append(
+                    build_loras_list(os.path.join(lora_dir, diffusion_default_settings.low_noise_lora_checkpoint))
+                )
+            else:
+                raise ValueError(f"lora {lora} must be a directory in {self.model_key}")
+        else:
+            raise NotImplementedError(f"lora {lora} not supported in pipeline {self.model_key} yet")
+        return list_of_loras_list
 
     def load_models(
         self,
         model_path,
         *,
+        model_config: KsanaModelConfig = None,
         text_checkpoint_dir=None,
         vae_checkpoint_dir=None,
-        model_config: KsanaModelConfig = None,
-        dist_config=None,
-        device=None,
-        offload_device=None,
-        shard_fn=None,
         lora: None | str | list[list[dict], list[dict]] = None,
     ) -> list[KsanaModel]:
-        if not is_dir(model_path):
-            assert text_checkpoint_dir is not None, (
-                "text_checkpoint_dir must be provided when loading from local checkpoint"
-                f" with diffusion model {model_path}"
-            )
-            assert vae_checkpoint_dir is not None, (
-                "vae_checkpoint_dir must be provided when loading from local checkpoint"
-                f" with diffusion model {model_path}"
-            )
-        else:
-            text_checkpoint_dir = model_path
-            vae_checkpoint_dir = model_path
+        self.engine.clear_models()
         # keep lora flag for output name
         self.has_lora = lora is not None
+        self.default_settings = load_default_settings(self.pipeline_key)
 
-        text_encoder = self.load_text_encoder(text_checkpoint_dir, shard_fn=shard_fn)
-        self.text_encoder_key = text_encoder.get_model_key()
-        if offload_device:
-            text_encoder.to(offload_device)
-        diffusion_model_list = self.load_diffusion_model(
-            model_path,
-            lora=lora,
+        # TODO: use load_text_encoder in engine in future
+        self.text_encoder_model = self._load_text_encoder(text_checkpoint_dir, self.default_settings.text_encoder)
+
+        load_model_path = self._valid_input_models_path(model_path, self.default_settings.diffusion)
+        list_of_loras_list = self._valid_input_lora(lora, self.default_settings.diffusion)
+        self.diffusion_model_key = self.engine.load_diffusion_model(
+            load_model_path,
+            model_key=self.model_key,
+            lora=list_of_loras_list,
             model_config=model_config,
-            dist_config=dist_config,
-            device=device,
-            offload_device=offload_device,
-            shard_fn=shard_fn,
         )
-        if offload_device:
-            [one_model.to(offload_device) for one_model in diffusion_model_list]
-        self.diffusion_model_keys = [one_model.get_model_key() for one_model in diffusion_model_list]
-
-        vae_model = self.load_vae(vae_checkpoint_dir, device)
-        self.vae_key = vae_model.get_model_key()
-        self.vae_z_dim = vae_model.z_dim
-        self.vae_stride = self.pipeline_config.default_config.vae_stride
-        self.patch_size = self.pipeline_config.default_config.patch_size
-        if offload_device:
-            vae_model.to(offload_device)
-        return [text_encoder, vae_model] + diffusion_model_list
-
-    @time_range
-    def forward_text_encoder(
-        self,
-        model_pool: KsanaModelPool,
-        prompts_positive,
-        prompts_negative=None,
-        device=None,
-        offload_device=None,
-        offload_model=False,
-    ):
-        text_encoder = model_pool.get_model(self.text_encoder_key)
-        bs = len(prompts_positive)
-        assert bs > 0, "prompts must not be empty"
-        default_neg_prompt = self.pipeline_config.default_config.sample_neg_prompt
-        prompts_negative = prompts_negative if prompts_negative is not None else [default_neg_prompt] * bs
-        assert len(prompts_positive) == len(
-            prompts_negative
-        ), f"The number of negative prompts ({len(prompts_negative)}) must match the number of positive prompts ({bs})."
-
-        assert device is not None
-        if text_encoder.device != device:
-            text_encoder.to(device)
-
-        all_prompts = prompts_positive + prompts_negative
-        all_embeddings_list = text_encoder.forward(all_prompts)
-
-        # TODO(qiannan): self.text_encoder.forward tokenizer的时候是填充到相同长度了，
-        # 但是返回是裁剪了，所以如果返回不裁剪，就不需要pad了
-        # Pad the combined list of tensors to the max length in the entire batch.
-        all_padded_embeddings = pad_sequence(all_embeddings_list, batch_first=True, padding_value=0.0)
-
-        # Split the padded tensor back into positive and negative parts.
-        positive, negative = torch.chunk(all_padded_embeddings, 2, dim=0)
-
-        if offload_model and offload_device is not None and offload_device != device:
-            text_encoder.to(offload_device)
-
-        return positive, negative
-
-    def use_cfg(self, cfg_scale: float, eps: float = 1e-6):
-        return abs(cfg_scale - 1.0) > eps
-
-    def cast_to(self, src, dtype: torch.dtype, device: torch.device):
-        if src.dtype != dtype:
-            src = src.to(dtype)
-        if src.device != device:
-            src = src.to(device)
-        return src
-
-    def get_run_model(self, high_model, low_model, timestep_id: int, boundary: float, device=None, offload_device=None):
-        assert device is not None, "device must be provided"
-        if low_model is not None and boundary is None:
-            raise ValueError("boundary must be provided when low_model is not None")
-        use_high = low_model is None or (boundary is not None and timestep_id >= boundary)
-        if use_high:
-            if low_model is not None:
-                if low_model.device != offload_device:
-                    low_model.to(offload_device)
-            if high_model.device != device:
-                high_model.to(device)
-            return high_model
-        else:
-            if high_model.device != offload_device:
-                high_model.to(offload_device)
-            if low_model.device != device:
-                low_model.to(device)
-            return low_model
-
-    def get_run_cache(self, high_cache, low_cache, timestep_id, boundary):
-        if low_cache is None:
-            return high_cache
-        if timestep_id >= boundary:
-            return high_cache
-        else:
-            high_cache.offload_to_cpu()
-            return low_cache
-
-    def valid_args(self, diffusion_models: list[KsanaModel], sample_config):
-        high_model = diffusion_models
-        low_model = None
-        if hasattr(diffusion_models, "__len__"):
-            if len(diffusion_models) == 1:
-                high_model = diffusion_models[0]
-            else:
-                assert len(diffusion_models) <= 2, f"size of model must be 2, but got {len(diffusion_models)}"
-                high_model, low_model = diffusion_models
-        if isinstance(sample_config.cfg_scale, float):
-            high_sample_guide_scale = sample_config.cfg_scale
-            low_sample_guide_scale = None if low_model is None else sample_config.cfg_scale
-        elif hasattr(sample_config.cfg_scale, "__len__"):
-            assert (
-                len(sample_config.cfg_scale) == 2
-            ), f"size of cfg_scale must be 2, but got {len(sample_config.cfg_scale)}"
-            low_sample_guide_scale = sample_config.cfg_scale[0]
-            high_sample_guide_scale = sample_config.cfg_scale[1]
-        else:
-            raise ValueError(f"sample_config.cfg_scale {sample_config.cfg_scale} not supported")
-        assert sample_config.denoise > 0.0, f"denoise <= 0.0 is not supported, got {sample_config.denoise}"
-        return (
-            high_model,
-            low_model,
-            high_sample_guide_scale,
-            low_sample_guide_scale,
+        self.vae_model_key = self.engine.load_vae_model(
+            os.path.join(vae_checkpoint_dir, self.default_settings.vae.checkpoint),
         )
 
-    def prepare_sample_default_args(self, sample_config: KsanaSampleConfig):
-        # input sample_config > KsanaDefaultArgs > default_pipeline_config
-        default_pipeline_config = self.pipeline_config.default_config
-        sample_default_args = {
-            "steps": (
-                self.default_args.steps
-                if self.default_args.steps is not None
-                else default_pipeline_config.get("sample_steps", None)
-            ),
-            "cfg_scale": (
-                self.default_args.cfg_scale
-                if self.default_args.cfg_scale is not None
-                else default_pipeline_config.get("sample_guide_scale", None)
-            ),
-            "shift": (
-                self.default_args.sample_shift
-                if self.default_args.sample_shift is not None
-                else default_pipeline_config.get("sample_shift", None)
-            ),
-            "solver": (
-                self.default_args.sample_solver
-                if self.default_args.sample_solver is not None
-                else default_pipeline_config.get("sample_solver", None)
-            ),
-            "denoise": default_pipeline_config.get("denoise", None),
-        }
-        return evolve_with_recommend(sample_config, sample_default_args)
+        # same same info for later use
+        self.vae_z_dim = self.default_settings.vae.z_dim
+        self.vae_stride = self.default_settings.vae.stride
+        self.patch_size = self.default_settings.diffusion.patch_size
 
-    def expand_conditioning_by_batch_size_per_prompt(
-        self,
-        positive: torch.Tensor,
-        negative: torch.Tensor,
-        batch_size_per_prompt: list[int],
-        img_latents: torch.Tensor | None = None,
-    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor | None]:
-        repeats = torch.tensor(batch_size_per_prompt, dtype=torch.int64, device=positive.device)
-        positive = positive.repeat_interleave(repeats, dim=0)
-        negative = negative.repeat_interleave(repeats, dim=0)
-
-        if img_latents is not None:
-            img_latents = img_latents.repeat_interleave(repeats, dim=0)
-
-        return positive, negative, img_latents
-
-    def get_noise_shape(
-        self,
-        img_latents: torch.Tensor,
-        num_prompts: int,
-        frame_num: int,
-        input_img_size_w_h: list[int],
-        total_batch: int,
-    ):
-        if img_latents is not None:
-            assert (
-                len(img_latents.shape) == 5
-            ), f"img_latents.shape {img_latents.shape} dim must be 5:(bs, z_dim:16, f, h, w)"
-            if img_latents.shape[0] != total_batch:
-                raise ValueError(
-                    f"img_latents.shape[0] ({img_latents.shape[0]}) must match "
-                    f"sum(batch_size_per_prompt) ({total_batch})"
-                )
-            return img_latents.shape
+    def _get_num_prompts(self, prompt: str | list[str]):
+        if prompt is None:
+            return 0
+        if isinstance(prompt, str):
+            return 1
+        elif isinstance(prompt, list):
+            return len(prompt)
         else:
-            # TODO: here should not used vae model params insider forward transformer,
-            # need create noise outside pipeline
-            assert (
-                self.vae_z_dim is not None and self.vae_stride is not None
-            ), f"self.vae_z_dim {self.vae_z_dim}, self.vae_stride {self.vae_stride}"
-            return [
-                total_batch,
-                self.vae_z_dim,
-                (frame_num - 1) // self.vae_stride[0] + 1,
-                input_img_size_w_h[1] // self.vae_stride[1],
-                input_img_size_w_h[0] // self.vae_stride[2],
-            ]
+            raise ValueError(f"prompt {prompt} must be str or list of str")
 
-    def create_random_noise_latents(
-        self, target_shape: tuple[int], runtime_config: KsanaRuntimeConfig, device: torch.device, dtype: torch.dtype
-    ):
-        """
-        Args:
-            return tensor shape :[bs, z_dim, f, h, w] (5D tensor for batch)
-        """
-        seed = (
-            runtime_config.seed
-            if runtime_config.seed is not None and runtime_config.seed >= 0
-            else random.randint(0, sys.maxsize)
-        )
-        seed_g = torch.Generator(device=device)
-        seed_g.manual_seed(seed)
-        bs = target_shape[0]
-        vae_z_dim = target_shape[1]
-        if self.task_type == "i2v":
-            vae_z_dim = self.vae_z_dim if hasattr(self, "vae_z_dim") else self.pipeline_config.default_config.vae_z_dim
-        latents_list = []
-        for _ in range(bs):
-            single_noise = torch.randn(
-                vae_z_dim,
-                target_shape[2],
-                target_shape[3],
-                target_shape[4],
-                dtype=torch.float32,
-                device=device,
-                generator=seed_g,
-            ).to(dtype)
-            latents_list.append(single_noise)
-        noise = torch.stack(latents_list, dim=0)
-        return noise, seed_g
-
-    def get_seq_len(self, target_shape, patch_size: list[int], sp_size: int):
-        _, _, lat_f, lat_h, lat_w = target_shape
-        max_seq_len = (lat_f * lat_h * lat_w) // (patch_size[1] * patch_size[2])
-        return int(math.ceil(max_seq_len / sp_size)) * sp_size
-
-    def run_steps_by_batch(
-        self,
-        positive_batch: torch.Tensor,
-        negative_batch: torch.Tensor,
-        noise_latents_batch: torch.Tensor,
-        img_latents_batch: torch.Tensor,
-        combine_cond_uncond: bool,
-        seq_len: int,
-        timesteps: torch.Tensor,
-        run_dtype: torch.dtype,
-        guide_scales: tuple[float, float],  # (high_sample_guide_scale, low_sample_guide_scale)
-        models: tuple,  # (high_model, low_model)
-        sample_scheduler_step_func,
-        sample_config_solver_name: str,
-        seed_g: torch.Generator,
-        device: torch.device,
-        boundary: float = None,
-        offload_device: torch.device = None,
-        cache_configs: tuple = None,  # (high_cache_config, low_cache_config)
-        bar_info_callback: tuple = None,  # (bar_info, comfy_bar_callback)
-    ) -> torch.Tensor:
-        high_sample_guide_scale, low_sample_guide_scale = guide_scales
-        high_model, low_model = models
-        high_cache_config, low_cache_config = cache_configs if cache_configs else (None, None)
-        bar_info, comfy_bar_callback = bar_info_callback if bar_info_callback else (None, None)
-
-        # 每次重新创建cache
-        low_cache = None
-        high_cache = None
-        if high_cache_config is not None:
-            high_cache = create_hybrid_cache(
-                high_model.get_model_key(),
-                high_cache_config,
-            )
-        if low_cache_config is not None and low_model is not None:
-            low_cache = create_hybrid_cache(
-                low_model.get_model_key(),
-                low_cache_config,
-            )
-
-        batch_size_current = positive_batch.shape[0]
-
-        arg_cond = {"phase": "cond", "context": positive_batch, "seq_len": seq_len}
-        arg_uncond = {"phase": "uncond", "context": negative_batch, "seq_len": seq_len}
-
-        if self.task_type == "i2v":
-            arg_cond["y"] = img_latents_batch
-            arg_uncond["y"] = img_latents_batch
-        arg_combine = None
-        if combine_cond_uncond:
-            arg_combine = {
-                "phase": "combine",
-                "context": torch.cat([positive_batch, negative_batch], dim=0),
-                "seq_len": seq_len,
-            }
-            if self.task_type == "i2v" and img_latents_batch is not None:
-                arg_combine["y"] = torch.cat([img_latents_batch, img_latents_batch], dim=0)
-
-        total_steps = len(timesteps)
-        for iter_id, t in enumerate(tqdm(timesteps)):
-            MemoryProfiler.record_memory(f"before_inference_loop_iter_{iter_id}")
-            latent_model_input = noise_latents_batch.to(run_dtype)
-            cfg_scale = high_sample_guide_scale
-            if low_model is not None and boundary is not None and t.item() < boundary:
-                cfg_scale = low_sample_guide_scale
-
-            timestep = t.repeat(batch_size_current)
-            timestep_id = t.item()
-
-            run_model = self.get_run_model(
-                high_model=high_model,
-                low_model=low_model,
-                timestep_id=timestep_id,
-                boundary=boundary,
-                device=device,
-                offload_device=offload_device,
-            )
-
-            MemoryProfiler.record_memory(f"inference_step_{iter_id}_after_model_switch")
-            run_cache = self.get_run_cache(
-                high_cache=high_cache,
-                low_cache=low_cache,
-                timestep_id=timestep_id,
-                boundary=boundary,
-            )
-
-            if self.use_cfg(cfg_scale):
-                if combine_cond_uncond:
-                    # latent: [bs, 16, fi, hi, wi] => [2*bs, 16, fi, hi, wi]
-                    latent_batch = torch.cat([latent_model_input, latent_model_input], dim=0)
-                    # timestep: [bs] => [2*bs]
-                    timestep_batch = torch.cat([timestep, timestep], dim=0)
-                    noise_pred_batch = run_model.forward(
-                        x=latent_batch, t=timestep_batch, step_iter=iter_id, cache=run_cache, **arg_combine
-                    )
-                    # 分离结果: [2*bs, 16, fi, hi, wi] => 2 x [bs, 16, fi, hi, wi]
-                    noise_pred_cond, noise_pred_uncond = noise_pred_batch.chunk(2, dim=0)
-                else:
-                    noise_pred_uncond = run_model.forward(
-                        x=latent_model_input, t=timestep, step_iter=iter_id, cache=run_cache, **arg_uncond
-                    )
-                    noise_pred_cond = run_model.forward(
-                        x=latent_model_input, t=timestep, step_iter=iter_id, cache=run_cache, **arg_cond
-                    )
-                noise_pred = noise_pred_uncond + cfg_scale * (noise_pred_cond - noise_pred_uncond)
-            else:
-                noise_pred = run_model.forward(
-                    x=latent_model_input, t=timestep, step_iter=iter_id, cache=run_cache, **arg_cond
-                )
-
-            temp_x0 = sample_scheduler_step_func(
-                noise_pred,
-                t,
-                noise_latents_batch,
-                return_dict=False,
-                generator=seed_g,
-            )
-            noise_latents_batch = temp_x0 if sample_config_solver_name == KsanaSolverBackend.EULER else temp_x0[0]
-            MemoryProfiler.record_memory(f"inference_step_{iter_id}_after_sample_scheduler")
-            if comfy_bar_callback is not None:
-                if bar_info is not None:
-                    batch_step_offset, global_total_steps = bar_info
-                    # 当前全局步骤 = batch起始步骤 + 当前batch内步骤
-                    global_current_step = batch_step_offset + (iter_id + 1)
-                    comfy_bar_callback(global_current_step, global_total_steps)
-                else:
-                    # 兼容原有逻辑
-                    comfy_bar_callback(iter_id + 1, total_steps)
-
-        if high_cache is not None:
-            high_cache.show_cache_rate()
-        if low_cache is not None:
-            low_cache.show_cache_rate()
-
-        return noise_latents_batch
-
-    def _apply_rope_function_to_models(self, diffusion_models: list[KsanaModel], rope_function: str | None):
-        rope_value = rope_function or "default"
-        for model in diffusion_models:
-            if hasattr(model.model, "set_rope_function"):
-                model.model.set_rope_function(rope_value)
-
-    @time_range
-    def preallocate_pinned_memory(self, high_model, low_model, offload_device):
-        # NOTE: preallocate pinned memory at warm up stage to avoid CPU OOM when merging lora
-        for model in [high_model, low_model]:
-            if model:
-                model.preallocate_pinned_memory(offload_device)
-
-    def change_to_hybrid_cache(
-        self, cache_configs: list[KsanaCacheConfig | KsanaHybridCacheConfig], target_len: int
-    ) -> list[KsanaHybridCacheConfig]:
-        if cache_configs is None:
+    def _load_image(self, img_paths: list[str], device) -> torch.Tensor:
+        # move to utils
+        if img_paths is None:
             return None
-        if not (len(cache_configs) == 1 or len(cache_configs) == target_len):
-            raise ValueError(f"cache_configs length must be {target_len} or 1, but got {len(cache_configs)}")
-        hybrid_caches = []
-        for i in range(target_len):
-            cache_id = min(i, len(cache_configs) - 1)  # allow two model use same cache config
-            cache_config = cache_configs[cache_id]
-            as_hybrid_cache = warp_as_hybrid_cache(cache_config)
-            hybrid_caches.append(as_hybrid_cache)
-        return hybrid_caches
+        log.info(f"load input image: {img_paths}")
+        imgs = []
+        shape = None
+        for one_path in img_paths:
+            img = Image.open(one_path).convert("RGB")
+            if shape is None:
+                shape = img.size
+            elif img.size != shape:
+                # Note: if img is a list, then all image shapes must be the same
+                # otherwise the latents shape are not equal for batching
+                raise ValueError(f"all images {img_paths} should have the same shape, but got {img.size} and {shape}")
+            img = tvtf.to_tensor(img).sub_(0.5).div_(0.5).to(device)
+            imgs.append(img.unsqueeze(0))
+        if len(imgs) == 1:
+            return imgs[0]
+        else:
+            return torch.cat(imgs, dim=0)
+
+    def _load_input_images(self, img_path: str | list[str], end_img_path: str | list[str], device):
+        img_tensor = self._load_image(img_path, device=device)
+        end_img_tensor = self._load_image(end_img_path, device=device)
+        if end_img_path is not None and img_path is None:
+            raise ValueError(f"img_path must be not None when end_img_path {end_img_path} is not None")
+        return img_tensor, end_img_tensor
 
     @time_range
-    def forward_diffusion_models_with_tensors(
+    def generate(
         self,
-        diffusion_models: list[KsanaModel],
-        positive: torch.Tensor,  # [bs, 512, 4096]
-        negative: torch.Tensor,  # [bs, 512, 4096]
-        sample_config: KsanaSampleConfig,
-        runtime_config: KsanaRuntimeConfig,
-        img_latents: torch.Tensor = None,  # [bs, vae_z_dim+4, lat_f, lat_h, lat_w]
-        cache_configs: list[KsanaCacheConfig | KsanaHybridCacheConfig] = None,
-        device=None,
-        offload_device=None,
-        comfy_bar_callback=None,
-    ) -> torch.Tensor:
-        """_summary_
-
-        Args:
-            positive (torch.Tensor): _description_
-            sample_config (KsanaSampleConfig): _description_
-        Returns:
-            latents (torch.Tensor)
-        """
-        log.info(f"runtime_config: {runtime_config}, sample_config: {sample_config}, cache_configs: {cache_configs}")
-        high_cache_config, low_cache_config = None, None
-        cache_configs = self.change_to_hybrid_cache(cache_configs, len(diffusion_models))
-        if cache_configs is not None:
-            high_cache_config = cache_configs[0]
-            low_cache_config = cache_configs[1] if len(cache_configs) > 1 else None
-
-        high_model, low_model, high_sample_guide_scale, low_sample_guide_scale = self.valid_args(
-            diffusion_models, sample_config
-        )
-        log.info(
-            f"high_sample_guide_scale: {high_sample_guide_scale}, low_sample_guide_scale: {low_sample_guide_scale}"
-        )
-        assert (
-            low_model is None or high_model.run_dtype == low_model.run_dtype
-        ), f"high_model.run_dtype {high_model.run_dtype}, low_model.run_dtype {low_model.run_dtype} should be same"
-        run_dtype = high_model.run_dtype
-        self._apply_rope_function_to_models(diffusion_models, runtime_config.rope_function)
-        self.preallocate_pinned_memory(high_model, low_model, offload_device)
-
-        log.debug("positive, negtive:")
-        print_recursive(positive, log.debug)
-        print_recursive(negative, log.debug)
-        # [bs, input_text_len, 4096]
-        assert positive.ndim == negative.ndim == 3, f"positive.shape {positive.shape}, negative.shape {negative.shape}"
-        positive = self.cast_to(positive, run_dtype, device)
-        negative = self.cast_to(negative, run_dtype, device)
-
-        num_prompts = positive.shape[0]
-        batch_size_per_prompt = runtime_config.batch_size_per_prompt
-        total_batch = sum(batch_size_per_prompt)
-        if total_batch != num_prompts:
-            positive, negative, img_latents = self.expand_conditioning_by_batch_size_per_prompt(
-                positive, negative, img_latents=img_latents, batch_size_per_prompt=batch_size_per_prompt
-            )
-        default_pipeline_config = self.pipeline_config.default_config
-        boundary = (
-            high_model.model_config.boundary if high_model.model_config.boundary else default_pipeline_config.boundary
-        )
-        boundary = (
-            None if low_model is None or boundary is None else boundary * default_pipeline_config.num_train_timesteps
-        )
-        noise_shape = self.get_noise_shape(
-            img_latents, num_prompts, runtime_config.frame_num, runtime_config.size, total_batch
-        )
-        log.info(f"noise_shape: {noise_shape}")
-        noise_latents, seed_g = self.create_random_noise_latents(noise_shape, runtime_config, device, run_dtype)
-        seq_len = self.get_seq_len(noise_latents.shape, default_pipeline_config.patch_size, high_model.sp_size)
-        img_latents = (
-            self.cast_to(img_latents, run_dtype, device)
-            if img_latents is not None and self.task_type == "i2v"
-            else None
-        )
-        log.info(f"noise_latents: {noise_latents.shape}")
-
-        with torch.no_grad():
-            # 构建动态批处理策略
-            batch_strategy = self.scheduler.build_batch_strategy(
-                high_model.get_model_key(), noise_latents.shape, total_batch, run_dtype, device
-            )
-
-            # 计算全局进度信息
-            total_steps_per_batch = sample_config.steps
-            global_total_steps = len(batch_strategy) * total_steps_per_batch
-            log.info(f"batch_strategy={batch_strategy}")
-            # 使用动态batch处理
-            for batch_idx, strategy_item in enumerate(batch_strategy):
-                pos_batch = positive[strategy_item.start : strategy_item.end]
-                neg_batch = negative[strategy_item.start : strategy_item.end]
-                noise_latents_batch = noise_latents[strategy_item.start : strategy_item.end]
-                img_latents_batch = (
-                    img_latents[strategy_item.start : strategy_item.end] if img_latents is not None else None
-                )
-                log.info(
-                    f"batch {batch_idx} strategy start = {strategy_item.start}, end = {strategy_item.end} "
-                    f"combine = {strategy_item.combine_cond_uncond}"
-                )
-                MemoryProfiler.record_memory(f"batch_{strategy_item.start}-{strategy_item.end}_before_inference_loop")
-
-                # 计算当前batch的起始步骤偏移
-                batch_step_offset = batch_idx * total_steps_per_batch
-                bar_info = (batch_step_offset, global_total_steps)
-
-                batch_sample_scheduler, _, batch_timesteps = get_sample_scheduler(
-                    num_train_timesteps=default_pipeline_config.num_train_timesteps,
-                    sampling_steps=sample_config.steps,
-                    sample_solver=sample_config.solver,
-                    device=device,
-                    shift=sample_config.shift,
-                    denoise=sample_config.denoise,
-                    sigmas=sample_config.sigmas,
-                )
-                log.info(f"batch timesteps: {batch_timesteps}, boundary:{boundary}, seq_len:{seq_len}")
-
-                processed_latents = self.run_steps_by_batch(
-                    positive_batch=pos_batch,
-                    negative_batch=neg_batch,
-                    noise_latents_batch=noise_latents_batch,
-                    img_latents_batch=img_latents_batch,
-                    combine_cond_uncond=strategy_item.combine_cond_uncond,
-                    seq_len=seq_len,
-                    timesteps=batch_timesteps,
-                    run_dtype=run_dtype,
-                    guide_scales=(high_sample_guide_scale, low_sample_guide_scale),
-                    models=(high_model, low_model),
-                    sample_scheduler_step_func=batch_sample_scheduler.step,
-                    sample_config_solver_name=sample_config.solver,
-                    seed_g=seed_g,
-                    device=device,
-                    boundary=boundary,
-                    offload_device=offload_device,
-                    cache_configs=(high_cache_config, low_cache_config),
-                    bar_info_callback=(bar_info, comfy_bar_callback),
-                )
-                MemoryProfiler.record_memory(f"batch_{strategy_item.start}-{strategy_item.end}_after_inference_loop")
-
-                noise_latents[strategy_item.start : strategy_item.end] = processed_latents
-
-        log.debug(f"noise_latents shape: {noise_latents.shape}")
-
-        # TODO: estimate diffusion memory usage to check whether neeed to offload diffusion model
-        # if runtime_config.offload_model and offload_device is not None :
-        # here always offload diffusion model to offload_device
-        if offload_device:
-            [diffusion_model.to(offload_device) for diffusion_model in diffusion_models]
-
-        # [bs, vae_z_dim, f, h, w]
-        return noise_latents
-
-    @time_range
-    def forward_diffusion_models(
-        self,
-        model_pool: KsanaModelPool,
-        positive: torch.Tensor,  # [bs, 512, 4096]
-        negative: torch.Tensor,  # [bs, 512, 4096]
-        img_latents: torch.Tensor = None,
+        prompt: str | list[str],
+        *,
+        prompt_negative: str | list[str] = None,
+        img_path: str | list[str] = None,
+        end_img_path: str | list[str] = None,
         sample_config: KsanaSampleConfig = None,
         runtime_config: KsanaRuntimeConfig = None,
-        cache_configs: list[KsanaCacheConfig | KsanaHybridCacheConfig] = None,
-        device: torch.device = None,
-        offload_device: torch.device = None,
+        cache_config: list[KsanaCacheConfig | KsanaHybridCacheConfig] = None,
     ):
-        # Shared diffusion path for both video and image tasks; keep logs task-agnostic.
-        log.info(f"start generate {self.task_type} ({self.model_name})")
-        if model_pool is None:
-            raise ValueError("model_pool must not be None")
-        diffusion_models = model_pool.get_models(self.diffusion_model_keys)
+        """local use for generate"""
+        num_prompts = self._get_num_prompts(prompt)
+        if num_prompts == 0:
+            raise ValueError("prompt must be str or list of str")
+        sample_config = self._valid_sample_config(sample_config, self.default_settings.sample_config)
+        runtime_config = self._valid_runtime_config(
+            runtime_config, self.default_settings.runtime_config, num_prompts=num_prompts
+        )
+        cache_config = self._valid_cache_config(cache_config, getattr(self.default_settings, "cache", None))
+        log.info(f"generate prompt: {prompt}")
+        log.info(f"sample_config : {sample_config}")
+        log.info(f"runtime_config : {runtime_config}")
+        log.info(f"cache_config : {cache_config}")
+        img_path = self._valid_images(img_path, num_prompts)
+        end_img_path = self._valid_images(end_img_path, num_prompts)
+        with_end_image = end_img_path is not None
 
-        runtime_config = evolve_with_recommend(runtime_config, self.pipeline_config.default_config)
+        text_run_device = torch.device("cpu")  # TODO: maybe run text on cuda self.device
+        text_encoder = KsanaUnitFactory.create(KsanaUnitType.ENCODER, self.text_encoder_model.model_key)
+        positive, negative = text_encoder.run(
+            self.text_encoder_model,
+            prompts_positive=prompt,
+            prompts_negative=prompt_negative,
+            device=text_run_device,
+            offload_device=self.offload_device,
+            offload_model=runtime_config.offload_model,
+        )
 
-        latents = self.forward_diffusion_models_with_tensors(
-            diffusion_models=diffusion_models,
+        img_tensor, end_img_tensor = self._load_input_images(img_path, end_img_path, device=self.offload_device)
+        img_latents = self.engine.forward_vae_encode(
+            model_key=self.vae_model_key,
+            target_f=runtime_config.frame_num,
+            target_h=runtime_config.size[1],
+            target_w=runtime_config.size[0],
+            start_img=img_tensor,
+            end_img=end_img_tensor,
+        )
+
+        latents = self.engine.forward_generator(
+            model_key=self.model_key,
             positive=positive,
             negative=negative,
             img_latents=img_latents,
-            sample_config=self.prepare_sample_default_args(sample_config),
+            sample_config=sample_config,
             runtime_config=runtime_config,
-            cache_configs=cache_configs,
-            device=device,
-            offload_device=offload_device,
+            cache_configs=cache_config,
         )
         del positive, negative, img_latents
 
-        return latents
+        outputs = self.engine.forward_vae_decode(
+            model_key=self.vae_model_key,
+            latents=latents,
+            offload_device=self.offload_device,
+            offload_model=runtime_config.offload_model,
+            with_end_image=with_end_image,
+        )
+        del latents
+        if runtime_config.offload_model:
+            gc.collect()
+            torch.cuda.synchronize()
 
-    @property
-    def task_type(self):
-        return self.pipeline_config.task_type
+        if runtime_config.save_output:
+            if len(outputs.shape) > 4:  # [B,C,F,H,W]
+                self._save_outputs(outputs, prompt, self.has_lora, runtime_config, self._save_one_video, ".mp4")
+            else:  # [B,C,H,W]
+                self._save_outputs(outputs, prompt, self.has_lora, runtime_config, save_image, ".png")
 
-    @property
-    def model_name(self):
-        return self.pipeline_config.model_name
-
-    @property
-    def model_size(self):
-        return self.pipeline_config.model_size
-
-    @property
-    def save_name(self):
-        name = f"{self.pipeline_config.model_name}_{self.pipeline_config.task_type}_{self.pipeline_config.model_size}"
-        name = name if not self.has_lora else name + "_with_lora"
-        return name
+        return outputs if runtime_config.return_frames else None

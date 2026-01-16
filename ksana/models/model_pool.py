@@ -12,7 +12,11 @@ class KsanaModelPool:
         self.loaded_models: dict[KsanaModelKey, KsanaModel] = {}
 
     def update_model(self, model: KsanaModel, allow_exist=False):
-        model_key = model.get_model_key()
+        model_key = model.model_key
+        self.update_model_with_key(model_key=model_key, model=model, allow_exist=allow_exist)
+
+    def update_model_with_key(self, model_key: KsanaModelKey, model: KsanaModel | list[KsanaModel], allow_exist=False):
+        """update model with specific key"""
         if model_key in self.loaded_models:
             log.warning(f"model_key {model_key} has been loaded")
             if not allow_exist:
@@ -44,7 +48,7 @@ class KsanaModelPool:
         clear all if model_keys is None
         """
         if model_keys is None:
-            log.info("clear all models if input model_keys is None")
+            log.info("clear all models when input model_keys is None")
             self.loaded_models.clear()
             self.loaded_models = {}
             gc.collect()

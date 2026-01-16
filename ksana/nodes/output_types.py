@@ -22,4 +22,4 @@ class KsanaNodeGeneratorOutput:
 class KsanaNodeVAEEncodeOutput:
     samples: torch.Tensor = field(default=None)
     with_end_image: bool = field(default=False)
-    batch_size_per_prompt: int = field(default=1)
+    batch_size_per_prompts: int = field(default=1)

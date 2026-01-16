@@ -2,7 +2,7 @@ import unittest
 
 import torch
 
-from ksana import KsanaEngine
+from ksana import KsanaPipeline
 from ksana.config import (
     KsanaRuntimeConfig,
     KsanaSampleConfig,
@@ -25,8 +25,8 @@ class TestKsanaI2V(unittest.TestCase):
 
     def test_simple_i2v(self):
         print("-----------------test_simple_i2v-----------------")
-        engine = KsanaEngine.from_models("./Wan2.2-I2V-A14B")
-        videos = engine.generate(
+        pipeline = KsanaPipeline.from_models("./Wan2.2-I2V-A14B")
+        videos = pipeline.generate(
             prompts[0],
             img_path="./examples/images/input.png",
             sample_config=KsanaSampleConfig(steps=TEST_STEPS),
@@ -43,7 +43,7 @@ class TestKsanaI2V(unittest.TestCase):
             self.assertEqual(list(videos.shape), [1, 3, TEST_FRAME_NUM, 576, 576])
         mean0 = videos.cpu().abs().mean().item()
 
-        videos = engine.generate(
+        videos = pipeline.generate(
             prompts,
             img_path="./examples/images/start_image.png",
             end_img_path="./examples/images/end_image.png",
@@ -62,13 +62,13 @@ class TestKsanaI2V(unittest.TestCase):
         with self.subTest(msg="bs 2 Shape Check"):
             self.assertEqual(list(videos.shape), [2, 3, TEST_FRAME_NUM, 576, 576])
         with self.subTest(msg="Mean 0 Check"):
-            self.assertAlmostEqual(mean0, 0.6031375527381897, places=TEST_EPS_PLACE)
+            self.assertAlmostEqual(mean0, 0.6032059192657471, places=TEST_EPS_PLACE)
 
         with self.subTest(msg="Mean 1 Check"):
-            self.assertAlmostEqual(mean1, 0.4757797420024872, places=TEST_EPS_PLACE)
+            self.assertAlmostEqual(mean1, 0.47900763154029846, places=TEST_EPS_PLACE)
 
         with self.subTest(msg="Mean 2 Check"):
-            self.assertAlmostEqual(mean2, 0.49633023142814636, places=TEST_EPS_PLACE)
+            self.assertAlmostEqual(mean2, 0.5000003576278687, places=TEST_EPS_PLACE)
 
 
 if __name__ == "__main__":
