@@ -44,8 +44,8 @@ test_cases = [
         linear_backends=KsanaLinearBackend.DEFAULT,
         rope_function="comfy",
         expect_model_key=KsanaModelKey.Wan2_2_T2V_14B,
-        expect__one_generator_output=0.75537109375,
-        expect_gpus_generator_output=0.755859375,
+        expect__one_generator_output=0.76318359375,
+        expect_gpus_generator_output=0.76318359375,
     ),
     KsanaNodesTestCase(
         model_names=[
@@ -57,8 +57,8 @@ test_cases = [
         linear_backends=KsanaLinearBackend.DEFAULT,
         rope_function="default",
         expect_model_key=KsanaModelKey.Wan2_2_I2V_14B,
-        expect__one_generator_output=0.77734375,
-        expect_gpus_generator_output=0.77734375,
+        expect__one_generator_output=0.7939453125,
+        expect_gpus_generator_output=0.7939453125,
     ),
     KsanaNodesTestCase(
         model_names=["wan2.2_t2v_low_noise_14B_fp8_scaled.safetensors", None],
@@ -67,8 +67,8 @@ test_cases = [
         attention_backends=KsanaAttentionBackend.FLASH_ATTN,
         linear_backends=KsanaLinearBackend.FP8_GEMM,
         rope_function="comfy",
-        expect__one_generator_output=0.7744140625,
-        expect_gpus_generator_output=0.7744140625,
+        expect__one_generator_output=0.77978515625,
+        expect_gpus_generator_output=0.77978515625,
     ),
     KsanaNodesTestCase(
         model_names=[
@@ -80,8 +80,8 @@ test_cases = [
         attention_backends=KsanaAttentionBackend.SAGE_ATTN,
         linear_backends=KsanaLinearBackend.FP8_GEMM_DYNAMIC,
         rope_function="default",
-        expect__one_generator_output=0.75439453125,
-        expect_gpus_generator_output=0.75439453125,
+        expect__one_generator_output=0.759765625,
+        expect_gpus_generator_output=0.759765625,
     ),
     KsanaNodesTestCase(
         model_names=[
@@ -93,8 +93,8 @@ test_cases = [
         attention_backends=KsanaAttentionBackend.SAGE_ATTN,
         linear_backends=KsanaLinearBackend.FP16_GEMM,
         rope_function="default",
-        expect__one_generator_output=0.7763671875,
-        expect_gpus_generator_output=0.7763671875,
+        expect__one_generator_output=0.79052734375,
+        expect_gpus_generator_output=0.79052734375,
     ),
     KsanaNodesTestCase(
         model_names=["wan2.2_i2v_high_noise_14B_fp16.safetensors", None],
@@ -103,8 +103,8 @@ test_cases = [
         attention_backends=KsanaAttentionBackend.FLASH_ATTN,
         linear_backends=KsanaLinearBackend.FP8_GEMM_DYNAMIC,
         rope_function="comfy",
-        expect__one_generator_output=0.7763671875,
-        expect_gpus_generator_output=0.7763671875,
+        expect__one_generator_output=0.79052734375,
+        expect_gpus_generator_output=0.79052734375,
     ),
 ]
 

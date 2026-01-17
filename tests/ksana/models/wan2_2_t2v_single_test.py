@@ -60,8 +60,9 @@ class TestKsana(unittest.TestCase):
     def test_batch_size_per_prompt(self):
         print("-----------------test_batch_size_per_prompt-----------------")
         pipeline = KsanaPipeline.from_models("./Wan2.2-T2V-A14B")
+        batch_size_per_prompts = [2, 3]
         videos = pipeline.generate(
-            prompts[0],
+            prompts,
             sample_config=KsanaSampleConfig(steps=TEST_STEPS),
             runtime_config=KsanaRuntimeConfig(
                 seed=SEED,
@@ -69,11 +70,13 @@ class TestKsana(unittest.TestCase):
                 frame_num=TEST_FRAME_NUM,
                 return_frames=True,
                 save_output=True,
-                batch_size_per_prompts=2,
+                batch_size_per_prompts=[2, 3],
             ),
         )
         with self.subTest(msg="Shape Check"):
-            self.assertEqual(list(videos.shape), [len(prompts), 3, TEST_FRAME_NUM, TEST_SIZE[1], TEST_SIZE[0]])
+            self.assertEqual(
+                list(videos.shape), [sum(batch_size_per_prompts), 3, TEST_FRAME_NUM, TEST_SIZE[1], TEST_SIZE[0]]
+            )
         mean0 = videos[0].cpu().abs().mean().item()
         mean1 = videos[1].cpu().abs().mean().item()
 

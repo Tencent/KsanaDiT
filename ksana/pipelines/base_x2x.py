@@ -270,7 +270,7 @@ class KsanaPipeline(ABC):
                     f"vae_checkpoint_dir must be provided when loading from local checkpoint "
                     f"with diffusion model {model_path}"
                 )
-            load_model_path = [model_path]
+            load_model_path = list(model_path)
         elif Path(model_path).is_dir():
             text_checkpoint_dir = text_checkpoint_dir or model_path
             vae_checkpoint_dir = vae_checkpoint_dir or model_path
