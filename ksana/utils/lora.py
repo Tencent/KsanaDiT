@@ -114,17 +114,12 @@ def merge_lora_weight(
             assert lora_up.dtype == torch.float32
             assert lora_down.dtype == torch.float32
             delta_w_ = strength * scaling_factor * torch.matmul(lora_up, lora_down)
-
-            # Reuse tensor cache to reduce memory usage
-            temp = torch.empty_like(value, dtype=torch.float32)
             if value.dtype in [torch.float8_e4m3fn, torch.float8_e5m2]:
                 # FP8 类型需要先转换为 float32 再计算
                 scale = get_weight_scale(model_sd, key, device=value.device)
-                temp.copy_(value.data).mul_(scale.to(dtype=torch.float32)).add_(delta_w_)
-                value.data.copy_(temp.to(run_dtype))
+                value.data = ((value.to(dtype=torch.float32) * scale.to(dtype=torch.float32)) + delta_w_).to(run_dtype)
             else:
-                temp.copy_(value.data).add_(delta_w_)
-                value.data.copy_(temp.to(run_dtype))
+                value.data = (value.data + delta_w_).to(run_dtype)
             merged_cnt += 1
     log.info(f"merged {merged_cnt} lora weights")
     return model_sd
