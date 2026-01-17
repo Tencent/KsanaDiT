@@ -1,5 +1,4 @@
 import copy
-import os
 from dataclasses import is_dataclass, replace
 from pathlib import Path
 
@@ -66,12 +65,6 @@ def is_file_or_dir(path):
     if not path.exists():
         return False
     return path.is_file() or path.is_dir()
-
-
-def is_dir(path):
-    if path is None or isinstance(path, (list, tuple)):
-        return False
-    return os.path.isdir(path) and os.path.exists(path)
 
 
 def any_key_in_str(key_list: list[str], full_str: str) -> int | None:

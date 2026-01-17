@@ -1,6 +1,7 @@
 # adapt from wan
 
-import os
+
+from pathlib import Path
 
 import torch
 import torch.nn as nn
@@ -9,7 +10,6 @@ from .distribute import get_rank_id
 from .load import batch_safetensors_by_size, load_file_to_state_dict, load_files_to_state_dict
 from .logger import log
 from .profile import time_range
-from .types import is_dir
 
 
 def model_safe_downcast(
@@ -151,9 +151,9 @@ def load_state_dict_and_merge_lora(model_path: str, loras_list=None, run_dtype: 
 
     log.info(f"load_state_dict_and_merge_lora on rank {get_rank_id()} via device {device}")
 
-    if os.path.isfile(model_path):
+    if Path(model_path).is_file():
         files_list = [[model_path]]
-    elif is_dir(model_path):
+    elif Path(model_path).is_dir():
         # group files by size to reduce memory usage
         files_list = batch_safetensors_by_size(model_path)
     else:

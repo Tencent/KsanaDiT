@@ -47,14 +47,13 @@ class KsanaModelPool:
         """clear models loaded by this executor
         clear all if model_keys is None
         """
+        log.info(f"clear models {model_keys}")
         if model_keys is None:
-            log.info("clear all models when input model_keys is None")
             self.loaded_models.clear()
             self.loaded_models = {}
             gc.collect()
             torch.cuda.empty_cache()
             return
-
         if not isinstance(model_keys, (list, tuple)):
             model_keys = [model_keys]
         for one_model_key in model_keys:

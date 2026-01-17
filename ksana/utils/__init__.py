@@ -10,7 +10,7 @@ from .media import merge_video_audio, save_video
 from .ops import cast_bias_weight, stochastic_rounding, supports_fp8_compute
 from .profile import KsanaProfiler, MemoryProfiler, nvtx_range, time_range
 from .sample_solver import apply_sigma_shift, get_sigmas_with_denoise
-from .types import any_key_in_str, evolve_with_recommend, is_dir, is_file_or_dir, str_to_list
+from .types import any_key_in_str, evolve_with_recommend, is_file_or_dir, str_to_list
 
 __all__ = [
     "Factory",
@@ -23,7 +23,6 @@ __all__ = [
     "reset_logging",
     "singleton",
     "evolve_with_recommend",
-    "is_dir",
     "str_to_list",
     "is_file_or_dir",
     "any_key_in_str",

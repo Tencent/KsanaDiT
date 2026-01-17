@@ -55,9 +55,11 @@ class KsanaPipeline(ABC):
         return f"{self.pipeline_key.name}"
 
     def clear(self):
-        self.text_encoder_key = None
+        if self.engine:
+            self.engine.clear_models()
         self.vae_model_key = None
-        self.diffusion_model_keys = None
+        self.diffusion_model_key = None
+        self.text_encoder_model = None
         self.has_lora = False
 
     def _valid_sample_config(self, sample_config: KsanaSampleConfig, default_configs):
@@ -176,36 +178,17 @@ class KsanaPipeline(ABC):
                 output_idx += 1
 
     @staticmethod
-    def _valid_input_model_paths(model_path, text_checkpoint_dir, vae_checkpoint_dir):
+    def get_pipeline_key_from_inputs(pipeline_key, model_path, text_checkpoint_dir, vae_checkpoint_dir):
+        if pipeline_key is not None:
+            return pipeline_key
+        if model_path is None:
+            raise ValueError(f"model_path {model_path} must be provided when pipeline_key is None")
+        if isinstance(model_path, str) and not Path(model_path).exists():
+            raise ValueError(f"model_path {model_path} does not exist")
+        path = None
         if isinstance(model_path, (list, tuple)):
-            if not Path(text_checkpoint_dir).is_dir():
-                raise ValueError(
-                    f"text_checkpoint_dir must be provided when loading from local checkpoint "
-                    f"with diffusion model {model_path}"
-                )
-            if not Path(vae_checkpoint_dir).is_dir():
-                raise ValueError(
-                    f"vae_checkpoint_dir must be provided when loading from local checkpoint "
-                    f"with diffusion model {model_path}"
-                )
-        elif Path(model_path).is_dir():
-            text_checkpoint_dir = text_checkpoint_dir or model_path
-            vae_checkpoint_dir = vae_checkpoint_dir or model_path
-        else:
-            raise ValueError(f"model_path {model_path} should be a directory or list of diffusion model files")
-        return model_path, text_checkpoint_dir, vae_checkpoint_dir
-
-    # TODO(TJ): optimize me with _valid_input_model_paths
-    def _valid_input_models_path(self, model_path, diffusion_default_settings):
-        load_model_path = model_path
-        if self.model_key in [KsanaModelKey.Wan2_2_I2V_14B, KsanaModelKey.Wan2_2_T2V_14B]:
-            load_model_path = [
-                os.path.join(model_path, diffusion_default_settings.high_noise_checkpoint),
-                os.path.join(model_path, diffusion_default_settings.low_noise_checkpoint),
-            ]
-        else:
-            load_model_path = model_path
-        return load_model_path
+            path = text_checkpoint_dir or vae_checkpoint_dir
+        return get_model_key_from_path(model_path if path is None else text_checkpoint_dir)
 
     @staticmethod
     def from_models(
@@ -213,22 +196,22 @@ class KsanaPipeline(ABC):
         *,
         model_config: KsanaModelConfig = None,
         dist_config: KsanaDistributedConfig = None,
+        pipeline_key: KsanaModelKey = None,  # used model key as pipeline key now
         text_checkpoint_dir=None,
         vae_checkpoint_dir=None,
         lora: None | str | list[list[dict], list[dict]] = None,
         offload_device="cpu",
     ) -> list[KsanaModel]:
         log.info(f"Loading models from {model_path}")
-        model_path, text_checkpoint_dir, vae_checkpoint_dir = KsanaPipeline._valid_input_model_paths(
-            model_path, text_checkpoint_dir, vae_checkpoint_dir
+        pipeline_key = KsanaPipeline.get_pipeline_key_from_inputs(
+            pipeline_key, model_path, text_checkpoint_dir, vae_checkpoint_dir
         )
         model_config = model_config or KsanaModelConfig()
         dist_config = dist_config or KsanaDistributedConfig()
         engine = get_engine(dist_config=dist_config, offload_device=offload_device)
-        model_key = get_model_key_from_path(model_path if text_checkpoint_dir is None else text_checkpoint_dir)
 
-        # maybe need create pipeline from registered factory
-        pipeline = KsanaPipeline(model_key, engine, offload_device)
+        # maybe cloud create pipeline as registered factory way with pipeline_key
+        pipeline = KsanaPipeline(pipeline_key, engine, offload_device)
         pipeline.load_models(
             model_path,
             model_config=model_config,
@@ -274,6 +257,32 @@ class KsanaPipeline(ABC):
             raise NotImplementedError(f"lora {lora} not supported in pipeline {self.model_key} yet")
         return list_of_loras_list
 
+    def _valid_input_models_path(self, model_path, text_checkpoint_dir, vae_checkpoint_dir, diffusion_default_settings):
+        load_model_path = model_path
+        if isinstance(model_path, (list, tuple)):
+            if not Path(text_checkpoint_dir).is_dir():
+                raise ValueError(
+                    f"text_checkpoint_dir must be provided when loading from local checkpoint "
+                    f"with diffusion model {model_path}"
+                )
+            if not Path(vae_checkpoint_dir).is_dir():
+                raise ValueError(
+                    f"vae_checkpoint_dir must be provided when loading from local checkpoint "
+                    f"with diffusion model {model_path}"
+                )
+            load_model_path = [model_path]
+        elif Path(model_path).is_dir():
+            text_checkpoint_dir = text_checkpoint_dir or model_path
+            vae_checkpoint_dir = vae_checkpoint_dir or model_path
+            if self.model_key in [KsanaModelKey.Wan2_2_I2V_14B, KsanaModelKey.Wan2_2_T2V_14B]:
+                load_model_path = [
+                    os.path.join(model_path, diffusion_default_settings.high_noise_checkpoint),
+                    os.path.join(model_path, diffusion_default_settings.low_noise_checkpoint),
+                ]
+        else:
+            raise ValueError(f"model_path {model_path} should be a directory or list of diffusion model files")
+        return load_model_path, text_checkpoint_dir, vae_checkpoint_dir
+
     def load_models(
         self,
         model_path,
@@ -283,15 +292,19 @@ class KsanaPipeline(ABC):
         vae_checkpoint_dir=None,
         lora: None | str | list[list[dict], list[dict]] = None,
     ) -> list[KsanaModel]:
-        self.engine.clear_models()
-        # keep lora flag for output name
-        self.has_lora = lora is not None
         self.default_settings = load_default_settings(self.pipeline_key)
+        load_model_path, text_checkpoint_dir, vae_checkpoint_dir = self._valid_input_models_path(
+            model_path, text_checkpoint_dir, vae_checkpoint_dir, self.default_settings.diffusion
+        )
+        self.clear()
 
+        # 1. load text encoder
         # TODO: use load_text_encoder in engine in future
         self.text_encoder_model = self._load_text_encoder(text_checkpoint_dir, self.default_settings.text_encoder)
 
-        load_model_path = self._valid_input_models_path(model_path, self.default_settings.diffusion)
+        # 2. load diffusion model
+        # keep lora flag for output name
+        self.has_lora = lora is not None
         list_of_loras_list = self._valid_input_lora(lora, self.default_settings.diffusion)
         self.diffusion_model_key = self.engine.load_diffusion_model(
             load_model_path,
@@ -299,6 +312,8 @@ class KsanaPipeline(ABC):
             lora=list_of_loras_list,
             model_config=model_config,
         )
+
+        # 3. load vae model
         self.vae_model_key = self.engine.load_vae_model(
             os.path.join(vae_checkpoint_dir, self.default_settings.vae.checkpoint),
         )
