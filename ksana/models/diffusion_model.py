@@ -97,6 +97,28 @@ class KsanaDiffusionModel(KsanaModel):
         )
         self._preallocated_pinned_memory = True
 
+        # Promptly migrate model to pinned memory to avoid duplicate copies in memory
+        self._migrate_model_to_pinned_memory()
+
+    def _migrate_model_to_pinned_memory(self):
+        cnt = 0
+
+        def _process_tensor(name, tensor, key_prefix=""):
+            nonlocal cnt
+            if not tensor.is_pinned():
+                key = f"{key_prefix}{name}" if key_prefix else name
+                self._pinned_params[key].copy_(tensor)
+                tensor.data = self._pinned_params[key]
+                cnt += 1
+
+        for name, param in self.model.named_parameters():
+            _process_tensor(name, param)
+
+        for name, buffer in self.model.named_buffers():
+            _process_tensor(name, buffer, key_prefix=self.buffer_prefix)
+
+        log.debug(f"{cnt} parameters migrated to pinned memory")
+
     @abstractmethod
     @time_range
     def load(
@@ -195,10 +217,9 @@ class KsanaDiffusionModel(KsanaModel):
                     # 从 pinned memory 直接传输到 GPU（快）
                     tensor.data = tensor.to(device, non_blocking=True)
                 else:
-                    # 如果不在 pinned memory，先转到 pinned memory
-                    key = f"{key_prefix}{name}" if key_prefix else name
-                    self._pinned_params[key].copy_(tensor)
-                    tensor.data = self._pinned_params[key].to(device, non_blocking=True)
+                    raise RuntimeError(
+                        f"Tensor {name} is not pinned. it should have been migrated to pinned memory in advance."
+                    )
 
         for name, param in self.model.named_parameters():
             _process_tensor(name, param)

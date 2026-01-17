@@ -188,13 +188,24 @@ class KsanaPipeline(ABC):
                     f"vae_checkpoint_dir must be provided when loading from local checkpoint "
                     f"with diffusion model {model_path}"
                 )
-            model_path = list(model_path)
         elif Path(model_path).is_dir():
             text_checkpoint_dir = text_checkpoint_dir or model_path
             vae_checkpoint_dir = vae_checkpoint_dir or model_path
         else:
             raise ValueError(f"model_path {model_path} should be a directory or list of diffusion model files")
         return model_path, text_checkpoint_dir, vae_checkpoint_dir
+
+    # TODO(TJ): optimize me with _valid_input_model_paths
+    def _valid_input_models_path(self, model_path, diffusion_default_settings):
+        load_model_path = model_path
+        if self.model_key in [KsanaModelKey.Wan2_2_I2V_14B, KsanaModelKey.Wan2_2_T2V_14B]:
+            load_model_path = [
+                os.path.join(model_path, diffusion_default_settings.high_noise_checkpoint),
+                os.path.join(model_path, diffusion_default_settings.low_noise_checkpoint),
+            ]
+        else:
+            load_model_path = model_path
+        return load_model_path
 
     @staticmethod
     def from_models(
@@ -242,17 +253,6 @@ class KsanaPipeline(ABC):
         if self.offload_device:
             text_encoder.to(self.offload_device)
         return text_encoder
-
-    def _valid_input_models_path(self, model_path, diffusion_default_settings):
-        load_model_path = model_path
-        if self.model_key in [KsanaModelKey.Wan2_2_I2V_14B, KsanaModelKey.Wan2_2_T2V_14B]:
-            load_model_path = [
-                os.path.join(model_path, diffusion_default_settings.high_noise_checkpoint),
-                os.path.join(model_path, diffusion_default_settings.low_noise_checkpoint),
-            ]
-        else:
-            load_model_path = model_path
-        return load_model_path
 
     def _valid_input_lora(self, lora: str | list[str], diffusion_default_settings):
         if lora is None:
