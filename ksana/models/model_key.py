@@ -71,8 +71,6 @@ def get_model_key_from_path(model_path: str | list[str]):
             # model_name = QWEN_IMAGE[0]
             # model_type = "t2i"
             # model_size = "20B"
-            # log.info(f"model_name:{model_name}, task_type: {model_type}, model_size: {model_size}")
-            # return model_name, model_type, model_size
             return KsanaModelKey.QwenImage_T2I
         elif any_key_in_str(WAN2_2, file_name) is not None:
             idx = any_key_in_str(X2V_TYPES, file_name)
