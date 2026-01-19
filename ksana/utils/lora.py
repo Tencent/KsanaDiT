@@ -130,13 +130,10 @@ def merge_lora_weight(
     return model_sd
 
 
-def build_loras_list(lora_path: str, strength=1.0):
-    # TODO(rock): remove list, not useful
-    return [{"path": lora_path, "strength": strength}]
-
-
 @time_range
-def load_state_dict_and_merge_lora(model_path: str, loras_list=None, run_dtype: torch.dtype = None, device=None):
+def load_state_dict_and_merge_lora(
+    model_path: str, loras_list: list = None, run_dtype: torch.dtype = None, device=None
+):
     sd = {}
 
     if loras_list is not None and run_dtype is None:
@@ -163,9 +160,9 @@ def load_state_dict_and_merge_lora(model_path: str, loras_list=None, run_dtype: 
         base_sd = load_files_to_state_dict(files, device=device)
 
         for lora in loras_list:
-            log.info(f"start to merge lora: {lora['path']}")
-            lora_sd = load_file_to_state_dict(lora["path"], device=device)
-            base_sd = merge_lora_weight(base_sd, lora_sd, run_dtype, strength=lora["strength"])
+            log.info(f"start to merge lora: {lora.path}")
+            lora_sd = load_file_to_state_dict(lora.path, device=device)
+            base_sd = merge_lora_weight(base_sd, lora_sd, run_dtype, strength=lora.strength)
             del lora_sd
 
         log.debug("start to offload to cpu")

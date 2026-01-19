@@ -85,7 +85,7 @@ class KsanaNodeModelLoader:
                 ),
                 model_config=model_config,
                 comfy_bar_callback=comfy_bar_callback,
-                lora=[high_model_loras_list, low_model_loras_list],
+                lora_config=[high_model_loras_list, low_model_loras_list],
             )
         except Exception as e:  # pylint: disable=broad-except
             cls.LOADED_MODEL = None

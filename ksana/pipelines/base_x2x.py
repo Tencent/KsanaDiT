@@ -18,6 +18,7 @@ from ..config import (
     KsanaSolverType,
 )
 from ..config.cache_config import KsanaCacheConfig, KsanaHybridCacheConfig
+from ..config.lora_config import KsanaLoraConfig
 from ..engine import KsanaEngine, get_engine
 from ..models import KsanaT5TextEncoderModel
 from ..models.base_model import KsanaModel
@@ -25,7 +26,6 @@ from ..models.model_key import KsanaModelKey, get_model_key_from_path
 from ..settings import load_default_settings
 from ..units import KsanaUnitFactory, KsanaUnitType
 from ..utils import log, merge_video_audio, time_range
-from ..utils.lora import build_loras_list
 from ..utils.media import save_image, save_video
 from ..utils.types import evolve_with_recommend, str_to_list
 
@@ -115,7 +115,14 @@ class KsanaPipeline(ABC):
     def _valid_cache_config(self, cache_config: KsanaCacheConfig, default_configs):  # pylint: disable=unused-argument
         if cache_config is None:
             return None
-        return [cache_config] if cache_config is not isinstance(cache_config, list) else cache_config
+        if isinstance(cache_config, (tuple, list)):
+            return list(cache_config)
+        elif isinstance(cache_config, (KsanaHybridCacheConfig, KsanaCacheConfig)):
+            return [cache_config]
+        else:
+            raise ValueError(
+                f"cache_config must be KsanaHybridCacheConfig or KsanaCacheConfig, but got {type(cache_config)}"
+            )
 
     def _valid_images(self, img_path, prompts_list_len: int):
         if img_path is None:
@@ -199,7 +206,7 @@ class KsanaPipeline(ABC):
         pipeline_key: KsanaModelKey = None,  # used model key as pipeline key now
         text_checkpoint_dir=None,
         vae_checkpoint_dir=None,
-        lora: None | str | list[list[dict], list[dict]] = None,
+        lora_config: None | KsanaLoraConfig | list[KsanaLoraConfig] = None,
         offload_device="cpu",
     ) -> list[KsanaModel]:
         log.info(f"Loading models from {model_path}")
@@ -217,7 +224,7 @@ class KsanaPipeline(ABC):
             model_config=model_config,
             text_checkpoint_dir=text_checkpoint_dir,
             vae_checkpoint_dir=vae_checkpoint_dir,
-            lora=lora,
+            lora_config=lora_config,
         )
         return pipeline
 
@@ -237,24 +244,41 @@ class KsanaPipeline(ABC):
             text_encoder.to(self.offload_device)
         return text_encoder
 
-    def _valid_input_lora(self, lora: str | list[str], diffusion_default_settings):
-        if lora is None:
+    def _valid_input_lora(self, lora_config: KsanaLoraConfig | list[KsanaLoraConfig], diffusion_default_settings):
+        if lora_config is None:
             return None
-        list_of_loras_list = None
-        if self.model_key in [KsanaModelKey.Wan2_2_I2V_14B, KsanaModelKey.Wan2_2_T2V_14B]:
-            if Path(lora).is_dir():
-                lora_dir = lora
-                list_of_loras_list = []
-                list_of_loras_list.append(
-                    build_loras_list(os.path.join(lora_dir, diffusion_default_settings.high_noise_lora_checkpoint))
-                )
-                list_of_loras_list.append(
-                    build_loras_list(os.path.join(lora_dir, diffusion_default_settings.low_noise_lora_checkpoint))
-                )
-            else:
-                raise ValueError(f"lora {lora} must be a directory in {self.model_key}")
+        lora_list = []
+        if isinstance(lora_config, KsanaLoraConfig):
+            lora_list = [lora_config]
+        elif isinstance(lora_config, (list, tuple)):
+            lora_list = list(lora_config)
         else:
-            raise NotImplementedError(f"lora {lora} not supported in pipeline {self.model_key} yet")
+            raise ValueError(f"lora_config {lora_config} must be a KsanaLoraConfig or a list of KsanaLoraConfig")
+        list_of_loras_list = []
+        if self.model_key in [KsanaModelKey.Wan2_2_I2V_14B, KsanaModelKey.Wan2_2_T2V_14B]:
+            lora_list_high = []
+            lora_list_low = []
+            for one_lora in lora_list:
+                if not isinstance(one_lora, KsanaLoraConfig):
+                    raise ValueError(f"one_lora {one_lora} must be a KsanaLoraConfig")
+                if not Path(one_lora.path).is_dir():
+                    raise ValueError(f"one_lora.path {one_lora.path} must be a directory for {self.model_key}")
+                lora_list_high.append(
+                    KsanaLoraConfig(
+                        path=os.path.join(one_lora.path, diffusion_default_settings.high_noise_lora_checkpoint),
+                        strength=one_lora.strength,
+                    )
+                )
+                lora_list_low.append(
+                    KsanaLoraConfig(
+                        path=os.path.join(one_lora.path, diffusion_default_settings.low_noise_lora_checkpoint),
+                        strength=one_lora.strength,
+                    )
+                )
+            # [high: multi lora list[KsanaLoraConfig], low: multi lora list[KsanaLoraConfig]]
+            list_of_loras_list = [lora_list_high, lora_list_low]
+        else:
+            list_of_loras_list = [lora_list]
         return list_of_loras_list
 
     def _valid_input_models_path(self, model_path, text_checkpoint_dir, vae_checkpoint_dir, diffusion_default_settings):
@@ -290,9 +314,10 @@ class KsanaPipeline(ABC):
         model_config: KsanaModelConfig = None,
         text_checkpoint_dir=None,
         vae_checkpoint_dir=None,
-        lora: None | str | list[list[dict], list[dict]] = None,
+        lora_config: None | KsanaLoraConfig | list[KsanaLoraConfig] = None,
     ) -> list[KsanaModel]:
-        self.default_settings = load_default_settings(self.pipeline_key)
+        self.has_lora = lora_config is not None
+        self.default_settings = load_default_settings(self.pipeline_key, with_lora=self.has_lora)
         load_model_path, text_checkpoint_dir, vae_checkpoint_dir = self._valid_input_models_path(
             model_path, text_checkpoint_dir, vae_checkpoint_dir, self.default_settings.diffusion
         )
@@ -303,13 +328,11 @@ class KsanaPipeline(ABC):
         self.text_encoder_model = self._load_text_encoder(text_checkpoint_dir, self.default_settings.text_encoder)
 
         # 2. load diffusion model
-        # keep lora flag for output name
-        self.has_lora = lora is not None
-        list_of_loras_list = self._valid_input_lora(lora, self.default_settings.diffusion)
+        list_of_loras_list = self._valid_input_lora(lora_config, self.default_settings.diffusion)
         self.diffusion_model_key = self.engine.load_diffusion_model(
             load_model_path,
             model_key=self.model_key,
-            lora=list_of_loras_list,
+            lora_config=list_of_loras_list,
             model_config=model_config,
         )
 

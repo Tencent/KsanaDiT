@@ -10,6 +10,7 @@ from ksana.config import (
     KsanaAttentionBackend,
     KsanaAttentionConfig,
     KsanaDistributedConfig,
+    KsanaLoraConfig,
     KsanaModelConfig,
     KsanaRuntimeConfig,
     KsanaSampleConfig,
@@ -69,7 +70,7 @@ def run_start_and_end_with_lora(args):
         f"{args.model_dir}/Wan2.2-I2V-A14B",
         dist_config=KsanaDistributedConfig(num_gpus=NUM_GPUS),
         model_config=model_config,
-        lora=f"{args.model_dir}/Wan2.2-Lightning/Wan2.2-I2V-A14B-4steps-lora-rank64-Seko-V1",
+        lora_config=KsanaLoraConfig(f"{args.model_dir}/Wan2.2-Lightning/Wan2.2-I2V-A14B-4steps-lora-rank64-Seko-V1"),
     )
 
     sample_config = KsanaSampleConfig(

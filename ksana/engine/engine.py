@@ -132,10 +132,10 @@ class KsanaEngine(ABC):
             else:
                 if self._check_callable_key_in_map(self.FUNC_KEY_PRE_LOCAL, pre_func_map):
                     pre_func_map[self.FUNC_KEY_PRE_LOCAL](*args, **kwargs)
-                this_func = getattr(self.executors, method_name)
-                if this_func is None:
+                executor_func = getattr(self.executors, method_name)
+                if executor_func is None:
                     raise ValueError(f"method_name {method_name} not found in executors")
-                func_return = this_func(*args, **kwargs)
+                func_return = executor_func(*args, **kwargs)
                 log.debug(f"method_name {method_name} single result: {func_return}")
                 return func_return
 
