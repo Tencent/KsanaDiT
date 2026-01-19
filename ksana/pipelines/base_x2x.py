@@ -184,50 +184,6 @@ class KsanaPipeline(ABC):
                 save_one_func(output, save_path)
                 output_idx += 1
 
-    @staticmethod
-    def get_pipeline_key_from_inputs(pipeline_key, model_path, text_checkpoint_dir, vae_checkpoint_dir):
-        if pipeline_key is not None:
-            return pipeline_key
-        if model_path is None:
-            raise ValueError(f"model_path {model_path} must be provided when pipeline_key is None")
-        if isinstance(model_path, str) and not Path(model_path).exists():
-            raise ValueError(f"model_path {model_path} does not exist")
-        path = None
-        if isinstance(model_path, (list, tuple)):
-            path = text_checkpoint_dir or vae_checkpoint_dir
-        return get_model_key_from_path(model_path if path is None else text_checkpoint_dir)
-
-    @staticmethod
-    def from_models(
-        model_path,
-        *,
-        model_config: KsanaModelConfig = None,
-        dist_config: KsanaDistributedConfig = None,
-        pipeline_key: KsanaModelKey = None,  # used model key as pipeline key now
-        text_checkpoint_dir=None,
-        vae_checkpoint_dir=None,
-        lora_config: None | KsanaLoraConfig | list[KsanaLoraConfig] = None,
-        offload_device="cpu",
-    ) -> list[KsanaModel]:
-        log.info(f"Loading models from {model_path}")
-        pipeline_key = KsanaPipeline.get_pipeline_key_from_inputs(
-            pipeline_key, model_path, text_checkpoint_dir, vae_checkpoint_dir
-        )
-        model_config = model_config or KsanaModelConfig()
-        dist_config = dist_config or KsanaDistributedConfig()
-        engine = get_engine(dist_config=dist_config, offload_device=offload_device)
-
-        # maybe cloud create pipeline as registered factory way with pipeline_key
-        pipeline = KsanaPipeline(pipeline_key, engine, offload_device)
-        pipeline.load_models(
-            model_path,
-            model_config=model_config,
-            text_checkpoint_dir=text_checkpoint_dir,
-            vae_checkpoint_dir=vae_checkpoint_dir,
-            lora_config=lora_config,
-        )
-        return pipeline
-
     def _load_text_encoder(self, text_checkpoint_dir, default_text_settings):
         if self.pipeline_key in [KsanaModelKey.Wan2_2_I2V_14B, KsanaModelKey.Wan2_2_T2V_14B]:
             text_encoder = KsanaT5TextEncoderModel(
@@ -306,6 +262,50 @@ class KsanaPipeline(ABC):
         else:
             raise ValueError(f"model_path {model_path} should be a directory or list of diffusion model files")
         return load_model_path, text_checkpoint_dir, vae_checkpoint_dir
+
+    @staticmethod
+    def get_pipeline_key_from_inputs(pipeline_key, model_path, text_checkpoint_dir, vae_checkpoint_dir):
+        if pipeline_key is not None:
+            return pipeline_key
+        if model_path is None:
+            raise ValueError(f"model_path {model_path} must be provided when pipeline_key is None")
+        if isinstance(model_path, str) and not Path(model_path).exists():
+            raise ValueError(f"model_path {model_path} does not exist")
+        path = None
+        if isinstance(model_path, (list, tuple)):
+            path = text_checkpoint_dir or vae_checkpoint_dir
+        return get_model_key_from_path(model_path if path is None else text_checkpoint_dir)
+
+    @staticmethod
+    def from_models(
+        model_path,
+        *,
+        model_config: KsanaModelConfig = None,
+        dist_config: KsanaDistributedConfig = None,
+        pipeline_key: KsanaModelKey = None,  # used model key as pipeline key now
+        text_checkpoint_dir=None,
+        vae_checkpoint_dir=None,
+        lora_config: None | KsanaLoraConfig | list[KsanaLoraConfig] = None,
+        offload_device="cpu",
+    ) -> list[KsanaModel]:
+        log.info(f"Loading models from {model_path}")
+        pipeline_key = KsanaPipeline.get_pipeline_key_from_inputs(
+            pipeline_key, model_path, text_checkpoint_dir, vae_checkpoint_dir
+        )
+        model_config = model_config or KsanaModelConfig()
+        dist_config = dist_config or KsanaDistributedConfig()
+        engine = get_engine(dist_config=dist_config, offload_device=offload_device)
+
+        # maybe cloud create pipeline as registered factory way with pipeline_key
+        pipeline = KsanaPipeline(pipeline_key, engine, offload_device)
+        pipeline.load_models(
+            model_path,
+            model_config=model_config,
+            text_checkpoint_dir=text_checkpoint_dir,
+            vae_checkpoint_dir=vae_checkpoint_dir,
+            lora_config=lora_config,
+        )
+        return pipeline
 
     def load_models(
         self,

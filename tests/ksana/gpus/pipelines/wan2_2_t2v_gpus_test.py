@@ -25,6 +25,7 @@ TEST_EPS_PLACE = 4
 TEST_PORT = int(os.environ.get("KSANA_TEST_PORT", 29500))
 
 
+# TODO(TJ): use same test with single gpu
 class TestKsanaGpus(unittest.TestCase):
 
     def test_simple_gpus(self):

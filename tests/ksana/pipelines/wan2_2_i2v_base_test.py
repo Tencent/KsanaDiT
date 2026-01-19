@@ -21,7 +21,7 @@ TEST_FRAME_NUM = 9
 TEST_EPS_PLACE = 7
 
 
-class TestKsanaI2V(unittest.TestCase):
+class TestKsanaPipelineWanI2V(unittest.TestCase):
 
     def test_simple_i2v(self):
         print("-----------------test_simple_i2v-----------------")
