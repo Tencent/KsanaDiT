@@ -34,7 +34,7 @@ def warp_as_hybrid_cache(
     if isinstance(cache_config, KsanaHybridCacheConfig):
         return cache_config
     if cache_config is None or not isinstance(cache_config, KsanaCacheConfig):
-        raise ValueError("cache_config must be provided")
+        raise ValueError(f"cache_config must be provided, but got {cache_config}")
     if isinstance(cache_config, KsanaBlockCacheConfig):
         return KsanaHybridCacheConfig(name=cache_config.name, block_cache=cache_config)
     elif isinstance(cache_config, KsanaStepCacheConfig):

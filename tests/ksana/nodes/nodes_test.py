@@ -193,6 +193,7 @@ class TestNodes(unittest.TestCase):
         pass
 
     def test_lora(self):
+        # TODO(TJ):一个lora， 多个lora
         pass
 
 

@@ -10,6 +10,7 @@ from ksana.config import (
     KsanaAttentionBackend,
     KsanaAttentionConfig,
     KsanaDistributedConfig,
+    KsanaLoraConfig,
     KsanaModelConfig,
     KsanaRadialSageAttentionConfig,
     KsanaRuntimeConfig,
@@ -157,7 +158,7 @@ def run_fast(args):
     pipeline = KsanaPipeline.from_models(
         f"{args.model_dir}/Wan2.2-T2V-A14B",
         model_config=model_config,
-        lora=f"{args.model_dir}/Wan2.2-Lightning/Wan2.2-T2V-A14B-4steps-lora-rank64-Seko-V1",
+        lora_config=KsanaLoraConfig(f"{args.model_dir}/Wan2.2-Lightning/Wan2.2-T2V-A14B-4steps-lora-rank64-Seko-V1"),
         dist_config=KsanaDistributedConfig(num_gpus=NUM_GPUS),
     )
 

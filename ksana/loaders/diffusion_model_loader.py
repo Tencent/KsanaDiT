@@ -1,7 +1,6 @@
 import os
-from pathlib import Path
 
-from ..config import KsanaModelConfig
+from ..config import KsanaLoraConfig, KsanaModelConfig
 from ..models import KsanaModel, KsanaQwenImageModel, KsanaWanModel
 from ..models.model_key import KsanaModelKey
 from ..settings import load_default_settings
@@ -27,15 +26,24 @@ class KsanaDiffusionLoader(KsanaLoaderUnit):
             raise ValueError(f"model_path must be a file/dir or a list of file/dir, but got {model_path}")
         return load_model_path_or_files
 
-    def _valid_input_lora(self, lora: None | list[list[dict]]):
-        if lora is None:
+    def _valid_input_lora(self, lora_config: None | list[list[KsanaLoraConfig]]):
+        if lora_config is None:
             return None
-        if isinstance(lora, str) and not Path(lora).is_file():
-            raise ValueError(f"lora {lora} must be a file")
+        if not isinstance(lora_config, (list, tuple)):
+            raise ValueError(f"lora_config must be list of list of KsanaLoraConfig, but got {lora_config}")
 
-        if not isinstance(lora, (list, tuple)):
-            raise ValueError(f"lora must be list of dict or files, but got {lora}")
-        return lora
+        check_list = []
+        if self.model_key in [KsanaModelKey.Wan2_2_I2V_14B, KsanaModelKey.Wan2_2_T2V_14B]:
+            if len(lora_config) != 2:
+                raise ValueError(f"len of lora_config list must be 2 for {self.model_key}, but got {lora_config}")
+            check_list = lora_config[0] + lora_config[1]
+        else:
+            if len(lora_config) != 1:
+                raise ValueError(f"len of lora_config list must be 1 for {self.model_key}, but got {lora_config}")
+            check_list = lora_config[0]
+        if any(not isinstance(one, KsanaLoraConfig) for one in check_list):
+            raise ValueError(f"lora_config must be list of KsanaLoraConfig, but got {lora_config}")
+        return lora_config
 
 
 @KsanaUnitFactory.register(KsanaUnitType.LOADER, [KsanaModelKey.Wan2_2_I2V_14B, KsanaModelKey.Wan2_2_T2V_14B])
@@ -46,8 +54,8 @@ class KsanaWanVideoLoader(KsanaDiffusionLoader):
         self,
         model_path: str | list[str],
         *,
-        lora: None | list[list[dict]] = None,
         model_config: KsanaModelConfig = None,
+        lora_config: None | list[list[KsanaLoraConfig]] = None,
         dist_config=None,
         device=None,
         offload_device=None,
@@ -56,7 +64,7 @@ class KsanaWanVideoLoader(KsanaDiffusionLoader):
     ) -> list[KsanaModel]:
         log.info(f"load_model_from: {model_path}")
         load_model_path_or_files = self._valid_input_model_path(model_path)
-        list_of_loras_list = self._valid_input_lora(lora)
+        list_of_loras_list = self._valid_input_lora(lora_config)
         self.default_settings = load_default_settings(self.model_key, with_lora=list_of_loras_list is not None)
 
         res = []

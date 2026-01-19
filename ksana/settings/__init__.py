@@ -32,7 +32,7 @@ def load_default_settings(model_key: KsanaModelKey, with_lora: bool = False):
     if model_key not in _MODEL_KEY_TO_CONF_PATH_MAP:
         raise ValueError(f"model_key {model_key} does not have default settings yet!")
     conf = _load_settings(os.path.join(_current_dir, _MODEL_KEY_TO_CONF_PATH_MAP[model_key]))
-    if model_key == KsanaModelKey.Wan2_2_I2V_14B and with_lora:
+    if model_key in [KsanaModelKey.Wan2_2_I2V_14B, KsanaModelKey.Wan2_2_T2V_14B] and with_lora:
         conf = OmegaConf.merge(conf, _load_settings(os.path.join(_current_dir, "wan/modules/lora.yaml")))
     return conf
 

@@ -10,6 +10,7 @@ from .cache_config import (
     TeaCacheConfig,
 )
 from .distributed_config import KsanaDistributedConfig
+from .lora_config import KsanaLoraConfig
 from .model_config import KsanaModelConfig
 from .runtime_config import KsanaRuntimeConfig
 from .sample_config import KsanaSampleConfig, KsanaSolverType
@@ -30,6 +31,7 @@ __all__ = [
     "KsanaSolverType",
     "KsanaModelConfig",
     "KsanaRuntimeConfig",
+    "KsanaLoraConfig",
     "KsanaTorchCompileConfig",
     "KsanaDistributedConfig",
     "KsanaRadialSageAttentionConfig",
