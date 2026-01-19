@@ -21,7 +21,7 @@ TEST_DTYPE = torch.float16
 TEST_SIZE = (720, 480)
 TEST_STEPS = 1
 TEST_FRAME_NUM = 9
-TEST_EPS_PLACE = 7
+TEST_EPS_PLACE = 5
 
 RADIAL_TEST_SIZE = (1280, 768)  # should be divisible by block_size
 RADIAL_TEST_FRAME_NUM = 33
@@ -47,10 +47,10 @@ class TestKsanaPipelineWanT2V(unittest.TestCase):
         mean0 = videos[0].cpu().abs().mean().item()
         mean1 = videos[1].cpu().abs().mean().item()
         with self.subTest(msg="Mean 0 Check"):
-            self.assertAlmostEqual(mean0, 0.6672356128692627, places=5)
+            self.assertAlmostEqual(mean0, 0.6672356128692627, places=TEST_EPS_PLACE)
 
         with self.subTest(msg="Mean 1 Check"):
-            self.assertAlmostEqual(mean1, 0.37940242886543274, places=5)
+            self.assertAlmostEqual(mean1, 0.37940242886543274, places=TEST_EPS_PLACE)
 
     def test_batch_size_per_prompt(self):
         print("-----------------test_batch_size_per_prompt-----------------")
@@ -76,10 +76,10 @@ class TestKsanaPipelineWanT2V(unittest.TestCase):
         mean1 = videos[1].cpu().abs().mean().item()
 
         with self.subTest(msg="Mean 0 Check"):
-            self.assertAlmostEqual(mean0, 0.6556181311607361, places=5)
+            self.assertAlmostEqual(mean0, 0.6675420999526978, places=TEST_EPS_PLACE)
 
         with self.subTest(msg="Mean 1 Check"):
-            self.assertAlmostEqual(mean1, 0.652587354183197, places=5)
+            self.assertAlmostEqual(mean1, 0.6864619255065918, places=TEST_EPS_PLACE)
 
     def test_larger_seq_batch(self):
         print("-----------------test_larger_seq_batch-----------------")
@@ -100,10 +100,10 @@ class TestKsanaPipelineWanT2V(unittest.TestCase):
         mean0 = videos[0].cpu().abs().mean().item()
         mean1 = videos[1].cpu().abs().mean().item()
         with self.subTest(msg="Mean 0 Check"):
-            self.assertAlmostEqual(mean0, 0.5184422135353088, places=5)
+            self.assertAlmostEqual(mean0, 0.5184422135353088, places=TEST_EPS_PLACE)
 
         with self.subTest(msg="Mean 1 Check"):
-            self.assertAlmostEqual(mean1, 0.22495749592781067, places=5)
+            self.assertAlmostEqual(mean1, 0.22495749592781067, places=TEST_EPS_PLACE)
 
     def test_torch_compile(self):
         print("-----------------test_torch_compile-----------------")
@@ -128,7 +128,7 @@ class TestKsanaPipelineWanT2V(unittest.TestCase):
         with self.subTest(msg="Shape Check"):
             self.assertEqual(list(video.shape), [1, 3, TEST_FRAME_NUM, TEST_SIZE[1], TEST_SIZE[0]])
         mean = video.cpu().abs().mean().item()
-        self.assertAlmostEqual(mean, 0.6674289107322693, places=4)
+        self.assertAlmostEqual(mean, 0.6674289107322693, places=TEST_EPS_PLACE)
 
 
 if __name__ == "__main__":

@@ -17,20 +17,24 @@ class KsanaVAEModel(KsanaModel):
 
         if self.model_key is KsanaModelKey.VAE_WAN2_1:
             self.model = Wan2_1_VAE(vae_pth=model_path, dtype=dtype, device=device)
+            self.vae_patch_size = getattr(default_settings.diffusion, "patch_size", [1, 2, 2])
+
         elif self.model_key is KsanaModelKey.VAE_WAN2_2:
             self.model = Wan2_2_VAE(vae_pth=model_path, dtype=dtype, device=device)
+            self.vae_patch_size = getattr(default_settings.diffusion, "patch_size", [1, 2, 2])
+
         elif self.model_key is KsanaModelKey.QwenImageVAE:
             self.dtype = torch.bfloat16
             self.model = KsanaQwenImageVAE(
-                vae_path=model_path, device=device, dtype=dtype, default_settings=default_settings
+                vae_path=model_path, device=device, dtype=dtype, default_settings=default_settings.vae
             )
+            self.vae_patch_size = getattr(default_settings.vae, "vae_patch_size", 2)
         else:
             raise ValueError(f"vae model {self.model_key} not supported")
 
         self.z_dim = self.model.model.z_dim
-        self.vae_stride = default_settings.vae.stride  # [4, 8, 8]
-        self.vae_patch = default_settings.diffusion.patch_size  # [1, 2, 2]
-        log.info(f"z_dim {self.z_dim}, vae_stride {self.vae_stride}, vae_patch {self.vae_patch}")
+        self.vae_stride = getattr(default_settings.vae, "stride", (4, 8, 8))
+        log.info(f"z_dim {self.z_dim}, vae_stride {self.vae_stride}, vae_patch_size {self.vae_patch_size}")
 
     @time_range("vae_decode")
     def decode(self, latents, with_end_image: bool = False):
@@ -76,7 +80,7 @@ class KsanaVAEModel(KsanaModel):
         vae_patch: list[int] = None,
     ):
         vae_stride = vae_stride or self.vae_stride
-        vae_patch = vae_patch or self.vae_patch
+        vae_patch_size = vae_patch or self.vae_patch_size
 
         with_end_image = end_img is not None
 
@@ -90,8 +94,12 @@ class KsanaVAEModel(KsanaModel):
 
         # img: [bs, 3, ih, iw]
         img_h, img_w = start_img.shape[2:] if start_img is not None else (target_h, target_w)
-        lat_h = round(np.sqrt(target_w * target_h * (img_h / img_w)) // vae_stride[1] // vae_patch[1] * vae_patch[1])
-        lat_w = round(np.sqrt(target_w * target_h * (img_w / img_h)) // vae_stride[2] // vae_patch[2] * vae_patch[2])
+        lat_h = round(
+            np.sqrt(target_w * target_h * (img_h / img_w)) // vae_stride[1] // vae_patch_size[1] * vae_patch_size[1]
+        )
+        lat_w = round(
+            np.sqrt(target_w * target_h * (img_w / img_h)) // vae_stride[2] // vae_patch_size[2] * vae_patch_size[2]
+        )
         lat_f = (target_f - 1) // vae_stride[0] + 1
 
         if start_img is None:

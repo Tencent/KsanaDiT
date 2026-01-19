@@ -10,7 +10,7 @@ sample_config:
 scheduler_subdir: "scheduler"
 
 diffusion:
-  checkpoint: "transformer"
+  transformer_subdir: "transformer"
   num_heads: 24
   patch_size: 2
 

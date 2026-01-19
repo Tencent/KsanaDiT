@@ -16,9 +16,6 @@ QWEN_IMAGE = ["qwen-image", "qwen_image"]
 X2V_TYPES = ["t2v", "i2v"]
 X2I_TYPES = ["t2i", "i2i"]
 
-# model type means: wan2.1, wan2.2, qwen
-# model key means: combine of "{model_type}_{task_type}_{model_size}"
-
 
 @unique
 class KsanaModelKey(Enum):
@@ -29,12 +26,15 @@ class KsanaModelKey(Enum):
 
     T5TextEncoder = auto()
     Qwen2VLTextEncoder = auto()
-    QwenImage_T2I = auto()
     QwenImageVAE = auto()
     VAE_WAN2_1 = auto()
     VAE_WAN2_2 = auto()
+
+    # diffusion models key, as well as pipeline key
+    QwenImage_T2I = auto()
     Wan2_2_T2V_14B = auto()
     Wan2_2_I2V_14B = auto()
+    Wan2_2_TI2V_5B = auto()
 
     def is_i2v_type(self) -> bool:
         return self in [KsanaModelKey.Wan2_2_I2V_14B]
@@ -66,6 +66,11 @@ def get_model_key_from_path(model_path: str | list[str]):
             return KsanaModelKey.VAE_WAN2_2
         elif any_key_in_str(WAN2_1, file_name) is not None:
             return KsanaModelKey.VAE_WAN2_1
+        else:
+            raise RuntimeError(
+                f"can not detect model_key from model_name:{file_name}, model_path:{model_path} "
+                f"maybe not in support list { WAN2_2 + WAN2_1 + QWEN_IMAGE}"
+            )
     else:
         if any_key_in_str(QWEN_IMAGE, file_name) is not None:
             # model_name = QWEN_IMAGE[0]

@@ -1,6 +1,3 @@
-from __future__ import annotations
-
-import gc
 import os
 from abc import ABC
 from datetime import datetime
@@ -10,27 +7,17 @@ import torch
 import torchvision.transforms.functional as tvtf
 from PIL import Image
 
-from ..config import (
-    KsanaDistributedConfig,
-    KsanaModelConfig,
-    KsanaRuntimeConfig,
-    KsanaSampleConfig,
-    KsanaSolverType,
-)
+from ..config import KsanaRuntimeConfig, KsanaSampleConfig, KsanaSolverType
 from ..config.cache_config import KsanaCacheConfig, KsanaHybridCacheConfig
 from ..config.lora_config import KsanaLoraConfig
-from ..engine import KsanaEngine, get_engine
-from ..models import KsanaT5TextEncoderModel
-from ..models.base_model import KsanaModel
-from ..models.model_key import KsanaModelKey, get_model_key_from_path
-from ..settings import load_default_settings
-from ..units import KsanaUnitFactory, KsanaUnitType
-from ..utils import log, merge_video_audio, time_range
-from ..utils.media import save_image, save_video
+from ..engine import KsanaEngine
+from ..models.model_key import KsanaModelKey
+from ..utils import log, merge_video_audio
+from ..utils.media import save_video
 from ..utils.types import evolve_with_recommend, str_to_list
 
 
-class KsanaPipeline(ABC):
+class KsanaBasePipeline(ABC):
     def __init__(self, model_key: KsanaModelKey, engine: KsanaEngine, offload_device):
         self.pipeline_key = model_key
         self.engine = engine
@@ -184,21 +171,28 @@ class KsanaPipeline(ABC):
                 save_one_func(output, save_path)
                 output_idx += 1
 
-    def _load_text_encoder(self, text_checkpoint_dir, default_text_settings):
-        if self.pipeline_key in [KsanaModelKey.Wan2_2_I2V_14B, KsanaModelKey.Wan2_2_T2V_14B]:
-            text_encoder = KsanaT5TextEncoderModel(
-                model_key=KsanaModelKey.T5TextEncoder,
-                default_settings=default_text_settings,
-                checkpoint_path=os.path.join(text_checkpoint_dir, default_text_settings.checkpoint),
-                tokenizer_path=os.path.join(text_checkpoint_dir, default_text_settings.tokenizer),
-                dtype=default_text_settings.dtype,
-                device=torch.device("cpu"),
-            )
-        else:
-            raise ValueError(f"text_encoder {self.pipeline_key} not supported in pipeline")
-        if self.offload_device:
-            text_encoder.to(self.offload_device)
-        return text_encoder
+    def _get_text_encoder_key_from_pipeline_key(self, pipeline_key):
+        pipeline_key_to_text_encoder_key = {
+            KsanaModelKey.Wan2_2_I2V_14B: KsanaModelKey.T5TextEncoder,
+            KsanaModelKey.Wan2_2_T2V_14B: KsanaModelKey.T5TextEncoder,
+            KsanaModelKey.QwenImage_T2I: KsanaModelKey.Qwen2VLTextEncoder,
+        }
+        text_encoder_key = pipeline_key_to_text_encoder_key.get(pipeline_key, None)
+        if text_encoder_key is None:
+            raise ValueError(f"text_encoder for pipeline {pipeline_key} not supported yet")
+        return text_encoder_key
+
+    def _get_vae_model_key_from_pipeline_key(self, pipeline_key):
+        pipeline_key_to_vae_model_key = {
+            KsanaModelKey.Wan2_2_I2V_14B: KsanaModelKey.VAE_WAN2_1,
+            KsanaModelKey.Wan2_2_T2V_14B: KsanaModelKey.VAE_WAN2_1,
+            KsanaModelKey.Wan2_2_TI2V_5B: KsanaModelKey.VAE_WAN2_2,
+            KsanaModelKey.QwenImage_T2I: KsanaModelKey.QwenImageVAE,
+        }
+        vae_model_key = pipeline_key_to_vae_model_key.get(pipeline_key, None)
+        if vae_model_key is None:
+            raise ValueError(f"vae_model for pipeline {pipeline_key} not supported yet")
+        return vae_model_key
 
     def _valid_input_lora(self, lora_config: KsanaLoraConfig | list[KsanaLoraConfig], diffusion_default_settings):
         if lora_config is None:
@@ -263,89 +257,6 @@ class KsanaPipeline(ABC):
             raise ValueError(f"model_path {model_path} should be a directory or list of diffusion model files")
         return load_model_path, text_checkpoint_dir, vae_checkpoint_dir
 
-    @staticmethod
-    def get_pipeline_key_from_inputs(pipeline_key, model_path, text_checkpoint_dir, vae_checkpoint_dir):
-        if pipeline_key is not None:
-            return pipeline_key
-        if model_path is None:
-            raise ValueError(f"model_path {model_path} must be provided when pipeline_key is None")
-        if isinstance(model_path, str) and not Path(model_path).exists():
-            raise ValueError(f"model_path {model_path} does not exist")
-        path = None
-        if isinstance(model_path, (list, tuple)):
-            path = text_checkpoint_dir or vae_checkpoint_dir
-        return get_model_key_from_path(model_path if path is None else text_checkpoint_dir)
-
-    @staticmethod
-    def from_models(
-        model_path,
-        *,
-        model_config: KsanaModelConfig = None,
-        dist_config: KsanaDistributedConfig = None,
-        pipeline_key: KsanaModelKey = None,  # used model key as pipeline key now
-        text_checkpoint_dir=None,
-        vae_checkpoint_dir=None,
-        lora_config: None | KsanaLoraConfig | list[KsanaLoraConfig] = None,
-        offload_device="cpu",
-    ) -> list[KsanaModel]:
-        log.info(f"Loading models from {model_path}")
-        pipeline_key = KsanaPipeline.get_pipeline_key_from_inputs(
-            pipeline_key, model_path, text_checkpoint_dir, vae_checkpoint_dir
-        )
-        model_config = model_config or KsanaModelConfig()
-        dist_config = dist_config or KsanaDistributedConfig()
-        engine = get_engine(dist_config=dist_config, offload_device=offload_device)
-
-        # maybe cloud create pipeline as registered factory way with pipeline_key
-        pipeline = KsanaPipeline(pipeline_key, engine, offload_device)
-        pipeline.load_models(
-            model_path,
-            model_config=model_config,
-            text_checkpoint_dir=text_checkpoint_dir,
-            vae_checkpoint_dir=vae_checkpoint_dir,
-            lora_config=lora_config,
-        )
-        return pipeline
-
-    def load_models(
-        self,
-        model_path,
-        *,
-        model_config: KsanaModelConfig = None,
-        text_checkpoint_dir=None,
-        vae_checkpoint_dir=None,
-        lora_config: None | KsanaLoraConfig | list[KsanaLoraConfig] = None,
-    ) -> list[KsanaModel]:
-        self.has_lora = lora_config is not None
-        self.default_settings = load_default_settings(self.pipeline_key, with_lora=self.has_lora)
-        load_model_path, text_checkpoint_dir, vae_checkpoint_dir = self._valid_input_models_path(
-            model_path, text_checkpoint_dir, vae_checkpoint_dir, self.default_settings.diffusion
-        )
-        self.clear()
-
-        # 1. load text encoder
-        # TODO: use load_text_encoder in engine in future
-        self.text_encoder_model = self._load_text_encoder(text_checkpoint_dir, self.default_settings.text_encoder)
-
-        # 2. load diffusion model
-        list_of_loras_list = self._valid_input_lora(lora_config, self.default_settings.diffusion)
-        self.diffusion_model_key = self.engine.load_diffusion_model(
-            load_model_path,
-            model_key=self.model_key,
-            lora_config=list_of_loras_list,
-            model_config=model_config,
-        )
-
-        # 3. load vae model
-        self.vae_model_key = self.engine.load_vae_model(
-            os.path.join(vae_checkpoint_dir, self.default_settings.vae.checkpoint),
-        )
-
-        # same same info for later use
-        self.vae_z_dim = self.default_settings.vae.z_dim
-        self.vae_stride = self.default_settings.vae.stride
-        self.patch_size = self.default_settings.diffusion.patch_size
-
     def _get_num_prompts(self, prompt: str | list[str]):
         if prompt is None:
             return 0
@@ -384,84 +295,3 @@ class KsanaPipeline(ABC):
         if end_img_path is not None and img_path is None:
             raise ValueError(f"img_path must be not None when end_img_path {end_img_path} is not None")
         return img_tensor, end_img_tensor
-
-    @time_range
-    def generate(
-        self,
-        prompt: str | list[str],
-        *,
-        prompt_negative: str | list[str] = None,
-        img_path: str | list[str] = None,
-        end_img_path: str | list[str] = None,
-        sample_config: KsanaSampleConfig = None,
-        runtime_config: KsanaRuntimeConfig = None,
-        cache_config: list[KsanaCacheConfig | KsanaHybridCacheConfig] = None,
-    ):
-        """local use for generate"""
-        num_prompts = self._get_num_prompts(prompt)
-        if num_prompts == 0:
-            raise ValueError("prompt must be str or list of str")
-        sample_config = self._valid_sample_config(sample_config, self.default_settings.sample_config)
-        runtime_config = self._valid_runtime_config(
-            runtime_config, self.default_settings.runtime_config, num_prompts=num_prompts
-        )
-        cache_config = self._valid_cache_config(cache_config, getattr(self.default_settings, "cache", None))
-        log.info(f"generate prompt: {prompt}")
-        log.info(f"sample_config : {sample_config}")
-        log.info(f"runtime_config : {runtime_config}")
-        log.info(f"cache_config : {cache_config}")
-        img_path = self._valid_images(img_path, num_prompts)
-        end_img_path = self._valid_images(end_img_path, num_prompts)
-        with_end_image = end_img_path is not None
-
-        text_run_device = torch.device("cpu")  # TODO: maybe run text on cuda self.device
-        text_encoder = KsanaUnitFactory.create(KsanaUnitType.ENCODER, self.text_encoder_model.model_key)
-        positive, negative = text_encoder.run(
-            self.text_encoder_model,
-            prompts_positive=prompt,
-            prompts_negative=prompt_negative,
-            device=text_run_device,
-            offload_device=self.offload_device,
-            offload_model=runtime_config.offload_model,
-        )
-
-        img_tensor, end_img_tensor = self._load_input_images(img_path, end_img_path, device=self.offload_device)
-        img_latents = self.engine.forward_vae_encode(
-            model_key=self.vae_model_key,
-            target_f=runtime_config.frame_num,
-            target_h=runtime_config.size[1],
-            target_w=runtime_config.size[0],
-            start_img=img_tensor,
-            end_img=end_img_tensor,
-        )
-
-        latents = self.engine.forward_generator(
-            model_key=self.model_key,
-            positive=positive,
-            negative=negative,
-            img_latents=img_latents,
-            sample_config=sample_config,
-            runtime_config=runtime_config,
-            cache_configs=cache_config,
-        )
-        del positive, negative, img_latents
-
-        outputs = self.engine.forward_vae_decode(
-            model_key=self.vae_model_key,
-            latents=latents,
-            offload_device=self.offload_device,
-            offload_model=runtime_config.offload_model,
-            with_end_image=with_end_image,
-        )
-        del latents
-        if runtime_config.offload_model:
-            gc.collect()
-            torch.cuda.synchronize()
-
-        if runtime_config.save_output:
-            if len(outputs.shape) > 4:  # [B,C,F,H,W]
-                self._save_outputs(outputs, prompt, self.has_lora, runtime_config, self._save_one_video, ".mp4")
-            else:  # [B,C,H,W]
-                self._save_outputs(outputs, prompt, self.has_lora, runtime_config, save_image, ".png")
-
-        return outputs if runtime_config.return_frames else None
