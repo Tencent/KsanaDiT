@@ -6,6 +6,7 @@ from ..models.model_key import KsanaModelKey
 from ..models.vae_model import KsanaVAEModel
 from ..settings import load_default_settings
 from ..units import KsanaLoaderUnit, KsanaUnitFactory, KsanaUnitType
+from ..utils import is_file_or_dir
 
 
 @KsanaUnitFactory.register(
@@ -13,7 +14,7 @@ from ..units import KsanaLoaderUnit, KsanaUnitFactory, KsanaUnitType
 )
 class KsanaWanVaeLoaderUnit(KsanaLoaderUnit):
     def run(self, model_path: str, device: torch.device, shard_fn=None):  # pylint: disable=unused-variable
-        if not os.path.exists(model_path) or not os.path.isfile(model_path):
+        if not os.path.exists(model_path) or not is_file_or_dir(model_path):
             raise ValueError(f"model_path {model_path} does not exist or is not a file")
         default_settings = load_default_settings(self.model_key)
         return KsanaVAEModel(

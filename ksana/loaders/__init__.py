@@ -1,11 +1,9 @@
-from .diffusion_model_loader import KsanaQwenImageLoader, KsanaWanVideoLoader
-from .text_encoder_loader import KsanaQwenTextEncoderLoaderUnit, KsanaWanTextEncoderLoaderUnit
+from .diffusion_model_loader import KsanaDiffusionLoaderUnit
+from .text_encoder_loader import KsanaTextEncoderLoaderUnit
 from .vae_loader import KsanaWanVaeLoaderUnit
 
 __all__ = [
-    "KsanaWanVideoLoader",
-    "KsanaQwenImageLoader",
+    "KsanaDiffusionLoaderUnit",
+    "KsanaTextEncoderLoaderUnit",
     "KsanaWanVaeLoaderUnit",
-    "KsanaWanTextEncoderLoaderUnit",
-    "KsanaQwenTextEncoderLoaderUnit",
 ]

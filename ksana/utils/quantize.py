@@ -179,7 +179,7 @@ def adjust_fp8_backend_for_dtype(run_dtype, linear_backend, model_name):
     return run_dtype, linear_backend
 
 
-def apply_dynamic_fp8_quant(module: torch.nn.Module):
+def _apply_dynamic_fp8_quant(module: torch.nn.Module):
     # https://github.com/pytorch/ao/issues/2919
     try:
         from torchao.quantization import quantize_
@@ -327,10 +327,7 @@ def apply_dynamic_fp8_quant(module: torch.nn.Module):
         log.warning(traceback.format_exc())
 
 
-def maybe_apply_dynamic_fp8_quant(model: torch.nn.Module, linear_backend: KsanaLinearBackend, load_device=None) -> bool:
-    if linear_backend != KsanaLinearBackend.FP8_GEMM_DYNAMIC:
-        return False
-
+def apply_dynamic_fp8_quant(model: torch.nn.Module, load_device=None) -> bool:
     if model is None:
         log.warning("model is None; skip quantization.")
         return False
@@ -354,6 +351,6 @@ def maybe_apply_dynamic_fp8_quant(model: torch.nn.Module, linear_backend: KsanaL
 
     current_device = next(model.parameters()).device
     log.info(f"Model is on {current_device}, applying FP8 quantization...")
-    apply_dynamic_fp8_quant(model)
+    _apply_dynamic_fp8_quant(model)
     log.info("FP8 quantization applied successfully.")
     return True

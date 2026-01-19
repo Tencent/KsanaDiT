@@ -3,26 +3,24 @@ Reference (Diffusers):
   - diffusers/src/diffusers/pipelines/qwenimage/pipeline_qwenimage.py
 """
 
-import os
 from typing import List, Tuple, Union
 
 import torch
 from transformers import AutoTokenizer, Qwen2_5_VLForConditionalGeneration
 
-from ..base_model import KsanaModel
 
-
-class KsanaQwen2VLTextEncoderModel(KsanaModel):
+class Qwen2VLTextEncoderModel:
     def __init__(
         self,
-        checkpoint_dir: str,
+        checkpoint_path: str,
+        tokenizer_path: str,
         dtype: torch.dtype = torch.bfloat16,
         device: torch.device = torch.device("cpu"),
-        max_length: int = 1024,
+        text_len: int = 1024,
     ):
         self.device = device
         self.dtype = dtype
-        self.max_length = max_length
+        self.max_length = text_len
 
         self.prompt_template = (
             "<|im_start|>system\n"
@@ -32,21 +30,10 @@ class KsanaQwen2VLTextEncoderModel(KsanaModel):
         )
         self.drop_idx = 34
 
-        tokenizer_dir = os.path.join(checkpoint_dir, "tokenizer")
-        if os.path.exists(tokenizer_dir):
-            self.tokenizer = AutoTokenizer.from_pretrained(tokenizer_dir, trust_remote_code=True)
-        else:
-            self.tokenizer = AutoTokenizer.from_pretrained(checkpoint_dir, trust_remote_code=True)
-
-        text_encoder_dir = os.path.join(checkpoint_dir, "text_encoder")
-        if os.path.exists(text_encoder_dir):
-            self.model = Qwen2_5_VLForConditionalGeneration.from_pretrained(
-                text_encoder_dir, torch_dtype=dtype, trust_remote_code=True
-            )
-        else:
-            self.model = Qwen2_5_VLForConditionalGeneration.from_pretrained(
-                checkpoint_dir, torch_dtype=dtype, trust_remote_code=True
-            )
+        self.tokenizer = AutoTokenizer.from_pretrained(tokenizer_path, trust_remote_code=True)
+        self.model = Qwen2_5_VLForConditionalGeneration.from_pretrained(
+            checkpoint_path, torch_dtype=dtype, trust_remote_code=True
+        )
         self.model.to(device)
         self.model.eval()
 
@@ -56,7 +43,7 @@ class KsanaQwen2VLTextEncoderModel(KsanaModel):
         selected = hidden_states[bool_mask]
         return list(torch.split(selected, valid_lengths.tolist(), dim=0))
 
-    def forward(
+    def __call__(
         self,
         prompt: Union[str, List[str]],
         device: torch.device = None,

@@ -3,9 +3,6 @@ Reference (Diffusers):
   - diffusers/src/diffusers/models/autoencoders/autoencoder_kl_qwenimage.py
 """
 
-import json
-import os
-from pathlib import Path
 from typing import Tuple, Union
 
 import torch
@@ -15,7 +12,6 @@ import torch.nn.functional as F
 
 from ...utils.load import load_state_dict
 from ...utils.lora import load_state_dict_and_merge_lora
-from ..model_key import KsanaModelKey
 
 CACHE_T = 2
 
@@ -396,89 +392,31 @@ class AutoencoderKLQwenImage(nn.Module):
         return (out,)
 
 
-DEFAULT_QWEN_IMAGE_VAE_CONFIG = {
-    "attn_scales": [],
-    "base_dim": 96,
-    "dim_mult": [1, 2, 4, 4],
-    "dropout": 0.0,
-    "latents_mean": [
-        -0.7571,
-        -0.7089,
-        -0.9113,
-        0.1075,
-        -0.1745,
-        0.9653,
-        -0.1517,
-        1.5508,
-        0.4134,
-        -0.0715,
-        0.5517,
-        -0.3632,
-        -0.1922,
-        -0.9497,
-        0.2503,
-        -0.2921,
-    ],
-    "latents_std": [
-        2.8184,
-        1.4541,
-        2.3275,
-        2.6558,
-        1.2196,
-        1.7708,
-        2.6052,
-        2.0743,
-        3.2687,
-        2.1526,
-        2.8652,
-        1.5579,
-        1.6382,
-        1.1253,
-        2.8251,
-        1.916,
-    ],
-    "num_res_blocks": 2,
-    "temperal_downsample": [False, True, True],
-    "z_dim": 16,
-}
-
-
 class KsanaQwenImageVAE:
     def __init__(
         self,
         vae_path: str,
+        *,
+        default_settings: dict,
         device: torch.device,
         dtype: torch.dtype = torch.bfloat16,
-        default_settings=None,  # pylint: disable=unused-argument
     ):
-        path = Path(vae_path)
-        config = None
-        if path.is_dir():
-            vae_path = os.path.join(vae_path, "vae")
-            # TODO: remove config.json
-            config_path = Path(vae_path) / "config.json"
-            with open(config_path) as f:
-                config = json.load(f)
-        elif path.is_file():
-            config = DEFAULT_QWEN_IMAGE_VAE_CONFIG
-
-        self.z_dim = config.get("z_dim", 16)
-        self.latents_mean = config.get("latents_mean")
-        self.latents_std = config.get("latents_std")
-        self.temperal_downsample = config.get("temperal_downsample", [False, True, True])
-        self.vae_stride = (1, 8, 8)
+        self.z_dim = getattr(default_settings, "z_dim", 16)
+        self.latents_mean = getattr(default_settings, "latents_mean", None)
+        self.latents_std = getattr(default_settings, "latents_std", None)
+        self.temperal_downsample = getattr(default_settings, "temperal_downsample", [False, True, True])
+        self.vae_stride = getattr(default_settings, "stride", (1, 8, 8))
         self.device = device
         self.dtype = dtype
-        self.patch_size = None
 
         self.model = AutoencoderKLQwenImage(
-            base_dim=config.get("base_dim", 96),
+            base_dim=getattr(default_settings, "base_dim", 96),
             z_dim=self.z_dim,
-            dim_mult=tuple(config.get("dim_mult", [1, 2, 4, 4])),
-            num_res_blocks=config.get("num_res_blocks", 2),
-            attn_scales=config.get("attn_scales", []),
+            dim_mult=tuple(getattr(default_settings, "dim_mult", [1, 2, 4, 4])),
+            num_res_blocks=getattr(default_settings, "num_res_blocks", 2),
+            attn_scales=getattr(default_settings, "attn_scales", []),
             temperal_downsample=self.temperal_downsample,
-            dropout=config.get("dropout", 0.0),
+            dropout=getattr(default_settings, "dropout", 0.0),
             latents_mean=self.latents_mean,
             latents_std=self.latents_std,
         )
@@ -486,7 +424,6 @@ class KsanaQwenImageVAE:
         state_dict = load_state_dict_and_merge_lora(vae_path, device=str(device))
         load_state_dict(self.model, state_dict, strict=False)
         self.model.to(device, dtype=dtype)
-        self._key = KsanaModelKey.QwenImageVAE
 
     def decode(self, latents: torch.Tensor, with_end_image: bool = False) -> Tuple[torch.Tensor]:
         with amp.autocast(dtype=self.dtype):
