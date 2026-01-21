@@ -44,4 +44,4 @@ vae:
   temperal_downsample: [False, True, True]
 
   # TODO(TJ): vae_patch_size seem not used right
-  vae_patch_size: 2
+  patch_size: 2

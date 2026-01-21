@@ -29,7 +29,7 @@ class KsanaSolverType(Enum):
 @dataclass(frozen=True)
 class KsanaSampleConfig:
     steps: int | None = field(default=None)
-    cfg_scale: float | tuple[float, float] | None = field(default=None)
+    cfg_scale: float | list[float, float] | None = field(default=None)
     shift: float | None = field(default=None)
     solver: KsanaSolverType | None = field(default=None)
     denoise: float | None = field(default=DEFAULT_DENOISE)

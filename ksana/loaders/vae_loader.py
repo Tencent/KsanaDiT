@@ -2,21 +2,32 @@ import os
 
 import torch
 
+from ..models import KsanaQwenVAEModel, KsanaWanVAEModel
 from ..models.model_key import KsanaModelKey
-from ..models.vae_model import KsanaVAEModel
 from ..settings import load_default_settings
 from ..units import KsanaLoaderUnit, KsanaUnitFactory, KsanaUnitType
-from ..utils import is_file_or_dir
+from ..utils import is_file_or_dir, log
 
 
 @KsanaUnitFactory.register(
     KsanaUnitType.LOADER, [KsanaModelKey.VAE_WAN2_1, KsanaModelKey.VAE_WAN2_2, KsanaModelKey.QwenImageVAE]
 )
-class KsanaWanVaeLoaderUnit(KsanaLoaderUnit):
+class KsanaVaeLoaderUnit(KsanaLoaderUnit):
+    _MAP_KEY_TO_MODEL_CLASS = {
+        KsanaModelKey.VAE_WAN2_1: KsanaWanVAEModel,
+        KsanaModelKey.VAE_WAN2_2: KsanaWanVAEModel,
+        KsanaModelKey.QwenImage_T2I: KsanaQwenVAEModel,
+    }
+
     def run(self, model_path: str, device: torch.device, shard_fn=None):  # pylint: disable=unused-variable
         if not os.path.exists(model_path) or not is_file_or_dir(model_path):
             raise ValueError(f"model_path {model_path} does not exist or is not a file")
         default_settings = load_default_settings(self.model_key)
-        return KsanaVAEModel(
-            model_key=self.model_key, model_path=model_path, device=device, default_settings=default_settings
-        )
+
+        model_class = self._MAP_KEY_TO_MODEL_CLASS.get(self.model_key, None)
+        if model_class is None:
+            raise NotImplementedError(f"load vae model {self.model_key} not supported yet")
+        model = model_class(model_key=self.model_key, default_settings=default_settings, device=device)
+        model.load(model_path, shard_fn=shard_fn)
+        log.info(f"z_dim {self.z_dim}, vae_stride {self.vae_stride_size}, vae_patch_size {self.vae_patch_size}")
+        return model

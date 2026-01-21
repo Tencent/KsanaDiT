@@ -658,6 +658,7 @@ class Wan2_1_VAE:  # pylint: disable=invalid-name
         self.dtype = dtype
         self.device = device
 
+        # TODO: move to yaml
         mean = [
             -0.7571,
             -0.7089,

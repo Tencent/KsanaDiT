@@ -165,7 +165,7 @@ class KsanaPipeline(KsanaBasePipeline):
             img_latents=img_latents,
             sample_config=sample_config,
             runtime_config=runtime_config,
-            cache_configs=cache_config,
+            cache_config=cache_config,
         )
         del positive, negative, img_latents
 

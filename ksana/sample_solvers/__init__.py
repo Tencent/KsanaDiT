@@ -1,20 +1,18 @@
 import torch
 
-from ..config.sample_config import KsanaSolverType
+from ..config.sample_config import KsanaSampleConfig, KsanaSolverType
 from .fm_solvers import (
     FlowDPMSolverMultistepScheduler,  # noqa: F401
     get_sampling_sigmas,  # noqa: F401
     retrieve_timesteps,  # noqa: F401
 )
-from .fm_solvers_euler import EulerScheduler, FlowMatchEulerScheduler, calculate_shift
+from .fm_solvers_euler import EulerScheduler, FlowMatchEulerScheduler
 from .fm_solvers_unipc import FlowUniPCMultistepScheduler
 
 SUPPORTED_SOLVERS = KsanaSolverType.get_supported_list()
 
 
-def get_sample_scheduler(
-    num_train_timesteps, sampling_steps, sample_solver, device, shift=5.0, denoise=1.0, sigmas=None
-):
+def get_sample_scheduler(num_train_timesteps, *, sample_config: KsanaSampleConfig, device):
     """
     Set sample scheduler.
 
@@ -27,6 +25,11 @@ def get_sample_scheduler(
         denoise (`float`, *optional*, defaults to 1.0):
             Denoise strength. 1.0 means full denoising, 0.5 means half denoising
     """
+    sampling_steps = (sample_config.steps,)
+    sample_solver = (sample_config.solver,)
+    shift = (sample_config.shift,)
+    denoise = sample_config.denoise or 1.0
+    sigmas = (sample_config.sigmas,)
 
     sampling_sigmas = None
     if sample_solver == KsanaSolverType.UNI_PC:
@@ -66,4 +69,4 @@ def get_sample_scheduler(
     return sample_scheduler, sampling_sigmas, sample_scheduler.timesteps
 
 
-__all__ = ["get_sample_scheduler", "calculate_shift", SUPPORTED_SOLVERS]
+__all__ = ["get_sample_scheduler", SUPPORTED_SOLVERS]

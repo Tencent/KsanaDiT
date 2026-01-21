@@ -4,7 +4,7 @@ from unittest.mock import patch
 import torch
 
 from ksana.models.model_key import KsanaModelKey
-from ksana.scheduler.scheduler import KsanaScheduler
+from ksana.scheduler.scheduler import KsanaBatchScheduler
 
 
 class TestKsanaScheduler(unittest.TestCase):
@@ -12,7 +12,7 @@ class TestKsanaScheduler(unittest.TestCase):
 
     def setUp(self):
         """设置测试环境"""
-        self.scheduler = KsanaScheduler()
+        self.scheduler = KsanaBatchScheduler()
         self.latent_shape = [1, 16, 8, 64, 64]  # [batch_size, z_dim, frames, height, width]
         self.device = torch.device("cuda:0")
 
