@@ -1,3 +1,5 @@
+from abc import abstractmethod
+
 import numpy as np
 import torch
 
@@ -10,31 +12,10 @@ from .wan import Wan2_1_VAE, Wan2_2_VAE
 
 
 class KsanaVAEModel(KsanaModel):
-    def __init__(self, model_key: KsanaModelKey, model_path: str, device, default_settings, dtype=torch.float):
+    def __init__(self, model_key: KsanaModelKey, default_settings, device, dtype=torch.float32):
         super().__init__(model_key, default_settings)
         self.device = device
         self.dtype = dtype
-
-        if self.model_key is KsanaModelKey.VAE_WAN2_1:
-            self.model = Wan2_1_VAE(vae_pth=model_path, dtype=dtype, device=device)
-            self.vae_patch_size = getattr(default_settings.diffusion, "patch_size", [1, 2, 2])
-
-        elif self.model_key is KsanaModelKey.VAE_WAN2_2:
-            self.model = Wan2_2_VAE(vae_pth=model_path, dtype=dtype, device=device)
-            self.vae_patch_size = getattr(default_settings.diffusion, "patch_size", [1, 2, 2])
-
-        elif self.model_key is KsanaModelKey.QwenImageVAE:
-            self.dtype = torch.bfloat16
-            self.model = KsanaQwenImageVAE(
-                vae_path=model_path, device=device, dtype=dtype, default_settings=default_settings.vae
-            )
-            self.vae_patch_size = getattr(default_settings.vae, "vae_patch_size", 2)
-        else:
-            raise ValueError(f"vae model {self.model_key} not supported")
-
-        self.z_dim = self.model.model.z_dim
-        self.vae_stride = getattr(default_settings.vae, "stride", (4, 8, 8))
-        log.info(f"z_dim {self.z_dim}, vae_stride {self.vae_stride}, vae_patch_size {self.vae_patch_size}")
 
     @time_range("vae_decode")
     def decode(self, latents, with_end_image: bool = False):
@@ -51,7 +32,7 @@ class KsanaVAEModel(KsanaModel):
         return self
 
     def get_img_mask(self, bs, lat_f, lat_h, lat_w, device, has_end_img: bool = False, vae_stride=None):
-        vae_stride = vae_stride or self.vae_stride
+        vae_stride = vae_stride or self.vae_stride_size
         start = torch.ones(bs, vae_stride[0], lat_h, lat_w, device=device)
         if has_end_img:
             zeros = torch.zeros(bs, (lat_f - 1) * vae_stride[0], lat_h, lat_w, device=device)
@@ -64,6 +45,31 @@ class KsanaVAEModel(KsanaModel):
         msk = msk.view(bs, -1, vae_stride[0], lat_h, lat_w)
         msk = msk.transpose(1, 2)
         return msk
+
+    def create_video_latent_shape(
+        self, target_f: int, target_h: int, target_w: int, img_shape: list[int] = None, vae_stride=None, vae_patch=None
+    ):
+        vae_stride_size = vae_stride or self.vae_stride_size
+        vae_patch_size = vae_patch or self.vae_patch_size
+        if img_shape is not None and (len(img_shape) != 4 or img_shape[1] != 3):
+            raise ValueError(f"video img_shape must be 4D tensor[bs, 3, h, w], but got shape {img_shape}")
+
+        # img: [bs, 3, ih, iw]
+        img_h, img_w = img_shape[2:] if img_shape is not None else (target_h, target_w)
+        lat_h = round(
+            np.sqrt(target_w * target_h * (img_h / img_w))
+            // vae_stride_size[1]
+            // vae_patch_size[1]
+            * vae_patch_size[1]
+        )
+        lat_w = round(
+            np.sqrt(target_w * target_h * (img_w / img_h))
+            // vae_stride_size[2]
+            // vae_patch_size[2]
+            * vae_patch_size[2]
+        )
+        lat_f = (target_f - 1) // vae_stride_size[0] + 1
+        return lat_f, lat_h, lat_w
 
     def forward_encode(
         self,
@@ -79,18 +85,24 @@ class KsanaVAEModel(KsanaModel):
         vae_stride: list[int] = None,
         vae_patch: list[int] = None,
     ):
-        vae_stride = vae_stride or self.vae_stride
+        vae_stride = vae_stride or self.vae_stride_size
         vae_patch_size = vae_patch or self.vae_patch_size
+        img_shape = None if start_img is None else start_img.shape
+        lat_f, lat_h, lat_w = self.create_latent_shape(
+            target_f=target_f,
+            target_h=target_h,
+            target_w=target_w,
+            img_shape=img_shape,
+            vae_stride=vae_stride,
+            vae_patch=vae_patch,
+        )
 
         with_end_image = end_img is not None
 
-        if start_img is not None:
-            assert start_img.ndim == 4, f"img_batch must be 4D tensor[bs, 3, h, w], but got shape {start_img.shape}"
-            assert start_img.shape[1] == 3, f"start_img must be 4D tensor[bs, 3, h, w], but got shape {start_img.shape}"
-            if with_end_image:
-                assert (
-                    start_img.shape == end_img.shape
-                ), f"start_img and end_img must have same shape, but got {start_img.shape} and {end_img.shape}"
+        if start_img is not None and with_end_image:
+            assert (
+                start_img.shape == end_img.shape
+            ), f"start_img and end_img must have same shape, but got {start_img.shape} and {end_img.shape}"
 
         # img: [bs, 3, ih, iw]
         img_h, img_w = start_img.shape[2:] if start_img is not None else (target_h, target_w)
@@ -186,3 +198,77 @@ class KsanaVAEModel(KsanaModel):
         log.info(f"decode output shape: {latents.shape}")
         # return [bs, ch:3, f, h, w]
         return latents
+
+    @abstractmethod
+    def load(self, model_path: str, *, device: torch.device, dtype=torch.float, shard_fn=None):
+        pass
+
+    @abstractmethod
+    def create_latent_shape(
+        self,
+        *,
+        target_h: int,
+        target_w: int,
+        target_f: int = None,
+        img_shape: list[int] = None,
+        vae_stride=None,
+        vae_patch=None,
+    ):
+        pass
+
+
+class KsanaWanVAEModel(KsanaVAEModel):
+    def load(self, model_path: str, shard_fn=None):
+        self.dtype = torch.bfloat16
+        if self.model_key is KsanaModelKey.VAE_WAN2_1:
+            self.model = Wan2_1_VAE(vae_pth=model_path, dtype=self.dtype, device=self.device)
+        elif self.model_key is KsanaModelKey.VAE_WAN2_2:
+            self.model = Wan2_2_VAE(vae_pth=model_path, dtype=self.dtype, device=self.device)
+        else:
+            raise ValueError(f"vae model {self.model_key} not supported")
+        self.z_dim = self.model.model.z_dim
+        self.vae_stride_size = getattr(self.default_settings.vae, "stride", (4, 8, 8))
+        self.vae_patch_size = getattr(self.default_settings.diffusion, "patch_size", [1, 2, 2])
+
+    def create_latent_shape(
+        self,
+        *,
+        target_h: int,
+        target_w: int,
+        target_f: int = None,
+        img_shape: list[int] = None,
+        vae_stride=None,
+        vae_patch=None,
+    ):
+        return self.create_video_latent_shape(target_f, target_h, target_w, img_shape, vae_stride, vae_patch)
+
+
+class KsanaQwenVAEModel(KsanaVAEModel):
+    def load(self, model_path: str, shard_fn=None):
+        if self.model_key != KsanaModelKey.QwenImageVAE:
+            raise ValueError(f"vae model {self.model_key} should be QwenImageVAE")
+        self.dtype = torch.bfloat16
+        self.model = KsanaQwenImageVAE(
+            vae_path=model_path, device=self.device, dtype=self.dtype, default_settings=self.default_settings.vae
+        )
+
+        self.z_dim = self.model.z_dim
+        self.vae_stride_size = getattr(self.default_settings.vae, "stride", (4, 8, 8))
+        self.vae_patch_size = getattr(self.default_settings.vae, "patch_size", 2)
+        self.vae_scale_factor = getattr(self.default_settings.vae, "scale_factor", 8)
+
+    def create_latent_shape(
+        self,
+        *,
+        target_h: int,
+        target_w: int,
+        target_f: int = None,
+        img_shape: list[int] = None,
+        vae_stride=None,
+        vae_patch=None,
+    ):
+        if img_shape is not None:
+            raise ValueError("qwen image not support edit yet")
+        latent_h = target_h // self.vae_scale_factor // self.vae_patch_size * self.vae_patch_size
+        latent_w = target_w // self.vae_scale_factor // self.vae_patch_size * self.vae_patch_size
+        return self.z_dim, 1, latent_h, latent_w

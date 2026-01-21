@@ -13,9 +13,9 @@ class BatchStrategyItem:
     combine_cond_uncond: bool
 
 
-class KsanaScheduler:
+class KsanaBatchScheduler:
     """
-    Ksana调度器，负责批处理逻辑和内存管理
+    KsanaBatchScheduler for dynamic batch scheduling
     """
 
     def __init__(self):

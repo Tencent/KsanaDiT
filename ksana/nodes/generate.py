@@ -46,7 +46,7 @@ def generate(
     denoise=1.0,
     rope_function="default",
     low_sample_guide_scale=None,
-    cache_configs=None,
+    cache_config=None,
     sigmas=None,
     comfy_device=None,
     comfy_progress_bar_func=None,
@@ -88,8 +88,8 @@ def generate(
         if comfy_progress_bar_func is not None:
             comfyui_progress_bar.update_absolute(step, total)
 
-    if cache_configs is not None and not isinstance(cache_configs, list):
-        cache_configs = [cache_configs]
+    if cache_config is not None and not isinstance(cache_config, list):
+        cache_config = [cache_config]
     num_prompts = positive[0][0].shape[0]
     batch_size_per_prompts = latent_image.batch_size_per_prompts
     batch_size_per_prompts = [batch_size_per_prompts] * num_prompts
@@ -115,7 +115,7 @@ def generate(
             rope_function=rope_function,
             batch_size_per_prompts=batch_size_per_prompts,
         ),
-        cache_configs=cache_configs,
+        cache_config=cache_config,
         comfy_bar_callback=comfy_bar_callback,
     )
     MemoryProfiler.record_memory("after_ksana_engine_generate_with_tensors")

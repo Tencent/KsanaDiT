@@ -87,19 +87,6 @@ class EulerScheduler(FlowMatchEulerDiscreteScheduler):
         return x_t_next
 
 
-def calculate_shift(
-    seq_len: int,
-    base_seq_len: int = 256,
-    max_seq_len: int = 4096,
-    base_shift: float = 0.5,
-    max_shift: float = 1.15,
-) -> float:
-    # adopted from diffusers/src/diffusers/pipelines/qwenimage/pipeline_qwenimage.py::calculate_shift
-    m = (max_shift - base_shift) / (max_seq_len - base_seq_len)
-    b = base_shift - m * base_seq_len
-    return seq_len * m + b
-
-
 class FlowMatchEulerScheduler:
     """
     adopted from diffusers/src/diffusers/schedulers/scheduling_flow_match_euler_discrete.py

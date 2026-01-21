@@ -6,5 +6,4 @@ text_encoder:
   prompt_template_drop_idx: 34
   checkpoint : "text_encoder"
   tokenizer : "tokenizer"
-  base_seq_len: 256
-  max_seq_len : 4096
+  neg_prompt: " "
