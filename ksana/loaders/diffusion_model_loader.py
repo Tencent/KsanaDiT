@@ -83,7 +83,7 @@ class KsanaDiffusionLoaderUnit(KsanaLoaderUnit):
         shard_fn=None,
         comfy_bar_callback=None,
     ) -> list[KsanaModel]:
-        log.info(f"load_model_from: {model_path}")
+        log.info(f"{self.model_key} loading diffuion model from: {model_path}")
         load_model_path_or_files = self._valid_input_model_path(model_path)
         list_of_loras_list = self._valid_input_lora(lora_config)
         self.default_settings = load_default_settings(self.model_key, with_lora=list_of_loras_list is not None)

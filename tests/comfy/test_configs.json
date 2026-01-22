@@ -61,7 +61,7 @@
       "linear_backend": "fp8_gemm",
       "attn_backend": "flash_attention",
       "expect_values": {
-        "mean": 0.6993897,
+        "mean": 0.6769429,
         "eps_place": 2
       },
       "gpus_expect_values": {
@@ -94,7 +94,7 @@
       "frames": 9,
       "attn_backend": "flash_attention",
       "expect_values": {
-        "mean": 0.5268635,
+        "mean": 0.5037860,
         "eps_place": 4
       },
       "gpus_expect_values": {
@@ -110,7 +110,7 @@
       "frames": 9,
       "linear_backend": "fp8_gemm",
       "expect_values": {
-        "mean": 0.2979546,
+        "mean": 0.2825681,
         "eps_place": 4
       },
       "gpus_expect_values": {
@@ -127,7 +127,7 @@
       "linear_backend": "default",
       "attn_backend": "sage_attention",
       "expect_values": {
-        "mean": 0.4912244,
+        "mean": 0.4628257,
         "eps_place": 4
       },
       "gpus_expect_values": {
@@ -143,7 +143,7 @@
       "frames": 81,
       "attn_backend": "sage_attention",
       "expect_values": {
-        "mean": 0.2318848,
+        "mean": 0.3277959,
         "eps_place": 4
       },
       "gpus_expect_values": {

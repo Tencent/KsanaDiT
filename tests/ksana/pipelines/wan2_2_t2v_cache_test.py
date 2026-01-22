@@ -47,7 +47,7 @@ class TestKsanaPipelineWanT2VCache(unittest.TestCase):
         with self.subTest(msg="Shape Check"):
             self.assertEqual(list(video.shape), [1, 3, TEST_FRAME_NUM, TEST_SIZE[1], TEST_SIZE[0]])
         mean = video.cpu().abs().mean().item()
-        self.assertAlmostEqual(mean, 0.6670429110527039, places=TEST_EPS_PLACE)
+        self.assertAlmostEqual(mean, 0.6660090088844299, places=TEST_EPS_PLACE)
         video = pipeline.generate(
             prompts[0],
             sample_config=KsanaSampleConfig(steps=TEST_STEPS),
@@ -62,7 +62,7 @@ class TestKsanaPipelineWanT2VCache(unittest.TestCase):
         )
         with self.subTest(msg="Shape Check"):
             self.assertEqual(list(video.shape), [1, 3, TEST_FRAME_NUM, TEST_SIZE[1], TEST_SIZE[0]])
-        self.assertAlmostEqual(mean, 0.6670429110527039, places=TEST_EPS_PLACE)
+        self.assertAlmostEqual(mean, 0.6660090088844299, places=TEST_EPS_PLACE)
         video = pipeline.generate(
             prompts[0],
             sample_config=KsanaSampleConfig(steps=TEST_STEPS),

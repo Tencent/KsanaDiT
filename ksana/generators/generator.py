@@ -66,7 +66,7 @@ class KsanaBaseGenerator(KsanaRunnerUnit):
                 sample_config, {"cfg_scale": [sample_config.cfg_scale] * model_len}, force_update=True
             )
         elif isinstance(sample_config.cfg_scale, (list, tuple)):
-            if len(sample_config.cfg_scale) != model_len:
+            if len(sample_config.cfg_scale) < model_len:
                 raise ValueError(f"cfg_scale length must be {model_len}, but got {len(sample_config.cfg_scale)}")
             evolve_with_recommend(sample_config, {"cfg_scale": list(sample_config.cfg_scale)}, force_update=True)
         else:
@@ -269,6 +269,8 @@ class KsanaBaseGenerator(KsanaRunnerUnit):
             running_model = self.get_running_model(
                 diffusion_model, timestep_id=timestep_id, device=device, offload_device=offload_device
             )
+            if running_model.device != device:
+                running_model.to(device)
             running_cache = self.get_running_cache(dit_cache, timestep_id=timestep_id)
             running_cfg_scale = self.get_running_cfg_scale(cfg_scale=sample_config.cfg_scale, timestep_id=timestep_id)
             forward_kargs = self.prepare_model_forward_kargs(
@@ -294,7 +296,7 @@ class KsanaBaseGenerator(KsanaRunnerUnit):
                     noise_pred_uncond = running_model.forward(**arg_uncond)
                 noise_pred = self.apply_cfg(running_cfg_scale, noise_pred_cond, noise_pred_uncond)
             else:
-                noise_pred = running_model.forward(**arg_cond)
+                noise_pred = running_model.forward(**forward_kargs)
 
             step_out = sample_scheduler_step_func(noise_pred, t, noise_latent, return_dict=False, generator=seed_g)
             noise_latent = step_out if sample_config.solver == KsanaSolverType.EULER else step_out[0]
@@ -319,7 +321,6 @@ class KsanaBaseGenerator(KsanaRunnerUnit):
         sample_config: KsanaRuntimeConfig,
         run_steps_kwargs: dict,
     ):
-
         log.info(f"batch_strategy={batch_strategy}")
         num_batches = len(batch_strategy)
         default_settings = diffusion_model[0].default_settings
@@ -328,7 +329,7 @@ class KsanaBaseGenerator(KsanaRunnerUnit):
         num_train_timesteps = self._get_num_train_timesteps(default_settings)
         for batch_idx, strategy_item in enumerate(batch_strategy):
             log.info(
-                f"batch_idx {batch_idx}/{num_batches}, "
+                f"batch_idx {batch_idx}(num_batches {num_batches}), "
                 f"strategy start={strategy_item.start}, end={strategy_item.end}, "
                 f"combine_cond_uncond={strategy_item.combine_cond_uncond}"
             )
@@ -589,8 +590,6 @@ class KsanaWanGenerator(KsanaBaseGenerator):
         if not isinstance(diffusion_model, (list, tuple)):
             raise RuntimeError(f"diffusion_model must be a list but got {diffusion_model}")
         if len(diffusion_model) == 1:
-            if diffusion_model[0].device != device:
-                diffusion_model[0].to(device)
             return diffusion_model[0]
         if len(diffusion_model) != 2:
             raise ValueError(f"diffusion_model must be list of 1 or 2 float, but got {diffusion_model}")
@@ -603,14 +602,10 @@ class KsanaWanGenerator(KsanaBaseGenerator):
             if low_model is not None:
                 if low_model.device != offload_device:
                     low_model.to(offload_device)
-            if high_model.device != device:
-                high_model.to(device)
             return high_model
         else:
             if high_model.device != offload_device:
                 high_model.to(offload_device)
-            if low_model.device != device:
-                low_model.to(device)
             return low_model
 
     def get_running_cache(self, dit_cache, timestep_id):
@@ -656,7 +651,8 @@ class KsanaWanGenerator(KsanaBaseGenerator):
         img_latent,
     ) -> dict:
         base = {"cache": cache, "step_iter": step_iter}
-        if self._use_cfg(cfg_scale) and combine_cond_uncond:
+        use_cfg = self._use_cfg(cfg_scale)
+        if use_cfg and combine_cond_uncond:
             # latent: [bs, z_dim, fi, hi, wi] => [2*bs, z_dim, fi, hi, wi]
             combine_x = torch.cat([noise_latent, noise_latent], dim=0)
             combine_t = torch.cat([timestep, timestep], dim=0)
@@ -677,7 +673,10 @@ class KsanaWanGenerator(KsanaBaseGenerator):
         if self.model_key == KsanaModelKey.Wan2_2_I2V_14B:
             arg_cond["y"] = img_latent
             arg_uncond["y"] = img_latent
-        return base | arg_cond, base | arg_uncond
+        if use_cfg:
+            return base | arg_cond, base | arg_uncond
+        else:
+            return base | arg_cond
 
 
 @KsanaUnitFactory.register(KsanaUnitType.GENERATOR, KsanaModelKey.QwenImage_T2I)
@@ -768,8 +767,8 @@ class KsanaQwenGenerator(KsanaBaseGenerator):
 
         positive_txt_seq_lens = positive_mask.sum(dim=1).tolist()
         negative_txt_seq_lens = negative_mask.sum(dim=1).tolist()
-        # TODO(qian): in multi cards seqlen = seqlen // diffusion_model.sp_size
-        if self._use_cfg(cfg_scale) and combine_cond_uncond:
+        use_cfg = self._use_cfg(cfg_scale)
+        if use_cfg and combine_cond_uncond:
             combine_x = torch.cat([noise_latent, noise_latent], dim=0)
             combine_t = torch.cat([timestep, timestep], dim=0)
             combine_embs = torch.cat([positive_embeds, negative_embeds], dim=0)
@@ -781,8 +780,8 @@ class KsanaQwenGenerator(KsanaBaseGenerator):
                 "x": combine_x,
                 "t": combine_t,
                 "img_shapes": combine_img_shapes,
-                "context": combine_embs,
-                "context_mask": combine_mask,
+                "encoder_hidden_states": combine_embs,
+                "encoder_hidden_states_mask": combine_mask,
                 "txt_seq_lens": combine_txt_seq_lens,
             }
             return base | combine_kargs
@@ -790,14 +789,16 @@ class KsanaQwenGenerator(KsanaBaseGenerator):
         base.update({"x": noise_latent, "t": timestep, "img_shapes": img_shapes})
         arg_cond = {
             "phase": "cond",
-            "context": positive_embeds,
-            "context_mask": positive_mask,
+            "encoder_hidden_states": positive_embeds,
+            "encoder_hidden_states_mask": positive_mask,
             "txt_seq_lens": positive_txt_seq_lens,
         }
+        if not use_cfg:
+            return base | arg_cond
         arg_uncond = {
             "phase": "uncond",
-            "context": negative,
-            "context_mask": negative_mask,
+            "encoder_hidden_states": negative_embeds,
+            "encoder_hidden_states_mask": negative_mask,
             "txt_seq_lens": negative_txt_seq_lens,
         }
         return base | arg_cond, base | arg_uncond
@@ -829,7 +830,7 @@ class KsanaQwenGenerator(KsanaBaseGenerator):
             raise ValueError(f"{self.model_key} unpack latents input {latents.shape} must be 3D tensor")
         num, hw, z_dim = latents.shape
         img_shapes = self._get_latent_img_shapes()
-        _, new_h, new_w = img_shapes[0]
+        _, new_h, new_w = img_shapes[0][0]
         latents = latents.view(num, new_h, new_w, z_dim // (patch_size * patch_size), patch_size, patch_size)
         latents = latents.permute(0, 3, 1, 4, 2, 5)
         latents = latents.reshape(num, z_dim // (patch_size * patch_size), 1, new_h * patch_size, new_w * patch_size)

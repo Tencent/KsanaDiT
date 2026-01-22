@@ -21,6 +21,11 @@ def apply_rotary_emb_qwen(
 ) -> torch.Tensor:
     x_rotated = torch.view_as_complex(x.float().reshape(*x.shape[:-1], -1, 2))
     batch, local_seq_len, head, headdim = x.shape  # pylint: disable=unused-variable
+    if freqs_cis.shape[0] < local_seq_len:
+        k = freqs_cis.ndim
+        n = local_seq_len - freqs_cis.shape[0]
+        pad_config = [0, 0] * (k - 1) + [0, n]
+        freqs_cis = F.pad(freqs_cis, pad_config, value=0)
     if sp_size > 1:
         start = sp_rank * local_seq_len
         end = (sp_rank + 1) * local_seq_len
