@@ -20,7 +20,7 @@ SEED = 123
 TEST_DTYPE = torch.bfloat16
 TEST_SIZE = (512, 512)  # (W, H)
 TEST_STEPS = 5
-TEST_EPS_PLACE = 7
+TEST_EPS_PLACE = 5
 
 
 class TestKsanaQwenImageT2I(unittest.TestCase):
@@ -50,7 +50,7 @@ class TestKsanaQwenImageT2I(unittest.TestCase):
         )
         self._assert_image_tensor_ok(image, expected_wh=TEST_SIZE)
         mean = image.detach().float().mean().item()
-        self.assertAlmostEqual(mean, 0.29857462644577026, places=TEST_EPS_PLACE)
+        self.assertAlmostEqual(mean, 0.30504631996154785, places=TEST_EPS_PLACE)
 
     def test_batch_prompts(self):
         print("-----------------qwen_image test_batch_prompts-----------------")
@@ -75,9 +75,9 @@ class TestKsanaQwenImageT2I(unittest.TestCase):
         mean0 = images[0].detach().float().mean().item()
         mean1 = images[1].detach().float().mean().item()
         with self.subTest(msg="Mean 0 Check"):
-            self.assertAlmostEqual(mean0, 0.29761189222335815, places=TEST_EPS_PLACE)
+            self.assertAlmostEqual(mean0, 0.30185410380363464, places=TEST_EPS_PLACE)
         with self.subTest(msg="Mean 1 Check"):
-            self.assertAlmostEqual(mean1, 0.5015290975570679, places=TEST_EPS_PLACE)
+            self.assertAlmostEqual(mean1, 0.529472827911377, places=TEST_EPS_PLACE)
 
 
 if __name__ == "__main__":

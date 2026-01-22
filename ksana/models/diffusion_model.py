@@ -205,18 +205,6 @@ class KsanaDiffusionModel(KsanaModel):
 
         torch.cuda.synchronize(device)
 
-    @property
-    def run_dtype(self):
-        return self.model_config.run_dtype
-
-    @property
-    def dtype(self):
-        return self.model.dtype
-
-    @property
-    def device(self):
-        return self.model.device
-
     def forward(self, *args, **kwargs):
         return self.model(*args, **kwargs)
 
@@ -261,12 +249,36 @@ class KsanaDiffusionModel(KsanaModel):
     ):
         pass
 
+    @abstractmethod
+    def run_dtype(self):
+        raise NotImplementedError("run_dtype should be implemented by subclass.")
+
+    @abstractmethod
+    def dtype(self):
+        raise NotImplementedError("dtype should be implemented by subclass.")
+
+    @abstractmethod
+    def device(self):
+        raise NotImplementedError("device should be implemented by subclass.")
+
 
 class KsanaWanModel(KsanaDiffusionModel):
     def _get_in_out_dim(self, state_dict, key_prefix=""):
         in_dim = state_dict["{}patch_embedding.weight".format(key_prefix)].shape[1]
         out_dim = state_dict["{}head.head.weight".format(key_prefix)].shape[0] // 4
         return in_dim, out_dim
+
+    @property
+    def run_dtype(self):
+        return self.model_config.run_dtype
+
+    @property
+    def dtype(self):
+        return self.model.dtype
+
+    @property
+    def device(self):
+        return self.model.device
 
     @time_range
     def load(
@@ -328,12 +340,24 @@ class KsanaQwenImageModel(KsanaDiffusionModel):
             sp_size=self.dist_config.ulysses_size,
         )
 
+    @property
+    def run_dtype(self):
+        return self.model_config.run_dtype
+
+    @property
+    def dtype(self):
+        return self.model.dtype
+
+    @property
+    def device(self):
+        return self.model.device
+
     def forward(
         self,
         x: torch.Tensor,
         t: torch.Tensor,
-        context: torch.Tensor,
-        context_mask: torch.Tensor = None,
+        encoder_hidden_states: torch.Tensor,
+        encoder_hidden_states_mask: torch.Tensor = None,
         img_shapes: list = None,
         txt_seq_lens: list = None,
         **kwargs,
@@ -342,8 +366,8 @@ class KsanaQwenImageModel(KsanaDiffusionModel):
 
         out = self.model(
             hidden_states=x,
-            encoder_hidden_states=context,
-            encoder_hidden_states_mask=context_mask,
+            encoder_hidden_states=encoder_hidden_states,
+            encoder_hidden_states_mask=encoder_hidden_states_mask,
             timestep=timestep,
             img_shapes=img_shapes,
             txt_seq_lens=txt_seq_lens,

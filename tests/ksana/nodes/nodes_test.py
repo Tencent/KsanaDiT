@@ -106,6 +106,16 @@ test_cases = [
         expect__one_generator_output=0.79052734375,
         expect_gpus_generator_output=0.79052734375,
     ),
+    # KsanaNodesTestCase(
+    #     model_names=["qwen_image_2512_fp8_e4m3fn.safetensors", None],
+    #     expect_model_key=KsanaModelKey.QwenImage_T2I,
+    #     image_latent_shape=[1, 16, 1, 32, 32],
+    #     attention_backends=KsanaAttentionBackend.FLASH_ATTN,
+    #     linear_backends=KsanaLinearBackend.FP8_GEMM_DYNAMIC,
+    #     rope_function="comfy",
+    #     expect__one_generator_output=0.79052734375,
+    #     expect_gpus_generator_output=0.79052734375,
+    # ),
 ]
 
 
@@ -117,7 +127,7 @@ class TestNodes(unittest.TestCase):
 
         seed_g = torch.Generator(device="cpu")
         seed_g.manual_seed(SEED)
-        text_shape = [1, 512, 4096]
+        text_shape = [1, 512, 4096]  # [1, 1024, 3584]  else [1, 512, 4096]
         positive_text_embeddings = torch.randn(
             *text_shape,
             dtype=RUN_DTYPE,

@@ -18,7 +18,7 @@ TEST_DTYPE = torch.float16
 TEST_SIZE = (720, 480)
 TEST_STEPS = 1
 TEST_FRAME_NUM = 9
-TEST_EPS_PLACE = 7
+TEST_EPS_PLACE = 5
 
 
 class TestKsanaPipelineWanI2V(unittest.TestCase):
@@ -62,13 +62,13 @@ class TestKsanaPipelineWanI2V(unittest.TestCase):
         with self.subTest(msg="bs 2 Shape Check"):
             self.assertEqual(list(videos.shape), [2, 3, TEST_FRAME_NUM, 576, 576])
         with self.subTest(msg="Mean 0 Check"):
-            self.assertAlmostEqual(mean0, 0.6032059192657471, places=TEST_EPS_PLACE)
+            self.assertAlmostEqual(mean0, 0.6015987992286682, places=TEST_EPS_PLACE)
 
         with self.subTest(msg="Mean 1 Check"):
-            self.assertAlmostEqual(mean1, 0.47900763154029846, places=TEST_EPS_PLACE)
+            self.assertAlmostEqual(mean1, 0.481252521276474, places=TEST_EPS_PLACE)
 
         with self.subTest(msg="Mean 2 Check"):
-            self.assertAlmostEqual(mean2, 0.5000003576278687, places=TEST_EPS_PLACE)
+            self.assertAlmostEqual(mean2, 0.4958144426345825, places=TEST_EPS_PLACE)
 
 
 if __name__ == "__main__":

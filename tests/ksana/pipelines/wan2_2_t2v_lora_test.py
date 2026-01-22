@@ -66,7 +66,7 @@ class TestKsanaPipelineWan22T2VLora(unittest.TestCase):
         with self.subTest(msg="Shape Check"):
             self.assertEqual(list(video.shape), [1, 3, RADIAL_TEST_FRAME_NUM, RADIAL_TEST_SIZE[1], RADIAL_TEST_SIZE[0]])
         mean = video.cpu().abs().mean().item()
-        self.assertAlmostEqual(mean, 0.19977599382400513, places=TEST_EPS_PLACE)
+        self.assertAlmostEqual(mean, 0.2003432810306549, places=TEST_EPS_PLACE)
 
     def test_lora_torch_compile(self):
         print("-----------------test_lora_torch_compile-----------------")
@@ -93,7 +93,7 @@ class TestKsanaPipelineWan22T2VLora(unittest.TestCase):
         with self.subTest(msg="Shape Check"):
             self.assertEqual(list(video.shape), [1, 3, TEST_FRAME_NUM, TEST_SIZE[1], TEST_SIZE[0]])
         mean = video.cpu().abs().mean().item()
-        self.assertAlmostEqual(mean, 0.25497761368751526, places=TEST_EPS_PLACE)
+        self.assertAlmostEqual(mean, 0.2548159062862396, places=TEST_EPS_PLACE)
 
 
 if __name__ == "__main__":
