@@ -43,5 +43,5 @@ vae:
   num_res_blocks: 2
   temperal_downsample: [False, True, True]
 
-  # TODO(TJ): vae_patch_size seem not used right
+diffusion:
   patch_size: 2
