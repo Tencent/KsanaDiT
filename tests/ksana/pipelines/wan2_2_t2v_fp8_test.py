@@ -6,12 +6,12 @@ from ksana import KsanaPipeline
 from ksana.config import (
     KsanaAttentionBackend,
     KsanaAttentionConfig,
+    KsanaLinearBackend,
     KsanaModelConfig,
     KsanaRuntimeConfig,
     KsanaSampleConfig,
     KsanaTorchCompileConfig,
 )
-from ksana.operations import KsanaLinearBackend
 
 prompts = [
     "街头摄影，戴耳机的酷女孩滑板，纽约街头，涂鸦墙背景，动态姿势，风吹头发，黄金时刻光线，主体清晰背景虚化，街头潮牌。",

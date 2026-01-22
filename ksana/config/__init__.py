@@ -10,6 +10,7 @@ from .cache_config import (
     TeaCacheConfig,
 )
 from .distributed_config import KsanaDistributedConfig
+from .linear_config import KsanaLinearBackend
 from .lora_config import KsanaLoraConfig
 from .model_config import KsanaModelConfig
 from .runtime_config import KsanaRuntimeConfig
@@ -18,6 +19,7 @@ from .torch_compile_config import KsanaTorchCompileConfig
 
 __all__ = [
     "KsanaAttentionBackend",
+    "KsanaLinearBackend",
     "KsanaAttentionConfig",
     "KsanaCacheConfig",
     "KsanaHybridCacheConfig",

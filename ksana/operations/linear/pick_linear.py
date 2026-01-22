@@ -2,9 +2,8 @@ import logging
 
 import torch
 
-from ksana.utils import log, supports_fp8_compute
-
-from .backends import KsanaLinearBackend
+from ...config import KsanaLinearBackend
+from ...utils import log, supports_fp8_compute
 from .fp8_linear import Fp8Linear, scaled_fp8_ops
 from .linear import CUBLAS_IS_AVAILABLE, Linear
 

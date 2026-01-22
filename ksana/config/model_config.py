@@ -2,8 +2,8 @@ from dataclasses import dataclass, field
 
 import torch
 
-from ..operations.linear import KsanaLinearBackend
 from .attention_config import KsanaAttentionConfig
+from .linear_config import KsanaLinearBackend
 from .torch_compile_config import KsanaTorchCompileConfig
 
 

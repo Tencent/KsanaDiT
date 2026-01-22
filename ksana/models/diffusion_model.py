@@ -3,9 +3,7 @@ from abc import abstractmethod
 import torch
 import torch.distributed as dist
 
-from ksana.operations import KsanaLinearBackend
-
-from ..config import KsanaDistributedConfig, KsanaModelConfig
+from ..config import KsanaDistributedConfig, KsanaLinearBackend, KsanaModelConfig
 from ..models.model_key import KsanaModelKey
 from ..utils import log, time_range
 from ..utils.load import load_state_dict

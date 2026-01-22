@@ -16,9 +16,8 @@ from test_helper import (
 
 import ksana.nodes as nodes
 from ksana import KsanaAttentionConfig, get_engine
-from ksana.config import KsanaAttentionBackend
+from ksana.config import KsanaAttentionBackend, KsanaLinearBackend
 from ksana.models.model_key import KsanaModelKey
-from ksana.operations import KsanaLinearBackend
 from ksana.utils.distribute import get_gpu_count, get_rank_id
 
 
@@ -213,11 +212,6 @@ class TestModelSwitchAndGenerate(unittest.TestCase):
                     self.assertAlmostEqual(mean, test_case.expect_gpus_generator_output, places=TEST_GPUS_EPS_PLACE)
 
     # TODO: for all models, only one high, load once, and test belows for
-    def test_attention(self):
-        pass
-
-    def test_linear_backend(self):
-        pass
 
     def test_cache(self):
         pass

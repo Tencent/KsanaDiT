@@ -10,6 +10,7 @@ from ksana.config import (
     KsanaAttentionBackend,
     KsanaAttentionConfig,
     KsanaDistributedConfig,
+    KsanaLinearBackend,
     KsanaLoraConfig,
     KsanaModelConfig,
     KsanaRadialSageAttentionConfig,
@@ -19,7 +20,6 @@ from ksana.config import (
     KsanaTorchCompileConfig,
 )
 from ksana.config.cache_config import CustomStepCacheConfig, DBCacheConfig, DCacheConfig, KsanaHybridCacheConfig
-from ksana.operations import KsanaLinearBackend
 from ksana.utils.distribute import get_gpu_count
 
 prompts = [
