@@ -6,15 +6,7 @@ from test_helper import COMFY_MODEL_ROOT, RUN_DTYPE, SEED, TEST_MODELS  # noqa #
 
 import ksana.nodes as nodes
 from ksana import KsanaAttentionConfig, get_engine  # noqa # pylint: disable=unused-import
-from ksana.config import KsanaAttentionBackend
 from ksana.utils.distribute import get_rank_id
-
-TEST_ATTNS = [
-    KsanaAttentionBackend.SAGE_ATTN,
-    KsanaAttentionBackend.FLASH_ATTN,
-    KsanaAttentionBackend.TORCH_SDPA,
-    KsanaAttentionBackend.RADIAL_SAGE_ATTN,
-]
 
 
 class TestAttentionsForAllModels(unittest.TestCase):
@@ -56,11 +48,12 @@ class TestAttentionsForAllModels(unittest.TestCase):
         else:
             self.assertIsNone(generate_output)
 
+    # TODO(TJ): need fix memory issue
     # def test_base_and_swith_models(self):
     #     ksana_engine = get_engine()
     #     ksana_engine.clear_models()
     #     for model_name, img_shape, text_shape in TEST_MODELS:
-    #         for attn_backend in TEST_ATTNS:
+    #         for attn_backend in KsanaAttentionBackend.get_supported_list():
     #             print(f"-----------------test {model_name} {attn_backend} -----------------")
     #             with self.subTest(msg=f"test {model_name} with {attn_backend}"):
     #                 self.run_once(model_name, img_shape, text_shape, attn_backend)

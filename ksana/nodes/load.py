@@ -1,8 +1,7 @@
 import os
 
 from ksana import get_engine
-from ksana.config import KsanaAttentionConfig, KsanaDistributedConfig, KsanaModelConfig
-from ksana.operations import KsanaLinearBackend
+from ksana.config import KsanaAttentionConfig, KsanaDistributedConfig, KsanaLinearBackend, KsanaModelConfig
 from ksana.utils import get_gpu_count, log
 from ksana.utils.profile import MemoryProfiler
 

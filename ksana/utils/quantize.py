@@ -1,6 +1,6 @@
 import torch
 
-from ..operations import KsanaLinearBackend
+from ..config import KsanaLinearBackend
 from .logger import log
 
 _FP8_TENSOR_PATCHED = False
