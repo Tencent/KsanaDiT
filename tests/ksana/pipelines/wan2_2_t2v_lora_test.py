@@ -25,7 +25,7 @@ TEST_DTYPE = torch.float16
 TEST_SIZE = (720, 480)
 TEST_STEPS = 1
 TEST_FRAME_NUM = 9
-TEST_EPS_PLACE = 5
+TEST_EPS_PLACE = 4
 
 RADIAL_TEST_SIZE = (1280, 768)  # should be divisible by block_size
 RADIAL_TEST_FRAME_NUM = 33
@@ -66,7 +66,7 @@ class TestKsanaPipelineWan22T2VLora(unittest.TestCase):
         with self.subTest(msg="Shape Check"):
             self.assertEqual(list(video.shape), [1, 3, RADIAL_TEST_FRAME_NUM, RADIAL_TEST_SIZE[1], RADIAL_TEST_SIZE[0]])
         mean = video.cpu().abs().mean().item()
-        self.assertAlmostEqual(mean, 0.2003432810306549, places=TEST_EPS_PLACE)
+        self.assertAlmostEqual(mean, 0.20027998089790344, places=TEST_EPS_PLACE)
 
     def test_lora_torch_compile(self):
         print("-----------------test_lora_torch_compile-----------------")

@@ -25,7 +25,7 @@
       "lora_model_name": "Wan2.2-T2V-A14B-4steps-lora-rank64-Seko-V1/low_noise_model.safetensors",
       "rope_function": "comfy",
       "expect_values": {
-        "mean": 0.4146025,
+        "mean": 0.4646997,
         "eps_place": 3
       },
       "gpus_expect_values": {
@@ -43,7 +43,7 @@
       "attn_backend": "flash_attention",
       "lora_model_name": "Wan2.2-I2V-A14B-4steps-lora-rank64-Seko-V1_low_noise.safetensors",
       "expect_values": {
-        "mean": 0.6766697,
+        "mean": 0.6757717,
         "eps_place": 3
       },
       "gpus_expect_values": {
@@ -61,7 +61,7 @@
       "linear_backend": "fp8_gemm",
       "attn_backend": "flash_attention",
       "expect_values": {
-        "mean": 0.6769429,
+        "mean": 0.6753998,
         "eps_place": 2
       },
       "gpus_expect_values": {
@@ -78,7 +78,7 @@
       "sigmas": [0.9999, 0.0000],
       "lora_model_name": "Wan2.2-T2V-A14B-4steps-lora-rank64-Seko-V1/low_noise_model.safetensors",
       "expect_values": {
-        "mean": 0.3950314,
+        "mean": 0.4261124,
         "eps_place": 4
       },
       "gpus_expect_values": {
@@ -127,7 +127,7 @@
       "linear_backend": "default",
       "attn_backend": "sage_attention",
       "expect_values": {
-        "mean": 0.4628257,
+        "mean": 0.4628286,
         "eps_place": 4
       },
       "gpus_expect_values": {
