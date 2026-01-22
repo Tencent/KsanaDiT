@@ -553,6 +553,16 @@ class WanModel(ModelMixin, ConfigMixin):
     def _find_fp32_params(self, keywords):
         return [name for name, _ in self.named_parameters() if any(keyword in name for keyword in keywords)]
 
+    def _get_seq_len(self, latent_shape):
+        if len(latent_shape) != 5:
+            raise ValueError("latent_shape must be of length 5 (B, C, F, H, W)")
+        if len(self.patch_size) < 3:
+            raise ValueError("patch_size must be of length 3 (t_patch, h_patch, w_patch)")
+        _, _, lat_f, lat_h, lat_w = latent_shape
+
+        max_seq_len = (lat_f * lat_h * lat_w) // (self.patch_size[1] * self.patch_size[2])
+        return int(math.ceil(max_seq_len / self.sp_size)) * self.sp_size
+
     # @nvtx_range
     def forward(
         self,
@@ -562,7 +572,7 @@ class WanModel(ModelMixin, ConfigMixin):
         cache: KsanaHybridCache | None,
         phase: str,
         context: torch.Tensor,
-        seq_len,
+        # seq_len, # seem can cal inside forward now
         y=None,
     ):
         r"""
@@ -585,6 +595,7 @@ class WanModel(ModelMixin, ConfigMixin):
                 Denoised video tensor with shape [B, C_out, F, H / 8, W / 8]
         """
         latent_shape = x.shape
+        seq_len = self._get_seq_len(latent_shape)
 
         # x [bs, 16, f, h, w], y [bs, 20, f, h, w]
         if self.is_i2v_type and y is None:

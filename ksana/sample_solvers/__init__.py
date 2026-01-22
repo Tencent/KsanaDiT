@@ -25,12 +25,11 @@ def get_sample_scheduler(num_train_timesteps, *, sample_config: KsanaSampleConfi
         denoise (`float`, *optional*, defaults to 1.0):
             Denoise strength. 1.0 means full denoising, 0.5 means half denoising
     """
-    sampling_steps = (sample_config.steps,)
-    sample_solver = (sample_config.solver,)
-    shift = (sample_config.shift,)
+    sampling_steps = sample_config.steps
+    sample_solver = sample_config.solver
+    shift = sample_config.shift
     denoise = sample_config.denoise or 1.0
-    sigmas = (sample_config.sigmas,)
-
+    sigmas = sample_config.sigmas
     sampling_sigmas = None
     if sample_solver == KsanaSolverType.UNI_PC:
         sample_scheduler = FlowUniPCMultistepScheduler(

@@ -5,6 +5,7 @@ from pathlib import Path
 
 import torch
 import torchvision.transforms.functional as tvtf
+from omegaconf import OmegaConf
 from PIL import Image
 
 from ..config import KsanaRuntimeConfig, KsanaSampleConfig, KsanaSolverType
@@ -51,16 +52,16 @@ class KsanaBasePipeline(ABC):
 
     def _valid_sample_config(self, sample_config: KsanaSampleConfig, default_configs):
         sample_config = sample_config if sample_config else KsanaSampleConfig()
+        cfg_scale = getattr(default_configs, "cfg_scale", None)
+        cfg_scale = OmegaConf.to_container(cfg_scale, resolve=True) if OmegaConf.is_list(cfg_scale) else cfg_scale
+        solver = getattr(default_configs, "solver", None)
+        solver = KsanaSolverType(solver) if isinstance(solver, str) else solver
         recommend_configs = {
             "steps": getattr(default_configs, "steps", None),
-            "cfg_scale": getattr(default_configs, "cfg_scale", None),
             "shift": getattr(default_configs, "shift", None),
-            "solver": (
-                KsanaSolverType(default_configs.solver)
-                if isinstance(getattr(default_configs, "solver", None), str)
-                else None
-            ),
             "denoise": getattr(default_configs, "denoise", None),
+            "cfg_scale": cfg_scale,
+            "solver": solver,
         }
         sample_config = evolve_with_recommend(sample_config, recommend_configs)
         return sample_config

@@ -69,7 +69,23 @@ class KsanaVAEModel(KsanaModel):
             * vae_patch_size[2]
         )
         lat_f = (target_f - 1) // vae_stride_size[0] + 1
-        return lat_f, lat_h, lat_w
+
+        if img_shape is not None:
+            if len(img_shape) != 4:
+                raise ValueError(f"img_shape must be 4D but got {img_shape}")
+            img_h, img_w = img_shape[2:]
+        else:
+            img_h, img_w = target_h, target_w
+
+        # img: [bs, 3, ih, iw]
+        lat_h = round(
+            np.sqrt(target_w * target_h * (img_h / img_w)) // vae_stride[1] // vae_patch_size[1] * vae_patch_size[1]
+        )
+        lat_w = round(
+            np.sqrt(target_w * target_h * (img_w / img_h)) // vae_stride[2] // vae_patch_size[2] * vae_patch_size[2]
+        )
+        lat_f = (target_f - 1) // vae_stride[0] + 1
+        return self.z_dim, lat_f, lat_h, lat_w
 
     def forward_encode(
         self,
@@ -88,34 +104,24 @@ class KsanaVAEModel(KsanaModel):
         vae_stride = vae_stride or self.vae_stride_size
         vae_patch_size = vae_patch or self.vae_patch_size
         img_shape = None if start_img is None else start_img.shape
-        lat_f, lat_h, lat_w = self.create_latent_shape(
+        if start_img is not None and end_img is not None and start_img.shape != end_img.shape:
+            raise ValueError(
+                f"start_img and end_img must have same shape, but got {start_img.shape} and {end_img.shape}"
+            )
+
+        z_dim, lat_f, lat_h, lat_w = self.create_latent_shape(
             target_f=target_f,
             target_h=target_h,
             target_w=target_w,
             img_shape=img_shape,
             vae_stride=vae_stride,
-            vae_patch=vae_patch,
+            vae_patch=vae_patch_size,
         )
-
-        with_end_image = end_img is not None
-
-        if start_img is not None and with_end_image:
-            assert (
-                start_img.shape == end_img.shape
-            ), f"start_img and end_img must have same shape, but got {start_img.shape} and {end_img.shape}"
-
-        # img: [bs, 3, ih, iw]
-        img_h, img_w = start_img.shape[2:] if start_img is not None else (target_h, target_w)
-        lat_h = round(
-            np.sqrt(target_w * target_h * (img_h / img_w)) // vae_stride[1] // vae_patch_size[1] * vae_patch_size[1]
-        )
-        lat_w = round(
-            np.sqrt(target_w * target_h * (img_w / img_h)) // vae_stride[2] // vae_patch_size[2] * vae_patch_size[2]
-        )
-        lat_f = (target_f - 1) // vae_stride[0] + 1
 
         if start_img is None:
-            return torch.zeros(target_batch_size, self.z_dim, lat_f, lat_h, lat_w, device="cpu")
+            return torch.zeros(target_batch_size, z_dim, lat_f, lat_h, lat_w, device="cpu")
+
+        with_end_image = end_img is not None
 
         h = lat_h * vae_stride[1]
         w = lat_w * vae_stride[2]
@@ -213,7 +219,8 @@ class KsanaVAEModel(KsanaModel):
         img_shape: list[int] = None,
         vae_stride=None,
         vae_patch=None,
-    ):
+    ) -> tuple[int]:
+        # should return [z_dim, lat_f, lat_h, lat_w]
         pass
 
 
@@ -229,6 +236,7 @@ class KsanaWanVAEModel(KsanaVAEModel):
         self.z_dim = self.model.model.z_dim
         self.vae_stride_size = getattr(self.default_settings.vae, "stride", (4, 8, 8))
         self.vae_patch_size = getattr(self.default_settings.diffusion, "patch_size", [1, 2, 2])
+        log.info(f"z_dim {self.z_dim}, vae_stride {self.vae_stride_size}, vae_patch_size {self.vae_patch_size}")
 
     def create_latent_shape(
         self,
@@ -254,8 +262,12 @@ class KsanaQwenVAEModel(KsanaVAEModel):
 
         self.z_dim = self.model.z_dim
         self.vae_stride_size = getattr(self.default_settings.vae, "stride", (4, 8, 8))
-        self.vae_patch_size = getattr(self.default_settings.vae, "patch_size", 2)
+        self.vae_patch_size = getattr(self.default_settings.diffusion, "patch_size", 2)
         self.vae_scale_factor = getattr(self.default_settings.vae, "scale_factor", 8)
+        log.info(
+            f"z_dim {self.z_dim}, vae_stride {self.vae_stride_size}, "
+            f"vae_patch_size {self.vae_patch_size}, vae_scale_factor {self.vae_scale_factor}"
+        )
 
     def create_latent_shape(
         self,
