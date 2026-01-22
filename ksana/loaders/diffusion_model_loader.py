@@ -37,7 +37,7 @@ class KsanaDiffusionLoaderUnit(KsanaLoaderUnit):
             raise ValueError(f"model_path must be a file/dir or a list of file/dir, but got {model_path}")
         return load_model_path_or_files
 
-    def _valid_input_lora(self, lora_config: None | list[list[KsanaLoraConfig]]):
+    def _valid_input_lora(self, lora_config: None | list[list[KsanaLoraConfig]] | list[KsanaLoraConfig]):
         if lora_config is None:
             return None
         if not isinstance(lora_config, (list, tuple)):
@@ -47,6 +47,7 @@ class KsanaDiffusionLoaderUnit(KsanaLoaderUnit):
         if self.model_key in [KsanaModelKey.Wan2_2_I2V_14B, KsanaModelKey.Wan2_2_T2V_14B]:
             if len(lora_config) != 2:
                 raise ValueError(f"len of lora_config list must be 2 for {self.model_key}, but got {lora_config}")
+            log.info(f"high_model_loras_list: {lora_config[0]}, low_model_loras_list: {lora_config[1]}")
             check_list = lora_config[0] + lora_config[1]
         else:
             if len(lora_config) != 1:

@@ -34,7 +34,7 @@ def vae_encode(
         if width is None or height is None:
             raise ValueError("width/height required if vae is None")
         if num_frames == 1:
-            latent = torch.zeros([batch_size, 16, height // 8, width // 8], device=torch.device("cpu"))
+            latent = torch.zeros([batch_size, 16, 1, height // 8, width // 8], device=torch.device("cpu"))
         else:
             latent = torch.zeros(
                 [batch_size, 16, ((num_frames - 1) // 4) + 1, height // 8, width // 8], device=torch.device("cpu")
@@ -72,8 +72,8 @@ def vae_encode(
     latents = ksana_engine.forward_vae_encode(
         model_key=vae,
         target_f=num_frames,
-        target_h=width,
-        target_w=height,
+        target_h=height,
+        target_w=width,
         start_img=start_image,
         end_img=end_image,
         mask=mask,

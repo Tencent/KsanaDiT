@@ -3,6 +3,16 @@ import unittest
 from dataclasses import dataclass
 
 import torch
+from test_helper import (
+    COMFY_MODEL_ROOT,
+    RUN_DTYPE,
+    SEED,
+    TARGET_I2I_IMG_SHAPE,
+    TARGET_I2V_IMG_SHAPE,
+    TARGET_T2V_IMG_SHAPE,
+    TEST_GPUS_EPS_PLACE,
+    TEST_ONE_GPU_EPS_PLACE,
+)
 
 import ksana.nodes as nodes
 from ksana import KsanaAttentionConfig, get_engine
@@ -10,15 +20,6 @@ from ksana.config import KsanaAttentionBackend
 from ksana.models.model_key import KsanaModelKey
 from ksana.operations import KsanaLinearBackend
 from ksana.utils.distribute import get_gpu_count, get_rank_id
-
-COMFY_MODEL_ROOT = "/data/stable-diffusion-webui/models/diffusion_models"
-SEED = 321
-RUN_DTYPE = torch.float16
-TEST_ONE_GPU_EPS_PLACE = 6
-TEST_GPUS_EPS_PLACE = 6
-
-TARGET_T2V_IMG_SHAPE = [1, 16, 16, 32, 32]
-TARGET_I2V_IMG_SHAPE = [1, 20, 16, 32, 32]
 
 
 @dataclass
@@ -106,28 +107,28 @@ test_cases = [
         expect__one_generator_output=0.79052734375,
         expect_gpus_generator_output=0.79052734375,
     ),
-    # KsanaNodesTestCase(
-    #     model_names=["qwen_image_2512_fp8_e4m3fn.safetensors", None],
-    #     expect_model_key=KsanaModelKey.QwenImage_T2I,
-    #     image_latent_shape=[1, 16, 1, 32, 32],
-    #     attention_backends=KsanaAttentionBackend.FLASH_ATTN,
-    #     linear_backends=KsanaLinearBackend.FP8_GEMM_DYNAMIC,
-    #     rope_function="comfy",
-    #     expect__one_generator_output=0.79052734375,
-    #     expect_gpus_generator_output=0.79052734375,
-    # ),
+    KsanaNodesTestCase(
+        model_names="qwen_image_2512_fp8_e4m3fn.safetensors",
+        expect_model_key=KsanaModelKey.QwenImage_T2I,
+        image_latent_shape=TARGET_I2I_IMG_SHAPE,
+        attention_backends=KsanaAttentionBackend.FLASH_ATTN,
+        linear_backends=KsanaLinearBackend.FP8_GEMM,
+        rope_function="comfy",
+        expect__one_generator_output=0.255859375,
+        expect_gpus_generator_output=0.2578125,
+    ),
 ]
 
 
-class TestNodes(unittest.TestCase):
+class TestModelSwitchAndGenerate(unittest.TestCase):
     def test_base_and_swith_models(self):
-        print("-----------------test_base_and_swith_models-----------------")
+        print("-----------------test_swith_models_and_generate-----------------")
         ksana_engine = get_engine()
         ksana_engine.clear_models()
 
         seed_g = torch.Generator(device="cpu")
         seed_g.manual_seed(SEED)
-        text_shape = [1, 512, 4096]  # [1, 1024, 3584]  else [1, 512, 4096]
+        text_shape = [1, 512, 4096]
         positive_text_embeddings = torch.randn(
             *text_shape,
             dtype=RUN_DTYPE,
@@ -143,10 +144,29 @@ class TestNodes(unittest.TestCase):
 
         for test_case in test_cases:
             print(f"----------- test model_name: {test_case.model_names} -------------")
-            high_noise_model_path = os.path.join(COMFY_MODEL_ROOT, test_case.model_names[0])
-            low_noise_model_path = (
-                os.path.join(COMFY_MODEL_ROOT, test_case.model_names[1]) if test_case.model_names[1] else None
-            )
+            low_noise_model_path = None
+            if test_case.expect_model_key in [KsanaModelKey.Wan2_2_I2V_14B, KsanaModelKey.Wan2_2_T2V_14B]:
+                high_noise_model_path = os.path.join(COMFY_MODEL_ROOT, test_case.model_names[0])
+                low_noise_model_path = (
+                    os.path.join(COMFY_MODEL_ROOT, test_case.model_names[1]) if test_case.model_names[1] else None
+                )
+            else:
+                high_noise_model_path = os.path.join(COMFY_MODEL_ROOT, test_case.model_names)
+
+            if test_case.expect_model_key in [KsanaModelKey.QwenImage_T2I]:
+                text_shape = [1, 1024, 3584]
+                positive_text_embeddings = torch.randn(
+                    *text_shape,
+                    dtype=RUN_DTYPE,
+                    device="cpu",
+                    generator=seed_g,
+                )
+                negtive_text_embeddings = torch.randn(
+                    *text_shape,
+                    dtype=RUN_DTYPE,
+                    device="cpu",
+                    generator=seed_g,
+                )
             output = nodes.KsanaNodeModelLoader.load(
                 high_noise_model_path=high_noise_model_path,
                 low_noise_model_path=low_noise_model_path,

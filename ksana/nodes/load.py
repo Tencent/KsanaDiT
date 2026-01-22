@@ -53,17 +53,6 @@ class KsanaNodeModelLoader:
             boundary=model_boundary,
         )
 
-        high_model_loras_list = []
-        low_model_loras_list = []
-        if lora is not None and isinstance(lora, list) and len(lora) > 0:
-            if isinstance(lora[0], list):  # case when lora = [[high_model_loras], [low_model_loras]]
-                high_model_loras_list = lora[0]
-                if len(lora) > 1:
-                    low_model_loras_list = lora[1]
-            else:  # case when lora = [high_model_loras]
-                high_model_loras_list = lora
-        log.info(f"high_model_loras_list: {high_model_loras_list}, low_model_loras_list: {low_model_loras_list}")
-
         MemoryProfiler.record_memory("before_load_model")
         if not high_noise_model_path:
             raise ValueError("high_noise_model_path is empty; check ComfyUI diffusion_models paths.")
@@ -85,7 +74,7 @@ class KsanaNodeModelLoader:
                 ),
                 model_config=model_config,
                 comfy_bar_callback=comfy_bar_callback,
-                lora_config=[high_model_loras_list, low_model_loras_list],
+                lora_config=lora,
             )
         except Exception as e:  # pylint: disable=broad-except
             cls.LOADED_MODEL = None
