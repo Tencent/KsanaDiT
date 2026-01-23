@@ -108,11 +108,14 @@ def merge_lora_weight(
         if lora_down_name in lora_sd:
             lora_down = lora_sd[lora_down_name]
             lora_up = lora_sd[lora_up_name]
-            lora_alpha = float(lora_sd[lora_alpha_name])
-            rank = lora_down.shape[0]
-            scaling_factor = lora_alpha / rank
-            assert lora_up.dtype == torch.float32
-            assert lora_down.dtype == torch.float32
+
+            if lora_alpha_name in lora_sd:
+                rank = lora_down.shape[0]
+                lora_alpha = float(lora_sd[lora_alpha_name])
+                scaling_factor = lora_alpha / rank
+            else:
+                scaling_factor = 1.0
+
             delta_w_ = strength * scaling_factor * torch.matmul(lora_up, lora_down)
 
             # Reuse tensor cache to reduce memory usage
