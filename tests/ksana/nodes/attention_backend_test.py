@@ -49,9 +49,7 @@ class TestAttentionsForAllModels(unittest.TestCase):
             self.assertIsNone(generate_output)
 
     # TODO(TJ): need fix memory issue
-    # def test_base_and_swith_models(self):
-    #     ksana_engine = get_engine()
-    #     ksana_engine.clear_models()
+    # def test_all_attention_backend(self):
     #     for model_name, img_shape, text_shape in TEST_MODELS:
     #         for attn_backend in KsanaAttentionBackend.get_supported_list():
     #             print(f"-----------------test {model_name} {attn_backend} -----------------")

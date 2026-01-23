@@ -5,7 +5,6 @@ import torch
 from test_helper import COMFY_MODEL_ROOT, RUN_DTYPE, SEED, TEST_MODELS
 
 import ksana.nodes as nodes
-from ksana import get_engine
 from ksana.config import KsanaLinearBackend
 from ksana.utils.distribute import get_rank_id
 
@@ -49,9 +48,7 @@ class TestLinearForAllModels(unittest.TestCase):
         else:
             self.assertIsNone(generate_output)
 
-    def test_base_and_swith_models(self):
-        ksana_engine = get_engine()
-        ksana_engine.clear_models()
+    def test_all_linear_backend(self):
         for model_name, img_shape, text_shape in TEST_MODELS:
             for linear_backend in KsanaLinearBackend.get_supported_list():
                 if KsanaLinearBackend(linear_backend) == KsanaLinearBackend.FP8_GEMM and "fp8" not in model_name:

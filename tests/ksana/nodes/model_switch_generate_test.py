@@ -15,7 +15,7 @@ from test_helper import (
 )
 
 import ksana.nodes as nodes
-from ksana import KsanaAttentionConfig, get_engine
+from ksana import KsanaAttentionConfig
 from ksana.config import KsanaAttentionBackend, KsanaLinearBackend
 from ksana.models.model_key import KsanaModelKey
 from ksana.utils.distribute import get_gpu_count, get_rank_id
@@ -122,9 +122,6 @@ test_cases = [
 class TestModelSwitchAndGenerate(unittest.TestCase):
     def test_base_and_swith_models(self):
         print("-----------------test_swith_models_and_generate-----------------")
-        ksana_engine = get_engine()
-        ksana_engine.clear_models()
-
         seed_g = torch.Generator(device="cpu")
         seed_g.manual_seed(SEED)
         text_shape = [1, 512, 4096]

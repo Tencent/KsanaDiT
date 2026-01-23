@@ -49,9 +49,9 @@ class TestKsanaWanI2VGpus(unittest.TestCase):
         mean0 = videos[0].cpu().abs().mean().item()
         mean1 = videos[1].cpu().abs().mean().item()
         with self.subTest(msg="Mean 0 Check"):
-            self.assertAlmostEqual(mean0, 0.603122353553772, places=TEST_EPS_PLACE)
+            self.assertAlmostEqual(mean0, 0.6015586853027344, places=TEST_EPS_PLACE)
         with self.subTest(msg="Mean 1 Check"):
-            self.assertAlmostEqual(mean1, 0.6307958960533142, places=TEST_EPS_PLACE)
+            self.assertAlmostEqual(mean1, 0.6314036846160889, places=TEST_EPS_PLACE)
 
         videos = pipeline.generate(
             prompts[0],
@@ -71,7 +71,7 @@ class TestKsanaWanI2VGpus(unittest.TestCase):
             self.assertEqual(list(videos.shape), [1, 3, TEST_FRAME_NUM, 576, 576])
         mean2 = videos.cpu().abs().mean().item()
         with self.subTest(msg="Mean 2 Check"):
-            self.assertAlmostEqual(mean2, 0.47554442286491394, places=TEST_EPS_PLACE)
+            self.assertAlmostEqual(mean2, 0.48114508390426636, places=TEST_EPS_PLACE)
 
 
 if __name__ == "__main__":

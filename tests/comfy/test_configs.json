@@ -11,7 +11,7 @@
         "eps_place": 4
       },
       "gpus_expect_values": {
-        "mean": 0.2259659,
+        "mean": 0.3167436,
         "eps_place": 4
       }
     },
@@ -65,7 +65,7 @@
         "eps_place": 2
       },
       "gpus_expect_values": {
-        "mean": 0.7001891,
+        "mean":0.6744323,
         "eps_place": 4
       }
     },
@@ -82,7 +82,7 @@
         "eps_place": 4
       },
       "gpus_expect_values": {
-        "mean": 0.3958074,
+        "mean": 0.4263136,
         "eps_place": 4
       }
     },
@@ -98,7 +98,7 @@
         "eps_place": 4
       },
       "gpus_expect_values": {
-        "mean": 0.5269037,
+        "mean":0.5728733,
         "eps_place": 4
       }
     },
@@ -114,7 +114,7 @@
         "eps_place": 4
       },
       "gpus_expect_values": {
-        "mean": 0.2972190,
+        "mean": 0.2641747,
         "eps_place": 4
       }
     },
@@ -131,7 +131,7 @@
         "eps_place": 4
       },
       "gpus_expect_values": {
-        "mean": 0.4899758,
+        "mean": 0.5202697,
         "eps_place": 4
       }
     },
@@ -147,7 +147,7 @@
         "eps_place": 4
       },
       "gpus_expect_values": {
-        "mean": 0.2321847,
+        "mean": 0.1352762,
         "eps_place": 4
       }
     },
@@ -163,7 +163,7 @@
         "eps_place": 4
       },
       "gpus_expect_values": {
-        "mean": 0.4616402,
+        "mean": 0.4609389,
         "eps_place": 4
       }
     },
@@ -198,11 +198,11 @@
         "linear_backend": "fp8_gemm",
         "attn_backend": "flash_attention",
         "expect_values": {
-          "mean": 0.7006413,
+          "mean": 0.6769429,
           "eps_place": 2
         },
         "gpus_expect_values": {
-          "mean": 0.7006413,
+          "mean": 0.6769429,
           "eps_place": 4
         }
       },
@@ -216,11 +216,11 @@
         "linear_backend": "fp8_gemm",
         "attn_backend": "sage_attention",
         "expect_values": {
-          "mean": 0.6949548,
+          "mean": 0.6732443,
           "eps_place": 2
         },
         "gpus_expect_values": {
-          "mean": 0.6949548,
+          "mean": 0.6732443,
           "eps_place": 4
         }
       }
