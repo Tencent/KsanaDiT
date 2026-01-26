@@ -2,7 +2,7 @@ import os
 import unittest
 
 import torch
-from test_helper import COMFY_MODEL_ROOT, RUN_DTYPE, SEED, TEST_MODELS
+from test_helper import COMFY_MODEL_ROOT, RUN_DTYPE, SEED, TEST_MODELS, TEST_STEPS
 
 import ksana.nodes as nodes
 from ksana.config import KsanaLinearBackend
@@ -28,7 +28,7 @@ class TestLinearForAllModels(unittest.TestCase):
         )
 
         output = nodes.KsanaNodeModelLoader.load(
-            high_noise_model_path=os.path.join(COMFY_MODEL_ROOT, model_name),
+            high_noise_model_path=os.path.join(COMFY_MODEL_ROOT, "diffusion_models", model_name),
             linear_backend=linear_backend,
         )
 
@@ -38,7 +38,7 @@ class TestLinearForAllModels(unittest.TestCase):
             positive=[[positive_text_embeddings]],
             negative=[[negtive_text_embeddings]],
             latent_image=nodes.KsanaNodeVAEEncodeOutput(samples=image_latent),
-            steps=1,
+            steps=TEST_STEPS,
             seed=SEED,
         )
         generate_output = generate_output.samples

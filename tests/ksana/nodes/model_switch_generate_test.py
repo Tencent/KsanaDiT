@@ -12,6 +12,7 @@ from test_helper import (
     TARGET_T2V_IMG_SHAPE,
     TEST_GPUS_EPS_PLACE,
     TEST_ONE_GPU_EPS_PLACE,
+    TEST_STEPS,
 )
 
 import ksana.nodes as nodes
@@ -142,12 +143,14 @@ class TestModelSwitchAndGenerate(unittest.TestCase):
             print(f"----------- test model_name: {test_case.model_names} -------------")
             low_noise_model_path = None
             if test_case.expect_model_key in [KsanaModelKey.Wan2_2_I2V_14B, KsanaModelKey.Wan2_2_T2V_14B]:
-                high_noise_model_path = os.path.join(COMFY_MODEL_ROOT, test_case.model_names[0])
+                high_noise_model_path = os.path.join(COMFY_MODEL_ROOT, "diffusion_models", test_case.model_names[0])
                 low_noise_model_path = (
-                    os.path.join(COMFY_MODEL_ROOT, test_case.model_names[1]) if test_case.model_names[1] else None
+                    os.path.join(COMFY_MODEL_ROOT, "diffusion_models", test_case.model_names[1])
+                    if test_case.model_names[1]
+                    else None
                 )
             else:
-                high_noise_model_path = os.path.join(COMFY_MODEL_ROOT, test_case.model_names)
+                high_noise_model_path = os.path.join(COMFY_MODEL_ROOT, "diffusion_models", test_case.model_names)
 
             if test_case.expect_model_key in [KsanaModelKey.QwenImage_T2I]:
                 text_shape = [1, 1024, 3584]
@@ -184,7 +187,7 @@ class TestModelSwitchAndGenerate(unittest.TestCase):
                 positive=[[positive_text_embeddings]],
                 negative=[[negtive_text_embeddings]],
                 latent_image=nodes.KsanaNodeVAEEncodeOutput(samples=image_latent),
-                steps=1,
+                steps=TEST_STEPS,
                 seed=SEED,
                 rope_function=test_case.rope_function,
                 low_sample_guide_scale=3.0,
@@ -209,12 +212,7 @@ class TestModelSwitchAndGenerate(unittest.TestCase):
                     self.assertAlmostEqual(mean, test_case.expect_gpus_generator_output, places=TEST_GPUS_EPS_PLACE)
 
     # TODO: for all models, only one high, load once, and test belows for
-
     def test_cache(self):
-        pass
-
-    def test_lora(self):
-        # TODO(TJ):一个lora， 多个lora
         pass
 
 

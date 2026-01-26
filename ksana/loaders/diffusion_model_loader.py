@@ -37,29 +37,34 @@ class KsanaDiffusionLoaderUnit(KsanaLoaderUnit):
             raise ValueError(f"model_path must be a file/dir or a list of file/dir, but got {model_path}")
         return load_model_path_or_files
 
-    def _valid_input_lora(self, lora_config: None | list[list[KsanaLoraConfig]] | list[KsanaLoraConfig]):
+    def _valid_input_lora(
+        self, lora_config: None | list[list[KsanaLoraConfig]] | list[KsanaLoraConfig], model_count: int
+    ) -> list:
         if lora_config is None:
             return None
-        if not isinstance(lora_config, (list, tuple)):
+        if not isinstance(lora_config, list):
             raise ValueError(f"lora_config must be list of list of KsanaLoraConfig, but got {lora_config}")
+        if len(lora_config) == 0:
+            return None
+        if all(isinstance(i, KsanaLoraConfig) for i in lora_config):
+            lora_config = [lora_config]
 
-        check_list = []
-        if self.model_key in [KsanaModelKey.Wan2_2_I2V_14B, KsanaModelKey.Wan2_2_T2V_14B]:
-            if len(lora_config) != 2:
-                raise ValueError(f"len of lora_config list must be 2 for {self.model_key}, but got {lora_config}")
-            log.info(f"high_model_loras_list: {lora_config[0]}, low_model_loras_list: {lora_config[1]}")
-            check_list = lora_config[0] + lora_config[1]
-        else:
-            if len(lora_config) != 1:
-                raise ValueError(f"len of lora_config list must be 1 for {self.model_key}, but got {lora_config}")
-            check_list = lora_config[0]
-        if any(not isinstance(one, KsanaLoraConfig) for one in check_list):
-            raise ValueError(f"lora_config must be list of KsanaLoraConfig, but got {lora_config}")
-        return lora_config
+        return_list = []
+        if len(lora_config) != model_count:
+            raise ValueError(
+                f"len of lora_config list must be {model_count} for {self.model_key}, but got {lora_config}"
+            )
+        for one_list in lora_config:
+            if not isinstance(one_list, (list, tuple)) and not isinstance(one_list, KsanaLoraConfig):
+                raise ValueError(
+                    f"lora_config[i] must be list of KsanaLoraConfig or KsanaLoraConfig, but got {one_list}"
+                )
+            if isinstance(one_list, KsanaLoraConfig):
+                one_list = [one_list]
+            return_list.append(one_list)
+        return return_list
 
-    def _load_state_dict(
-        self, model_path: str, run_dtype, device, lora_config: None | list[list[KsanaLoraConfig]] = None
-    ):
+    def _load_state_dict(self, model_path: str, run_dtype, device, lora_config: None | list[KsanaLoraConfig] = None):
         if self.model_key == KsanaModelKey.QwenImage_T2I and os.path.isdir(model_path):
             if getattr(self.default_settings.diffusion, "transformer_subdir", None) is None:
                 raise ValueError(
@@ -86,7 +91,7 @@ class KsanaDiffusionLoaderUnit(KsanaLoaderUnit):
     ) -> list[KsanaModel]:
         log.info(f"{self.model_key} loading diffuion model from: {model_path}")
         load_model_path_or_files = self._valid_input_model_path(model_path)
-        list_of_loras_list = self._valid_input_lora(lora_config)
+        list_of_loras_list = self._valid_input_lora(lora_config, len(load_model_path_or_files))
         self.default_settings = load_default_settings(self.model_key, with_lora=list_of_loras_list is not None)
         device = device or torch.device("cuda")
 
