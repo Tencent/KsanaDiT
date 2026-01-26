@@ -12,7 +12,6 @@ from test_helper import (
     TARGET_T2V_IMG_SHAPE,
     TEST_GPUS_EPS_PLACE,
     TEST_ONE_GPU_EPS_PLACE,
-    TEST_STEPS,
 )
 
 import ksana.nodes as nodes
@@ -20,6 +19,8 @@ from ksana import KsanaAttentionConfig
 from ksana.config import KsanaAttentionBackend, KsanaLinearBackend
 from ksana.models.model_key import KsanaModelKey
 from ksana.utils.distribute import get_gpu_count, get_rank_id
+
+TEST_STEPS = 1
 
 
 @dataclass
