@@ -2,7 +2,7 @@ from .attn_config import attention_config, radial_sage_attention_config
 from .cache import KsanaNodeDBCache, custom_step_cache, dcache, easy_cache, hybrid_cache, mag_cache, teacache
 from .generate import generate
 from .load import KsanaNodeModelLoader
-from .lora import build_loras_list
+from .lora import build_list_of_lora_config
 from .output_types import KsanaNodeGeneratorOutput, KsanaNodeModelLoaderOutput, KsanaNodeVAEEncodeOutput
 from .torch_compile import torch_compile_config
 from .types import (
@@ -53,7 +53,7 @@ __all__ = [
     "generate",
     "vae_encode",
     "vae_decode",
-    "build_loras_list",
+    "build_list_of_lora_config",
     "torch_compile_config",
     "attention_config",
     "radial_sage_attention_config",

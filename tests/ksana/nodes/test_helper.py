@@ -4,10 +4,12 @@ TARGET_T2V_IMG_SHAPE = [1, 16, 16, 32, 32]
 TARGET_I2V_IMG_SHAPE = [1, 20, 16, 32, 32]
 TARGET_I2I_IMG_SHAPE = [1, 16, 1, 32, 32]
 
+TEST_STEPS = 2
+
 WAN_TEXT_SHAPE = [1, 512, 4096]
 QWEN_TEXT_SHAPE = [1, 1024, 3584]
 
-COMFY_MODEL_ROOT = "/data/stable-diffusion-webui/models/diffusion_models"
+COMFY_MODEL_ROOT = "/data/stable-diffusion-webui/models"
 
 SEED = 321
 RUN_DTYPE = torch.float16
