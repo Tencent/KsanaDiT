@@ -11,6 +11,7 @@ class KsanaSolverType(Enum):
     EULER = "euler"
     FLOWMATCH_EULER = "flowmatch_euler"
     # DPM_PLUS_PLUS = "dpm++" #TODO: 这个还需要check，里面有两次 shift 操作，是否合理
+    DPM_PLUS_PLUS_SDE = "dpm++_sde"
 
     @staticmethod
     def get_supported_list() -> list[str]:
