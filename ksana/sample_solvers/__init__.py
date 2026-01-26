@@ -2,9 +2,7 @@ import torch
 
 from ..config.sample_config import KsanaSampleConfig, KsanaSolverType
 from .fm_solvers import (
-    FlowDPMSolverMultistepScheduler,  # noqa: F401
-    get_sampling_sigmas,  # noqa: F401
-    retrieve_timesteps,  # noqa: F401
+    FlowDPMSolverMultistepScheduler,
 )
 from .fm_solvers_euler import EulerScheduler, FlowMatchEulerScheduler
 from .fm_solvers_unipc import FlowUniPCMultistepScheduler
@@ -55,6 +53,20 @@ def get_sample_scheduler(num_train_timesteps, *, sample_config: KsanaSampleConfi
     #         sample_scheduler.timesteps = (sample_scheduler.sigmas[:-1]
     # * num_train_timesteps).to(torch.int64).to(device)
     #         sample_scheduler.num_inference_steps = len(sample_scheduler.timesteps)
+    elif sample_solver == KsanaSolverType.DPM_PLUS_PLUS_SDE:
+        algorithm_type = "sde-dpmsolver++"
+        sample_scheduler = FlowDPMSolverMultistepScheduler(
+            num_train_timesteps=num_train_timesteps,
+            shift=shift,
+            use_dynamic_shifting=False,
+            algorithm_type=algorithm_type,
+        )
+        if sigmas is None:
+            sample_scheduler.set_timesteps(sampling_steps, device=device, shift=shift, denoise=denoise)
+        else:
+            sample_scheduler.sigmas = sigmas.to(device)
+            sample_scheduler.timesteps = (sample_scheduler.sigmas[:-1] * num_train_timesteps).to(torch.int64).to(device)
+            sample_scheduler.num_inference_steps = len(sample_scheduler.timesteps)
     elif sample_solver == KsanaSolverType.EULER:
         sample_scheduler = EulerScheduler(num_train_timesteps=num_train_timesteps, shift=shift, device=device)
         sample_scheduler.set_timesteps(sampling_steps, device=device, denoise=denoise, sigmas=sigmas)
