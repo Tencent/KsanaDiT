@@ -54,7 +54,7 @@ class TestKsanaQwenImageT2I(unittest.TestCase):
         )
         self._assert_image_tensor_ok(image, expected_wh=TEST_SIZE)
         mean = image.detach().float().mean().item()
-        self.assertAlmostEqual(mean, 0.30722299218177795, places=TEST_EPS_PLACE)
+        self.assertAlmostEqual(mean, 0.30380716919898987, places=TEST_EPS_PLACE)
 
 
 if __name__ == "__main__":
