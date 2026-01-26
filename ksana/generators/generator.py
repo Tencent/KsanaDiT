@@ -298,8 +298,11 @@ class KsanaBaseGenerator(KsanaRunnerUnit):
             else:
                 noise_pred = running_model.forward(**forward_kargs)
 
+            noise_latent_shape = noise_latent.shape
             step_out = sample_scheduler_step_func(noise_pred, t, noise_latent, return_dict=False, generator=seed_g)
             noise_latent = step_out if sample_config.solver == KsanaSolverType.EULER else step_out[0]
+            noise_latent = noise_latent.reshape(noise_latent_shape)
+
             if comfy_bar_callback is not None:
                 steps = sample_config.steps
                 batch_idx, num_batches = process_info
@@ -764,7 +767,6 @@ class KsanaQwenGenerator(KsanaBaseGenerator):
         negative_embeds, negative_mask = negative
 
         img_shapes = self._get_latent_img_shapes()
-
         positive_txt_seq_lens = positive_mask.sum(dim=1).tolist()
         negative_txt_seq_lens = negative_mask.sum(dim=1).tolist()
         use_cfg = self._use_cfg(cfg_scale)
