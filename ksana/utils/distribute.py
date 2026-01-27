@@ -5,6 +5,11 @@ from contextlib import closing
 import torch
 import torch.distributed as dist
 
+from ..accelerator import platform
+if platform.is_npu():
+    import torch_npu  # pylint: disable=unused-import
+    from torch_npu.contrib import transfer_to_npu  # pylint: disable=unused-import
+
 
 def get_free_port():
     with closing(socket.socket(socket.AF_INET, socket.SOCK_STREAM)) as s:

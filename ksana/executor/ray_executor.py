@@ -3,10 +3,15 @@ import os
 import ray
 
 from ..config import KsanaDistributedConfig
+from ..accelerator import platform
 from .executor import KsanaExecutor
 
+_ray_options = {"num_gpus": 1}
+if platform.is_npu():
+    _ray_options = {"num_gpus": 1, "resources": {"NPU": 1}}
 
-@ray.remote(num_gpus=1)
+
+@ray.remote(**_ray_options)
 class RayKsanaExecutor(KsanaExecutor):
 
     def init_torch_dist_group(self, rank_id, dist_config: KsanaDistributedConfig):

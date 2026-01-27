@@ -2,7 +2,7 @@
 import math
 
 import torch
-import torch.cuda.nvtx as nvtx
+
 import torch.nn as nn
 from diffusers.configuration_utils import ConfigMixin, register_to_config
 from diffusers.models.modeling_utils import ModelMixin
@@ -10,6 +10,11 @@ from diffusers.models.modeling_utils import ModelMixin
 from ksana.cache import KsanaHybridCache
 from ksana.utils import all_to_all, gather_forward, get_rank_id, get_world_size, time_range
 from ksana.utils.rope import EmbedND, apply_comfyui_rope, apply_default_rope
+from ksana.accelerator import platform
+
+if platform.is_npu():
+    import torch_npu  # pylint: disable=unused-import
+    from torch_npu.contrib import transfer_to_npu  # pylint: disable=unused-import
 
 __all__ = ["WanModel"]
 
@@ -622,7 +627,6 @@ class WanModel(ModelMixin, ConfigMixin):
         )  # pad f*h*w to seqlen, => [bs, seqlen, 5120]
 
         # time embeddings
-        nvtx.range_push("time_embedding")
         # 取第一个 timestep，因为一个batch里的timestamp都是一样的
         timestep = t[0].item() if t.numel() > 1 else t.item()
 
@@ -643,18 +647,15 @@ class WanModel(ModelMixin, ConfigMixin):
         e0 = self.time_projection(e)
         # [bs, one, 6*5120] => [bs, one, 6, 5120]
         e0 = e0.unflatten(2, (6, self.dim))
-        nvtx.range_pop()
 
         # context
         context_lens = None
-        nvtx.range_push("text_embedding")
         # [bs, 512, 4096] pad to => [bs, text_len:512, 4096]
         padded_context = torch.cat(
             [context, context.new_zeros(bs, self.text_len - context.size(1), context.size(2))], dim=1
         )
         # [bs, text_len, 4096] => [bs, text_len, 5120]
         context = self.text_embedding(padded_context)
-        nvtx.range_pop()
 
         if self.sp_size > 1:
             x = torch.chunk(x, self.sp_size, dim=1)[get_rank_id()]

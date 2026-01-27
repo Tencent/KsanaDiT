@@ -1,5 +1,7 @@
 import torch
 
+from ..accelerator import platform
+
 torch_version = torch.version.__version__
 temp = torch_version.split(".")
 torch_version_numeric = (int(temp[0]), int(temp[1]))
@@ -10,6 +12,9 @@ def device_supports_non_blocking(device):
 
 
 def supports_fp8_compute(device=None):
+    if platform.is_npu():
+        return False
+
     props = torch.cuda.get_device_properties(device)
     if props.major >= 9:
         return True

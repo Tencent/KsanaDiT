@@ -13,42 +13,18 @@ license = {file = "LICENSE"}
 dependencies = [
   "numpy",
   "easydict",
-  # below should use cuda version in docker to avoid reinstall cpu version of torch
-  # "torch >= 2.6.0,<=2.7.1",
-  # "torchvision >= 0.21.0,<=0.22.2",
-  # "torchaudio >= 2.6.0,<=2.7.2",
   "accelerate >= 1.2.1",
   "diffusers >= 0.35.2",
   "peft >= 0.17.0",
   "ftfy",
   "gguf >= 0.17.0",
   "pyloudnorm",
-  "xformers >= 0.0.29",
-  "flash_attn >=2.6.0",
-  # "flash_attn >=2.7.1 <= 2.8.2",
-  "triton >= 3.2.0",
   "pyinstrument >= 5.1.1",
   "dataclasses >= 0.6; python_version < '3.7'",
   "imageio >= 2.34.2",
   "imageio-ffmpeg >= 0.4.8",
-  # "sageattention >= 2.1.1",
-  # "spas_sage_attn >= 0.1.0"
   "omegaconf >= 2.3.0",
 ]
-
-# wan2.2 deps:
-# torch                                          2.7.0
-# torchaudio                                     2.7.1+cu128
-# torchvision                                    0.22.1+cu128
-# flash_attn                                     2.7.3
-# flashinfer-python                              0.2.2.post1
-# vllm-flash-attn                                2.6.2+cu128
-# xformers                                       0.0.30
-# triton                                         3.3.0
-# tritonclient                                   2.51.0
-# trpc_triton                                    0.0.5a4
-# transformers                                   4.57.2
-
 
 [project.urls]
 Repository = "https://git.woa.com/jackyjtang/KsanaDiT.git"
@@ -61,6 +37,8 @@ Icon = ""
 
 [project.optional-dependencies]  # 可选依赖
 dev = ["pytest>=6.0", "black>=21.0", "pyinstrument>=5.1.1", "pre-commit>=4.0.0"]
+gpu = ["xformers >= 0.0.29", "flash_attn >=2.6.0", "triton >= 3.2.0"]
+npu = []
 
 [project.scripts]  # 命令行工具
 mycli = "my_package.cli:main"

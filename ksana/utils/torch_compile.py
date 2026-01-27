@@ -1,6 +1,7 @@
 import torch
 
 from . import log
+from ..accelerator import platform
 
 try:
     # Avoid Dynamo compiling cache helpers that use numpy/Python control flow
@@ -12,7 +13,7 @@ except ImportError:
 
 
 def apply_torch_compile(model, torch_compile_config=None):
-    if torch_compile_config is None:
+    if platform.is_npu() or torch_compile_config is None:  # TODO: support torch compile in NPU
         return model
     log.info(f"apply torch_compile_config: {torch_compile_config}")
     if hasattr(torch, "_dynamo") and hasattr(torch._dynamo, "config"):
