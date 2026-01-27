@@ -2,13 +2,18 @@
 import logging
 
 import torch
-import torch.cuda.amp as amp
 import torch.nn as nn
 import torch.nn.functional as F
 from einops import rearrange
 
+from ksana.accelerator import platform
 from ksana.utils.load import load_state_dict
 from ksana.utils.lora import load_state_dict_and_merge_lora
+
+if platform.is_npu():
+    import torch_npu  # pylint: disable=unused-import
+    from torch_npu.contrib import transfer_to_npu  # pylint: disable=unused-import
+
 
 __all__ = ["Wan2_1_VAE"]
 
@@ -32,6 +37,10 @@ class CausalConv3d(nn.Conv3d):
             x = torch.cat([cache_x, x], dim=2)
             padding[4] -= cache_x.shape[2]
         x = F.pad(x, padding)
+
+        # TODO: 可能需要在更上层转换类型
+        if platform.is_npu():
+            x = x.to(dtype=torch.bfloat16)
 
         return super().forward(x)
 
@@ -715,13 +724,13 @@ class Wan2_1_VAE:  # pylint: disable=invalid-name
         videos:  videos each with shape [bs, C, T, H, W].
         """
         encode_func = self.model.encode_with_end_image if with_end_image else self.model.encode
-        with amp.autocast(dtype=self.dtype):
+        with torch.cuda.amp.autocast(dtype=self.dtype):
             return encode_func(videos, self.scale).float()
 
     # @nvtx_range
     def decode(self, zs, with_end_image):
         decode_func = self.model.decode_with_end_image if with_end_image else self.model.decode
-        with amp.autocast(dtype=self.dtype):
+        with torch.cuda.amp.autocast(dtype=self.dtype):
             return decode_func(zs, self.scale).float().clamp_(-1, 1)
 
     def to(self, device):

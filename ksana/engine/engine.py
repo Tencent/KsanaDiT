@@ -8,6 +8,7 @@ import torch.distributed as dist
 from ..config import KsanaDistributedConfig
 from ..executor import KsanaExecutor, RayKsanaExecutor
 from ..utils import log, singleton
+from ..accelerator import platform
 from ..utils.distribute import get_gpu_count, get_torchrun_env, is_launched_by_torchrun
 
 
@@ -66,7 +67,8 @@ class KsanaEngine(ABC):
         else:
             # ray local device id always be 0
             local_rank_id = 0
-            ray.init(num_gpus=dist_config.num_gpus)
+            resources = {"NPU": dist_config.num_gpus} if platform.is_npu() else None
+            ray.init(num_gpus=dist_config.num_gpus, resources=resources)
             self.executors = [
                 RayKsanaExecutor.remote(local_rank_id, offload_device) for _ in range(dist_config.num_gpus)
             ]

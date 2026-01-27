@@ -9,6 +9,11 @@ import torch.nn.functional as F
 
 from ksana.utils import load_file_to_state_dict
 from ksana.utils.load import load_state_dict
+from ksana.accelerator import platform
+
+if platform.is_npu():
+    import torch_npu  # pylint: disable=unused-import
+    from torch_npu.contrib import transfer_to_npu  # pylint: disable=unused-import
 
 from .tokenizers import HuggingfaceTokenizer
 
@@ -438,14 +443,14 @@ class T5EncoderModel:
         self,
         text_len,
         dtype=torch.bfloat16,
-        device=torch.cuda.current_device(),
+        device=None,
         checkpoint_path=None,
         tokenizer_path=None,
         shard_fn=None,
     ):
         self.text_len = text_len
         self.dtype = dtype
-        self.device = device
+        self.device = device if device is not None else torch.cuda.current_device() 
         self.checkpoint_path = checkpoint_path
         self.tokenizer_path = tokenizer_path
 

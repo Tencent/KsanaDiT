@@ -2,6 +2,7 @@
 import logging
 
 import torch
+
 import torch.cuda.amp as amp
 import torch.nn as nn
 import torch.nn.functional as F
@@ -9,6 +10,12 @@ from einops import rearrange
 
 from ksana.utils import load_file_to_state_dict, remove_prefix_from_sd_inplace
 from ksana.utils.load import load_state_dict
+from ksana.accelerator import platform
+
+
+if platform.is_npu():
+    import torch_npu  # pylint: disable=unused-import
+    from torch_npu.contrib import transfer_to_npu  # pylint: disable=unused-import
 
 __all__ = ["Wan2_2_VAE"]
 

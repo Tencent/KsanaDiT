@@ -1,17 +1,21 @@
 from abc import abstractmethod
 
 import torch
-import torch.distributed as dist
 
 from ..config import KsanaDistributedConfig, KsanaLinearBackend, KsanaModelConfig
 from ..models.model_key import KsanaModelKey
 from ..utils import log, time_range
+from ..accelerator import platform
 from ..utils.load import load_state_dict
 from ..utils.quantize import apply_dynamic_fp8_quant
 from ..utils.torch_compile import apply_torch_compile
 from .base_model import KsanaModel
 from .qwen import QwenImageTransformer2DModel
 from .wan import WanModel
+
+if platform.is_npu():
+    import torch_npu  # pylint: disable=unused-import
+    from torch_npu.contrib import transfer_to_npu  # pylint: disable=unused-import
 
 
 class KsanaDiffusionModel(KsanaModel):
@@ -39,7 +43,7 @@ class KsanaDiffusionModel(KsanaModel):
 
         self._pinned_params = {}
         # NOTE: use more memory when using pinned memory.
-        self._use_pinned_memory = True
+        self._use_pinned_memory = platform.is_gpu()
         self._preallocated_pinned_memory = False
 
     @time_range
@@ -219,8 +223,8 @@ class KsanaDiffusionModel(KsanaModel):
     def do_prepare_distributed_model(self, shard_fn):
         if shard_fn is None:
             return
-        if dist.is_initialized():
-            dist.barrier()
+        if torch.distributed.is_initialized():
+            torch.distributed.barrier()
         # use_sp = self.dist_config.use_sp
         if self.dist_config.dit_fsdp:
             self.model = shard_fn(self.model)

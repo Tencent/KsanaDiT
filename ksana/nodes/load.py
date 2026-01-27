@@ -23,7 +23,7 @@ class KsanaNodeModelLoader:
         model_boundary=None,
         torch_compile_args=None,
         lora=None,
-        comfy_progress_bar_func=None,
+        comfy_progress_bar_func=None
     ):
         # Qwen-Image is much more stable in bfloat16; fp16 frequently overflows to NaN in practice.
         # Our own example script uses bfloat16 by default.

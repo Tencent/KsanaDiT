@@ -2,7 +2,6 @@ from abc import ABC
 from functools import partial
 
 import torch
-import torch.distributed as dist
 
 from ..config import KsanaDistributedConfig
 from ..distributed import shard_model
@@ -10,7 +9,12 @@ from ..models.model_key import KsanaModelKey, get_model_key_from_path
 from ..models.model_pool import KsanaModelPool
 from ..units import KsanaUnitFactory, KsanaUnitType
 from ..utils import log, time_range
+from ..accelerator import platform
 from ..utils.logger import reset_logging
+
+if platform.is_npu():
+    import torch_npu  # pylint: disable=unused-import
+    from torch_npu.contrib import transfer_to_npu  # pylint: disable=unused-import
 
 
 class KsanaExecutor(ABC):
@@ -46,9 +50,9 @@ class KsanaExecutor(ABC):
             return
         self.rank_id = rank_id
         self.world_size = dist_config.num_gpus
-        if not dist.is_initialized():
-            dist.init_process_group(
-                backend="nccl",
+        if not torch.distributed.is_initialized():
+            torch.distributed.init_process_group(
+                backend="nccl" if platform.is_gpu() else "hccl",
                 init_method="env://",
                 rank=rank_id,
                 device_id=self.device,
