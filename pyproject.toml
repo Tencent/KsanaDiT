@@ -27,7 +27,7 @@ dependencies = [
 ]
 
 [project.urls]
-Repository = "https://git.woa.com/jackyjtang/KsanaDiT.git"
+Repository = "https://git.woa.com/venus-aigc/KsanaDiT.git"
 
 #  Used by Comfy Registry https://comfyregistry.org
 [tool.comfy]

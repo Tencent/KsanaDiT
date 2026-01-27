@@ -48,6 +48,7 @@ def generate(
     low_sample_guide_scale=None,
     cache_config=None,
     sigmas=None,
+    batch_size_per_prompts=None,
     comfy_device=None,
     comfy_progress_bar_func=None,
     comfy_free_mem_func=None,

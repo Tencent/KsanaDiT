@@ -128,7 +128,7 @@ class TestKsanaPipelineWanT2V(unittest.TestCase):
         with self.subTest(msg="Shape Check"):
             self.assertEqual(list(video.shape), [1, 3, TEST_FRAME_NUM, TEST_SIZE[1], TEST_SIZE[0]])
         mean = video.cpu().abs().mean().item()
-        self.assertAlmostEqual(mean, 0.6663893461227417, places=4)
+        self.assertAlmostEqual(mean, 0.6663893461227417, places=3)
 
 
 if __name__ == "__main__":

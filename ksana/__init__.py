@@ -1,5 +1,11 @@
 try:
-    from .config import KsanaAttentionConfig, KsanaRuntimeConfig, KsanaSampleConfig, KsanaTorchCompileConfig
+    from .config import (
+        KsanaAttentionConfig,
+        KsanaLinearBackend,
+        KsanaRuntimeConfig,
+        KsanaSampleConfig,
+        KsanaTorchCompileConfig,
+    )
     from .decoders import *  # noqa: F403
     from .encoders import *  # noqa: F403
     from .engine import KsanaEngine, get_engine
@@ -28,4 +34,5 @@ __all__ = [
     "KsanaSampleConfig",
     "KsanaRuntimeConfig",
     "KsanaAttentionConfig",
+    "KsanaLinearBackend",
 ]

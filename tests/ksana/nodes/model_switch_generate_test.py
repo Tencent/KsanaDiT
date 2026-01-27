@@ -2,20 +2,18 @@ import os
 import unittest
 from dataclasses import dataclass
 
-import torch
 from test_helper import (
-    COMFY_MODEL_ROOT,
-    RUN_DTYPE,
-    SEED,
-    TARGET_I2I_IMG_SHAPE,
-    TARGET_I2V_IMG_SHAPE,
-    TARGET_T2V_IMG_SHAPE,
+    COMFY_MODEL_DIFFUSION_ROOT,
+    IMG_SHAPE_I2V,
+    IMG_SHAPE_T2I,
+    IMG_SHAPE_T2V,
+    QWEN_TEXT_SHAPE,
     TEST_GPUS_EPS_PLACE,
     TEST_ONE_GPU_EPS_PLACE,
+    WAN_TEXT_SHAPE,
+    run_load_and_generate,
 )
 
-import ksana.nodes as nodes
-from ksana import KsanaAttentionConfig
 from ksana.config import KsanaAttentionBackend, KsanaLinearBackend
 from ksana.models.model_key import KsanaModelKey
 from ksana.utils.distribute import get_gpu_count, get_rank_id
@@ -41,7 +39,7 @@ test_cases = [
             "wan2.2_t2v_high_noise_14B_fp8_scaled.safetensors",
             "wan2.2_t2v_low_noise_14B_fp8_scaled.safetensors",
         ],
-        image_latent_shape=TARGET_T2V_IMG_SHAPE,
+        image_latent_shape=IMG_SHAPE_T2V,
         attention_backends=KsanaAttentionBackend.SAGE_ATTN,
         linear_backends=KsanaLinearBackend.DEFAULT,
         rope_function="comfy",
@@ -54,7 +52,7 @@ test_cases = [
             "wan2.2_i2v_high_noise_14B_fp8_scaled.safetensors",
             "wan2.2_i2v_low_noise_14B_fp8_scaled.safetensors",
         ],
-        image_latent_shape=TARGET_I2V_IMG_SHAPE,
+        image_latent_shape=IMG_SHAPE_I2V,
         attention_backends=KsanaAttentionBackend.SAGE_ATTN,
         linear_backends=KsanaLinearBackend.DEFAULT,
         rope_function="default",
@@ -65,7 +63,7 @@ test_cases = [
     KsanaNodesTestCase(
         model_names=["wan2.2_t2v_low_noise_14B_fp8_scaled.safetensors", None],
         expect_model_key=KsanaModelKey.Wan2_2_T2V_14B,
-        image_latent_shape=TARGET_T2V_IMG_SHAPE,
+        image_latent_shape=IMG_SHAPE_T2V,
         attention_backends=KsanaAttentionBackend.FLASH_ATTN,
         linear_backends=KsanaLinearBackend.FP8_GEMM,
         rope_function="comfy",
@@ -78,7 +76,7 @@ test_cases = [
             "wan2.2_t2v_low_noise_14B_fp16.safetensors",
         ],
         expect_model_key=KsanaModelKey.Wan2_2_T2V_14B,
-        image_latent_shape=TARGET_T2V_IMG_SHAPE,
+        image_latent_shape=IMG_SHAPE_T2V,
         attention_backends=KsanaAttentionBackend.SAGE_ATTN,
         linear_backends=KsanaLinearBackend.FP8_GEMM_DYNAMIC,
         rope_function="default",
@@ -91,7 +89,7 @@ test_cases = [
             "wan2.2_i2v_low_noise_14B_fp16.safetensors",
         ],
         expect_model_key=KsanaModelKey.Wan2_2_I2V_14B,
-        image_latent_shape=TARGET_I2V_IMG_SHAPE,
+        image_latent_shape=IMG_SHAPE_I2V,
         attention_backends=KsanaAttentionBackend.SAGE_ATTN,
         linear_backends=KsanaLinearBackend.FP16_GEMM,
         rope_function="default",
@@ -101,7 +99,7 @@ test_cases = [
     KsanaNodesTestCase(
         model_names=["wan2.2_i2v_high_noise_14B_fp16.safetensors", None],
         expect_model_key=KsanaModelKey.Wan2_2_I2V_14B,
-        image_latent_shape=TARGET_I2V_IMG_SHAPE,
+        image_latent_shape=IMG_SHAPE_I2V,
         attention_backends=KsanaAttentionBackend.FLASH_ATTN,
         linear_backends=KsanaLinearBackend.FP8_GEMM_DYNAMIC,
         rope_function="comfy",
@@ -111,12 +109,12 @@ test_cases = [
     KsanaNodesTestCase(
         model_names="qwen_image_2512_fp8_e4m3fn.safetensors",
         expect_model_key=KsanaModelKey.QwenImage_T2I,
-        image_latent_shape=TARGET_I2I_IMG_SHAPE,
+        image_latent_shape=IMG_SHAPE_T2I,
         attention_backends=KsanaAttentionBackend.FLASH_ATTN,
         linear_backends=KsanaLinearBackend.FP8_GEMM,
         rope_function="comfy",
-        expect__one_generator_output=0.255859375,
-        expect_gpus_generator_output=0.2578125,
+        expect__one_generator_output=0.287109375,
+        expect_gpus_generator_output=0.287109375,
     ),
 ]
 
@@ -124,75 +122,38 @@ test_cases = [
 class TestModelSwitchAndGenerate(unittest.TestCase):
     def test_base_and_swith_models(self):
         print("-----------------test_swith_models_and_generate-----------------")
-        seed_g = torch.Generator(device="cpu")
-        seed_g.manual_seed(SEED)
-        text_shape = [1, 512, 4096]
-        positive_text_embeddings = torch.randn(
-            *text_shape,
-            dtype=RUN_DTYPE,
-            device="cpu",
-            generator=seed_g,
-        )
-        negtive_text_embeddings = torch.randn(
-            *text_shape,
-            dtype=RUN_DTYPE,
-            device="cpu",
-            generator=seed_g,
-        )
 
         for test_case in test_cases:
             print(f"----------- test model_name: {test_case.model_names} -------------")
-            low_noise_model_path = None
             if test_case.expect_model_key in [KsanaModelKey.Wan2_2_I2V_14B, KsanaModelKey.Wan2_2_T2V_14B]:
-                high_noise_model_path = os.path.join(COMFY_MODEL_ROOT, "diffusion_models", test_case.model_names[0])
+                high_noise_model_path = os.path.join(COMFY_MODEL_DIFFUSION_ROOT, test_case.model_names[0])
                 low_noise_model_path = (
-                    os.path.join(COMFY_MODEL_ROOT, "diffusion_models", test_case.model_names[1])
+                    os.path.join(COMFY_MODEL_DIFFUSION_ROOT, test_case.model_names[1])
                     if test_case.model_names[1]
                     else None
                 )
+
             else:
-                high_noise_model_path = os.path.join(COMFY_MODEL_ROOT, "diffusion_models", test_case.model_names)
-
+                high_noise_model_path = os.path.join(COMFY_MODEL_DIFFUSION_ROOT, test_case.model_names)
+                low_noise_model_path = None
             if test_case.expect_model_key in [KsanaModelKey.QwenImage_T2I]:
-                text_shape = [1, 1024, 3584]
-                positive_text_embeddings = torch.randn(
-                    *text_shape,
-                    dtype=RUN_DTYPE,
-                    device="cpu",
-                    generator=seed_g,
-                )
-                negtive_text_embeddings = torch.randn(
-                    *text_shape,
-                    dtype=RUN_DTYPE,
-                    device="cpu",
-                    generator=seed_g,
-                )
-            output = nodes.KsanaNodeModelLoader.load(
-                high_noise_model_path=high_noise_model_path,
-                low_noise_model_path=low_noise_model_path,
-                attention_config=KsanaAttentionConfig(
-                    backend=test_case.attention_backends,
-                ),
-                linear_backend=test_case.linear_backends,
-                model_boundary=0.5,
-            )
-            self.assertEqual(output.model, test_case.expect_model_key)
+                text_shape = QWEN_TEXT_SHAPE
+            else:
+                text_shape = WAN_TEXT_SHAPE
 
-            image_latent = torch.zeros(
-                *test_case.image_latent_shape,
-                dtype=RUN_DTYPE,
-                device="cpu",
-            )
-            generate_output = nodes.generate(
-                output,
-                positive=[[positive_text_embeddings]],
-                negative=[[negtive_text_embeddings]],
-                latent_image=nodes.KsanaNodeVAEEncodeOutput(samples=image_latent),
-                steps=TEST_STEPS,
-                seed=SEED,
+            load_output, generate_output = run_load_and_generate(
+                high_noise_model_path,
+                test_case.image_latent_shape,
+                text_shape,
+                TEST_STEPS,
+                model_boundary=0.5,
+                attn_backend=test_case.attention_backends,
+                linear_backend=test_case.linear_backends,
+                low_noise_model_path=low_noise_model_path,
                 rope_function=test_case.rope_function,
                 low_sample_guide_scale=3.0,
             )
+            self.assertEqual(load_output.model, test_case.expect_model_key)
             generate_output = generate_output.samples
             if get_rank_id() == 0:
                 # only return tensor on rank 0
