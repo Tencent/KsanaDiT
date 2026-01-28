@@ -25,7 +25,6 @@ from ksana.config import (
     KsanaSampleConfig,
     KsanaTorchCompileConfig,
 )
-from ksana.utils.distribute import get_gpu_count
 
 
 class TestKsanaPipelineWanT2V(unittest.TestCase):
@@ -139,10 +138,6 @@ class TestKsanaPipelineWanT2V(unittest.TestCase):
 
     def test_lora(self):
         print("-----------------test_lora-----------------")
-        if get_gpu_count() > 1:
-            # TODO(TJ): skiped on multi-gpu, deps pin memory fix
-            print(f"skip test_lora on rank {get_gpu_count()}")
-            return
         pipeline = KsanaPipeline.from_models(
             "./Wan2.2-T2V-A14B",
             lora_config=KsanaLoraConfig("./Wan2.2-Lightning/Wan2.2-T2V-A14B-4steps-lora-rank64-Seko-V1"),

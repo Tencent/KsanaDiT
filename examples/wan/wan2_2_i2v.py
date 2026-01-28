@@ -80,6 +80,7 @@ def run_start_and_end_with_lora(args):
         solver=KsanaSolverType.EULER,
         sigmas=[1.0, 0.9375001, 0.8333333, 0.625, 0.0000],
     )
+
     video = pipeline.generate(
         prompts[2],
         img_path="./examples/images/start_image.png",
