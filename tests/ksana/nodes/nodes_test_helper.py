@@ -3,7 +3,7 @@ import os
 import torch
 
 import ksana.nodes as nodes
-from ksana import KsanaAttentionConfig, KsanaLinearBackend
+from ksana.config import KsanaAttentionBackend, KsanaAttentionConfig, KsanaLinearBackend, KsanaRadialSageAttentionConfig
 from ksana.models.model_key import KsanaModelKey
 
 IMG_SHAPE_T2V = [1, 16, 16, 32, 32]
@@ -50,7 +50,13 @@ def run_load_and_generate(model_path, image_latent_shape, text_shape, steps, **k
     )
 
     if kwargs.get("attn_backend", None) is not None:
-        attention_config = KsanaAttentionConfig(backend=kwargs["attn_backend"])
+        backend = kwargs["attn_backend"]
+        if backend == KsanaAttentionBackend.RADIAL_SAGE_ATTN:
+            attention_config = KsanaRadialSageAttentionConfig(
+                dense_attention_config=KsanaAttentionConfig(backend=KsanaAttentionBackend.SAGE_ATTN)
+            )
+        else:
+            attention_config = KsanaAttentionConfig(backend=backend)
     else:
         attention_config = None
 
@@ -66,6 +72,7 @@ def run_load_and_generate(model_path, image_latent_shape, text_shape, steps, **k
         linear_backend=kwargs.get("linear_backend", KsanaLinearBackend.DEFAULT),
         model_boundary=kwargs.get("model_boundary", None),
         lora=lora,
+        torch_compile_args=kwargs.get("torch_compile_args", None),
     )
 
     image_latent = torch.zeros(*image_latent_shape, dtype=RUN_DTYPE, device="cpu")

@@ -1,7 +1,7 @@
 import os
 import unittest
 
-from test_helper import COMFY_MODEL_DIFFUSION_ROOT, TEST_MODELS, run_load_and_generate
+from nodes_test_helper import COMFY_MODEL_DIFFUSION_ROOT, TEST_MODELS, run_load_and_generate
 
 from ksana.config import DBCacheConfig, DCacheConfig, KsanaHybridCacheConfig
 from ksana.models import KsanaModelKey

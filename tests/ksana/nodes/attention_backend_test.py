@@ -1,12 +1,13 @@
 import os
 import unittest
 
-from test_helper import (
+from nodes_test_helper import (
     COMFY_MODEL_DIFFUSION_ROOT,
     TEST_STEPS,
     run_load_and_generate,
 )
 
+from ksana.config import KsanaTorchCompileConfig
 from ksana.utils.distribute import get_rank_id
 
 
@@ -19,6 +20,7 @@ class TestAttentionsForAllModels(unittest.TestCase):
             text_shape,
             TEST_STEPS,
             attn_backend=attn_backend,
+            torch_compile_config=KsanaTorchCompileConfig(),
         )
         self.assertEqual(load_output.model, expected_model_key)
         generate_output = generate_output.samples

@@ -1,7 +1,7 @@
 import os
 import unittest
 
-from test_helper import (
+from nodes_test_helper import (
     COMFY_MODEL_DIFFUSION_ROOT,
     COMFY_MODEL_ROOT,
     IMG_SHAPE_I2V,

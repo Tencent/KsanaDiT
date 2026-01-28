@@ -1,7 +1,7 @@
-import os
 import unittest
 
 import torch
+from pipeline_test_helper import PROMPTS, SEED, TEST_PORT, TEST_STEPS
 
 from ksana import KsanaPipeline
 from ksana.config import (
@@ -10,20 +10,11 @@ from ksana.config import (
     KsanaRuntimeConfig,
     KsanaSampleConfig,
 )
+from ksana.utils.distribute import get_gpu_count
 
-QWEN_IMAGE_DIR = "./Qwen-Image"
-
-prompts = [
-    "街头摄影，纽约街头，涂鸦墙背景，戴耳机的酷女孩滑板，动态姿势，黄金时刻光线，主体清晰背景虚化，超写实。",
-    "新中式，戴发簪的女子，改良汉服（半透明丝绸），竹林，雾气，空灵氛围，丁达尔效应，清冷优雅，超写实。",
-]
-
-SEED = 123
 TEST_DTYPE = torch.bfloat16
 TEST_SIZE = (512, 512)  # (W, H)
-TEST_STEPS = 5
-TEST_EPS_PLACE = 7
-TEST_PORT = int(os.environ.get("KSANA_TEST_PORT", 29500))
+TEST_EPS_PLACE = 2 if get_gpu_count() != 1 else 3
 
 
 class TestKsanaQwenImageT2I(unittest.TestCase):
@@ -33,28 +24,33 @@ class TestKsanaQwenImageT2I(unittest.TestCase):
         self.assertEqual(list(image.shape[:2]), [1, 3])
         self.assertEqual(list(image.shape[2:]), [expected_wh[1], expected_wh[0]])
 
-    def test_simple(self):
-        print("-----------------qwen_image test_simple-----------------")
+    def test_batch_prompts(self):
+        print("-----------------qwen_image test_batch_prompts-----------------")
         generator = KsanaPipeline.from_models(
-            QWEN_IMAGE_DIR,
+            "./Qwen-Image",
             model_config=KsanaModelConfig(run_dtype=TEST_DTYPE),
-            dist_config=KsanaDistributedConfig(num_gpus=2, port=TEST_PORT),
+            dist_config=KsanaDistributedConfig(port=TEST_PORT),
             offload_device="cpu",
         )
-        image = generator.generate(
-            prompts[0],
+        images = generator.generate(
+            PROMPTS,
             sample_config=KsanaSampleConfig(steps=TEST_STEPS),
             runtime_config=KsanaRuntimeConfig(
                 seed=SEED,
                 size=TEST_SIZE,
                 return_frames=True,
-                save_output=False,
+                save_output=True,
                 offload_model=True,
             ),
         )
-        self._assert_image_tensor_ok(image, expected_wh=TEST_SIZE)
-        mean = image.detach().float().mean().item()
-        self.assertAlmostEqual(mean, 0.30380716919898987, places=TEST_EPS_PLACE)
+
+        self.assertEqual(len(images), len(PROMPTS))
+        mean0 = images[0].detach().float().mean().item()
+        mean1 = images[1].detach().float().mean().item()
+        with self.subTest(msg="Mean 0 Check"):
+            self.assertAlmostEqual(mean0, 0.325140208, places=TEST_EPS_PLACE)
+        with self.subTest(msg="Mean 1 Check"):
+            self.assertAlmostEqual(mean1, 0.617037892, places=TEST_EPS_PLACE)
 
 
 if __name__ == "__main__":

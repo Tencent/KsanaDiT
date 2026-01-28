@@ -2,7 +2,7 @@ import os
 import unittest
 from dataclasses import dataclass
 
-from test_helper import (
+from nodes_test_helper import (
     COMFY_MODEL_DIFFUSION_ROOT,
     IMG_SHAPE_I2V,
     IMG_SHAPE_T2I,

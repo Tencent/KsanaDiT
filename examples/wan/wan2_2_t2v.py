@@ -13,7 +13,6 @@ from ksana.config import (
     KsanaLinearBackend,
     KsanaLoraConfig,
     KsanaModelConfig,
-    KsanaRadialSageAttentionConfig,
     KsanaRuntimeConfig,
     KsanaSampleConfig,
     KsanaSolverType,
@@ -89,28 +88,6 @@ def run_fp8_models(args):
         cache_config=[high_cache_config, low_cache_config],
     )
     print("video shape:", video.shape)
-
-
-def run_with_lora(args):
-    radial_sage_attn_config = KsanaRadialSageAttentionConfig(
-        dense_blocks_num=10,
-        dense_attn_steps=1,
-        decay_factor=0.2,
-        block_size=64,
-        dense_attention_config=KsanaAttentionConfig(backend=KsanaAttentionBackend.SAGE_ATTN),
-    )
-
-    model_config = KsanaModelConfig(attention_config=radial_sage_attn_config)
-
-    pipeline = KsanaPipeline.from_models(
-        f"{args.model_dir}/Wan2.2-T2V-A14B",
-        dist_config=KsanaDistributedConfig(num_gpus=NUM_GPUS),
-        model_config=model_config,
-    )
-
-    pipeline.generate(
-        prompts, runtime_config=KsanaRuntimeConfig(size=(512, 512), seed=SEED), cache_config=DCacheConfig()
-    )
 
 
 def run_advanced(args):
@@ -209,6 +186,5 @@ if __name__ == "__main__":
 
     run_simple(args)
     run_fp8_models(args)
-    run_with_lora(args)
     run_advanced(args)
     run_fast(args)

@@ -1,33 +1,22 @@
 import unittest
 
-import torch
+from pipeline_test_helper import PROMPTS, SEED, TEST_EPS_PLACE, TEST_FRAME_NUM, TEST_PORT, TEST_SIZE, TEST_STEPS
 
 from ksana import KsanaPipeline
 from ksana.config import (
+    KsanaDistributedConfig,
     KsanaRuntimeConfig,
     KsanaSampleConfig,
 )
-
-prompts = [
-    "缓慢的平移镜头，在外滩边上，有清风吹过。镜头从远到近，女孩在手舞足蹈的跳舞，舞姿非常美丽，镜头从远景到近景，给出了女孩的特写和细节。",
-    "新中式，戴发簪的女子，改良汉服（半透明丝绸），竹林，雾气，空灵氛围，丁达尔效应，清冷优雅，超写实",
-]
-
-SEED = 123
-TEST_DTYPE = torch.float16
-TEST_SIZE = (720, 480)
-TEST_STEPS = 1
-TEST_FRAME_NUM = 9
-TEST_EPS_PLACE = 5
 
 
 class TestKsanaPipelineWanI2V(unittest.TestCase):
 
     def test_simple_i2v(self):
         print("-----------------test_simple_i2v-----------------")
-        pipeline = KsanaPipeline.from_models("./Wan2.2-I2V-A14B")
+        pipeline = KsanaPipeline.from_models("./Wan2.2-I2V-A14B", dist_config=KsanaDistributedConfig(port=TEST_PORT))
         videos = pipeline.generate(
-            prompts[0],
+            PROMPTS[0],
             img_path="./examples/images/input.png",
             sample_config=KsanaSampleConfig(steps=TEST_STEPS),
             runtime_config=KsanaRuntimeConfig(
@@ -44,7 +33,7 @@ class TestKsanaPipelineWanI2V(unittest.TestCase):
         mean0 = videos.cpu().abs().mean().item()
 
         videos = pipeline.generate(
-            prompts,
+            PROMPTS,
             img_path="./examples/images/start_image.png",
             end_img_path="./examples/images/end_image.png",
             sample_config=KsanaSampleConfig(steps=TEST_STEPS),
@@ -62,10 +51,10 @@ class TestKsanaPipelineWanI2V(unittest.TestCase):
         with self.subTest(msg="bs 2 Shape Check"):
             self.assertEqual(list(videos.shape), [2, 3, TEST_FRAME_NUM, 576, 576])
         with self.subTest(msg="Mean 0 Check"):
-            self.assertAlmostEqual(mean0, 0.6015987992286682, places=TEST_EPS_PLACE)
+            self.assertAlmostEqual(mean0, 0.6250113248825073, places=TEST_EPS_PLACE)
 
         with self.subTest(msg="Mean 1 Check"):
-            self.assertAlmostEqual(mean1, 0.481252521276474, places=TEST_EPS_PLACE)
+            self.assertAlmostEqual(mean1, 0.47325804829597473, places=TEST_EPS_PLACE)
 
         with self.subTest(msg="Mean 2 Check"):
             self.assertAlmostEqual(mean2, 0.4958144426345825, places=TEST_EPS_PLACE)

@@ -1,7 +1,7 @@
 import os
 import unittest
 
-from test_helper import COMFY_MODEL_DIFFUSION_ROOT, TEST_MODELS, TEST_STEPS, run_load_and_generate
+from nodes_test_helper import COMFY_MODEL_DIFFUSION_ROOT, TEST_MODELS, TEST_STEPS, run_load_and_generate
 
 from ksana.config import KsanaLinearBackend
 from ksana.utils.distribute import get_rank_id
