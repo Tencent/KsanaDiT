@@ -42,8 +42,8 @@ class KsanaRadialSageAttentionConfig(KsanaAttentionConfig):
     """Radial Sage Attention的配置"""
 
     backend: KsanaAttentionBackend = field(init=False, default=KsanaAttentionBackend.RADIAL_SAGE_ATTN)
-    dense_blocks_num: int = field(default=1)
-    dense_attn_steps: int = field(default=1)
+    dense_blocks_num: int = field(default=0)
+    dense_attn_steps: int = field(default=0)
     decay_factor: float = field(default=0.02)
     block_size: int = field(default=128)
     dense_attention_config: KsanaAttentionConfig = field(

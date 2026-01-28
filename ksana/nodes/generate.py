@@ -1,11 +1,11 @@
 from ksana import get_engine
 from ksana.config import KsanaRuntimeConfig, KsanaSampleConfig, KsanaSolverType
-from ksana.utils import log
-from ksana.utils.memory import (
+from ksana.memory.estimator import (
     MODEL_MEMORY_CONFIG,
     estimate_ksana_model_memory,
     get_available_memory,
 )
+from ksana.utils import log
 from ksana.utils.profile import MemoryProfiler
 
 from .output_types import KsanaNodeGeneratorOutput

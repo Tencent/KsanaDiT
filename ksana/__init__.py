@@ -1,7 +1,9 @@
 try:
     from .config import (
+        KsanaAttentionBackend,
         KsanaAttentionConfig,
         KsanaLinearBackend,
+        KsanaRadialSageAttentionConfig,
         KsanaRuntimeConfig,
         KsanaSampleConfig,
         KsanaTorchCompileConfig,
@@ -35,4 +37,6 @@ __all__ = [
     "KsanaRuntimeConfig",
     "KsanaAttentionConfig",
     "KsanaLinearBackend",
+    "KsanaAttentionBackend",
+    "KsanaRadialSageAttentionConfig",
 ]

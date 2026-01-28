@@ -20,16 +20,6 @@ class KsanaBaseGenerator(KsanaRunnerUnit):
         super().__init__()
         self.batch_scheduler = KsanaBatchScheduler()
 
-    @time_range
-    def _preallocate_pinned_memory(self, diffusion_model, offload_device):
-        # NOTE: preallocate pinned memory at warm up stage to avoid CPU OOM when merging lora
-        for model in diffusion_model:
-            if model:
-                if hasattr(model, "preallocate_pinned_memory"):
-                    model.preallocate_pinned_memory(offload_device)
-                else:
-                    raise ValueError(f"model {model} must have preallocate_pinned_memory method")
-
     def _valid_diffusion_model(
         self, diffusion_model: KsanaDiffusionModel | list[KsanaDiffusionModel]
     ) -> list[KsanaDiffusionModel]:
@@ -402,7 +392,6 @@ class KsanaBaseGenerator(KsanaRunnerUnit):
         noise_shape = self.valid_noise_shape(noise_shape, diffusion_model)
 
         self._apply_rope_function_to_models(diffusion_model, runtime_config.rope_function)
-        self._preallocate_pinned_memory(diffusion_model, offload_device)
 
         # expand img_latents, positive and negative to total batch size supporting batch_size_per_prompts
         img_latents = self._valid_image_to_total_prompts_size(

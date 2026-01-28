@@ -2,10 +2,10 @@ from abc import abstractmethod
 
 import torch
 
+from ..accelerator import platform
 from ..config import KsanaDistributedConfig, KsanaLinearBackend, KsanaModelConfig
 from ..models.model_key import KsanaModelKey
 from ..utils import log, time_range
-from ..accelerator import platform
 from ..utils.load import load_state_dict
 from ..utils.quantize import apply_dynamic_fp8_quant
 from ..utils.torch_compile import apply_torch_compile
@@ -14,8 +14,8 @@ from .qwen import QwenImageTransformer2DModel
 from .wan import WanModel
 
 if platform.is_npu():
-    import torch_npu  # pylint: disable=unused-import
-    from torch_npu.contrib import transfer_to_npu  # pylint: disable=unused-import
+    import torch_npu  # pylint: disable=unused-import # noqa: F401
+    from torch_npu.contrib import transfer_to_npu  # pylint: disable=unused-import # noqa: F401
 
 
 class KsanaDiffusionModel(KsanaModel):
@@ -25,6 +25,7 @@ class KsanaDiffusionModel(KsanaModel):
         model_config: KsanaModelConfig,
         dist_config: KsanaDistributedConfig | None,
         default_settings,
+        pinned_memory_manager=None,
     ):
         super().__init__(model_key, default_settings)
         self.model_config = model_config
@@ -44,19 +45,12 @@ class KsanaDiffusionModel(KsanaModel):
         self._pinned_params = {}
         # NOTE: use more memory when using pinned memory.
         self._use_pinned_memory = platform.is_gpu()
-        self._preallocated_pinned_memory = False
+        self._applied_pinned_memory = False
+        self._allocated_blocks = []  # 存储从 manager 分配的内存块
+        self._pinned_memory_manager = pinned_memory_manager
 
-    @time_range
-    def preallocate_pinned_memory(self, offload_device):
-        if self._preallocated_pinned_memory or not self._use_pinned_memory or offload_device.type != "cpu":
-            return
-
-        # fp8_gemm_dynamic uses torchao Float8Tensor weights which are not compatible with
-        # our pinned-memory swap (it mutates `.data` and can error with incompatible tensor type).
-        if self.model_config.linear_backend == KsanaLinearBackend.FP8_GEMM_DYNAMIC:
-            return
-
-        # 按dtype分组分配统一的 pinned memory buffer
+    def _collect_dtype_groups(self):
+        """收集模型中所有参数和 buffer，按 dtype 分组"""
         dtype_groups = {}  # {dtype: [(name, shape, numel), ...]}
 
         for name, param in self.model.named_parameters():
@@ -73,32 +67,116 @@ class KsanaDiffusionModel(KsanaModel):
                 dtype_groups[dtype] = []
             dtype_groups[dtype].append((buffer_key, buffer.shape, buffer.numel()))
 
-        # 为每个dtype分配独立的unified buffer
-        self._unified_pinned_buffers = {}  # 保存所有buffer引用,防止被GC
-        total_memory_gb = 0
+        return dtype_groups
 
-        for dtype, params in dtype_groups.items():
-            total_elements = sum(numel for _, _, numel in params)
-            memory_gb = total_elements * torch.tensor([], dtype=dtype).element_size() / 1024**3
-            total_memory_gb += memory_gb
+    def _ensure_block_available(self, blocks, current_block_idx):
+        """确保有可用的 block，如果不够则申请新的"""
+        if current_block_idx >= len(blocks):
+            log.debug("Need additional block, requesting 1 more block")
+            new_blocks = self._pinned_memory_manager.allocate_blocks(
+                total_size_bytes=self._pinned_memory_manager.default_block_size_bytes
+            )
+            blocks.extend(new_blocks)
+            self._allocated_blocks.extend(new_blocks)
 
-            log.info(f"Allocating {dtype} pinned buffer: {total_elements} elements ({memory_gb:.2f} GB)")
+    def _allocate_tensors_to_blocks(self, params, dtype):
+        """
+        将 tensor 分配到 blocks 中，确保每个 tensor 完整地在一个 block 中
 
-            # 为当前dtype分配unified buffer
-            unified_buffer = torch.empty(total_elements, dtype=dtype, pin_memory=True)
-            self._unified_pinned_buffers[dtype] = unified_buffer
+        Args:
+            params: [(name, shape, numel), ...] 参数列表
+            dtype: 数据类型
 
-            # 切片分配给各个参数
-            offset = 0
-            for name, shape, numel in params:
-                self._pinned_params[name] = unified_buffer[offset : offset + numel].view(shape)
-                offset += numel
+        Returns:
+            params的总大小（GB）
+        """
+        total_elements = sum(numel for _, _, numel in params)
+        element_size = torch.tensor([], dtype=dtype).element_size()
+        memory_bytes = total_elements * element_size
+        memory_gb = memory_bytes / 1024**3
+
+        log.info(f"Allocating {dtype} pinned buffer: {total_elements} elements ({memory_gb:.2f} GB)")
+
+        # 从 manager 分配初始内存块（不再传递 dtype）
+        blocks = self._pinned_memory_manager.allocate_blocks(total_size_bytes=memory_bytes)
+        self._allocated_blocks.extend(blocks)
+
+        # 确保每个 tensor 完整地放在一个 block 中
+        current_block_idx = 0
+        current_block_offset = 0  # 以字节为单位的偏移量
+
+        for name, shape, numel in params:
+            # 确保有可用的 block
+            self._ensure_block_available(blocks, current_block_idx)
+
+            current_block = blocks[current_block_idx]
+            tensor_size_bytes = numel * element_size
+            available_in_current_block = current_block.size_bytes - current_block_offset
+
+            # 如果当前 block 剩余空间不足以放下整个 tensor，跳到下一个 block
+            if available_in_current_block < tensor_size_bytes:
+                log.debug(
+                    f"Tensor {name} ({tensor_size_bytes} bytes) doesn't fit in current block "
+                    f"(available: {available_in_current_block} bytes), moving to next block"
+                )
+                current_block_idx += 1
+                current_block_offset = 0
+
+                # 确保新的 block 可用
+                self._ensure_block_available(blocks, current_block_idx)
+                current_block = blocks[current_block_idx]
+
+            # 从当前 block 分配 tensor（使用字节偏移，然后转换为目标 dtype）
+            # 将 uint8 buffer 的一部分 view 为目标 dtype
+            byte_view = current_block.buffer[current_block_offset : current_block_offset + tensor_size_bytes]
+            tensor_view = byte_view.view(dtype).view(shape)
+            self._pinned_params[name] = tensor_view
+
+            # 更新偏移量（字节）
+            current_block_offset += tensor_size_bytes
+
+            # 如果当前 block 已满，移到下一个
+            if current_block_offset >= current_block.size_bytes:
+                current_block_idx += 1
+                current_block_offset = 0
 
         log.info(
-            f"Unified pinned buffer allocated successfully, "
-            f"total: {total_memory_gb:.2f} GB across {len(dtype_groups)} dtype(s)"
+            f"Allocated {len(blocks)} blocks for {dtype}, "
+            f"used {current_block_idx + (1 if current_block_offset > 0 else 0)} blocks"
         )
-        self._preallocated_pinned_memory = True
+
+        return memory_gb
+
+    @time_range
+    def apply_pinned_memory(self, offload_device):
+        """预分配 pinned memory，使用 PinnedMemoryManager 管理内存块"""
+        if self._applied_pinned_memory or not self._use_pinned_memory or offload_device.type != "cpu":
+            return
+
+        # 如果没有提供 pinned_memory_manager，则跳过
+        if self._use_pinned_memory and self._pinned_memory_manager is None:
+            raise RuntimeError("Pinned memory manager is not provided")
+
+        # fp8_gemm_dynamic uses torchao Float8Tensor weights which are not compatible with
+        # our pinned-memory swap (it mutates `.data` and can error with incompatible tensor type).
+        if self.model_config.linear_backend == KsanaLinearBackend.FP8_GEMM_DYNAMIC:
+            return
+
+        # 收集所有参数和 buffer，按 dtype 分组
+        dtype_groups = self._collect_dtype_groups()
+
+        # 为每个 dtype 分配内存块
+        total_memory_gb = 0
+        for dtype, params in dtype_groups.items():
+            memory_gb = self._allocate_tensors_to_blocks(params, dtype)
+            total_memory_gb += memory_gb
+
+        log.info(
+            f"Pinned memory allocated from manager successfully, "
+            f"total: {total_memory_gb:.2f} GB across {len(dtype_groups)} dtype(s), "
+            f"using {len(self._allocated_blocks)} blocks"
+        )
+        self._applied_pinned_memory = True
 
         # Promptly migrate model to pinned memory to avoid duplicate copies in memory
         self._migrate_model_to_pinned_memory()
@@ -121,6 +199,17 @@ class KsanaDiffusionModel(KsanaModel):
             _process_tensor(name, buffer, key_prefix=self.buffer_prefix)
 
         log.debug(f"{cnt} parameters migrated to pinned memory")
+
+    def __del__(self):
+        """析构函数：释放分配的内存块"""
+        self._release_pinned_memory()
+
+    def _release_pinned_memory(self):
+        """释放从 manager 分配的内存块"""
+        if self._allocated_blocks:
+            log.info(f"Releasing {len(self._allocated_blocks)} pinned memory blocks")
+            self._pinned_memory_manager.release_blocks(self._allocated_blocks)
+            self._allocated_blocks.clear()
 
     def to(self, device=None, **kwargs):
         """
@@ -211,7 +300,7 @@ class KsanaDiffusionModel(KsanaModel):
         return self.model(*args, **kwargs)
 
     @time_range
-    def do_load_state_dict(self, model_state_dict, strict=False):
+    def load_state_dict(self, model_state_dict, strict=False):
         load_state_dict(self.model, model_state_dict, strict=strict)
 
     def enable_only_infer(self):
@@ -220,7 +309,7 @@ class KsanaDiffusionModel(KsanaModel):
             return
         self.model.eval().requires_grad_(False)
 
-    def do_prepare_distributed_model(self, shard_fn):
+    def prepare_distributed_model(self, shard_fn):
         if shard_fn is None:
             return
         if torch.distributed.is_initialized():
@@ -229,13 +318,13 @@ class KsanaDiffusionModel(KsanaModel):
         if self.dist_config.dit_fsdp:
             self.model = shard_fn(self.model)
 
-    def do_apply_dynamic_fp8_quant(self, linear_backend, load_device):
+    def apply_dynamic_fp8_quant(self, linear_backend, load_device):
         if linear_backend != KsanaLinearBackend.FP8_GEMM_DYNAMIC:
             return
         apply_dynamic_fp8_quant(self.model, load_device=load_device)
 
     @time_range
-    def do_apply_torch_compile(self, torch_compile_config=None):
+    def apply_torch_compile(self, torch_compile_config=None):
         """Apply torch compile to the model using the standalone function."""
         self.model = apply_torch_compile(self.model, torch_compile_config)
 

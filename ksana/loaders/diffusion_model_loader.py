@@ -2,7 +2,9 @@ import os
 
 import torch
 
+from ..accelerator import platform
 from ..config import KsanaLoraConfig, KsanaModelConfig
+from ..memory import PinnedMemoryManager
 from ..models import KsanaModel, KsanaQwenImageModel, KsanaWanModel
 from ..models.model_key import KsanaModelKey
 from ..operations import build_ops
@@ -22,6 +24,8 @@ class KsanaDiffusionLoaderUnit(KsanaLoaderUnit):
         KsanaModelKey.Wan2_2_T2V_14B: KsanaWanModel,
         KsanaModelKey.QwenImage_T2I: KsanaQwenImageModel,
     }
+
+    _pinned_memory_manager: PinnedMemoryManager = None
 
     def _valid_input_model_path(self, model_path: str | list[str]):
         load_model_path_or_files = model_path
@@ -95,6 +99,11 @@ class KsanaDiffusionLoaderUnit(KsanaLoaderUnit):
         self.default_settings = load_default_settings(self.model_key, with_lora=list_of_loras_list is not None)
         device = device or torch.device("cuda")
 
+        # TODO(rockcao): 检查pinned_memory在npu是否可用
+        if KsanaDiffusionLoaderUnit._pinned_memory_manager is None and platform.is_gpu():
+            KsanaDiffusionLoaderUnit._pinned_memory_manager = PinnedMemoryManager()
+            log.info("Initialized shared PinnedMemoryManager for KsanaDiffusionLoaderUnit")
+
         res = []
         for i in range(len(load_model_path_or_files)):
             one_model_path = load_model_path_or_files[i]
@@ -103,7 +112,13 @@ class KsanaDiffusionLoaderUnit(KsanaLoaderUnit):
             model_class = self._MAP_KEY_TO_MODEL_CLASS.get(self.model_key, None)
             if model_class is None:
                 raise ValueError(f"model_key {self.model_key} not supported")
-            model = model_class(self.model_key, model_config, dist_config, self.default_settings)
+            model = model_class(
+                self.model_key,
+                model_config,
+                dist_config,
+                self.default_settings,
+                pinned_memory_manager=KsanaDiffusionLoaderUnit._pinned_memory_manager,
+            )
             # TODO(rock): get weight dtype from model_state_dict and judge linear_backend use fp8_gemm or not
             operations = build_ops(
                 model_config.run_dtype,
@@ -121,11 +136,13 @@ class KsanaDiffusionLoaderUnit(KsanaLoaderUnit):
                 offload_device=offload_device,
             )
             log.debug(f"{self.model_key} model: {model.model}")
-            model.do_load_state_dict(model_state_dict, strict=False)
+            model.load_state_dict(model_state_dict, strict=False)
             model.enable_only_infer()
-            model.do_prepare_distributed_model(shard_fn)
-            model.do_apply_dynamic_fp8_quant(linear_backend=model_config.linear_backend, load_device=device)
-            model.do_apply_torch_compile(model_config.torch_compile_config)
+            model.prepare_distributed_model(shard_fn)
+            model.apply_dynamic_fp8_quant(linear_backend=model_config.linear_backend, load_device=device)
+            model.apply_torch_compile(model_config.torch_compile_config)
+            # Note: apply_pinned_memory must be called after apply_torch_compile
+            model.apply_pinned_memory(offload_device)
 
             if offload_device is not None:
                 model = model.to(offload_device)

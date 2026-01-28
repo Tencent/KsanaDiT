@@ -1,14 +1,17 @@
 import os
 import unittest
 
+import psutil
 from nodes_test_helper import (
     COMFY_MODEL_DIFFUSION_ROOT,
+    TEST_MODELS,
     TEST_STEPS,
     run_load_and_generate,
 )
 
+from ksana import KsanaAttentionBackend
 from ksana.config import KsanaTorchCompileConfig
-from ksana.utils.distribute import get_rank_id
+from ksana.utils import get_rank_id, log
 
 
 class TestAttentionsForAllModels(unittest.TestCase):
@@ -30,13 +33,25 @@ class TestAttentionsForAllModels(unittest.TestCase):
         else:
             self.assertIsNone(generate_output)
 
-    # TODO(TJ): need fix memory issue
-    # def test_all_attention_backend(self):
-    #     for model_name, img_shape, text_shape, expected_model_key in TEST_MODELS:
-    #         for attn_backend in KsanaAttentionBackend.get_supported_list():
-    #             print(f"-----------------test {model_name} {attn_backend} -----------------")
-    #             with self.subTest(msg=f"test {model_name} with {attn_backend}"):
-    #                 self.run_once(model_name, img_shape, text_shape, expected_model_key, attn_backend)
+    def _get_rss_memory_usage_in_gb(self):
+        process = psutil.Process(os.getpid())
+        # RSS (Resident Set Size) 包含所有常驻内存
+        rss_gb = process.memory_info().rss / 1024 / 1024 / 1024
+        return rss_gb
+
+    def test_all_attention_backend(self):
+        init_rss_memory_gb = self._get_rss_memory_usage_in_gb()
+        log.info(f"初始内存使用: {init_rss_memory_gb:.2f} GB")
+        for model_name, img_shape, text_shape, expected_model_key in TEST_MODELS:
+            for attn_backend in KsanaAttentionBackend.get_supported_list():
+                print(f"-----------------test {model_name} {attn_backend} -----------------")
+                with self.subTest(msg=f"test {model_name} with {attn_backend}"):
+                    self.run_once(model_name, img_shape, text_shape, expected_model_key, attn_backend)
+                    after_rss_memory_gb = self._get_rss_memory_usage_in_gb()
+                    log.info(f"测试 {model_name} {attn_backend} 后内存使用: {after_rss_memory_gb:.2f} GB")
+                    memory_diff_gb = after_rss_memory_gb - init_rss_memory_gb
+                    log.info(f"测试 {model_name} {attn_backend} 内存增量: {memory_diff_gb:.2f} GB")
+                    self.assertLessEqual(memory_diff_gb, 100.0, f"内存增量过大: {memory_diff_gb:.2f} GB")
 
 
 if __name__ == "__main__":

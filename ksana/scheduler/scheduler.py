@@ -3,7 +3,7 @@ from typing import List
 
 import torch
 
-from ..utils.memory import MODEL_MEMORY_CONFIG, estimate_ksana_model_memory, get_available_memory
+from ..memory.estimator import MODEL_MEMORY_CONFIG, estimate_ksana_model_memory, get_available_memory
 
 
 @dataclass(frozen=True)
