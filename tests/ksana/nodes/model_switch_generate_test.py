@@ -113,8 +113,8 @@ test_cases = [
         attention_backends=KsanaAttentionBackend.FLASH_ATTN,
         linear_backends=KsanaLinearBackend.FP8_GEMM,
         rope_function="comfy",
-        expect__one_generator_output=0.287109375,
-        expect_gpus_generator_output=0.287109375,
+        expect__one_generator_output=0.283203125,
+        expect_gpus_generator_output=0.283203125,
     ),
 ]
 

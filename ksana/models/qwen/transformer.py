@@ -8,6 +8,7 @@ from typing import List, Optional, Tuple
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 from ksana.utils import gather_forward, get_rank_id
 
@@ -290,31 +291,15 @@ class QwenImageTransformer2DModel(nn.Module):
 
         temb = self.time_text_embed(timestep, hidden_states)
         image_rotary_emb = self.pos_embed(img_shapes, txt_seq_lens, device=hidden_states.device)
+        img_seq_len = hidden_states.shape[1]
+        pad_len = 0
         if self.sp_size > 1:
-            # TODO(qiannan): 后续这里要修改
-            if hidden_states.shape[1] % self.sp_size != 0:
-                raise RuntimeError(
-                    f"hidden_states dimension 1: ({hidden_states.shape[1]}) "
-                    f"must be divisible by sp_size ({self.sp_size})"
-                )
+            # qwen-image 不需要对 text 在 sequence 维度切分，只对 hidden state进行切分
+            remainder = hidden_states.shape[1] % self.sp_size
+            if remainder != 0:
+                pad_len = self.sp_size - remainder
+                hidden_states = F.pad(hidden_states, (0, 0, 0, pad_len, 0, 0))
             hidden_states = torch.chunk(hidden_states, self.sp_size, dim=1)[get_rank_id()]
-            txt_seq_len = encoder_hidden_states.shape[1]
-            if txt_seq_len % self.sp_size != 0:
-                pad_len = self.sp_size - (txt_seq_len % self.sp_size)
-                pad_shape = list(encoder_hidden_states.shape)
-                pad_shape[1] = pad_len
-                pad_tensor = torch.zeros(
-                    pad_shape, dtype=encoder_hidden_states.dtype, device=encoder_hidden_states.device
-                )
-                encoder_hidden_states = torch.cat([encoder_hidden_states, pad_tensor], dim=1)
-                if encoder_hidden_states_mask is not None:
-                    mask_pad_shape = list(encoder_hidden_states_mask.shape)
-                    mask_pad_shape[1] = pad_len
-                    mask_pad_tensor = torch.zeros(
-                        mask_pad_shape, dtype=torch.bool, device=encoder_hidden_states_mask.device
-                    )
-                    encoder_hidden_states_mask = torch.cat([encoder_hidden_states_mask, mask_pad_tensor], dim=1)
-            encoder_hidden_states = torch.chunk(encoder_hidden_states, self.sp_size, dim=1)[get_rank_id()]
 
         for block in self.transformer_blocks:
             encoder_hidden_states, hidden_states = block(
@@ -330,5 +315,7 @@ class QwenImageTransformer2DModel(nn.Module):
 
         if self.sp_size > 1:
             output = gather_forward(output, dim=1)
+            if pad_len > 0:
+                output = output[:, :img_seq_len, :]
 
         return output

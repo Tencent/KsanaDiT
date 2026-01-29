@@ -11,6 +11,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from ksana.utils import all_to_all, get_rank_id, get_world_size
+from ksana.utils.distribute import all_gather
 
 
 def apply_rotary_emb_qwen(
@@ -121,9 +122,6 @@ class QwenEmbedRope(nn.Module):
                 max_vid_index = max(height, width, max_vid_index)
 
         max_len = max(txt_seq_lens)
-        sp_size = get_world_size()
-        if sp_size > 1:
-            max_len = (max_len + sp_size - 1) // sp_size * sp_size
         txt_freqs = self.pos_freqs[max_vid_index : max_vid_index + max_len, ...].to(device)
         vid_freqs = torch.cat(vid_freqs, dim=0)
 
@@ -246,6 +244,44 @@ class QwenDoubleStreamAttention(nn.Module):
             self.norm_q = self.norm_k = self.norm_added_q = self.norm_added_k = nn.Identity()
         self.sp_rank = get_rank_id()
         self.sp_size = get_world_size()
+        self.attention = operations.Attn(
+            num_heads=num_heads,
+            head_size=head_dim,
+            causal=False,
+        )
+
+    def _gather_qkv(
+        self, q: torch.Tensor, k: torch.Tensor, v: torch.Tensor
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        if self.sp_size == 1:
+            return q, k, v
+        q = all_to_all(q, scatter_dim=2, gather_dim=1)
+        k = all_to_all(k, scatter_dim=2, gather_dim=1)
+        v = all_to_all(v, scatter_dim=2, gather_dim=1)
+        return q, k, v
+
+    def _gather_attn_output(self, x):
+        if self.sp_size == 1:
+            return x
+        return all_to_all(x, scatter_dim=1, gather_dim=2)
+
+    def _gather_text_output(self, x: torch.Tensor) -> torch.Tensor:
+        if self.sp_size == 1:
+            return x
+        gathered = all_gather(x)
+        return torch.cat(gathered, dim=2)
+
+    def _get_text_qkv(self, q: torch.Tensor, k: torch.Tensor, v: torch.Tensor):
+        if self.sp_size == 1:
+            return q, k, v
+        heads_per_rank = self.num_heads // self.sp_size
+        start_head = self.sp_rank * heads_per_rank
+        end_head = (self.sp_rank + 1) * heads_per_rank
+
+        q = q[:, :, start_head:end_head, :]
+        k = k[:, :, start_head:end_head, :]
+        v = v[:, :, start_head:end_head, :]
+        return q, k, v
 
     def forward(
         self,
@@ -275,52 +311,23 @@ class QwenDoubleStreamAttention(nn.Module):
             img_freqs, txt_freqs = image_rotary_emb
             img_q = apply_rotary_emb_qwen(img_q, img_freqs, self.sp_rank, self.sp_size)
             img_k = apply_rotary_emb_qwen(img_k, img_freqs, self.sp_rank, self.sp_size)
-            txt_q = apply_rotary_emb_qwen(txt_q, txt_freqs, self.sp_rank, self.sp_size)
-            txt_k = apply_rotary_emb_qwen(txt_k, txt_freqs, self.sp_rank, self.sp_size)
+            txt_q = apply_rotary_emb_qwen(txt_q, txt_freqs, sp_rank=0, sp_size=1)
+            txt_k = apply_rotary_emb_qwen(txt_k, txt_freqs, sp_rank=0, sp_size=1)
 
-        joint_q = torch.cat([txt_q, img_q], dim=1)
-        joint_k = torch.cat([txt_k, img_k], dim=1)
-        joint_v = torch.cat([txt_v, img_v], dim=1)
+        img_q, img_k, img_v = self._gather_qkv(img_q, img_k, img_v)
+        txt_q, txt_k, txt_v = self._get_text_qkv(txt_q, txt_k, txt_v)
 
-        # [batch, num_heads, seq_len, head_dim]
-        joint_q = joint_q.transpose(1, 2)
-        joint_k = joint_k.transpose(1, 2)
-        joint_v = joint_v.transpose(1, 2)
+        joint_q = torch.cat([txt_q, img_q], dim=1).contiguous()
+        joint_k = torch.cat([txt_k, img_k], dim=1).contiguous()
+        joint_v = torch.cat([txt_v, img_v], dim=1).contiguous()
 
-        if self.sp_size > 1:
-            # scatter head dimension, gather sequence dimension
-            # attention 部分需要完整的sequence
-            joint_q = all_to_all(joint_q, scatter_dim=1, gather_dim=2)
-            joint_k = all_to_all(joint_k, scatter_dim=1, gather_dim=2)
-            joint_v = all_to_all(joint_v, scatter_dim=1, gather_dim=2)
-
-        attn_mask = None
-        if encoder_hidden_states_mask is not None:
-            bsz = encoder_hidden_states_mask.shape[0]
-            seq_img = hidden_states.shape[1] * self.sp_size
-
-            txt_valid = encoder_hidden_states_mask.to(dtype=torch.bool, device=hidden_states.device)
-            img_valid = torch.ones((bsz, seq_img), dtype=torch.bool, device=hidden_states.device)
-            key_valid = torch.cat([txt_valid, img_valid], dim=1)  # [B, S_total]
-
-            neg_inf = torch.finfo(joint_q.dtype).min
-            attn_mask = torch.where(
-                key_valid, torch.zeros((), device=hidden_states.device, dtype=joint_q.dtype), neg_inf
-            )
-            attn_mask = attn_mask[:, None, None, :]
-
-        joint_out = F.scaled_dot_product_attention(
-            joint_q, joint_k, joint_v, attn_mask=attn_mask, dropout_p=0.0, is_causal=False
-        )
-
-        if self.sp_size > 1:
-            # scatter sequence dimension, gather head dimension
-            joint_out = all_to_all(joint_out, scatter_dim=2, gather_dim=1)
-
-        joint_out = joint_out.transpose(1, 2).flatten(2)
+        joint_out = self.attention(joint_q, joint_k, joint_v)
 
         txt_out = joint_out[:, :seq_txt, :]
         img_out = joint_out[:, seq_txt:, :]
+
+        txt_out = self._gather_text_output(txt_out).flatten(2)
+        img_out = self._gather_attn_output(img_out).flatten(2)
 
         img_out = self.to_out[0](img_out)
         img_out = self.to_out[1](img_out)

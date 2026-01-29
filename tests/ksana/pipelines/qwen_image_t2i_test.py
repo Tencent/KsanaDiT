@@ -1,8 +1,6 @@
 import unittest
 
 import torch
-from pipeline_test_helper import PROMPTS, SEED, TEST_PORT, TEST_STEPS
-
 from ksana import KsanaPipeline
 from ksana.config import (
     KsanaDistributedConfig,
@@ -11,6 +9,7 @@ from ksana.config import (
     KsanaSampleConfig,
 )
 from ksana.utils.distribute import get_gpu_count
+from pipeline_test_helper import PROMPTS, SEED, TEST_PORT, TEST_STEPS
 
 TEST_DTYPE = torch.bfloat16
 TEST_SIZE = (512, 512)  # (W, H)
@@ -41,16 +40,20 @@ class TestKsanaQwenImageT2I(unittest.TestCase):
                 return_frames=True,
                 save_output=True,
                 offload_model=True,
+                batch_size_per_prompts=[1, 2],
             ),
         )
 
-        self.assertEqual(len(images), len(PROMPTS))
+        self.assertEqual(len(images), 3)
         mean0 = images[0].detach().float().mean().item()
         mean1 = images[1].detach().float().mean().item()
+        mean2 = images[2].detach().float().mean().item()
         with self.subTest(msg="Mean 0 Check"):
             self.assertAlmostEqual(mean0, 0.325140208, places=TEST_EPS_PLACE)
         with self.subTest(msg="Mean 1 Check"):
-            self.assertAlmostEqual(mean1, 0.617037892, places=TEST_EPS_PLACE)
+            self.assertAlmostEqual(mean1, 0.6177374720573425, places=TEST_EPS_PLACE)
+        with self.subTest(msg="Mean 2 Check"):
+            self.assertAlmostEqual(mean2, 0.5726516246795654, places=TEST_EPS_PLACE)
 
 
 if __name__ == "__main__":

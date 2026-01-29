@@ -7,11 +7,11 @@
       "image_width": 480,
       "image_height": 480,
       "expect_values": {
-        "mean": 0.3124734,
+        "mean": 0.3135127,
         "eps_place": 4
       },
       "gpus_expect_values": {
-        "mean": 0.3167436,
+        "mean": 0.3105865,
         "eps_place": 4
       }
     },
