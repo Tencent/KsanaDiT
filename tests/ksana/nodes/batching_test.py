@@ -29,7 +29,7 @@ class TestBatchingForAllModels(unittest.TestCase):
         else:
             self.assertIsNone(generate_output)
 
-    def test_all_linear_backend(self):
+    def test_batching(self):
         for model_name, img_shape, text_shape, expected_model_key in TEST_MODELS:
             for prompt_size in PROMPT_SIZE:
                 text_shape = text_shape.copy()
