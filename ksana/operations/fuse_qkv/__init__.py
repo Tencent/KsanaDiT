@@ -1,19 +1,16 @@
-from .attention import KsanaAttentionOp, pick_attn_op
 from .fuse_qkv import (
+    MODEL_QKV_PATTERNS,
     QKVProjectionMixin,
+    model_uses_qkv_fusion,
     remap_qkv_weights,
     remap_state_dict_for_model,
     should_use_qkv_fusion,
 )
-from .linear import pick_linear
-from .ops import build_ops
 
 __all__ = [
-    "KsanaAttentionOp",
+    "MODEL_QKV_PATTERNS",
     "QKVProjectionMixin",
-    "build_ops",
-    "pick_attn_op",
-    "pick_linear",
+    "model_uses_qkv_fusion",
     "remap_qkv_weights",
     "remap_state_dict_for_model",
     "should_use_qkv_fusion",

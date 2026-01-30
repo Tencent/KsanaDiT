@@ -140,7 +140,11 @@ class KsanaDiffusionLoaderUnit(KsanaLoaderUnit):
             model.load_state_dict(model_state_dict, strict=False)
             model.enable_only_infer()
             model.prepare_distributed_model(shard_fn)
-            model.apply_dynamic_fp8_quant(linear_backend=model_config.linear_backend, load_device=device)
+            model.apply_dynamic_fp8_quant(
+                linear_backend=model_config.linear_backend,
+                load_device=device,
+                model_state_dict=model_state_dict,
+            )
             model.apply_torch_compile(model_config.torch_compile_config)
             # Note: apply_pinned_memory must be called after apply_torch_compile
             model.apply_pinned_memory(offload_device)

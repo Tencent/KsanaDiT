@@ -95,11 +95,11 @@
       "sigmas": [0.9999, 0.0000],
       "lora_model_name": "Wan2.2-T2V-A14B-4steps-lora-rank64-Seko-V1/low_noise_model.safetensors",
       "expect_values": {
-        "mean": 0.4261124,
+        "mean": 0.4265307,
         "eps_place": 4
       },
       "gpus_expect_values": {
-        "mean": 0.4263136,
+        "mean": 0.4265263,
         "eps_place": 4
       }
     },

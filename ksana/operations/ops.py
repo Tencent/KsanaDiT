@@ -136,4 +136,6 @@ def build_ops(
     ops.register("Linear", pick_linear(run_dtype, state_dict, linear_backend, load_device))
     ops.register("Attn", pick_attn_op(attention_config))
     ops.rms_dtype = rms_dtype
+    ops.linear_backend = linear_backend
+    ops.state_dict = state_dict
     return ops

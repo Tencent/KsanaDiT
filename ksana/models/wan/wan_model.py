@@ -9,6 +9,7 @@ from einops import rearrange
 
 from ksana.accelerator import platform
 from ksana.cache import KsanaHybridCache
+from ksana.operations.fuse_qkv import QKVProjectionMixin
 from ksana.utils import all_to_all, gather_forward, get_rank_id, get_world_size, time_range
 from ksana.utils.rope import EmbedND, apply_comfyui_rope, apply_default_rope
 
@@ -56,7 +57,40 @@ def rope_params(max_seq_len, dim, theta=10000):
     return freqs
 
 
-class WanSelfAttention(nn.Module):
+class WanBaseAttention(nn.Module):
+    def __init__(self, dim, num_heads, window_size=(-1, -1), qk_norm=True, eps=1e-6, operation_settings=None):
+        super().__init__()
+        if operation_settings is None:
+            operation_settings = {}
+        assert dim % num_heads == 0
+
+        self.dim = dim
+        self.num_heads = num_heads
+        self.head_dim = dim // num_heads
+        self.window_size = window_size
+        self.qk_norm = qk_norm
+        self.eps = eps
+
+        device = operation_settings.get("device")
+        dtype = operation_settings.get("dtype")
+        ops = operation_settings.get("operations")
+        rms_dtype = operation_settings.get("rms_dtype")
+
+        self.o = ops.Linear(dim, dim, device=device, dtype=dtype)
+        self.norm_q = (
+            ops.RMSNorm(dim, eps=eps, elementwise_affine=True, device=device, dtype=torch.float32, rms_dtype=rms_dtype)
+            if qk_norm
+            else nn.Identity()
+        )
+        self.norm_k = (
+            ops.RMSNorm(dim, eps=eps, elementwise_affine=True, device=device, dtype=torch.float32, rms_dtype=rms_dtype)
+            if qk_norm
+            else nn.Identity()
+        )
+        self.attention = ops.Attn(num_heads=num_heads, head_size=self.head_dim, causal=False)
+
+
+class WanSelfAttention(WanBaseAttention, QKVProjectionMixin):
     def __init__(
         self,
         dim,
@@ -72,50 +106,27 @@ class WanSelfAttention(nn.Module):
             window_size = (-1, -1)
         if operation_settings is None:
             operation_settings = {}
-        assert dim % num_heads == 0
-        super().__init__()
-        self.dim = dim
-        self.num_heads = num_heads
-        self.head_dim = dim // num_heads
-        self.window_size = window_size
-        self.qk_norm = qk_norm
-        self.eps = eps
+
+        super().__init__(dim, num_heads, window_size, qk_norm, eps, operation_settings)
         self.block_id = block_id
-        # layers
+
         device = operation_settings.get("device")
         dtype = operation_settings.get("dtype")
-        self.q = operation_settings.get("operations").Linear(dim, dim, device=device, dtype=dtype)
-        self.k = operation_settings.get("operations").Linear(dim, dim, device=device, dtype=dtype)
-        self.v = operation_settings.get("operations").Linear(dim, dim, device=device, dtype=dtype)
-        self.o = operation_settings.get("operations").Linear(dim, dim, device=device, dtype=dtype)
-        rms_dtype = operation_settings.get("rms_dtype")
-        self.norm_q = (
-            operation_settings.get("operations").RMSNorm(
-                dim, eps=eps, elementwise_affine=True, device=device, dtype=torch.float32, rms_dtype=rms_dtype
-            )
-            if qk_norm
-            else nn.Identity()
-        )
-        self.norm_k = (
-            operation_settings.get("operations").RMSNorm(
-                dim, eps=eps, elementwise_affine=True, device=device, dtype=torch.float32, rms_dtype=rms_dtype
-            )
-            if qk_norm
-            else nn.Identity()
-        )
+        ops = operation_settings.get("operations")
 
-        self.attention = operation_settings.get("operations").Attn(
-            num_heads=num_heads,
-            head_size=self.head_dim,
-            causal=False,
+        self._setup_qkv_projection(
+            dim=dim,
+            operations=ops,
+            device=device,
+            dtype=dtype,
+            bias=True,
+            fused_name="qkv",
+            separate_names=("q", "k", "v"),
         )
 
         if enable_sla:
-            self.proj_l = operation_settings.get("operations").Linear(
-                self.head_dim, self.head_dim, device=device, dtype=dtype
-            )
+            self.proj_l = ops.Linear(self.head_dim, self.head_dim, device=device, dtype=dtype)
 
-        # seq_parallel related
         self.sp_rank = get_rank_id()
         self.sp_size = get_world_size()
 
@@ -134,23 +145,12 @@ class WanSelfAttention(nn.Module):
         return all_to_all(x, scatter_dim=1, gather_dim=2)
 
     def forward(self, x, seq_lens, grid_sizes, freqs, step_iter, latent_shape, rope_func="default"):
-        r"""
-        Args:
-            x(Tensor): Shape [B, L, num_heads, C / num_heads]
-            seq_lens(Tensor): Shape [B]
-            grid_sizes(Tensor): Shape [B, 3], the second dimension contains (F, H, W)
-            freqs(Tensor): Rope freqs, shape [1024, C / num_heads / 2]
-        """
         b, s, n, d = *x.shape[:2], self.num_heads, self.head_dim
 
-        # query, key, value function
-        def qkv_fn(x):
-            q = self.norm_q(self.q(x)).view(b, s, n, d)
-            k = self.norm_k(self.k(x)).view(b, s, n, d)
-            v = self.v(x).view(b, s, n, d)
-            return q, k, v
-
-        q, k, v = qkv_fn(x)
+        q, k, v = self.compute_qkv(x)
+        q = self.norm_q(q).view(b, s, n, d)
+        k = self.norm_k(k).view(b, s, n, d)
+        v = v.view(b, s, n, d)
 
         if rope_func == "comfy":
             q = apply_comfyui_rope(q, freqs, sp_rank=self.sp_rank, sp_size=self.sp_size)
@@ -176,25 +176,39 @@ class WanSelfAttention(nn.Module):
         return x
 
 
-class WanCrossAttention(WanSelfAttention):
+class WanCrossAttention(WanBaseAttention):
+    def __init__(
+        self,
+        dim,
+        num_heads,
+        window_size=(-1, -1),
+        qk_norm=True,
+        eps=1e-6,
+        operation_settings=None,
+        enable_sla=False,  # unused, for interface consistency
+    ):
+        if operation_settings is None:
+            operation_settings = {}
+
+        super().__init__(dim, num_heads, window_size, qk_norm, eps, operation_settings)
+
+        device = operation_settings.get("device")
+        dtype = operation_settings.get("dtype")
+        ops = operation_settings.get("operations")
+
+        self.q = ops.Linear(dim, dim, device=device, dtype=dtype)
+        self.k = ops.Linear(dim, dim, device=device, dtype=dtype)
+        self.v = ops.Linear(dim, dim, device=device, dtype=dtype)
+
     def forward(self, x, context, context_lens):
-        r"""
-        Args:
-            x(Tensor): Shape [B, L1, C]
-            context(Tensor): Shape [B, L2, C]
-            context_lens(Tensor): Shape [B]
-        """
         b, n, d = x.size(0), self.num_heads, self.head_dim
 
-        # compute query, key, value
         q = self.norm_q(self.q(x)).view(b, -1, n, d)
         k = self.norm_k(self.k(context)).view(b, -1, n, d)
         v = self.v(context).view(b, -1, n, d)
 
-        # compute attention
         x = self.attention(q, k, v, k_lens=context_lens, dense_only=True)
 
-        # output
         x = x.flatten(2)
         x = self.o(x)
         return x

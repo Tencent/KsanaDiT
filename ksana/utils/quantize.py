@@ -4,6 +4,19 @@ from ..config import KsanaLinearBackend
 from .logger import log
 
 _FP8_TENSOR_PATCHED = False
+_LOG_SAMPLE_LIMIT = 5
+
+# Default layers to exclude from FP8 quantization for better generation quality.
+# These layers are typically more sensitive to precision loss:
+# - embed/embedder: Embedding layers affect semantic understanding
+# - proj_out/head: Output projection layers directly impact generation quality
+#   - Qwen uses `proj_out` as final output layer
+#   - WAN uses `head.head` as final output layer
+DEFAULT_FP8_EXCLUDE_LAYERS: list[str] = [
+    "embed",  # Embedding layers (text, position, time, etc.)
+    "proj_out",  # Output projection layers (Qwen model)
+    "head",  # Final output head (WAN model: head.head)
+]
 
 
 def _patch_float8_tensor_dispatch():
@@ -200,6 +213,9 @@ def _apply_dynamic_fp8_quant(module: torch.nn.Module):
         log.warning("apply_dynamic_fp8_quant called but target is not an nn.Module; skipping.")
         return
 
+    exclude_layers = DEFAULT_FP8_EXCLUDE_LAYERS
+    log.info(f"FP8 quantization exclude patterns: {exclude_layers}")
+
     # Check model device (for logging only - torchao can quantize on CPU)
     module_device = next(module.parameters()).device if len(list(module.parameters())) > 0 else None
     log.info(f"model device: {module_device}")
@@ -215,8 +231,10 @@ def _apply_dynamic_fp8_quant(module: torch.nn.Module):
     linear_count_before = 0
     eligible_count = 0
     torch_nn_linear_count = 0
+    excluded_count = 0
     ineligible_dims = []
     non_standard_linear = []
+    excluded_layers_names = []
 
     for name, m in module.named_modules():
         module_type = type(m).__name__
@@ -231,7 +249,7 @@ def _apply_dynamic_fp8_quant(module: torch.nn.Module):
             if is_torch_nn_linear:
                 torch_nn_linear_count += 1
             else:
-                if len(non_standard_linear) < 3:
+                if len(non_standard_linear) < _LOG_SAMPLE_LIMIT:
                     non_standard_linear.append(f"{name}: {module_class.__module__}.{module_class.__name__}")
 
             # Check dimensions
@@ -241,16 +259,30 @@ def _apply_dynamic_fp8_quant(module: torch.nn.Module):
                 # FP8 requires dimensions divisible by 16
                 if in_f % 16 == 0 and out_f % 16 == 0:
                     if is_torch_nn_linear:
-                        eligible_count += 1
+                        # Check if layer is excluded
+                        is_excluded = False
+                        for exclude_name in exclude_layers:
+                            if exclude_name in name:
+                                is_excluded = True
+                                excluded_count += 1
+                                if len(excluded_layers_names) < _LOG_SAMPLE_LIMIT:
+                                    excluded_layers_names.append(f"{name} (pattern: {exclude_name})")
+                                break
+                        if not is_excluded:
+                            eligible_count += 1
                 else:
-                    if len(ineligible_dims) < 5:
+                    if len(ineligible_dims) < _LOG_SAMPLE_LIMIT:
                         ineligible_dims.append(f"{name}({in_f}x{out_f})")
 
     log.info(
         f"Linear layers: total={linear_count_before}, "
         f"torch.nn.Linear={torch_nn_linear_count}, "
-        f"eligible (torch.nn.Linear + dims%16==0)={eligible_count}"
+        f"eligible (torch.nn.Linear + dims%16==0 - excluded)={eligible_count}, "
+        f"excluded={excluded_count}"
     )
+
+    if excluded_layers_names:
+        log.info(f"Excluded layers (kept in FP16 for quality): {excluded_layers_names}")
 
     if non_standard_linear:
         log.warning(f"Found non-standard Linear modules (won't be quantized by torchao): " f"{non_standard_linear}")
@@ -267,16 +299,43 @@ def _apply_dynamic_fp8_quant(module: torch.nn.Module):
                 "Try setting comfy_operations=None to use standard PyTorch Linear."
             )
         else:
-            log.warning("No eligible Linear layers found (dims not divisible by 16)")
+            log.warning("No eligible Linear layers found (dims not divisible by 16 or all excluded)")
         return
 
     # Patch Float8Tensor BEFORE quantization to ensure device transfers work
     # This is needed for ComfyUI's model offloading mechanism
     _patch_float8_tensor_dispatch()
 
+    # Build filter function for selective quantization
+    num_quant = 0
+    num_skip = 0
+
+    def _default_filter_fn(m: torch.nn.Module, name: str) -> bool:
+        """Default filter function that respects exclude_layers."""
+        nonlocal num_quant, num_skip
+
+        if not isinstance(m, torch.nn.Linear):
+            return False
+
+        # Check dimensions (FP8 requires dims divisible by 16)
+        if hasattr(m, "in_features") and hasattr(m, "out_features"):
+            if m.in_features % 16 != 0 or m.out_features % 16 != 0:
+                num_skip += 1
+                return False
+
+        # Check exclude list
+        for exclude_name in exclude_layers:
+            if exclude_name in name:
+                log.debug(f"Skip FP8 quantization: {name} -> pattern<{exclude_name}>")
+                num_skip += 1
+                return False
+
+        num_quant += 1
+        return True
+
     log.info(f"Applying dynamic float8 quantization via torchao to {eligible_count} eligible modules...")
     try:
-        quantize_(module, fp8_config)
+        quantize_(module, fp8_config, filter_fn=_default_filter_fn)
 
         # Verify quantization was applied by checking module types and weight types
         quantized_count = 0
@@ -296,20 +355,24 @@ def _apply_dynamic_fp8_quant(module: torch.nn.Module):
                     weight_type = type(m.weight).__name__
                     if "Float8" in weight_type or "Quantized" in weight_type or "Affine" in weight_type:
                         fp8_weight_count += 1
-                    if len(sample_weight_types) < 3:
+                    if len(sample_weight_types) < _LOG_SAMPLE_LIMIT:
                         sample_weight_types.append(f"{name}: {weight_type}")
 
         log.info(
             f"Quantization complete: "
             f"Linear before={linear_count_before}, Linear after={linear_count_after}, "
-            f"Quantized modules={quantized_count}, FP8 weights={fp8_weight_count}"
+            f"Quantized modules={quantized_count}, FP8 weights={fp8_weight_count}, "
+            f"Skipped (kept FP16)={num_skip}"
         )
 
         if sample_weight_types:
             log.info(f"Sample weight types: {sample_weight_types}")
 
         if quantized_count > 0 or fp8_weight_count > 0:
-            log.info(f"Successfully quantized {max(quantized_count, fp8_weight_count)} modules to FP8")
+            log.info(
+                f"Successfully quantized {max(quantized_count, fp8_weight_count)} modules to FP8, "
+                f"kept {excluded_count} sensitive layers in original precision"
+            )
         else:
             log.warning(
                 "No modules were quantized. Possible reasons:\n"
@@ -325,6 +388,26 @@ def _apply_dynamic_fp8_quant(module: torch.nn.Module):
         import traceback
 
         log.warning(traceback.format_exc())
+
+
+def find_fp8_info_from_state_dict(state_dict):
+    if state_dict is None:
+        return None, False
+
+    fp8_dtype = None
+    is_scaled_fp8 = False
+
+    for _, value in state_dict.items():
+        if hasattr(value, "dtype") and value.dtype in [torch.float8_e4m3fn, torch.float8_e5m2]:
+            fp8_dtype = value.dtype
+            break
+
+    for key, _ in state_dict.items():
+        if key.endswith("scale_weight"):
+            is_scaled_fp8 = True
+            break
+
+    return fp8_dtype, is_scaled_fp8
 
 
 def apply_dynamic_fp8_quant(model: torch.nn.Module, load_device=None) -> bool:

@@ -3,12 +3,14 @@ from abc import abstractmethod
 
 import torch
 
+from ksana.operations.fuse_qkv import remap_state_dict_for_model
+
 from ..accelerator import platform
 from ..config import KsanaDistributedConfig, KsanaLinearBackend, KsanaModelConfig
 from ..models.model_key import KsanaModelKey
 from ..utils import log, time_range
 from ..utils.load import load_state_dict, replace_key_in_state_dict
-from ..utils.quantize import apply_dynamic_fp8_quant
+from ..utils.quantize import apply_dynamic_fp8_quant, find_fp8_info_from_state_dict
 from ..utils.torch_compile import apply_torch_compile
 from .base_model import KsanaModel
 from .qwen import QwenImageTransformer2DModel
@@ -305,6 +307,7 @@ class KsanaDiffusionModel(KsanaModel):
 
     @time_range
     def load_state_dict(self, model_state_dict, strict=False):
+        model_state_dict = remap_state_dict_for_model(self.model, model_state_dict, self.model_key.name)
         load_state_dict(self.model, model_state_dict, strict=strict)
 
     def enable_only_infer(self):
@@ -322,8 +325,16 @@ class KsanaDiffusionModel(KsanaModel):
         if self.dist_config.dit_fsdp:
             self.model = shard_fn(self.model)
 
-    def apply_dynamic_fp8_quant(self, linear_backend, load_device):
+    def apply_dynamic_fp8_quant(self, linear_backend, load_device, model_state_dict=None):
         if linear_backend != KsanaLinearBackend.FP8_GEMM_DYNAMIC:
+            return
+        # Check if weights are already in FP8 format (fp8_e4m3, fp8_e5m2, or scaled_fp8)
+        weight_fp8_dtype, is_scaled_fp8 = find_fp8_info_from_state_dict(model_state_dict)
+        if weight_fp8_dtype is not None or is_scaled_fp8:
+            log.info(
+                f"Skipping dynamic FP8 quantization: weights are already FP8 "
+                f"(weight_fp8_dtype={weight_fp8_dtype}, is_scaled_fp8={is_scaled_fp8})"
+            )
             return
         apply_dynamic_fp8_quant(self.model, load_device=load_device)
 

@@ -32,13 +32,6 @@ class TestLinearForAllModels(unittest.TestCase):
                     # Note: fp8_gemm only can used in fp8
                     print(f"-----------------skip test {model_name} {linear_backend} -----------------")
                     continue
-                # if (
-                #     KsanaLinearBackend(linear_backend) == KsanaLinearBackend.FP8_GEMM_DYNAMIC
-                #     and "fp16" not in model_name
-                # ):
-                #     # Note: fp8_gemm_dynamic only need used in fp16 but still can work in fp8
-                #     print(f"-----------------skip test {model_name} {linear_backend} -----------------")
-                #     continue
                 print(f"-----------------test {model_name} {linear_backend} -----------------")
                 with self.subTest(msg=f"test {model_name} with {linear_backend}"):
                     self.run_once(model_name, img_shape, text_shape, expected_model_key, linear_backend)

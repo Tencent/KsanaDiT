@@ -10,6 +10,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from ksana.operations.fuse_qkv import QKVProjectionMixin
 from ksana.utils import all_to_all, get_rank_id, get_world_size
 from ksana.utils.distribute import all_gather
 
@@ -204,7 +205,7 @@ class FeedForward(nn.Module):
         return hidden_states
 
 
-class QwenDoubleStreamAttention(nn.Module):
+class QwenDoubleStreamAttention(nn.Module, QKVProjectionMixin):
     def __init__(
         self,
         dim: int,
@@ -222,16 +223,32 @@ class QwenDoubleStreamAttention(nn.Module):
         self.num_heads = num_heads
         self.head_dim = head_dim
 
-        self.to_q = operations.Linear(dim, dim, bias=True, device=device, dtype=dtype)
-        self.to_k = operations.Linear(dim, dim, bias=True, device=device, dtype=dtype)
-        self.to_v = operations.Linear(dim, dim, bias=True, device=device, dtype=dtype)
+        # Image stream
+        self._setup_qkv_projection(
+            dim=dim,
+            operations=operations,
+            device=device,
+            dtype=dtype,
+            bias=True,
+            fused_name="to_qkv",
+            separate_names=("to_q", "to_k", "to_v"),
+            prefix="img_",
+        )
+        # Text stream
+        self._setup_qkv_projection(
+            dim=dim,
+            operations=operations,
+            device=device,
+            dtype=dtype,
+            bias=True,
+            fused_name="add_qkv_proj",
+            separate_names=("add_q_proj", "add_k_proj", "add_v_proj"),
+            prefix="txt_",
+        )
+
         self.to_out = nn.ModuleList(
             [operations.Linear(dim, dim, bias=True, device=device, dtype=dtype), nn.Dropout(0.0)]
         )
-
-        self.add_q_proj = operations.Linear(dim, dim, bias=True, device=device, dtype=dtype)
-        self.add_k_proj = operations.Linear(dim, dim, bias=True, device=device, dtype=dtype)
-        self.add_v_proj = operations.Linear(dim, dim, bias=True, device=device, dtype=dtype)
         self.to_add_out = operations.Linear(dim, dim, bias=True, device=device, dtype=dtype)
 
         if qk_norm:
@@ -293,14 +310,15 @@ class QwenDoubleStreamAttention(nn.Module):
         # hidden_states.shape = [batch, seqlen, hiddim]
         seq_txt = encoder_hidden_states.shape[1]
 
-        # q、k、v [batch, seqlen, head, headdim]
-        img_q = self.to_q(hidden_states).unflatten(-1, (self.num_heads, -1))
-        img_k = self.to_k(hidden_states).unflatten(-1, (self.num_heads, -1))
-        img_v = self.to_v(hidden_states).unflatten(-1, (self.num_heads, -1))
+        img_q, img_k, img_v = self.compute_qkv(hidden_states, prefix="img_")
+        img_q = img_q.unflatten(-1, (self.num_heads, -1))
+        img_k = img_k.unflatten(-1, (self.num_heads, -1))
+        img_v = img_v.unflatten(-1, (self.num_heads, -1))
 
-        txt_q = self.add_q_proj(encoder_hidden_states).unflatten(-1, (self.num_heads, -1))
-        txt_k = self.add_k_proj(encoder_hidden_states).unflatten(-1, (self.num_heads, -1))
-        txt_v = self.add_v_proj(encoder_hidden_states).unflatten(-1, (self.num_heads, -1))
+        txt_q, txt_k, txt_v = self.compute_qkv(encoder_hidden_states, prefix="txt_")
+        txt_q = txt_q.unflatten(-1, (self.num_heads, -1))
+        txt_k = txt_k.unflatten(-1, (self.num_heads, -1))
+        txt_v = txt_v.unflatten(-1, (self.num_heads, -1))
 
         img_q = self.norm_q(img_q)
         img_k = self.norm_k(img_k)
