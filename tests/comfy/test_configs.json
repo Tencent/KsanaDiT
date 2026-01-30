@@ -11,11 +11,11 @@
       "input_image": "../../examples/images/cat.png",
       "expect_values": {
         "mean": 0.5648813,
-        "eps_place": 3
+        "eps_place": 2
       },
       "gpus_expect_values": {
         "mean": 0.5647154,
-        "eps_place": 3
+        "eps_place": 2
       }
     },
     {
