@@ -12,7 +12,6 @@ requires-python = ">=3.10,<4.0"
 license = {file = "LICENSE"}
 dependencies = [
   "numpy",
-  "easydict",
   "accelerate >= 1.2.1",
   "diffusers >= 0.35.2",
   "peft >= 0.17.0",
