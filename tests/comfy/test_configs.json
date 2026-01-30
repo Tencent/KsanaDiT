@@ -2,6 +2,23 @@
   "independent_tests":
   [
     {
+      "workflow_path": "../../comfyui/benchmarks/wan/wan2.2_i2v_turbo_diffusion.json",
+      "steps": 1,
+      "width": 512,
+      "height": 512,
+      "frames": 81,
+      "seed": 1234,
+      "input_image": "../../examples/images/cat.png",
+      "expect_values": {
+        "mean": 0.5648813,
+        "eps_place": 3
+      },
+      "gpus_expect_values": {
+        "mean": 0.5647154,
+        "eps_place": 3
+      }
+    },
+    {
       "workflow_path": "../../comfyui/benchmarks/qwen/qwen_image_2512_fp8.json",
       "steps": 1,
       "image_width": 480,

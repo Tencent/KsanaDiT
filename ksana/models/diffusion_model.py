@@ -1,3 +1,4 @@
+import math
 from abc import abstractmethod
 
 import torch
@@ -6,7 +7,7 @@ from ..accelerator import platform
 from ..config import KsanaDistributedConfig, KsanaLinearBackend, KsanaModelConfig
 from ..models.model_key import KsanaModelKey
 from ..utils import log, time_range
-from ..utils.load import load_state_dict
+from ..utils.load import load_state_dict, replace_key_in_state_dict
 from ..utils.quantize import apply_dynamic_fp8_quant
 from ..utils.torch_compile import apply_torch_compile
 from .base_model import KsanaModel
@@ -48,6 +49,9 @@ class KsanaDiffusionModel(KsanaModel):
         self._applied_pinned_memory = False
         self._allocated_blocks = []  # 存储从 manager 分配的内存块
         self._pinned_memory_manager = pinned_memory_manager
+
+    def preprocess_model_state_dict(self, model_state_dict):
+        return model_state_dict
 
     def _collect_dtype_groups(self):
         """收集模型中所有参数和 buffer，按 dtype 分组"""
@@ -354,10 +358,27 @@ class KsanaDiffusionModel(KsanaModel):
 
 
 class KsanaWanModel(KsanaDiffusionModel):
-    def _get_in_out_dim(self, state_dict, key_prefix=""):
-        in_dim = state_dict["{}patch_embedding.weight".format(key_prefix)].shape[1]
+    def _get_in_out_dim(self, state_dict, patch_size, key_prefix=""):
+        patch_emb_weight_shape = state_dict["{}patch_embedding.weight".format(key_prefix)].shape
+        if len(patch_emb_weight_shape) == 5:  # Conv3D weight for normal WanModel
+            in_dim = patch_emb_weight_shape[1]
+        elif len(patch_emb_weight_shape) == 2:  # Linear weight for TurboDiffusionWanModel
+            in_dim = patch_emb_weight_shape[1] // math.prod(patch_size)
+        else:
+            raise ValueError(f"Unsupported patch_emb_weight_shape: {patch_emb_weight_shape}")
         out_dim = state_dict["{}head.head.weight".format(key_prefix)].shape[0] // 4
         return in_dim, out_dim
+
+    def _is_turbo_diffusion_wan_model(self, state_dict, key_prefix=""):
+        return (
+            state_dict["{}patch_embedding.weight".format(key_prefix)].ndim == 2
+        )  # Linear weight for TurboDiffusionWanModel
+
+    def preprocess_model_state_dict(self, model_state_dict):
+        # for turbo diffusion wan model
+        old_pattern = ".self_attn.attn_op.local_attn.proj_l."
+        new_pattern = ".self_attn.proj_l."
+        return replace_key_in_state_dict(model_state_dict, old_pattern, new_pattern)
 
     @property
     def run_dtype(self):
@@ -381,11 +402,12 @@ class KsanaWanModel(KsanaDiffusionModel):
         offload_device=None,
     ):
         default_diffusion_settings = self.default_settings.diffusion
-        in_dim, out_dim = self._get_in_out_dim(model_state_dict)
+        patch_size = default_diffusion_settings.patch_size
+        in_dim, out_dim = self._get_in_out_dim(model_state_dict, patch_size)
         log.info(f"in_dim:{in_dim}, out_dim:{out_dim}")
         self.model = WanModel(
             is_i2v_type=self.model_key.is_i2v_type(),
-            patch_size=default_diffusion_settings.patch_size,
+            patch_size=patch_size,
             text_len=self.default_settings.text_encoder.text_len,
             in_dim=in_dim,
             dim=default_diffusion_settings.dim,
@@ -402,6 +424,7 @@ class KsanaWanModel(KsanaDiffusionModel):
             device=offload_device,
             dtype=self.run_dtype,
             sp_size=self.dist_config.ulysses_size,
+            is_turbo_diffusion_wan_model=self._is_turbo_diffusion_wan_model(model_state_dict),
         )
 
 

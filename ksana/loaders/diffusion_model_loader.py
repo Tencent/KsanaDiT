@@ -119,6 +119,7 @@ class KsanaDiffusionLoaderUnit(KsanaLoaderUnit):
                 self.default_settings,
                 pinned_memory_manager=KsanaDiffusionLoaderUnit._pinned_memory_manager,
             )
+            model_state_dict = model.preprocess_model_state_dict(model_state_dict)
             # TODO(rock): get weight dtype from model_state_dict and judge linear_backend use fp8_gemm or not
             operations = build_ops(
                 model_config.run_dtype,

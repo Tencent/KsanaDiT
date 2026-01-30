@@ -9,6 +9,7 @@ class KsanaAttentionBackend(Enum):
     FLASH_ATTN = "flash_attention"
     TORCH_SDPA = "torch_sdpa"
     RADIAL_SAGE_ATTN = "radial_sage_attention"
+    SAGE_SLA = "sage_sla"
 
     @staticmethod
     def get_supported_list(exclude: list[KsanaAttentionBackend] = None) -> list[str]:
@@ -56,3 +57,18 @@ class KsanaRadialSageAttentionConfig(KsanaAttentionConfig):
 
         if not (0 < self.decay_factor < 1):
             raise ValueError(f"decay_factor must be in range (0, 1), got {self.decay_factor}")
+
+
+@dataclass(frozen=True)
+class KsanaSageSLAConfig(KsanaAttentionConfig):
+    """Radial Sage Attention的配置"""
+
+    backend: KsanaAttentionBackend = field(init=False, default=KsanaAttentionBackend.SAGE_SLA)
+    dense_attention_config: KsanaAttentionConfig = field(
+        default=KsanaAttentionConfig(backend=KsanaAttentionBackend.SAGE_ATTN)
+    )
+    topk: float = field(default=0.1)
+
+    def __post_init__(self):
+        if not (0 < self.topk < 1):
+            raise ValueError(f"topk must be in range (0, 1), got {self.topk}")

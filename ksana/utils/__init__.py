@@ -3,7 +3,7 @@ from .distribute import all_to_all, gather_forward, get_gpu_count, get_rank_id, 
 from .env import KSANA_LOGGER_LEVEL, KSANA_MEMORY_PROFILER
 from .factory import Factory
 from .instance import singleton
-from .load import load_file_to_state_dict, load_sharded_safetensors, remove_prefix_from_sd_inplace
+from .load import load_file_to_state_dict, load_sharded_safetensors, remove_prefix_from_state_dict
 from .logger import log, reset_logging
 from .lora import load_state_dict_and_merge_lora, model_safe_downcast
 from .media import merge_video_audio, save_video
@@ -44,5 +44,5 @@ __all__ = [
     "stochastic_rounding",
     "get_sigmas_with_denoise",
     "apply_sigma_shift",
-    "remove_prefix_from_sd_inplace",
+    "remove_prefix_from_state_dict",
 ]

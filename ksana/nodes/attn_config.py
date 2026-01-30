@@ -1,4 +1,9 @@
-from ksana.config import KsanaAttentionBackend, KsanaAttentionConfig, KsanaRadialSageAttentionConfig
+from ksana.config import (
+    KsanaAttentionBackend,
+    KsanaAttentionConfig,
+    KsanaRadialSageAttentionConfig,
+    KsanaSageSLAConfig,
+)
 
 
 def attention_config(backend=None):
@@ -33,5 +38,26 @@ def radial_sage_attention_config(
         dense_attn_steps=dense_attn_steps,
         decay_factor=decay_factor,
         block_size=block_size,
+        dense_attention_config=KsanaAttentionConfig(backend=dense_backend),
+    )
+
+
+def sage_sla_config(
+    topk=0.1,
+    dense_backend=None,
+):
+    """
+    Create a KsanaSageSLAConfig object with the specified parameters.
+
+    Args:
+        topk: Top-k ratio for sparse attention (must be in range (0, 1))
+        dense_backend: Backend for dense attention
+    Returns:
+        configuration object
+    """
+    if dense_backend is None:
+        dense_backend = KsanaAttentionBackend.SAGE_ATTN.value
+    return KsanaSageSLAConfig(
+        topk=topk,
         dense_attention_config=KsanaAttentionConfig(backend=dense_backend),
     )

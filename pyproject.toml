@@ -24,6 +24,7 @@ dependencies = [
   "imageio >= 2.34.2",
   "imageio-ffmpeg >= 0.4.8",
   "omegaconf >= 2.3.0",
+  "einops >= 0.8.1",
 ]
 
 [project.urls]

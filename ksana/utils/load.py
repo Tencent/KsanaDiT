@@ -58,12 +58,12 @@ def resolve_ci_models_ckpt_path(ckpt: str) -> str:
     return _map_ci_models_single_multi(path, root)
 
 
-def remove_prefix_from_sd_inplace(state_dict: dict, prefix: str) -> dict:
+def remove_prefix_from_state_dict(state_dict: dict, prefix: str) -> dict:
     """
-    Remove a specified prefix from all keys in the state dictionary (in-place).
+    Remove a specified prefix from all keys in the state dictionary
 
     Args:
-        state_dict (dict): The state dictionary with keys to be modified (modified in-place).
+        state_dict (dict): The state dictionary with keys to be modified
         prefix (str): The prefix string to be removed from the keys.
 
     Returns:
@@ -77,8 +77,51 @@ def remove_prefix_from_sd_inplace(state_dict: dict, prefix: str) -> dict:
         log.info(f"{len(keys_to_update)} keys with multiple prefixes are to be deleted.")
 
     for old_key in keys_to_update:
-        state_dict[old_key.removeprefix(prefix)] = state_dict.pop(old_key)
+        new_key = old_key.removeprefix(prefix)
+        if new_key in state_dict and new_key != old_key:
+            raise RuntimeError(
+                f"Key conflict detected: removing prefix '{prefix}' from '{old_key}' "
+                f"would overwrite existing key '{new_key}'"
+            )
+        state_dict[new_key] = state_dict.pop(old_key)
 
+    return state_dict
+
+
+def replace_key_in_state_dict(state_dict: dict, old_pattern: str, new_pattern: str) -> dict:
+    """
+    Replace a specific pattern in all keys of the state dictionary.
+
+    This function iterates through all keys in the state dictionary and replaces
+    occurrences of old_pattern with new_pattern. This is particularly useful when
+    loading pretrained model weights to adapt different model structure naming conventions.
+
+    Args:
+        state_dict (dict): The state dictionary with keys to be modified
+        old_pattern (str): The old pattern string to be replaced
+        new_pattern (str): The new pattern string to replace with
+
+    Returns:
+        dict: The state dictionary with replaced keys (modified in-place)
+    """
+    replaced_cnt = 0
+    keys_to_rename = [
+        (key, key.replace(old_pattern, new_pattern)) for key in list(state_dict.keys()) if old_pattern in key
+    ]
+
+    for old_key, new_key in keys_to_rename:
+        if new_key in state_dict and new_key != old_key:
+            raise RuntimeError(
+                f"Key conflict detected: replacing '{old_pattern}' with '{new_pattern}' in '{old_key}' "
+                f"would overwrite existing key '{new_key}'"
+            )
+        state_dict[new_key] = state_dict.pop(old_key)
+        replaced_cnt += 1
+
+    if replaced_cnt:
+        log.info(
+            f"Replaced {replaced_cnt} keys in state dict, old_pattern: '{old_pattern}' -> new_pattern: '{new_pattern}'"
+        )
     return state_dict
 
 
@@ -100,7 +143,7 @@ def unet_prefix_from_state_dict(state_dict):
 
 def remove_comfyui_prefix_from_state_dict(state_dict: dict) -> dict:
     detected_prefix = unet_prefix_from_state_dict(state_dict)
-    return remove_prefix_from_sd_inplace(state_dict, detected_prefix)
+    return remove_prefix_from_state_dict(state_dict, detected_prefix)
 
 
 def load_file_to_state_dict(ckpt, device=None):

@@ -18,12 +18,14 @@ def get_backend_mapping():
         from .flash_attn import FlashAttentionImpl
         from .radial_sage_attn.radial_sage_attn import RadialSageAttentionImpl
         from .sage_attn import SageAttentionImpl
+        from .sage_sla import SageSLAAttentionImpl
         from .sdpa import SDPAImpl
 
         _ATTN_BACKEND_TO_IMPL = {
             FlashAttentionImpl.type(): FlashAttentionImpl,
             SageAttentionImpl.type(): SageAttentionImpl,
             SDPAImpl.type(): SDPAImpl,
+            SageSLAAttentionImpl.type(): SageSLAAttentionImpl,
             RadialSageAttentionImpl.type(): RadialSageAttentionImpl,
         }
 

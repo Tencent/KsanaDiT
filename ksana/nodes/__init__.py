@@ -1,4 +1,4 @@
-from .attn_config import attention_config, radial_sage_attention_config
+from .attn_config import attention_config, radial_sage_attention_config, sage_sla_config
 from .cache import KsanaNodeDBCache, custom_step_cache, dcache, easy_cache, hybrid_cache, mag_cache, teacache
 from .generate import generate
 from .load import KsanaNodeModelLoader
@@ -57,4 +57,5 @@ __all__ = [
     "torch_compile_config",
     "attention_config",
     "radial_sage_attention_config",
+    "sage_sla_config",
 ]

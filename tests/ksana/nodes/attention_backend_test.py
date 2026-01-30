@@ -40,18 +40,19 @@ class TestAttentionsForAllModels(unittest.TestCase):
         return rss_gb
 
     def test_all_attention_backend(self):
+        # TODO(rockcao): support SAGE_SLA test on TurboWan model
+        exclude_list = [KsanaAttentionBackend.SAGE_SLA]
         init_rss_memory_gb = self._get_rss_memory_usage_in_gb()
         log.info(f"初始内存使用: {init_rss_memory_gb:.2f} GB")
         for model_name, img_shape, text_shape, expected_model_key in TEST_MODELS:
-            for attn_backend in KsanaAttentionBackend.get_supported_list():
+            for attn_backend in KsanaAttentionBackend.get_supported_list(exclude=exclude_list):
                 print(f"-----------------test {model_name} {attn_backend} -----------------")
-                with self.subTest(msg=f"test {model_name} with {attn_backend}"):
-                    self.run_once(model_name, img_shape, text_shape, expected_model_key, attn_backend)
-                    after_rss_memory_gb = self._get_rss_memory_usage_in_gb()
-                    log.info(f"测试 {model_name} {attn_backend} 后内存使用: {after_rss_memory_gb:.2f} GB")
-                    memory_diff_gb = after_rss_memory_gb - init_rss_memory_gb
-                    log.info(f"测试 {model_name} {attn_backend} 内存增量: {memory_diff_gb:.2f} GB")
-                    self.assertLessEqual(memory_diff_gb, 100.0, f"内存增量过大: {memory_diff_gb:.2f} GB")
+                self.run_once(model_name, img_shape, text_shape, expected_model_key, attn_backend)
+                after_rss_memory_gb = self._get_rss_memory_usage_in_gb()
+                log.info(f"测试 {model_name} {attn_backend} 后内存使用: {after_rss_memory_gb:.2f} GB")
+                memory_diff_gb = after_rss_memory_gb - init_rss_memory_gb
+                log.info(f"测试 {model_name} {attn_backend} 内存增量: {memory_diff_gb:.2f} GB")
+                self.assertLessEqual(memory_diff_gb, 100.0, f"内存增量过大: {memory_diff_gb:.2f} GB")
 
 
 if __name__ == "__main__":

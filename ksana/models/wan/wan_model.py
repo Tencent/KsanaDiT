@@ -2,19 +2,20 @@
 import math
 
 import torch
-
 import torch.nn as nn
 from diffusers.configuration_utils import ConfigMixin, register_to_config
 from diffusers.models.modeling_utils import ModelMixin
+from einops import rearrange
 
+from ksana.accelerator import platform
 from ksana.cache import KsanaHybridCache
 from ksana.utils import all_to_all, gather_forward, get_rank_id, get_world_size, time_range
 from ksana.utils.rope import EmbedND, apply_comfyui_rope, apply_default_rope
-from ksana.accelerator import platform
 
 if platform.is_npu():
-    import torch_npu  # pylint: disable=unused-import
-    from torch_npu.contrib import transfer_to_npu  # pylint: disable=unused-import
+    import torch_npu  # pylint: disable=unused-import # noqa: F401
+    from torch_npu.contrib import transfer_to_npu  # pylint: disable=unused-import # noqa: F401
+
 
 __all__ = ["WanModel"]
 
@@ -65,6 +66,7 @@ class WanSelfAttention(nn.Module):
         eps=1e-6,
         block_id=-1,
         operation_settings=None,
+        enable_sla=False,
     ):
         if window_size is None:
             window_size = (-1, -1)
@@ -107,6 +109,11 @@ class WanSelfAttention(nn.Module):
             head_size=self.head_dim,
             causal=False,
         )
+
+        if enable_sla:
+            self.proj_l = operation_settings.get("operations").Linear(
+                self.head_dim, self.head_dim, device=device, dtype=dtype
+            )
 
         # seq_parallel related
         self.sp_rank = get_rank_id()
@@ -160,6 +167,7 @@ class WanSelfAttention(nn.Module):
             "latent_shape": list(latent_shape),
             "step_iter": step_iter,
             "block_id": self.block_id,
+            "proj_l": self.proj_l if hasattr(self, "proj_l") else None,
         }
         x = self.attention(q, k, v, **kwargs)
 
@@ -204,6 +212,7 @@ class WanAttentionBlock(nn.Module):
         cross_attn_norm=False,
         eps=1e-6,
         operation_settings=None,
+        is_turbo_diffusion_wan_model=False,
     ):
         if window_size is None:
             window_size = (-1, -1)
@@ -232,6 +241,7 @@ class WanAttentionBlock(nn.Module):
             eps,
             block_id=block_id,
             operation_settings=operation_settings,
+            enable_sla=is_turbo_diffusion_wan_model,
         )
         self.norm3 = (
             operation_settings.get("operations").LayerNorm(
@@ -241,7 +251,13 @@ class WanAttentionBlock(nn.Module):
             else nn.Identity()
         )
         self.cross_attn = WanCrossAttention(
-            dim, num_heads, (-1, -1), qk_norm, eps, operation_settings=operation_settings
+            dim,
+            num_heads,
+            (-1, -1),
+            qk_norm,
+            eps,
+            operation_settings=operation_settings,
+            enable_sla=False,
         )
         self.norm2 = operation_settings.get("operations").LayerNorm(
             dim, eps, elementwise_affine=False, device=device, dtype=dtype
@@ -379,6 +395,7 @@ class WanModel(ModelMixin, ConfigMixin):
         device=None,
         dtype=None,
         sp_size=1,
+        is_turbo_diffusion_wan_model=False,
     ):
         r"""
         Initialize the diffusion model backbone.
@@ -416,6 +433,8 @@ class WanModel(ModelMixin, ConfigMixin):
                 Epsilon value for normalization layers
             sp_size (`int`, *optional*, defaults to 1):
                 Sequence parallelism size
+            is_turbo_diffusion_wan_model (`bool`, *optional*, defaults to False):
+                is turbo diffusion wan model
         """
 
         super().__init__()
@@ -438,10 +457,16 @@ class WanModel(ModelMixin, ConfigMixin):
 
         self.sp_size = sp_size
 
+        self.is_turbo_diffusion_wan_model = is_turbo_diffusion_wan_model
+
         # embeddings
-        self.patch_embedding = operations.Conv3d(
-            in_dim, dim, kernel_size=patch_size, stride=patch_size, device=device, dtype=torch.float32
-        )
+        if self.is_turbo_diffusion_wan_model:
+            # turbo diffusion wan model use Linear as patch embedding
+            self.patch_embedding = nn.Linear(in_dim * patch_size[0] * patch_size[1] * patch_size[2], dim)
+        else:
+            self.patch_embedding = operations.Conv3d(
+                in_dim, dim, kernel_size=patch_size, stride=patch_size, device=device, dtype=torch.float32
+            )
         self.text_embedding = nn.Sequential(
             operations.Linear(text_dim, dim, device=device, dtype=dtype),
             nn.GELU(approximate="tanh"),
@@ -473,6 +498,7 @@ class WanModel(ModelMixin, ConfigMixin):
                     cross_attn_norm,
                     eps,
                     operation_settings=operation_settings,
+                    is_turbo_diffusion_wan_model=is_turbo_diffusion_wan_model,
                 )
                 for block_id in range(num_layers)
             ]
@@ -611,14 +637,34 @@ class WanModel(ModelMixin, ConfigMixin):
         if y is not None:
             # x = [torch.cat([u, v], dim=0) for u, v in zip(x, y)]
             x = torch.cat([x, y.to(x.dtype)], dim=1)
-        # embeddings
-        # [bs, 16, fi, hi, wi] => [bs, 5120, f, h, w]
-        x = self.patch_embedding(x.float()).to(x.dtype)
-        bs = x.shape[0]
+
+        kt, kh, kw = self.patch_size
+        bs, _, t_in, h_in, w_in = x.shape
+        if not ((t_in % kt) == 0 and (h_in % kh) == 0 and (w_in % kw) == 0):
+            raise RuntimeError(
+                f"Input video size {(t_in, h_in, w_in)} is not divisible by patch size {self.patch_size}"
+            )
+
+        t_in, h_in, w_in = t_in // kt, h_in // kh, w_in // kw
         # grid_sizes: 支持 batch - 所有样本共享相同的 grid (假设 batch 内尺寸相同)
-        grid_sizes = torch.tensor(x.shape[2:], dtype=torch.long, device=device).unsqueeze(0).expand(bs, -1)
-        # [bs, 5120, f*h*w] => [bs, f*h*w, 5120]
-        x = x.flatten(2).transpose(1, 2)
+        grid_sizes = torch.tensor([t_in, h_in, w_in], dtype=torch.long, device=device).unsqueeze(0).expand(bs, -1)
+
+        # embeddings
+        if self.is_turbo_diffusion_wan_model:
+            x = rearrange(
+                x,
+                "b c (t kt) (h kh) (w kw) -> b (t h w) (c kt kh kw)",
+                kt=kt,
+                kh=kh,
+                kw=kw,
+            ).contiguous()
+            x = self.patch_embedding(x.float()).to(x.dtype)
+        else:
+            # [bs, 16, fi, hi, wi] => [bs, 5120, f, h, w]
+            x = self.patch_embedding(x.float()).to(x.dtype)
+            # [bs, 5120, f*h*w] => [bs, f*h*w, 5120]
+            x = x.flatten(2).transpose(1, 2)
+
         # seq_lens: 支持 batch
         seq_lens = torch.full((bs,), x.shape[1], dtype=torch.int32, device=x.device)
         assert seq_lens.max() <= seq_len
@@ -630,7 +676,6 @@ class WanModel(ModelMixin, ConfigMixin):
         # 取第一个 timestep，因为一个batch里的timestamp都是一样的
         timestep = t[0].item() if t.numel() > 1 else t.item()
 
-        bs = t.size(0)  # batch size
         if t.dim() == 1:
             t = t.unsqueeze(1)
         one = t.size(1)  # = 1
@@ -692,6 +737,7 @@ class WanModel(ModelMixin, ConfigMixin):
         # unpatchify
         # [bs, seqlen, 64] => [bs, 16, fi, hi, wi]
         x = self.unpatchify(x, grid_sizes)
+
         return x
 
     def _forward_with_cache(self, x, cache, phase, timestep, *, step_iter, **kwargs):

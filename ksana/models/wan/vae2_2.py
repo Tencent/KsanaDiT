@@ -2,20 +2,17 @@
 import logging
 
 import torch
-
 import torch.cuda.amp as amp
 import torch.nn as nn
 import torch.nn.functional as F
 from einops import rearrange
 
-from ksana.utils import load_file_to_state_dict, remove_prefix_from_sd_inplace
-from ksana.utils.load import load_state_dict
 from ksana.accelerator import platform
-
+from ksana.utils.load import load_file_to_state_dict, load_state_dict, remove_prefix_from_state_dict
 
 if platform.is_npu():
-    import torch_npu  # pylint: disable=unused-import
-    from torch_npu.contrib import transfer_to_npu  # pylint: disable=unused-import
+    import torch_npu  # pylint: disable=unused-import # noqa: F401
+    from torch_npu.contrib import transfer_to_npu  # pylint: disable=unused-import # noqa: F401
 
 __all__ = ["Wan2_2_VAE"]
 
@@ -877,7 +874,7 @@ def _video_vae(pretrained_path=None, z_dim=16, dim=160, device="cpu", **kwargs):
 
     # load checkpoint
     logging.info(f"loading {pretrained_path}")
-    unified_sd = remove_prefix_from_sd_inplace(load_file_to_state_dict(pretrained_path, device=device), prefix="model.")
+    unified_sd = remove_prefix_from_state_dict(load_file_to_state_dict(pretrained_path, device=device), prefix="model.")
     load_state_dict(model, unified_sd, assign=True, strict=True)
 
     return model

@@ -13,6 +13,7 @@ from ksana.config import (
     KsanaLoraConfig,
     KsanaModelConfig,
     KsanaRuntimeConfig,
+    KsanaSageSLAConfig,
     KsanaSampleConfig,
     KsanaSolverType,
 )
@@ -97,6 +98,47 @@ def run_start_and_end_with_lora(args):
     print("video shape:", video.shape)
 
 
+def run_turbo_diffusion(args):
+    sage_sla_config = KsanaSageSLAConfig(
+        dense_attention_config=KsanaAttentionConfig(backend=KsanaAttentionBackend.SAGE_ATTN), topk=0.1
+    )
+
+    model_config = KsanaModelConfig(attention_config=sage_sla_config, run_dtype=torch.bfloat16)
+
+    sample_config = KsanaSampleConfig(steps=4, cfg_scale=1.0, shift=5.0, solver=KsanaSolverType.EULER)
+
+    high = f"{args.model_dir}/TurboWan2.2-I2V-A14B-720P/TurboWan2.2-I2V-A14B-high-720P.pth"
+    low = f"{args.model_dir}/TurboWan2.2-I2V-A14B-720P/TurboWan2.2-I2V-A14B-low-720P.pth"
+    text_dir = f"{args.model_dir}/Wan2.2-I2V-A14B"
+    vae_dir = f"{args.model_dir}/Wan2.2-I2V-A14B"
+
+    pipeline = KsanaPipeline.from_models(
+        (high, low),
+        text_checkpoint_dir=text_dir,
+        vae_checkpoint_dir=vae_dir,
+        dist_config=KsanaDistributedConfig(num_gpus=NUM_GPUS),
+        model_config=model_config,
+    )
+
+    text = "POV selfie video, ultra-messy and extremely fast. A white cat in sunglasses "
+    "stands on a surfboard with a neutral look when the board suddenly whips sideways,"
+    "throwing cat and camera into the water; the frame dives sharply downward, swallowed "
+    "by violent bursts of bubbles, spinning turbulence, and smeared water streaks as the "
+    "camera sinks. Shadows thicken, pressure ripples distort the edges, and loose bubbles "
+    "rush upward past the lens, showing the camera is still sinking. Then the cat kicks "
+    "upward with explosive speed, dragging the view through churning bubbles and rapidly "
+    "brightening water as sunlight floods back in; the camera races upward, water streaming "
+    "off the lens, and finally breaks the surface in a sudden blast of light and spray, snapping "
+    "back into a crooked, frantic selfie as the cat resurfaces."
+
+    pipeline.generate(
+        text,
+        img_path="./examples/images/cat.png",
+        runtime_config=KsanaRuntimeConfig(size=(1280, 720), seed=SEED, frame_num=81),
+        sample_config=sample_config,
+    )
+
+
 if __name__ == "__main__":
     """examples:
     - single card run:
@@ -123,3 +165,4 @@ if __name__ == "__main__":
 
     run_simple(args)
     run_start_and_end_with_lora(args)
+    run_turbo_diffusion(args)
