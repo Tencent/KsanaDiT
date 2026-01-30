@@ -1,10 +1,10 @@
 import torch
 import torch.nn.functional as F
 
+from ksana.accelerator import platform
 from ksana.config import KsanaAttentionBackend, KsanaAttentionConfig
 
 from .base import KsanaAttentionBackendImpl
-from ksana.accelerator import platform
 
 
 class SDPAImpl(KsanaAttentionBackendImpl):
