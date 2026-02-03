@@ -13,7 +13,8 @@ from ..utils import log, time_range
 from ..utils.logger import reset_logging
 
 if platform.is_npu():
-    pass  # pylint: disable=unused-import
+    import torch_npu  # pylint: disable=unused-import # noqa: F401
+    from torch_npu.contrib import transfer_to_npu  # pylint: disable=unused-import # noqa: F401
 
 
 class KsanaExecutor(ABC):

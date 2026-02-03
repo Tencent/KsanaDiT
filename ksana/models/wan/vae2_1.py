@@ -11,8 +11,8 @@ from ksana.utils.load import load_state_dict
 from ksana.utils.lora import load_state_dict_and_merge_lora
 
 if platform.is_npu():
-    import torch_npu  # pylint: disable=unused-import
-    from torch_npu.contrib import transfer_to_npu  # pylint: disable=unused-import
+    import torch_npu  # pylint: disable=unused-import # noqa: F401
+    from torch_npu.contrib import transfer_to_npu  # pylint: disable=unused-import # noqa: F401
 
 
 __all__ = ["Wan2_1_VAE"]

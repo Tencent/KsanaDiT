@@ -6,9 +6,10 @@ import torch
 import torch.distributed as dist
 
 from ..accelerator import platform
+
 if platform.is_npu():
-    import torch_npu  # pylint: disable=unused-import
-    from torch_npu.contrib import transfer_to_npu  # pylint: disable=unused-import
+    import torch_npu  # pylint: disable=unused-import # noqa: F401
+    from torch_npu.contrib import transfer_to_npu  # pylint: disable=unused-import # noqa: F401
 
 
 def get_free_port():

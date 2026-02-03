@@ -12,8 +12,8 @@ from ksana.utils import load_file_to_state_dict
 from ksana.utils.load import load_state_dict
 
 if platform.is_npu():
-    import torch_npu  # pylint: disable=unused-import # noqa
-    from torch_npu.contrib import transfer_to_npu  # pylint: disable=unused-import # noqa
+    import torch_npu  # pylint: disable=unused-import # noqa: F401
+    from torch_npu.contrib import transfer_to_npu  # pylint: disable=unused-import # noqa: F401
 
 from .tokenizers import HuggingfaceTokenizer
 
