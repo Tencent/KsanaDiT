@@ -1,4 +1,5 @@
 import math
+import time
 from abc import abstractmethod
 
 import torch
@@ -14,7 +15,7 @@ from ..utils.quantize import apply_dynamic_fp8_quant, find_fp8_info_from_state_d
 from ..utils.torch_compile import apply_torch_compile
 from .base_model import KsanaModel
 from .qwen import QwenImageTransformer2DModel
-from .wan import WanModel
+from .wan import VaceWanModel, WanModel
 
 if platform.is_npu():
     import torch_npu  # pylint: disable=unused-import # noqa: F401
@@ -437,6 +438,96 @@ class KsanaWanModel(KsanaDiffusionModel):
             sp_size=self.dist_config.ulysses_size,
             is_turbo_diffusion_wan_model=self._is_turbo_diffusion_wan_model(model_state_dict),
         )
+
+
+class KsanaWanVaceModel(KsanaDiffusionModel):
+    @property
+    def run_dtype(self):
+        return self.model_config.run_dtype
+
+    @property
+    def dtype(self):
+        return self.model.dtype
+
+    @property
+    def device(self):
+        return self.model.device
+
+    def _get_in_out_dim(self, state_dict, key_prefix=""):
+        in_dim = state_dict["{}patch_embedding.weight".format(key_prefix)].shape[1]
+        out_dim = state_dict["{}head.head.weight".format(key_prefix)].shape[0] // 4
+        return in_dim, out_dim
+
+    def _detect_vace_params(self, model_state_dict):
+        detected_vace_in_dim = None
+        detected_vace_layers = None
+
+        if "vace_patch_embedding.weight" in model_state_dict:
+            detected_vace_in_dim = model_state_dict["vace_patch_embedding.weight"].shape[1]
+            # Count vace_blocks from state dict
+            vace_block_keys = [k for k in model_state_dict.keys() if k.startswith("vace_blocks.")]
+            if vace_block_keys:
+                # Extract block indices (vace_blocks.0.xxx, vace_blocks.1.xxx, etc.)
+                block_indices = set()
+                for k in vace_block_keys:
+                    parts = k.split(".")
+                    if len(parts) >= 2 and parts[1].isdigit():
+                        block_indices.add(int(parts[1]))
+                if block_indices:
+                    detected_vace_layers = max(block_indices) + 1
+            log.info(
+                f"[VACE] Auto-detected from model weights: "
+                f"vace_in_dim={detected_vace_in_dim}, vace_layers={detected_vace_layers}"
+            )
+
+        return detected_vace_in_dim, detected_vace_layers
+
+    @time_range
+    def load(
+        self,
+        *,
+        model_state_dict: dict,
+        operations,
+        load_device=None,
+        offload_device=None,
+    ):
+        default_diffusion_settings = self.default_settings.diffusion
+        in_dim, out_dim = self._get_in_out_dim(model_state_dict)
+        log.info(f"in_dim:{in_dim}, out_dim:{out_dim}")
+
+        # Auto-detect VACE parameters from model weights
+        detected_vace_in_dim, detected_vace_layers = self._detect_vace_params(model_state_dict)
+
+        # Priority: detected from model > default_settings
+        vace_in_dim = detected_vace_in_dim or getattr(default_diffusion_settings, "vace_in_dim", None)
+        vace_layers = detected_vace_layers or getattr(default_diffusion_settings, "vace_layers", None)
+        log.info(f"[VACE] Final config: vace_in_dim={vace_in_dim}, vace_layers={vace_layers}")
+
+        start = time.time()
+        self.model = VaceWanModel(
+            model_type="vace",
+            patch_size=default_diffusion_settings.patch_size,
+            text_len=self.default_settings.text_encoder.text_len,
+            in_dim=in_dim,
+            dim=default_diffusion_settings.dim,
+            ffn_dim=default_diffusion_settings.ffn_dim,
+            freq_dim=default_diffusion_settings.freq_dim,
+            out_dim=out_dim,
+            num_heads=default_diffusion_settings.num_heads,
+            num_layers=default_diffusion_settings.num_layers,
+            window_size=default_diffusion_settings.window_size,
+            qk_norm=default_diffusion_settings.qk_norm,
+            cross_attn_norm=default_diffusion_settings.cross_attn_norm,
+            eps=default_diffusion_settings.eps,
+            vace_layers=vace_layers,
+            vace_in_dim=vace_in_dim,
+            operations=operations,
+            device=offload_device,
+            dtype=self.run_dtype,
+            sp_size=self.dist_config.ulysses_size,
+        )
+        log.debug(f"VACE model: {self.model}")
+        log.info(f"create VACE model takes: {(time.time() - start):.2f} seconds")
 
 
 class KsanaQwenImageModel(KsanaDiffusionModel):

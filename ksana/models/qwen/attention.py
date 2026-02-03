@@ -4,7 +4,6 @@ Reference (Diffusers):
 """
 
 import functools
-from typing import List, Optional, Tuple, Union
 
 import torch
 import torch.nn as nn
@@ -47,7 +46,7 @@ def apply_rotary_emb_qwen(
 
 
 class QwenEmbedRope(nn.Module):
-    def __init__(self, theta: int, axes_dim: List[int], scale_rope: bool = False):
+    def __init__(self, theta: int, axes_dim: list[int], scale_rope: bool = False):
         super().__init__()
         self.theta = theta
         self.axes_dim = axes_dim
@@ -98,10 +97,10 @@ class QwenEmbedRope(nn.Module):
 
     def forward(
         self,
-        video_fhw: Union[Tuple[int, int, int], List[Tuple[int, int, int]]],
-        txt_seq_lens: List[int],
+        video_fhw: tuple[int, int, int] | list[tuple[int, int, int]],
+        txt_seq_lens: list[int],
         device: torch.device,
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
+    ) -> tuple[torch.Tensor, torch.Tensor]:
         if self.pos_freqs.device != device:
             self.pos_freqs = self.pos_freqs.to(device)
             self.neg_freqs = self.neg_freqs.to(device)
@@ -161,12 +160,12 @@ class FeedForward(nn.Module):
     def __init__(
         self,
         dim: int,
-        dim_out: Optional[int] = None,
+        dim_out: int | None = None,
         mult: int = 4,
         dropout: float = 0.0,
         activation_fn: str = "geglu",
         final_dropout: bool = False,
-        inner_dim: Optional[int] = None,
+        inner_dim: int | None = None,
         bias: bool = True,
         operation_settings=None,
     ):
@@ -269,7 +268,7 @@ class QwenDoubleStreamAttention(nn.Module, QKVProjectionMixin):
 
     def _gather_qkv(
         self, q: torch.Tensor, k: torch.Tensor, v: torch.Tensor
-    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         if self.sp_size == 1:
             return q, k, v
         q = all_to_all(q, scatter_dim=2, gather_dim=1)
@@ -304,9 +303,9 @@ class QwenDoubleStreamAttention(nn.Module, QKVProjectionMixin):
         self,
         hidden_states: torch.Tensor,
         encoder_hidden_states: torch.Tensor,
-        encoder_hidden_states_mask: Optional[torch.Tensor] = None,
-        image_rotary_emb: Optional[Tuple[torch.Tensor, torch.Tensor]] = None,
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        encoder_hidden_states_mask: torch.Tensor | None = None,
+        image_rotary_emb: tuple[torch.Tensor, torch.Tensor] | None = None,
+    ) -> tuple[torch.Tensor, torch.Tensor]:
         # hidden_states.shape = [batch, seqlen, hiddim]
         seq_txt = encoder_hidden_states.shape[1]
 

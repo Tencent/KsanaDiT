@@ -1,5 +1,4 @@
 from dataclasses import dataclass
-from typing import List
 
 import torch
 
@@ -41,7 +40,7 @@ class KsanaBatchScheduler:
         """
         latent_shape: latent张量的形状, [bs, z_dim, f, h, w]
         """
-        strategy: List[BatchStrategyItem] = []
+        strategy: list[BatchStrategyItem] = []
         start = 0
 
         while start < total_batch:

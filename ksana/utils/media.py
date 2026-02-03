@@ -106,6 +106,37 @@ def save_video(tensor, save_file=None, fps=30, suffix=".mp4", nrow=8, normalize=
         log.info(f"save_video failed, error: {e}")
 
 
+def load_video_frames(video_path: str, max_frames: int = 81) -> torch.Tensor:
+    """
+    Load video frames from a video file.
+
+    Args:
+        video_path: Path to video file (mp4, etc.)
+        max_frames: Maximum number of frames to load
+
+    Returns:
+        Tensor of shape [N, H, W, C] in range [0, 1]
+    """
+    import torchvision.io as io
+
+    if not os.path.exists(video_path):
+        raise FileNotFoundError(f"Video file {video_path} does not exist")
+
+    # Read video frames
+    video, _, _ = io.read_video(video_path, pts_unit="sec")
+    # video shape: [T, H, W, C] in [0, 255]
+
+    # Limit frames
+    if video.shape[0] > max_frames:
+        video = video[:max_frames]
+
+    # Normalize to [0, 1]
+    video = video.float() / 255.0
+
+    log.info(f"Loaded video from {video_path}: shape={video.shape}")
+    return video
+
+
 def save_image(tensor: torch.Tensor, path: str):
     """Save tensor as image file."""
     img = tensor.squeeze(0).permute(1, 2, 0).detach().cpu().float().numpy()
@@ -126,3 +157,54 @@ def save_images(images: torch.Tensor, save_paths: list[str]):
         # Create directory if it doesn't exist
         os.makedirs(os.path.dirname(save_path), exist_ok=True)
         save_image(images[i : i + 1], save_path)
+
+
+def load_control_frames(control_path: str, max_frames: int, target_size: tuple[int, int] | None = None) -> torch.Tensor:
+    import numpy as np
+
+    image_exts = {".png", ".jpg", ".jpeg", ".bmp", ".webp"}
+    _, ext = os.path.splitext(control_path.lower())
+
+    def _image_to_tensor(img: Image.Image) -> torch.Tensor:
+        if target_size is not None:
+            img = img.resize(target_size, Image.Resampling.LANCZOS)
+        tensor = torch.from_numpy(np.array(img)).float()
+        return tensor.unsqueeze(0) / 255.0
+
+    if ext in image_exts:
+        image = Image.open(control_path).convert("RGB")
+        return _image_to_tensor(image)
+
+    try:
+        video = load_video_frames(control_path, max_frames=max_frames)
+        # video shape: [N, H, W, C] in [0, 1]
+        if target_size is not None:
+            # Resize each frame
+            frames = []
+            for i in range(video.shape[0]):
+                frame_np = (video[i].numpy() * 255).astype(np.uint8)
+                pil_frame = Image.fromarray(frame_np).resize(target_size, Image.Resampling.LANCZOS)
+                frames.append(torch.from_numpy(np.array(pil_frame)).float() / 255.0)
+            video = torch.stack(frames, dim=0)
+        return video
+    except (RuntimeError, OSError, ValueError) as e:
+        # Fallback to image loading if video reader fails.
+        log.info(f"Video loading failed, falling back to image: {e}")
+        image = Image.open(control_path).convert("RGB")
+        return _image_to_tensor(image)
+
+
+def match_control_frames(control_video: torch.Tensor, target_frames: int) -> torch.Tensor:
+    if target_frames <= 0:
+        raise ValueError(f"target_frames must be > 0, got {target_frames}")
+
+    current_frames = control_video.shape[0]
+    if current_frames == target_frames:
+        return control_video
+    if current_frames > target_frames:
+        return control_video[:target_frames]
+
+    # Repeat last frame to match requested length (common for single image control).
+    repeat_count = target_frames - current_frames
+    last_frame = control_video[-1:].repeat(repeat_count, 1, 1, 1)
+    return torch.cat([control_video, last_frame], dim=0)

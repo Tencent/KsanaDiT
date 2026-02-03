@@ -19,6 +19,23 @@
       }
     },
     {
+      "workflow_path": "../../comfyui/examples/wan/v2v/wan2.1_v2v_fp16.json",
+      "steps": 1,
+      "width": 512,
+      "height": 512,
+      "frames": 25,
+      "input_image": "../../examples/images/fennec_girl_sing.png",
+      "attn_backend": "flash_attention",
+      "expect_values": {
+        "mean": 0.4718431,
+        "eps_place": 3
+      },
+      "gpus_expect_values": {
+        "mean": 0.4718431,
+        "eps_place": 3
+      }
+    },
+    {
       "workflow_path": "../../comfyui/benchmarks/qwen/qwen_image_2512_fp8.json",
       "steps": 1,
       "image_width": 480,

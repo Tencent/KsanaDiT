@@ -1,10 +1,39 @@
 import torch
+import torch.nn.functional as F
 
 from ..accelerator import platform
 
 torch_version = torch.version.__version__
 temp = torch_version.split(".")
 torch_version_numeric = (int(temp[0]), int(temp[1]))
+
+
+def common_upscale(samples, width, height, upscale_method="bilinear", crop="center"):
+    if samples.shape[2] == height and samples.shape[3] == width:
+        return samples
+
+    if upscale_method == "nearest-exact":
+        mode = "nearest-exact"
+    elif upscale_method == "bilinear":
+        mode = "bilinear"
+    elif upscale_method == "bicubic":
+        mode = "bicubic"
+    elif upscale_method == "area":
+        mode = "area"
+    else:
+        mode = "nearest"
+
+    if mode in ("bilinear", "bicubic"):
+        samples = F.interpolate(samples, size=(height, width), mode=mode, align_corners=False)
+    else:
+        samples = F.interpolate(samples, size=(height, width), mode=mode)
+
+    if crop == "center" and (samples.shape[2] != height or samples.shape[3] != width):
+        y = (samples.shape[2] - height) // 2
+        x = (samples.shape[3] - width) // 2
+        samples = samples[:, :, y : y + height, x : x + width]
+
+    return samples
 
 
 def device_supports_non_blocking(device):

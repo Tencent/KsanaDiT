@@ -21,7 +21,6 @@ Reference:
 """
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, Optional, Tuple
 
 import torch
 
@@ -65,10 +64,10 @@ class DBCacheContext:
         self.current_step = 0
         self.cached_steps_count = 0
         self.continuous_cached_steps = 0
-        self.last_advanced_timestep: Optional[int] = None
+        self.last_advanced_timestep: int | None = None
 
         # Cache buffers for cond and uncond (CFG)
-        self.buffers: Dict[str, CacheBuffer] = {
+        self.buffers: dict[str, CacheBuffer] = {
             "cond": CacheBuffer(),
             "uncond": CacheBuffer(),
             "combine": CacheBuffer(),
@@ -113,12 +112,12 @@ class DBCacheContext:
         return False
 
     @property
-    def fn_blocks_range(self) -> Tuple[int, int]:
+    def fn_blocks_range(self) -> tuple[int, int]:
         """Return the range of _f_n blocks [start, end)."""
         return (0, self.config.fn_compute_blocks)
 
     @property
-    def mn_blocks_range(self) -> Tuple[int, int]:
+    def mn_blocks_range(self) -> tuple[int, int]:
         """Return the range of _m_n blocks [start, end)."""
         _f_n = self.config.fn_compute_blocks
         _b_n = self.config.bn_compute_blocks
@@ -127,7 +126,7 @@ class DBCacheContext:
         return (_f_n, self.num_blocks - _b_n)
 
     @property
-    def bn_blocks_range(self) -> Tuple[int, int]:
+    def bn_blocks_range(self) -> tuple[int, int]:
         """Return the range of _b_n blocks [start, end)."""
         _b_n = self.config.bn_compute_blocks
         if _b_n == 0:
@@ -139,9 +138,9 @@ class DBCacheContext:
 class CacheBuffer:
     """Buffer for storing cached tensors."""
 
-    f_n_residual: Optional[torch.Tensor] = None
-    b_n_residual: Optional[torch.Tensor] = None
-    b_n_encoder_residual: Optional[torch.Tensor] = None
+    f_n_residual: torch.Tensor | None = None
+    b_n_residual: torch.Tensor | None = None
+    b_n_encoder_residual: torch.Tensor | None = None
 
     # For TaylorSeer calibration
     prev_fn_residuals: list = field(default_factory=list)
@@ -340,7 +339,7 @@ class DBCache(KsanaBlockCache):
         step_iter: int,
         timestep: int,
         blocks: list,
-        **kwargs: Any,
+        **kwargs,
     ) -> torch.Tensor:
         """Apply cache for the current step."""
         if blocks is None:
@@ -412,7 +411,7 @@ class DBCache(KsanaBlockCache):
         current_timestep: int,
         f_n_residual: torch.Tensor,
         b_n_residual: torch.Tensor,
-        b_n_encoder_residual: Optional[torch.Tensor] = None,
+        b_n_encoder_residual: torch.Tensor | None = None,
     ):
         """
         Update cache buffers after computing all blocks.
@@ -448,7 +447,7 @@ class DBCache(KsanaBlockCache):
         """Advance to next diffusion step."""
         self.context.current_step += 1
 
-    def advance_step_once(self, timestep: Any):
+    def advance_step_once(self, timestep: int | float | torch.Tensor):
         try:
             ts_val = int(timestep) if isinstance(timestep, (int, float)) else int(timestep.item())
         except Exception:  # pylint: disable=broad-except
@@ -496,7 +495,7 @@ class DBCache(KsanaBlockCache):
             f"{diff_stats}"
         )
 
-    def get_stats_summary(self) -> Dict[str, Any]:
+    def get_stats_summary(self) -> dict:
         """Return cache statistics as a dictionary."""
         cond_total = self.context.total_steps["cond"]
         cond_cached = self.context.cached_steps["cond"]

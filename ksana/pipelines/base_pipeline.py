@@ -14,8 +14,10 @@ from ..config.lora_config import KsanaLoraConfig
 from ..engine import KsanaEngine
 from ..models.model_key import KsanaModelKey
 from ..utils import log, merge_video_audio
+from ..utils.latent_format import get_wan21_latent_format
 from ..utils.media import save_video
 from ..utils.types import evolve_with_recommend, str_to_list
+from ..utils.vace import KsanaVaceVideoEncodeConfig, build_vace_video_control_config
 
 
 class KsanaBasePipeline(ABC):
@@ -112,6 +114,37 @@ class KsanaBasePipeline(ABC):
                 f"cache_config must be KsanaHybridCacheConfig or KsanaCacheConfig, but got {type(cache_config)}"
             )
 
+    def _valid_video_control_config(
+        self,
+        video_control_config: KsanaVaceVideoEncodeConfig | None,
+        runtime_config: KsanaRuntimeConfig,
+    ) -> KsanaVaceVideoEncodeConfig | None:
+        width, height = runtime_config.size
+        num_frames = runtime_config.frame_num
+        latent_format = get_wan21_latent_format()
+
+        def vae_encode_fn(frames: torch.Tensor) -> torch.Tensor:
+            res = self.engine.forward_vae_encode_frames(vae_key=self.vae_model_key, frames=frames)
+            latents = next(iter(res.values())) if isinstance(res, dict) else res
+            return latent_format.process_out(latents)
+
+        vace_config = build_vace_video_control_config(
+            video_control_config=video_control_config,
+            width=width,
+            height=height,
+            num_frames=num_frames,
+            vae_encode_fn=vae_encode_fn,
+        )
+
+        if vace_config is not None and vace_config.trim_latent > 0:
+            vae_temporal_stride = self.vae_stride[0]  # typically 4
+            adjusted_frame_num = num_frames + vace_config.trim_latent * vae_temporal_stride
+            vace_config.adjusted_frame_num = adjusted_frame_num
+        elif vace_config is not None:
+            vace_config.adjusted_frame_num = num_frames
+
+        return vace_config
+
     def _valid_images(self, img_path, prompts_list_len: int):
         if img_path is None:
             return None
@@ -176,6 +209,7 @@ class KsanaBasePipeline(ABC):
         pipeline_key_to_text_encoder_key = {
             KsanaModelKey.Wan2_2_I2V_14B: KsanaModelKey.T5TextEncoder,
             KsanaModelKey.Wan2_2_T2V_14B: KsanaModelKey.T5TextEncoder,
+            KsanaModelKey.Wan2_1_VACE_14B: KsanaModelKey.T5TextEncoder,
             KsanaModelKey.QwenImage_T2I: KsanaModelKey.Qwen2VLTextEncoder,
         }
         text_encoder_key = pipeline_key_to_text_encoder_key.get(pipeline_key, None)
@@ -187,6 +221,7 @@ class KsanaBasePipeline(ABC):
         pipeline_key_to_vae_model_key = {
             KsanaModelKey.Wan2_2_I2V_14B: KsanaModelKey.VAE_WAN2_1,
             KsanaModelKey.Wan2_2_T2V_14B: KsanaModelKey.VAE_WAN2_1,
+            KsanaModelKey.Wan2_1_VACE_14B: KsanaModelKey.VAE_WAN2_1,
             KsanaModelKey.Wan2_2_TI2V_5B: KsanaModelKey.VAE_WAN2_2,
             KsanaModelKey.QwenImage_T2I: KsanaModelKey.QwenImageVAE,
         }

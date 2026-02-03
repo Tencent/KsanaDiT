@@ -8,11 +8,23 @@ from tqdm import tqdm
 from ..cache import create_hybrid_cache
 from ..config import KsanaRuntimeConfig, KsanaSampleConfig, KsanaSolverType
 from ..config.cache_config import KsanaCacheConfig, KsanaHybridCacheConfig, warp_as_hybrid_cache
+from ..config.video_control_config import KsanaVideoControlConfig
+from ..config.wan_experimental_config import KsanaExperimentalConfig, KsanaFETAConfig, KsanaSLGConfig
 from ..models import KsanaDiffusionModel, KsanaModelKey
 from ..sample_solvers import get_sample_scheduler
 from ..scheduler import KsanaBatchScheduler
 from ..units import KsanaRunnerUnit, KsanaUnitFactory, KsanaUnitType
 from ..utils import evolve_with_recommend, log, time_range
+from ..utils.vace import (
+    KsanaVaceVideoEncodeConfig,
+    apply_bidirectional_sampling,
+    apply_experimental_cfg,
+    apply_temporal_score_rescaling,
+    apply_vace_trim,
+    build_vace_kwargs,
+    get_step_video_control,
+    parse_video_control_kwargs,
+)
 
 
 class KsanaBaseGenerator(KsanaRunnerUnit):
@@ -243,16 +255,28 @@ class KsanaBaseGenerator(KsanaRunnerUnit):
         timesteps: torch.Tensor,  # Tensor(list[int])
         run_dtype: torch.dtype,
         sample_scheduler_step_func,
+        sample_scheduler,  # Full scheduler object for bidirectional sampling
         seed_g: torch.Generator,
         device: torch.device,
         offload_device: torch.device = None,
         comfy_bar_callback=None,
+        video_control_kwargs: dict | None = None,
     ) -> torch.Tensor:
         log.info(f"timesteps:{timesteps}, combine_cond_uncond:{combine_cond_uncond}")
         dit_cache = self._create_cache(cache_config, self.model_key)
+        video_control_config = parse_video_control_kwargs(
+            video_control_kwargs,
+            diffusion_model,
+            sample_scheduler,
+            slg_config_cls=KsanaSLGConfig,
+            feta_config_cls=KsanaFETAConfig,
+            experimental_config_cls=KsanaExperimentalConfig,
+        )
 
+        total_steps = len(timesteps)
         cur_batch_size = self._get_num_prompts(positive)
         for iter_id, t in enumerate(tqdm(timesteps)):
+            current_step_percent = iter_id / max(total_steps - 1, 1)
             noise_latent = noise_latent.to(run_dtype)
             timestep = t.repeat(cur_batch_size)
             timestep_id = t.item()
@@ -263,6 +287,16 @@ class KsanaBaseGenerator(KsanaRunnerUnit):
                 running_model.to(device)
             running_cache = self.get_running_cache(dit_cache, timestep_id=timestep_id)
             running_cfg_scale = self.get_running_cfg_scale(cfg_scale=sample_config.cfg_scale, timestep_id=timestep_id)
+
+            step_video_control_config = get_step_video_control(
+                video_control_config,
+                current_step_percent,
+                iter_id,
+                total_steps,
+                slg_config_cls=KsanaSLGConfig,
+                feta_config_cls=KsanaFETAConfig,
+            )
+
             forward_kargs = self.prepare_model_forward_kargs(
                 running_cfg_scale,
                 noise_latent=noise_latent,
@@ -273,6 +307,7 @@ class KsanaBaseGenerator(KsanaRunnerUnit):
                 positive=positive,
                 negative=negative,
                 img_latent=img_latent,
+                **step_video_control_config,
             )
             if self._use_cfg(running_cfg_scale):
                 if combine_cond_uncond:
@@ -284,14 +319,51 @@ class KsanaBaseGenerator(KsanaRunnerUnit):
                     arg_cond, arg_uncond = forward_kargs
                     noise_pred_cond = running_model.forward(**arg_cond)
                     noise_pred_uncond = running_model.forward(**arg_uncond)
-                noise_pred = self.apply_cfg(running_cfg_scale, noise_pred_cond, noise_pred_uncond)
+                noise_pred = self.apply_cfg(
+                    running_cfg_scale,
+                    noise_pred_cond,
+                    noise_pred_uncond,
+                    experimental_config=video_control_config["exp_config"],
+                    step_index=iter_id,
+                    total_steps=total_steps,
+                )
             else:
                 noise_pred = running_model.forward(**forward_kargs)
 
+            noise_pred = apply_temporal_score_rescaling(noise_pred, noise_latent, t, video_control_config["exp_config"])
+
             noise_latent_shape = noise_latent.shape
             step_out = sample_scheduler_step_func(noise_pred, t, noise_latent, return_dict=False, generator=seed_g)
-            noise_latent = step_out if sample_config.solver == KsanaSolverType.EULER else step_out[0]
-            noise_latent = noise_latent.reshape(noise_latent_shape)
+            noise_latent_forward = step_out if sample_config.solver == KsanaSolverType.EULER else step_out[0]
+            noise_latent_forward = noise_latent_forward.reshape(noise_latent_shape)
+
+            if video_control_config["bidirectional_sampling"] and noise_latent.ndim == 5:
+                noise_latent = apply_bidirectional_sampling(
+                    noise_latent=noise_latent,
+                    noise_latent_forward=noise_latent_forward,
+                    running_model=running_model,
+                    running_cfg_scale=running_cfg_scale,
+                    timestep=timestep,
+                    t=t,
+                    iter_id=iter_id,
+                    total_steps=total_steps,
+                    current_step_percent=current_step_percent,
+                    combine_cond_uncond=combine_cond_uncond,
+                    positive=positive,
+                    negative=negative,
+                    img_latent=img_latent,
+                    step_vc=step_video_control_config,
+                    exp_config=video_control_config["exp_config"],
+                    sample_scheduler_flipped=video_control_config["sample_scheduler_flipped"],
+                    sample_config=sample_config,
+                    seed_g=seed_g,
+                    prepare_model_forward_kargs_fn=self.prepare_model_forward_kargs,
+                    use_cfg_fn=self._use_cfg,
+                    apply_cfg_fn=self.apply_cfg,
+                    solver_type_euler=KsanaSolverType.EULER,
+                )
+            else:
+                noise_latent = noise_latent_forward
 
             if comfy_bar_callback is not None:
                 steps = sample_config.steps
@@ -346,6 +418,7 @@ class KsanaBaseGenerator(KsanaRunnerUnit):
                     img_latent=batch_img_latent,
                     timesteps=timesteps,
                     sample_scheduler_step_func=sample_scheduler.step,
+                    sample_scheduler=sample_scheduler,  # Pass full scheduler for bidirectional sampling
                     combine_cond_uncond=strategy_item.combine_cond_uncond,
                     **run_steps_kwargs,
                 )
@@ -369,6 +442,8 @@ class KsanaBaseGenerator(KsanaRunnerUnit):
         device=None,
         offload_device=None,
         comfy_bar_callback=None,
+        video_control: KsanaVideoControlConfig | None = None,
+        control_video_config: KsanaVaceVideoEncodeConfig | None = None,
     ) -> torch.Tensor:
         """_summary_
 
@@ -419,6 +494,15 @@ class KsanaBaseGenerator(KsanaRunnerUnit):
             f"num_prompts: {num_prompts}, batch_size_per_prompts: {runtime_config.batch_size_per_prompts}, "
             f"total_samples_num: {total_samples_num} split as {len(batch_strategy)} batches"
         )
+
+        video_control_kwargs = build_vace_kwargs(
+            control_video_config=control_video_config,
+            noise_shape=noise_latents.shape,
+            device=device,
+            sample_config=sample_config,
+            video_control=video_control,
+        )
+
         run_steps_kwargs = {
             "cache_config": cache_config,
             "runtime_config": runtime_config,
@@ -427,6 +511,7 @@ class KsanaBaseGenerator(KsanaRunnerUnit):
             "device": device,
             "offload_device": offload_device,
             "comfy_bar_callback": comfy_bar_callback,
+            "video_control_kwargs": video_control_kwargs,
         }
         noise_latents = self.for_batches(
             batch_strategy,
@@ -439,6 +524,7 @@ class KsanaBaseGenerator(KsanaRunnerUnit):
             run_steps_kwargs=run_steps_kwargs,
         )
         noise_latents = self.unpack_noise_latents(noise_latents, patch_size)
+        noise_latents = apply_vace_trim(noise_latents, video_control_kwargs.get("trim_latent", 0))
 
         # TODO(qian): add auto estimate memory for automatic loading for all models
         if offload_device:
@@ -526,15 +612,39 @@ class KsanaBaseGenerator(KsanaRunnerUnit):
     def get_running_cache(self, dit_cache: list, **kwargs):
         return dit_cache[0] if isinstance(dit_cache, (list, tuple)) else dit_cache
 
-    def apply_cfg(self, cfg_scale, cond, uncond):
-        return uncond + float(cfg_scale) * (cond - uncond)
+    def apply_cfg(
+        self,
+        cfg_scale,
+        cond,
+        uncond,
+        experimental_config: KsanaExperimentalConfig | None = None,
+        step_index: int = 0,
+        total_steps: int = 1,
+    ):
+        if experimental_config is None:
+            return uncond + float(cfg_scale) * (cond - uncond)
+        else:
+            return apply_experimental_cfg(cfg_scale, cond, uncond, experimental_config, step_index)
 
     @abstractmethod
-    def prepare_model_forward_kargs(self, cfg_scale: float, **kwargs) -> dict | tuple[dict, dict]:
+    def prepare_model_forward_kargs(
+        self,
+        cfg_scale: float,
+        *,
+        vace_context=None,
+        vace_context_scale=1.0,
+        slg_config=None,
+        feta_config=None,
+        current_step_percent=0.0,
+        **kwargs,
+    ) -> dict | tuple[dict, dict]:
         raise NotImplementedError("prepare_model_forward_kargs must be implemented in subclass")
 
 
-@KsanaUnitFactory.register(KsanaUnitType.GENERATOR, [KsanaModelKey.Wan2_2_T2V_14B, KsanaModelKey.Wan2_2_I2V_14B])
+@KsanaUnitFactory.register(
+    KsanaUnitType.GENERATOR,
+    [KsanaModelKey.Wan2_2_T2V_14B, KsanaModelKey.Wan2_2_I2V_14B, KsanaModelKey.Wan2_1_VACE_14B],
+)
 class KsanaWanGenerator(KsanaBaseGenerator):
     def __init__(self):
         super().__init__()
@@ -641,8 +751,26 @@ class KsanaWanGenerator(KsanaBaseGenerator):
         positive,
         negative,
         img_latent,
+        vace_context=None,
+        vace_context_scale=1.0,
+        slg_config=None,
+        feta_config=None,
+        current_step_percent=0.0,
     ) -> dict:
         base = {"cache": cache, "step_iter": step_iter}
+
+        # Add SLG/FETA/VACE parameters
+        if slg_config is not None:
+            base["slg_config"] = slg_config
+        if feta_config is not None:
+            base["feta_config"] = feta_config
+        base["current_step_percent"] = current_step_percent
+
+        # Add VACE parameters if available
+        if vace_context is not None:
+            base["vace_context"] = vace_context
+            base["vace_context_scale"] = vace_context_scale
+
         use_cfg = self._use_cfg(cfg_scale)
         if use_cfg and combine_cond_uncond:
             # latent: [bs, z_dim, fi, hi, wi] => [2*bs, z_dim, fi, hi, wi]
@@ -657,6 +785,9 @@ class KsanaWanGenerator(KsanaBaseGenerator):
             }
             if self.model_key == KsanaModelKey.Wan2_2_I2V_14B and img_latent is not None:
                 combine_kargs["y"] = torch.cat([img_latent, img_latent], dim=0)
+            # Duplicate vace_context for combine mode
+            if vace_context is not None:
+                combine_kargs["vace_context"] = vace_context + vace_context
             return base | combine_kargs
 
         base.update({"x": noise_latent, "t": timestep})
@@ -748,6 +879,7 @@ class KsanaQwenGenerator(KsanaBaseGenerator):
         step_iter,
         cache,
         img_latent,
+        **_,
     ) -> dict | tuple[dict, dict]:
         if cache is not None:
             raise NotImplementedError(f"{self.model_key} does not support cache yet!")

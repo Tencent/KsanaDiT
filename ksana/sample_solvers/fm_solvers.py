@@ -5,7 +5,6 @@
 
 import inspect
 import math
-from typing import List, Optional, Tuple, Union
 
 import numpy as np
 import torch
@@ -137,7 +136,7 @@ class FlowDPMSolverMultistepScheduler(SchedulerMixin, ConfigMixin):
         num_train_timesteps: int = 1000,
         solver_order: int = 2,
         prediction_type: str = "flow_prediction",
-        shift: Optional[float] = 1.0,
+        shift: float | None = 1.0,
         use_dynamic_shifting=False,
         thresholding: bool = False,
         dynamic_thresholding_ratio: float = 0.995,
@@ -146,9 +145,9 @@ class FlowDPMSolverMultistepScheduler(SchedulerMixin, ConfigMixin):
         solver_type: str = "midpoint",
         lower_order_final: bool = True,
         euler_at_final: bool = False,
-        final_sigmas_type: Optional[str] = "zero",  # "zero", "sigma_min"
+        final_sigmas_type: str | None = "zero",  # "zero", "sigma_min"
         lambda_min_clipped: float = -float("inf"),
-        variance_type: Optional[str] = None,
+        variance_type: str | None = None,
         invert_sigmas: bool = False,
     ):
         if algorithm_type in ["dpmsolver", "sde-dpmsolver"]:
@@ -235,11 +234,11 @@ class FlowDPMSolverMultistepScheduler(SchedulerMixin, ConfigMixin):
     # .FlowMatchEulerDiscreteScheduler.set_timesteps
     def set_timesteps(
         self,
-        num_inference_steps: Union[int, None] = None,
-        device: Union[str, torch.device] = None,
-        sigmas: Optional[List[float]] = None,
-        mu: Optional[Union[float, None]] = None,
-        shift: Optional[Union[float, None]] = None,
+        num_inference_steps: int | None = None,
+        device: str | torch.device = None,
+        sigmas: list[float] | None = None,
+        mu: float | None = None,
+        shift: float | None = None,
         denoise: float = 1.0,
     ):
         """
@@ -423,7 +422,7 @@ class FlowDPMSolverMultistepScheduler(SchedulerMixin, ConfigMixin):
         model_output: torch.Tensor,
         *args,
         sample: torch.Tensor = None,
-        noise: Optional[torch.Tensor] = None,
+        noise: torch.Tensor | None = None,
         **kwargs,
     ) -> torch.Tensor:
         """
@@ -494,16 +493,16 @@ class FlowDPMSolverMultistepScheduler(SchedulerMixin, ConfigMixin):
     # .DPMSolverMultistepScheduler.multistep_dpm_solver_second_order_update
     def multistep_dpm_solver_second_order_update(
         self,
-        model_output_list: List[torch.Tensor],
+        model_output_list: list[torch.Tensor],
         *args,
         sample: torch.Tensor = None,
-        noise: Optional[torch.Tensor] = None,
+        noise: torch.Tensor | None = None,
         **kwargs,
     ) -> torch.Tensor:
         """
         One step for the second-order multistep DPMSolver.
         Args:
-            model_output_list (`List[torch.Tensor]`):
+            model_output_list (`list[torch.Tensor]`):
                 The direct outputs from learned diffusion model at current and latter timesteps.
             sample (`torch.Tensor`):
                 A current instance of a sample created by the diffusion process.
@@ -619,7 +618,7 @@ class FlowDPMSolverMultistepScheduler(SchedulerMixin, ConfigMixin):
     # .DPMSolverMultistepScheduler.multistep_dpm_solver_third_order_update
     def multistep_dpm_solver_third_order_update(
         self,
-        model_output_list: List[torch.Tensor],
+        model_output_list: list[torch.Tensor],
         *args,
         sample: torch.Tensor = None,
         **kwargs,
@@ -627,7 +626,7 @@ class FlowDPMSolverMultistepScheduler(SchedulerMixin, ConfigMixin):
         """
         One step for the third-order multistep DPMSolver.
         Args:
-            model_output_list (`List[torch.Tensor]`):
+            model_output_list (`list[torch.Tensor]`):
                 The direct outputs from learned diffusion model at current and latter timesteps.
             sample (`torch.Tensor`):
                 A current instance of a sample created by diffusion process.
@@ -732,12 +731,12 @@ class FlowDPMSolverMultistepScheduler(SchedulerMixin, ConfigMixin):
     def step(
         self,
         model_output: torch.Tensor,
-        timestep: Union[int, torch.Tensor],
+        timestep: int | torch.Tensor,
         sample: torch.Tensor,
         generator=None,
-        variance_noise: Optional[torch.Tensor] = None,
+        variance_noise: torch.Tensor | None = None,
         return_dict: bool = True,
-    ) -> Union[SchedulerOutput, Tuple]:
+    ) -> SchedulerOutput | tuple:
         """
         Predict the sample from the previous timestep by reversing the SDE. This function propagates the sample with
         the multistep DPMSolver.

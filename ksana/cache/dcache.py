@@ -19,12 +19,26 @@ DCACHE_COEFFS_MAPS = {
         -5.89111662e03,
         1.37508591e06,
     ],
+    KsanaModelKey.Wan2_1_VACE_14B: [
+        1.79787941e-06,
+        -6.73669299e-03,
+        9.45476817e00,
+        -5.89111662e03,
+        1.37508591e06,
+    ],
 }
 
 # TODO(TJ): remove me use params in yaml
 RECOMMEND_DCACHE_CONFIGS = {
     KsanaModelKey.Wan2_2_T2V_14B: DCacheConfig(
         name=KsanaModelKey.Wan2_2_T2V_14B.name,
+        fast_degree=70,
+        slow_degree=35,
+        fast_force_calc_every_n_step=1,
+        slow_force_calc_every_n_step=5,
+    ),
+    KsanaModelKey.Wan2_1_VACE_14B: DCacheConfig(
+        name=KsanaModelKey.Wan2_1_VACE_14B.name,
         fast_degree=70,
         slow_degree=35,
         fast_force_calc_every_n_step=1,

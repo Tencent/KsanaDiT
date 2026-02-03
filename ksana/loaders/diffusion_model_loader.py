@@ -5,7 +5,7 @@ import torch
 from ..accelerator import platform
 from ..config import KsanaLoraConfig, KsanaModelConfig
 from ..memory import PinnedMemoryManager
-from ..models import KsanaModel, KsanaQwenImageModel, KsanaWanModel
+from ..models import KsanaModel, KsanaQwenImageModel, KsanaWanModel, KsanaWanVaceModel
 from ..models.model_key import KsanaModelKey
 from ..operations import build_ops
 from ..settings import load_default_settings
@@ -16,12 +16,19 @@ from ..utils.profile import time_range
 
 
 @KsanaUnitFactory.register(
-    KsanaUnitType.LOADER, [KsanaModelKey.Wan2_2_I2V_14B, KsanaModelKey.Wan2_2_T2V_14B, KsanaModelKey.QwenImage_T2I]
+    KsanaUnitType.LOADER,
+    [
+        KsanaModelKey.Wan2_2_I2V_14B,
+        KsanaModelKey.Wan2_2_T2V_14B,
+        KsanaModelKey.Wan2_1_VACE_14B,
+        KsanaModelKey.QwenImage_T2I,
+    ],
 )
 class KsanaDiffusionLoaderUnit(KsanaLoaderUnit):
     _MAP_KEY_TO_MODEL_CLASS = {
         KsanaModelKey.Wan2_2_I2V_14B: KsanaWanModel,
         KsanaModelKey.Wan2_2_T2V_14B: KsanaWanModel,
+        KsanaModelKey.Wan2_1_VACE_14B: KsanaWanVaceModel,
         KsanaModelKey.QwenImage_T2I: KsanaQwenImageModel,
     }
 

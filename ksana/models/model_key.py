@@ -13,7 +13,7 @@ WAN_PARAMS = ["14b", "a14b"]
 QWEN_IMAGE = ["qwen-image", "qwen_image"]
 
 # TODO: support "s2v", "ti2v"
-X2V_TYPES = ["t2v", "i2v"]
+X2V_TYPES = ["t2v", "i2v", "vace"]
 X2I_TYPES = ["t2i", "i2i"]
 
 
@@ -35,9 +35,13 @@ class KsanaModelKey(Enum):
     Wan2_2_T2V_14B = auto()
     Wan2_2_I2V_14B = auto()
     Wan2_2_TI2V_5B = auto()
+    Wan2_1_VACE_14B = auto()
 
     def is_i2v_type(self) -> bool:
         return self in [KsanaModelKey.Wan2_2_I2V_14B]
+
+    def is_vace_type(self) -> bool:
+        return self in [KsanaModelKey.Wan2_1_VACE_14B]
 
 
 def get_model_key_from_path(model_path: str | list[str]):
@@ -91,10 +95,19 @@ def get_model_key_from_path(model_path: str | list[str]):
                     return KsanaModelKey.Wan2_2_I2V_14B
                 else:
                     raise RuntimeError(f"can not detect model_size:{WAN_PARAMS} from file_name:{file_name}")
+            elif X2V_TYPES[idx] == "vace":
+                # VACE is for Wan2.1
+                if any_key_in_str(WAN_PARAMS, file_name) is not None:
+                    return KsanaModelKey.Wan2_1_VACE_14B
+                else:
+                    raise RuntimeError(f"can not detect model_size:{WAN_PARAMS} from file_name:{file_name}")
             else:
                 raise NotImplementedError(f"task_type {X2V_TYPES[idx]} is not in supported list {X2V_TYPES} yet")
 
         elif any_key_in_str(WAN2_1, file_name) is not None:
+            idx = any_key_in_str(X2V_TYPES, file_name)
+            if idx is not None and X2V_TYPES[idx] == "vace":
+                return KsanaModelKey.Wan2_1_VACE_14B
             raise NotImplementedError(f"wan2.1 of {file_name} is not supported yet!")
         else:
             raise RuntimeError(

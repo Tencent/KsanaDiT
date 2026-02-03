@@ -7,6 +7,7 @@ from ksana.memory.estimator import (
 )
 from ksana.utils import log
 from ksana.utils.profile import MemoryProfiler
+from ksana.utils.vace import prepare_video_control_config
 
 from .output_types import KsanaNodeGeneratorOutput
 
@@ -48,7 +49,8 @@ def generate(
     low_sample_guide_scale=None,
     cache_config=None,
     sigmas=None,
-    batch_size_per_prompts=None,
+    video_control_config=None,
+    vace_embeds=None,
     comfy_device=None,
     comfy_progress_bar_func=None,
     comfy_free_mem_func=None,
@@ -97,6 +99,12 @@ def generate(
 
     if sample_shift is not None and float(sample_shift) < 0:
         sample_shift = None
+
+    video_control, control_video_config = prepare_video_control_config(
+        video_control_config=video_control_config,
+        vace_embeds=vace_embeds,
+    )
+
     # TODO: maybe need to latent_format process_in for positive/negative?
     samples = ksana_engine.forward_generator(
         model_key=diffusion_model_key,
@@ -118,6 +126,8 @@ def generate(
         ),
         cache_config=cache_config,
         comfy_bar_callback=comfy_bar_callback,
+        video_control=video_control,
+        control_video_config=control_video_config,
     )
     MemoryProfiler.record_memory("after_ksana_engine_generate_with_tensors")
 

@@ -3,8 +3,6 @@ Reference (Diffusers):
   - diffusers/src/diffusers/models/autoencoders/autoencoder_kl_qwenimage.py
 """
 
-from typing import Tuple, Union
-
 import torch
 import torch.cuda.amp as amp
 import torch.nn as nn
@@ -31,9 +29,9 @@ class QwenImageCausalConv3d(nn.Conv3d):
         self,
         in_channels: int,
         out_channels: int,
-        kernel_size: Union[int, Tuple[int, int, int]],
-        stride: Union[int, Tuple[int, int, int]] = 1,
-        padding: Union[int, Tuple[int, int, int]] = 0,
+        kernel_size: int | tuple[int, int, int],
+        stride: int | tuple[int, int, int] = 1,
+        padding: int | tuple[int, int, int] = 0,
     ):
         super().__init__(in_channels, out_channels, kernel_size, stride, padding)
         self._padding = (self.padding[2], self.padding[2], self.padding[1], self.padding[1], 2 * self.padding[0], 0)
@@ -374,7 +372,7 @@ class AutoencoderKLQwenImage(nn.Module):
         self._conv_idx = [0]
         self._feat_map = [None] * conv_num
 
-    def decode(self, z: torch.Tensor) -> Tuple[torch.Tensor]:
+    def decode(self, z: torch.Tensor) -> tuple[torch.Tensor]:
         _, _, num_frame, _, _ = z.shape
         self.clear_cache()
         x = self.post_quant_conv(z)
@@ -425,7 +423,7 @@ class KsanaQwenImageVAE:
         load_state_dict(self.model, state_dict, strict=False)
         self.model.to(device, dtype=dtype)
 
-    def decode(self, latents: torch.Tensor, with_end_image: bool = False) -> Tuple[torch.Tensor]:
+    def decode(self, latents: torch.Tensor, with_end_image: bool = False) -> tuple[torch.Tensor]:
         with amp.autocast(dtype=self.dtype):
             latents_mean = torch.tensor(self.latents_mean).view(1, -1, 1, 1, 1).to(latents)
             latents_std = torch.tensor(self.latents_std).view(1, -1, 1, 1, 1).to(latents)

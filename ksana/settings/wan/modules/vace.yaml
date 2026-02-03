@@ -1,0 +1,14 @@
+
+runtime_config:
+  boundary: 0.9
+
+sample_config:
+  shift: 5.0
+  steps: 50
+  cfg_scale: 5.0
+
+diffusion:
+  # VACE specific parameters
+  vace_layers: 8
+  # vace_in_dim = in_dim (16) * 2 (inactive + reactive) + 64 (mask) = 96
+  vace_in_dim: 96

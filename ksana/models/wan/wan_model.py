@@ -9,8 +9,10 @@ from einops import rearrange
 
 from ksana.accelerator import platform
 from ksana.cache import KsanaHybridCache
+from ksana.config import KsanaFETAConfig, KsanaSLGConfig
 from ksana.operations.fuse_qkv import QKVProjectionMixin
 from ksana.utils import all_to_all, gather_forward, get_rank_id, get_world_size, time_range
+from ksana.utils.experimental_sampling import compute_feta_scores
 from ksana.utils.rope import EmbedND, apply_comfyui_rope, apply_default_rope
 
 if platform.is_npu():
@@ -18,7 +20,7 @@ if platform.is_npu():
     from torch_npu.contrib import transfer_to_npu  # pylint: disable=unused-import # noqa: F401
 
 
-__all__ = ["WanModel"]
+__all__ = ["WanModel", "VaceWanModel"]
 
 
 def repeat_e(e, x):
@@ -144,7 +146,19 @@ class WanSelfAttention(WanBaseAttention, QKVProjectionMixin):
             return x
         return all_to_all(x, scatter_dim=1, gather_dim=2)
 
-    def forward(self, x, seq_lens, grid_sizes, freqs, step_iter, latent_shape, rope_func="default"):
+    def forward(
+        self,
+        x,
+        seq_lens,
+        grid_sizes,
+        freqs,
+        step_iter,
+        latent_shape,
+        rope_func="default",
+        feta_enabled: bool = False,
+        feta_weight: float = 2.0,
+        num_frames: int = 1,
+    ):
         b, s, n, d = *x.shape[:2], self.num_heads, self.head_dim
 
         q, k, v = self.compute_qkv(x)
@@ -152,12 +166,17 @@ class WanSelfAttention(WanBaseAttention, QKVProjectionMixin):
         k = self.norm_k(k).view(b, s, n, d)
         v = v.view(b, s, n, d)
 
+        # Apply RoPE
         if rope_func == "comfy":
             q = apply_comfyui_rope(q, freqs, sp_rank=self.sp_rank, sp_size=self.sp_size)
             k = apply_comfyui_rope(k, freqs, sp_rank=self.sp_rank, sp_size=self.sp_size)
         else:
             q = apply_default_rope(q, grid_sizes, freqs, sp_rank=self.sp_rank, sp_size=self.sp_size)
             k = apply_default_rope(k, grid_sizes, freqs, sp_rank=self.sp_rank, sp_size=self.sp_size)
+
+        feta_scores = None
+        if feta_enabled and num_frames > 1:
+            feta_scores = compute_feta_scores(q, k, num_frames, feta_weight)
 
         q, k, v = self._gather_qkv(q, k, v)
 
@@ -171,7 +190,19 @@ class WanSelfAttention(WanBaseAttention, QKVProjectionMixin):
         }
         x = self.attention(q, k, v, **kwargs)
 
-        x = self._gather_attn_output(x).flatten(2)
+        x = self._gather_attn_output(x)
+
+        if feta_scores is not None:
+            x = x * feta_scores
+
+        x = x.flatten(2)
+        if hasattr(self.o, "weight"):
+            w_dtype = self.o.weight.dtype
+            if w_dtype in (torch.float8_e4m3fn, torch.float8_e5m2):
+                if x.dtype != torch.float16:
+                    x = x.to(torch.float16)
+            elif x.dtype != w_dtype:
+                x = x.to(w_dtype)
         x = self.o(x)
         return x
 
@@ -210,6 +241,13 @@ class WanCrossAttention(WanBaseAttention):
         x = self.attention(q, k, v, k_lens=context_lens, dense_only=True)
 
         x = x.flatten(2)
+        if hasattr(self.o, "weight"):
+            w_dtype = self.o.weight.dtype
+            if w_dtype in (torch.float8_e4m3fn, torch.float8_e5m2):
+                if x.dtype != torch.float16:
+                    x = x.to(torch.float16)
+            elif x.dtype != w_dtype:
+                x = x.to(w_dtype)
         x = self.o(x)
         return x
 
@@ -240,6 +278,7 @@ class WanAttentionBlock(nn.Module):
         self.qk_norm = qk_norm
         self.cross_attn_norm = cross_attn_norm
         self.eps = eps
+        self.block_id = block_id
 
         # layers
         device = operation_settings.get("device")
@@ -296,6 +335,9 @@ class WanAttentionBlock(nn.Module):
         step_iter=None,
         latent_shape=None,
         rope_func="default",
+        feta_enabled: bool = False,
+        feta_weight: float = 2.0,
+        num_frames: int = 1,
     ):
         r"""
             seq_lens=seq_lens, #[7200]
@@ -304,11 +346,22 @@ class WanAttentionBlock(nn.Module):
             context=context, #[1, 512, 5120]
 
         Args:
-            x(Tensor): Shape [B, L, C]                                                #: [1, 7200, 5120]
-            e(Tensor): Shape [B, L1, 6, C]                                            #: [1, 7200, 6, 5120]
-            seq_lens(Tensor): Shape [B], length of each sequence in batch
-            grid_sizes(Tensor): Shape [B, 3], the second dimension contains (F, H, W) #: [2, 45, 80]
-            freqs(Tensor): Rope freqs, shape [1024, C / num_heads / 2]                #: [1024, 64]
+            x(Tensor): Shape [B, L, C] - Input hidden states
+            e(Tensor): Shape [B, L1, 6, C] - Time embedding modulation
+            seq_lens(Tensor): Shape [B] - Length of each sequence in batch
+            grid_sizes(Tensor): Shape [B, 3] - (F, H, W) grid dimensions
+            freqs(Tensor): RoPE frequencies, shape [1024, C / num_heads / 2]
+            context(Tensor): Shape [B, L2, C] - Text embeddings for cross-attention
+            context_lens(Tensor): Shape [B] - Length of context sequences
+            step_iter(int): Current step iteration
+            latent_shape: Shape of the latent tensor
+            rope_func(str): RoPE function to use
+            feta_enabled(bool): Whether to apply FETA enhancement in self-attention
+            feta_weight(float): FETA enhancement weight (higher = stronger smoothing)
+            num_frames(int): Number of video frames for FETA computation
+
+        Returns:
+            Tensor: Output hidden states with shape [B, L, C]
         """
         # self.modulation : [1, 6, 5120]
         if e.ndim < 4:
@@ -317,7 +370,7 @@ class WanAttentionBlock(nn.Module):
             e = (self.modulation.unsqueeze(0) + e).unbind(2)
         # [bs, 6, 5120] => [bs, 1, 5120] * 6
 
-        # self-attention
+        # self-attention with optional FETA enhancement
         y = self.self_attn(
             torch.addcmul(repeat_e(e[0], x), self.norm1(x), 1 + repeat_e(e[1], x)),
             seq_lens,
@@ -326,6 +379,9 @@ class WanAttentionBlock(nn.Module):
             step_iter=step_iter,
             rope_func=rope_func,
             latent_shape=latent_shape,
+            feta_enabled=feta_enabled,
+            feta_weight=feta_weight,
+            num_frames=num_frames,
         )
         x = torch.addcmul(x, y, repeat_e(e[2], x))
         del y
@@ -335,6 +391,102 @@ class WanAttentionBlock(nn.Module):
         x = x + self.cross_attn(self.norm3(x), context, context_lens)
         y = self.ffn(torch.addcmul(repeat_e(e[3], x), self.norm2(x), 1 + repeat_e(e[4], x)))
         x = torch.addcmul(x, y, repeat_e(e[5], x))
+        return x
+
+
+class VaceWanAttentionBlock(WanAttentionBlock):
+    """
+    VACE-specific attention block for processing vace_context.
+    Has before_proj at block_id=0 and after_proj for all blocks.
+    """
+
+    def __init__(
+        self,
+        dim,
+        ffn_dim,
+        num_heads,
+        block_id=0,
+        window_size=(-1, -1),
+        qk_norm=True,
+        cross_attn_norm=False,
+        eps=1e-6,
+        operation_settings=None,
+    ):
+        if operation_settings is None:
+            operation_settings = {}
+        super().__init__(
+            dim,
+            ffn_dim,
+            num_heads,
+            block_id,
+            window_size,
+            qk_norm,
+            cross_attn_norm,
+            eps,
+            operation_settings=operation_settings,
+        )
+
+        device = operation_settings.get("device")
+        dtype = operation_settings.get("dtype")
+        operations = operation_settings.get("operations")
+
+        if block_id == 0:
+            self.before_proj = operations.Linear(dim, dim, device=device, dtype=dtype)
+        self.after_proj = operations.Linear(dim, dim, device=device, dtype=dtype)
+
+    def forward(self, c, x=None, **kwargs):
+        """
+        VACE block forward.
+
+        Args:
+            c: VACE context tensor [B, L, C]
+            x: Main latent tensor (only used at block_id=0)
+            **kwargs: Other arguments passed to parent forward (includes FETA params)
+
+        Returns:
+            c_skip: Skip connection tensor to be added to main branch
+            c: Updated context tensor for next VACE block
+        """
+        if self.block_id == 0 and x is not None:
+            c = self.before_proj(c) + x
+
+        # Call parent forward (WanAttentionBlock)
+        c = super().forward(c, **kwargs)
+
+        # Generate skip connection
+        c_skip = self.after_proj(c)
+        return c_skip, c
+
+
+class BaseWanVaceAttentionBlock(WanAttentionBlock):
+    """
+    Main model attention block with VACE hints injection support.
+
+    Inherits FETA support from WanAttentionBlock.
+    SLG (Skip Layer Guidance) is handled at the model level by checking block_id.
+    """
+
+    def forward(self, x, vace_hints=None, vace_context_scale=1.0, **kwargs):
+        """
+        Forward pass with VACE hints injection.
+
+        Args:
+            x: Input tensor [B, L, C]
+            vace_hints: List of VACE hint tensors from VACE blocks
+            vace_context_scale: Scale factor for VACE hints injection
+            **kwargs: Other arguments including FETA params passed to parent
+
+        Returns:
+            Tensor: Output with VACE hints injected
+        """
+        x = super().forward(x, **kwargs)
+
+        if vace_hints is not None and getattr(self, "vace_block_id", None) is not None:
+            hint = vace_hints[self.vace_block_id]
+            if hint.device != x.device:
+                hint = hint.to(x.device)
+            x = x + hint * vace_context_scale
+
         return x
 
 
@@ -385,7 +537,7 @@ class WanModel(ModelMixin, ConfigMixin):
         "text_dim",
         "window_size",
     ]
-    _no_split_modules = ["WanAttentionBlock"]
+    _no_split_modules = ["WanAttentionBlock", "BaseWanVaceAttentionBlock", "VaceWanAttentionBlock"]
 
     @register_to_config
     def __init__(
@@ -405,10 +557,13 @@ class WanModel(ModelMixin, ConfigMixin):
         qk_norm=True,
         cross_attn_norm=True,
         eps=1e-6,
+        vace_layers=None,
+        vace_in_dim=None,
         operations=None,
         device=None,
         dtype=None,
         sp_size=1,
+        model_type: str | None = None,
         is_turbo_diffusion_wan_model=False,
     ):
         r"""
@@ -445,6 +600,12 @@ class WanModel(ModelMixin, ConfigMixin):
                 Enable cross-attention normalization
             eps (`float`, *optional*, defaults to 1e-6):
                 Epsilon value for normalization layers
+            vace_layers (`int`, *optional*, defaults to None):
+                Number of VACE blocks (only for model_type='vace').
+                If None, defaults to num_layers // 2
+            vace_in_dim (`int`, *optional*, defaults to None):
+                Input dimension for VACE context (only for model_type='vace').
+                If None, defaults to in_dim
             sp_size (`int`, *optional*, defaults to 1):
                 Sequence parallelism size
             is_turbo_diffusion_wan_model (`bool`, *optional*, defaults to False):
@@ -452,7 +613,12 @@ class WanModel(ModelMixin, ConfigMixin):
         """
 
         super().__init__()
-        self.is_i2v_type = is_i2v_type
+        if model_type is None:
+            model_type = "i2v" if is_i2v_type else "t2v"
+        assert model_type in ["t2v", "i2v", "ti2v", "s2v", "vace"]
+        self.model_type = model_type
+        self.is_vace = model_type == "vace"
+        self.is_i2v_type = model_type in ["i2v", "ti2v", "s2v"] or is_i2v_type
 
         self.patch_size = patch_size
         self.text_len = text_len
@@ -473,9 +639,24 @@ class WanModel(ModelMixin, ConfigMixin):
 
         self.is_turbo_diffusion_wan_model = is_turbo_diffusion_wan_model
 
-        # embeddings
+        if self.is_vace:
+            if vace_layers is None:
+                self.vace_num_blocks = num_layers // 2
+            elif isinstance(vace_layers, int):
+                self.vace_num_blocks = vace_layers
+            else:
+                raise ValueError(f"vace_layers must be None or int, got {type(vace_layers)}")
+
+            self.vace_in_dim = vace_in_dim if vace_in_dim is not None else in_dim
+            layer_step = num_layers // self.vace_num_blocks
+            self.vace_layers_mapping = {i: n for n, i in enumerate(range(0, num_layers, layer_step))}
+            assert 0 in self.vace_layers_mapping, "vace_layers_mapping must include layer 0"
+        else:
+            self.vace_num_blocks = 0
+            self.vace_in_dim = None
+            self.vace_layers_mapping = {}
+
         if self.is_turbo_diffusion_wan_model:
-            # turbo diffusion wan model use Linear as patch embedding
             self.patch_embedding = nn.Linear(in_dim * patch_size[0] * patch_size[1] * patch_size[2], dim)
         else:
             self.patch_embedding = operations.Conv3d(
@@ -499,24 +680,63 @@ class WanModel(ModelMixin, ConfigMixin):
             "rms_dtype": getattr(operations, "rms_dtype", None),
         }
 
-        # blocks
-        self.blocks = nn.ModuleList(
-            [
-                WanAttentionBlock(
-                    dim,
-                    ffn_dim,
-                    num_heads,
-                    block_id,
-                    window_size,
-                    qk_norm,
-                    cross_attn_norm,
-                    eps,
-                    operation_settings=operation_settings,
-                    is_turbo_diffusion_wan_model=is_turbo_diffusion_wan_model,
-                )
-                for block_id in range(num_layers)
-            ]
-        )
+        if self.is_vace:
+            self.blocks = nn.ModuleList(
+                [
+                    BaseWanVaceAttentionBlock(
+                        dim,
+                        ffn_dim,
+                        num_heads,
+                        block_id=i,
+                        window_size=window_size,
+                        qk_norm=qk_norm,
+                        cross_attn_norm=cross_attn_norm,
+                        eps=eps,
+                        operation_settings=operation_settings,
+                    )
+                    for i in range(num_layers)
+                ]
+            )
+            for i, block in enumerate(self.blocks):
+                block.vace_block_id = self.vace_layers_mapping.get(i, None)
+
+            self.vace_blocks = nn.ModuleList(
+                [
+                    VaceWanAttentionBlock(
+                        dim,
+                        ffn_dim,
+                        num_heads,
+                        block_id=idx,
+                        window_size=window_size,
+                        qk_norm=qk_norm,
+                        cross_attn_norm=cross_attn_norm,
+                        eps=eps,
+                        operation_settings=operation_settings,
+                    )
+                    for idx in range(self.vace_num_blocks)
+                ]
+            )
+            self.vace_patch_embedding = operations.Conv3d(
+                self.vace_in_dim, dim, kernel_size=patch_size, stride=patch_size, device=device, dtype=torch.float32
+            )
+        else:
+            self.blocks = nn.ModuleList(
+                [
+                    WanAttentionBlock(
+                        dim,
+                        ffn_dim,
+                        num_heads,
+                        block_id,
+                        window_size,
+                        qk_norm,
+                        cross_attn_norm,
+                        eps,
+                        operation_settings=operation_settings,
+                        is_turbo_diffusion_wan_model=is_turbo_diffusion_wan_model,
+                    )
+                    for block_id in range(num_layers)
+                ]
+            )
 
         # head
         self.head = Head(dim, out_dim, patch_size, eps, operation_settings=operation_settings)
@@ -540,6 +760,10 @@ class WanModel(ModelMixin, ConfigMixin):
         self.rope_func = "default"
         self.cached_comfy_freqs = None
         self.cached_comfy_shape = None
+
+        # video_attention_split_steps: steps where attention should be split for multi-prompt
+        # This is set externally by the generator based on experimental_args
+        self.video_attention_split_steps = []
 
     def set_rope_function(self, rope_function: str | None):
         rope_value = rope_function or "default"
@@ -582,7 +806,7 @@ class WanModel(ModelMixin, ConfigMixin):
         return self.freqs
 
     def set_keep_in_fp32_modules(self):
-        self._keep_in_fp32_modules = [
+        fp32_modules = [
             "patch_embedding",
             "time_embedding",
             "time_projection",
@@ -593,10 +817,54 @@ class WanModel(ModelMixin, ConfigMixin):
             "img_emb.proj.0",
             "img_emb.proj.4",
         ]
+        # Add VACE-specific modules if in VACE mode
+        if self.is_vace:
+            fp32_modules.append("vace_patch_embedding")
+
+        self._keep_in_fp32_modules = fp32_modules
         self._keep_in_fp32_params = self._find_fp32_params(["modulation"])
 
     def _find_fp32_params(self, keywords):
         return [name for name, _ in self.named_parameters() if any(keyword in name for keyword in keywords)]
+
+    def forward_vace(self, x, vace_context, seq_len, kwargs):
+        device = x.device
+        dtype = x.dtype
+        batch_size = x.shape[0]
+
+        c = [self.vace_patch_embedding(u.unsqueeze(0).to(device).float()).to(dtype) for u in vace_context]
+        c = [u.flatten(2).transpose(1, 2) for u in c]
+        c = torch.cat([torch.cat([u, u.new_zeros(1, seq_len - u.size(1), u.size(2))], dim=1) for u in c])
+
+        if c.shape[0] != batch_size:
+            if batch_size % c.shape[0] == 0:
+                repeat_factor = batch_size // c.shape[0]
+                c = c.repeat(repeat_factor, 1, 1)
+            else:
+                raise ValueError(
+                    f"VACE batch size mismatch: x has batch {batch_size}, "
+                    f"but vace_context produces batch {c.shape[0]}. "
+                    f"For combine_cond_uncond mode, ensure vace_context is duplicated "
+                    f"at the pipeline layer."
+                )
+
+        if self.sp_size > 1:
+            c = torch.chunk(c, self.sp_size, dim=1)[get_rank_id()]
+        else:
+            if x.shape[1] > c.shape[1]:
+                c = torch.cat([c.new_zeros(batch_size, x.shape[1] - c.shape[1], c.shape[2]), c], dim=1)
+            if c.shape[1] > x.shape[1]:
+                c = c[:, : x.shape[1]]
+
+        new_kwargs = dict(x=x)
+        new_kwargs.update(kwargs)
+
+        hints = []
+        for block in self.vace_blocks:
+            c_skip, c = block(c, **new_kwargs)
+            hints.append(c_skip)
+
+        return hints
 
     def _get_seq_len(self, latent_shape):
         if len(latent_shape) != 5:
@@ -608,7 +876,6 @@ class WanModel(ModelMixin, ConfigMixin):
         max_seq_len = (lat_f * lat_h * lat_w) // (self.patch_size[1] * self.patch_size[2])
         return int(math.ceil(max_seq_len / self.sp_size)) * self.sp_size
 
-    # @nvtx_range
     def forward(
         self,
         x: torch.Tensor,
@@ -619,6 +886,11 @@ class WanModel(ModelMixin, ConfigMixin):
         context: torch.Tensor,
         # seq_len, # seem can cal inside forward now
         y=None,
+        vace_context=None,
+        vace_context_scale=1.0,
+        slg_config: KsanaSLGConfig | None = None,
+        feta_config: KsanaFETAConfig | None = None,
+        current_step_percent: float = 0.0,
     ):
         r"""
         Forward pass through the diffusion model
@@ -628,12 +900,30 @@ class WanModel(ModelMixin, ConfigMixin):
                 Input video tensor with shape [B, C_in, F, H, W], : [bs, 16, v, h, w]
             t (Tensor):
                 Diffusion timesteps tensor of shape [B]
+            step_iter (int):
+                Current step iteration
+            cache (KsanaCache):
+                Cache object for caching intermediate results
+            phase (str):
+                'cond' or 'uncond' phase
             context (Tensor):
                 Text embeddings tensor with shape [B, L, C] : [bs, 73, 4096]
             seq_len (`int`): 7200
                 Maximum sequence length for positional encoding
             y (List[Tensor], *optional*):
                 Conditional video inputs for image-to-video mode, same shape as x
+            vace_context (List[Tensor], *optional*):
+                List of VACE context tensors for video-to-video control (only for model_type='vace')
+            vace_context_scale (float, *optional*, defaults to 1.0):
+                Scale factor for VACE hints injection
+            slg_config (KsanaSLGConfig, *optional*):
+                Skip Layer Guidance config. When provided, skips uncond inference on
+                specified blocks for speedup. See KsanaSLGConfig for details.
+            feta_config (KsanaFETAConfig, *optional*):
+                Enhance-A-Video (FETA) config. When provided, improves temporal
+                consistency by modulating attention. See KsanaFETAConfig for details.
+            current_step_percent (float, *optional*, defaults to 0.0):
+                Current step as percentage of total steps (used for SLG/FETA scheduling)
 
         Returns:
             Tensor:
@@ -719,11 +1009,22 @@ class WanModel(ModelMixin, ConfigMixin):
         if self.sp_size > 1:
             x = torch.chunk(x, self.sp_size, dim=1)[get_rank_id()]
 
+        # RoPE frequencies
         rope_freqs = self._get_rope_freqs(grid_sizes, device=x.device, dtype=x.dtype)
         if rope_freqs.device != device:
             rope_freqs = rope_freqs.to(device)
 
-        # arguments
+        # Determine number of frames for FETA computation
+        num_frames = grid_sizes[0, 0].item() if grid_sizes.numel() > 0 else 1
+
+        # FETA configuration
+        feta_enabled = False
+        feta_weight = 2.0
+        if feta_config is not None:
+            feta_enabled = feta_config.start_percent <= current_step_percent <= feta_config.end_percent
+            feta_weight = feta_config.weight
+
+        # arguments for attention blocks
         kwargs = dict(
             e=e0,  # [bs, seqlen, 6, 5120]
             seq_lens=seq_lens,  # [bs]
@@ -734,12 +1035,40 @@ class WanModel(ModelMixin, ConfigMixin):
             step_iter=step_iter,
             latent_shape=latent_shape,
             rope_func=self.rope_func,
+            feta_enabled=feta_enabled,
+            feta_weight=feta_weight,
+            num_frames=num_frames,
         )
+
+        is_uncond = phase == "uncond"
+        slg_blocks = slg_config.blocks if slg_config is not None else []
+        slg_active = (
+            len(slg_blocks) > 0
+            and is_uncond
+            and slg_config is not None
+            and slg_config.start_percent <= current_step_percent <= slg_config.end_percent
+        )
+
+        vace_hints = None
+        if self.is_vace:
+            if vace_context is not None:
+                vace_hints = self.forward_vace(x, vace_context, seq_len, kwargs)
 
         # x: [bs, seqlen, 5120]
         if cache is None:
-            for block in self.blocks:
-                x = block(x, **kwargs)
+            skipped_blocks_log = []
+            if self.is_vace:
+                for block_idx, block in enumerate(self.blocks):
+                    if slg_active and block_idx in slg_blocks:
+                        skipped_blocks_log.append(block_idx)
+                        continue
+                    x = block(x, vace_hints=vace_hints, vace_context_scale=vace_context_scale, **kwargs)
+            else:
+                for block_idx, block in enumerate(self.blocks):
+                    if slg_active and block_idx in slg_blocks:
+                        skipped_blocks_log.append(block_idx)
+                        continue
+                    x = block(x, **kwargs)
         else:
             x = self._forward_with_cache(x, cache, phase, timestep, **kwargs)
 
@@ -826,3 +1155,21 @@ class WanModel(ModelMixin, ConfigMixin):
 
         # init output layer
         nn.init.zeros_(self.head.head.weight)
+
+        # init VACE-specific layers
+        if self.is_vace:
+            # VACE patch embedding
+            nn.init.xavier_uniform_(self.vace_patch_embedding.weight.flatten(1))
+
+            # Zero initialize VACE projection layers
+            for block in self.vace_blocks:
+                if hasattr(block, "before_proj"):
+                    nn.init.zeros_(block.before_proj.weight)
+                    if block.before_proj.bias is not None:
+                        nn.init.zeros_(block.before_proj.bias)
+                nn.init.zeros_(block.after_proj.weight)
+                if block.after_proj.bias is not None:
+                    nn.init.zeros_(block.after_proj.bias)
+
+
+VaceWanModel = WanModel

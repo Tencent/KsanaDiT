@@ -6,7 +6,6 @@ import logging
 import os
 import time
 import urllib.error
-from typing import Optional
 
 from test_utils import (
     check_media_data,
@@ -32,7 +31,8 @@ def modify_workflow_params(api_prompt: dict, params: dict) -> dict:
 
     支持的节点类型和参数映射:
         - KsanaGeneratorNode: steps, seed
-        - EmptyHunyuanLatentVideo: width, height, length (从 params["frames"] 获取)
+        - KsanaVAEEncodeNode: width, height, num_frames (从 params["frames"] 获取)
+        - KsanaWanVaceToVideoNode: width, height, num_frames (从 params["frames"] 获取)
         - KsanaModelLoaderNode: model_name, run_dtype, linear_backend
         - KsanaAttentionConfigNode: backend
         - CLIPLoader: clip_name
@@ -61,6 +61,15 @@ def modify_workflow_params(api_prompt: dict, params: dict) -> dict:
             if "height" in params and "height" in inputs:
                 inputs["height"] = params["height"]
             if "frames" in params and "length" in inputs:
+                inputs["num_frames"] = params["frames"]
+
+        # KsanaWanVaceToVideoNode: 修改 width, height, num_frames
+        elif class_type == "KsanaWanVaceToVideoNode":
+            if "width" in params and "width" in inputs:
+                inputs["width"] = params["width"]
+            if "height" in params and "height" in inputs:
+                inputs["height"] = params["height"]
+            if "frames" in params and "num_frames" in inputs:
                 inputs["num_frames"] = params["frames"]
 
         # KsanaModelLoaderNode: 根据命令行参数修改模型
@@ -110,7 +119,7 @@ def modify_workflow_params(api_prompt: dict, params: dict) -> dict:
     return api_prompt
 
 
-def test_workflow(workflow_path: str, params: dict, expect_values: Optional[dict] = None, port: int = 8188) -> bool:
+def test_workflow(workflow_path: str, params: dict, expect_values: dict | None = None, port: int = 8188) -> bool:
     """测试 workflow
     Args:
         workflow_path: workflow 文件路径

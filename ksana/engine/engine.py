@@ -5,10 +5,10 @@ from abc import ABC
 import ray
 import torch.distributed as dist
 
+from ..accelerator import platform
 from ..config import KsanaDistributedConfig
 from ..executor import KsanaExecutor, RayKsanaExecutor
 from ..utils import log, singleton
-from ..accelerator import platform
 from ..utils.distribute import get_gpu_count, get_torchrun_env, is_launched_by_torchrun
 
 
@@ -169,6 +169,10 @@ class KsanaEngine(ABC):
 
     @auto_dispatch
     def forward_vae_encode(self, *args, **kwargs):
+        pass
+
+    @auto_dispatch
+    def forward_vae_encode_frames(self, *args, **kwargs):
         pass
 
     @auto_dispatch

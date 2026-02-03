@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 
 from ..utils.const import DEFAULT_DENOISE
+from .video_control_config import KsanaVideoControlConfig
 
 
 class KsanaSolverType(Enum):
@@ -35,6 +36,7 @@ class KsanaSampleConfig:
     solver: KsanaSolverType | None = field(default=None)
     denoise: float | None = field(default=DEFAULT_DENOISE)
     sigmas: list[float] | None = field(default=None)
+    video_control: KsanaVideoControlConfig | None = field(default=None)
 
     def __post_init__(self):
         if self.solver is not None and not isinstance(self.solver, KsanaSolverType):

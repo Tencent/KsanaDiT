@@ -4,7 +4,7 @@ import functools
 import os
 import pstats
 import time
-from typing import Callable, Optional, Union
+from collections.abc import Callable
 
 import torch
 import torch.cuda.nvtx as nvtx
@@ -98,7 +98,7 @@ class Timer:
         return wrapper
 
 
-def time_range(func_or_name: Optional[Union[Callable, str]] = None, print_func: Callable[[str], None] = log.info):
+def time_range(func_or_name: Callable | str | None = None, print_func: Callable[[str], None] = log.info):
     """
     support both no-args and args decorator, and with statement.
 

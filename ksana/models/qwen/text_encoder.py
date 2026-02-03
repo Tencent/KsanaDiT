@@ -3,8 +3,6 @@ Reference (Diffusers):
   - diffusers/src/diffusers/pipelines/qwenimage/pipeline_qwenimage.py
 """
 
-from typing import List, Tuple, Union
-
 import torch
 from transformers import AutoTokenizer, Qwen2_5_VLForConditionalGeneration
 
@@ -37,7 +35,7 @@ class Qwen2VLTextEncoderModel:
         self.model.to(device)
         self.model.eval()
 
-    def _extract_masked_hidden(self, hidden_states: torch.Tensor, mask: torch.Tensor) -> List[torch.Tensor]:
+    def _extract_masked_hidden(self, hidden_states: torch.Tensor, mask: torch.Tensor) -> list[torch.Tensor]:
         bool_mask = mask.bool()
         valid_lengths = bool_mask.sum(dim=1)
         selected = hidden_states[bool_mask]
@@ -45,9 +43,9 @@ class Qwen2VLTextEncoderModel:
 
     def __call__(
         self,
-        prompt: Union[str, List[str]],
+        prompt: str | list[str],
         device: torch.device = None,
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
+    ) -> tuple[torch.Tensor, torch.Tensor]:
         device = device or self.device
         prompt = [prompt] if isinstance(prompt, str) else prompt
         txt = [self.prompt_template.format(p) for p in prompt]

@@ -21,6 +21,12 @@ from .model_config import KsanaModelConfig
 from .runtime_config import KsanaRuntimeConfig
 from .sample_config import KsanaSampleConfig, KsanaSolverType
 from .torch_compile_config import KsanaTorchCompileConfig
+from .video_control_config import KsanaVideoControlConfig
+from .wan_experimental_config import (
+    KsanaExperimentalConfig,
+    KsanaFETAConfig,
+    KsanaSLGConfig,
+)
 
 __all__ = [
     "KsanaAttentionBackend",
@@ -42,5 +48,9 @@ __all__ = [
     "KsanaTorchCompileConfig",
     "KsanaDistributedConfig",
     "KsanaRadialSageAttentionConfig",
+    "KsanaVideoControlConfig",
+    "KsanaSLGConfig",
+    "KsanaFETAConfig",
+    "KsanaExperimentalConfig",
     "KsanaSageSLAConfig",
 ]

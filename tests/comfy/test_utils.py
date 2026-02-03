@@ -20,7 +20,6 @@ import uuid
 # video mean
 from io import BytesIO
 from pathlib import Path
-from typing import Optional, Tuple
 
 import numpy
 import torch
@@ -71,7 +70,7 @@ def wait_for_server(server_address: str = "127.0.0.1:8188", max_wait: int = 300,
     return False
 
 
-def start_server(comfyui_root: Optional[Path] = None, host: str = "127.0.0.1", port: int = 8188) -> subprocess.Popen:
+def start_server(comfyui_root: Path | None = None, host: str = "127.0.0.1", port: int = 8188) -> subprocess.Popen:
     """启动 ComfyUI server
 
     Args:
@@ -266,7 +265,7 @@ def load_workflow(workflow_path: str, server_address: str = "127.0.0.1:8188") ->
 # ============================================================================
 
 
-def connect_websocket(server_address: str = "127.0.0.1:8188") -> Tuple[websocket.WebSocket, str]:
+def connect_websocket(server_address: str = "127.0.0.1:8188") -> tuple[websocket.WebSocket, str]:
     """连接 WebSocket
 
     Args:
@@ -283,7 +282,7 @@ def connect_websocket(server_address: str = "127.0.0.1:8188") -> Tuple[websocket
     return ws, client_id
 
 
-def submit_workflow(api_prompt: dict, client_id: str, server_address: str = "127.0.0.1:8188") -> Optional[str]:
+def submit_workflow(api_prompt: dict, client_id: str, server_address: str = "127.0.0.1:8188") -> str | None:
     """提交 workflow 到 server
 
     Args:
@@ -318,7 +317,7 @@ def get_media(filename: str, subfolder: str, folder_type: str, server_address: s
         return response.read()
 
 
-def _get_workflow_result_media(prompt_id: str, server_address: str) -> Tuple[bool, Optional[bytes]]:
+def _get_workflow_result_media(prompt_id: str, server_address: str) -> tuple[bool, bytes | None]:
     """获取并下载 workflow 结果中的第一个媒体文件。"""
     try:
         history = get_history(prompt_id, server_address)[prompt_id]
@@ -388,7 +387,7 @@ def check_media_data(media_data: bytes, expect_values: dict) -> bool:
 
 def wait_for_completion(
     ws: websocket.WebSocket, prompt_id: str, server_address: str = "127.0.0.1:8188", api_prompt: dict = None
-) -> Tuple[bool, Optional[bytes]]:
+) -> tuple[bool, bytes | None]:
     """等待 workflow 执行完成
 
     Args:

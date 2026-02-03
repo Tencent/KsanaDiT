@@ -1,5 +1,5 @@
 from .base_model import KsanaModel
-from .diffusion_model import KsanaDiffusionModel, KsanaQwenImageModel, KsanaWanModel
+from .diffusion_model import KsanaDiffusionModel, KsanaQwenImageModel, KsanaWanModel, KsanaWanVaceModel
 from .model_key import KsanaModelKey
 from .model_pool import KsanaModelPool
 from .text_encoder_model import KsanaTextEncoderModel
@@ -11,6 +11,7 @@ __all__ = [
     "KsanaModelPool",
     "KsanaDiffusionModel",
     "KsanaWanModel",
+    "KsanaWanVaceModel",
     "KsanaQwenImageModel",
     "KsanaTextEncoderModel",
     "KsanaVAEModel",

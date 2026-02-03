@@ -12,6 +12,10 @@ MODEL_MEMORY_CONFIG = {
         "model_size": 28 * 1024 * 1024 * 1024,  # 14B参数模型，约28GB (fp16)
         "usage_factor": 2.305,  # wan_i2v_A14B
     },
+    KsanaModelKey.Wan2_1_VACE_14B: {
+        "model_size": 28 * 1024 * 1024 * 1024,  # 14B参数模型，约28GB (fp16)
+        "usage_factor": 2.305,  # wan vace 14B
+    },
     KsanaModelKey.QwenImage_T2I: {
         "model_size": 40 * 1024 * 1024 * 1024,  # 20B参数模型，约40GB (fp16)
         "usage_factor": 2.5,  # qwen-image t2i 20B

@@ -16,6 +16,7 @@ from ..settings import load_default_settings
 from ..units import KsanaUnitFactory, KsanaUnitType
 from ..utils import log, time_range
 from ..utils.media import save_image
+from ..utils.vace import KsanaVaceVideoEncodeConfig
 from .base_pipeline import KsanaBasePipeline
 
 
@@ -119,6 +120,7 @@ class KsanaPipeline(KsanaBasePipeline):
         sample_config: KsanaSampleConfig = None,
         runtime_config: KsanaRuntimeConfig = None,
         cache_config: list[KsanaCacheConfig | KsanaHybridCacheConfig] = None,
+        video_control_config: KsanaVaceVideoEncodeConfig = None,
     ):
         """local use for generate"""
         num_prompts = self._get_num_prompts(prompt)
@@ -137,6 +139,8 @@ class KsanaPipeline(KsanaBasePipeline):
         end_img_path = self._valid_images(end_img_path, num_prompts)
         with_end_image = end_img_path is not None
 
+        vace_video_control_config = self._valid_video_control_config(video_control_config, runtime_config)
+
         text_run_device = torch.device("cpu")  # TODO: maybe run text on cuda self.device
         text_encoder = KsanaUnitFactory.create(KsanaUnitType.ENCODER, self.text_encoder_model.model_key)
         positive, negative = text_encoder.run(
@@ -149,9 +153,15 @@ class KsanaPipeline(KsanaBasePipeline):
         )
 
         img_tensor, end_img_tensor = self._load_input_images(img_path, end_img_path, device=self.offload_device)
+        target_frame_num = (
+            vace_video_control_config.adjusted_frame_num
+            if vace_video_control_config and vace_video_control_config.adjusted_frame_num
+            else runtime_config.frame_num
+        )
+
         img_latents = self.engine.forward_vae_encode(
             model_key=self.vae_model_key,
-            target_f=runtime_config.frame_num,
+            target_f=target_frame_num,
             target_h=runtime_config.size[1],
             target_w=runtime_config.size[0],
             start_img=img_tensor,
@@ -166,6 +176,7 @@ class KsanaPipeline(KsanaBasePipeline):
             sample_config=sample_config,
             runtime_config=runtime_config,
             cache_config=cache_config,
+            control_video_config=vace_video_control_config,
         )
         del positive, negative, img_latents
 

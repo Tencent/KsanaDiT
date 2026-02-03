@@ -21,6 +21,7 @@ def _load_settings(config_path):
 _MODEL_KEY_TO_CONF_PATH_MAP = {
     KsanaModelKey.Wan2_2_I2V_14B: "wan/i2v_14b.yaml",
     KsanaModelKey.Wan2_2_T2V_14B: "wan/t2v_14b.yaml",
+    KsanaModelKey.Wan2_1_VACE_14B: "wan/vace_14b.yaml",
     KsanaModelKey.VAE_WAN2_1: "wan/modules/vae_2_1.yaml",
     KsanaModelKey.VAE_WAN2_2: "wan/modules/vae_2_2.yaml",
     KsanaModelKey.T5TextEncoder: "wan/modules/t5_encoder.yaml",
