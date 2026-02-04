@@ -1,6 +1,25 @@
 {
   "independent_tests": [
     {
+      "workflow_path": "../../comfyui/examples/wan/i2v/wan2.1_vace_add_noise_i2v_test.json",
+      "steps": 1,
+      "frames": 81,
+      "seed": 1234,
+      "input_image": "../../examples/images/start_image.png",
+      "platform_expect_values": {
+        "GPU":{
+          "single": {
+            "mean": 0.7194474,
+            "eps_place": 3
+          },
+          "multi": {
+            "mean": 0.7194223,
+            "eps_place": 3
+          }
+        }
+      }
+    },
+    {
       "workflow_path": "../../comfyui/benchmarks/wan/wan2.2_i2v_turbo_diffusion.json",
       "steps": 1,
       "width": 512,

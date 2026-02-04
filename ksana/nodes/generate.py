@@ -37,9 +37,11 @@ def generate(
     model,
     positive,
     negative,
-    latent_image,
+    image_embeds,
     steps,
     seed,
+    latent=None,
+    add_noise_to_latent=False,
     scheduler="simple",
     solver_name=KsanaSolverType.UNI_PC,
     sample_guide_scale=4.0,
@@ -75,7 +77,7 @@ def generate(
     ksana_engine = get_engine()
 
     MemoryProfiler.record_memory("before_ksana_engine_generate_with_tensors")
-    latent_shape = latent_image.samples.shape
+    latent_shape = image_embeds.samples.shape
     if comfy_free_mem_func is not None and comfy_device is not None:
         _prepare_memory_for_ksana_models(
             diffusion_model_key,
@@ -94,7 +96,7 @@ def generate(
     if cache_config is not None and not isinstance(cache_config, list):
         cache_config = [cache_config]
     num_prompts = positive[0][0].shape[0]
-    batch_size_per_prompts = latent_image.batch_size_per_prompts
+    batch_size_per_prompts = image_embeds.batch_size_per_prompts
     batch_size_per_prompts = [batch_size_per_prompts] * num_prompts
 
     if sample_shift is not None and float(sample_shift) < 0:
@@ -110,7 +112,8 @@ def generate(
         model_key=diffusion_model_key,
         positive=positive[0][0],
         negative=negative[0][0],
-        img_latents=latent_image.samples,  # [bs, 16, 5, h/, w/]
+        img_latents=image_embeds.samples,  # [bs, 16, 5, h/, w/]
+        input_latent=latent.samples if latent is not None else None,
         sample_config=KsanaSampleConfig(
             steps=steps,
             cfg_scale=(sample_guide_scale, low_sample_guide_scale),
@@ -118,6 +121,7 @@ def generate(
             solver=solver_name,
             denoise=denoise,
             sigmas=sigmas,
+            add_noise_to_latent=add_noise_to_latent,
         ),
         runtime_config=KsanaRuntimeConfig(
             seed=seed,
@@ -137,5 +141,5 @@ def generate(
 
     return KsanaNodeGeneratorOutput(
         samples=samples,
-        with_end_image=latent_image.with_end_image,
+        with_end_image=image_embeds.with_end_image,
     )

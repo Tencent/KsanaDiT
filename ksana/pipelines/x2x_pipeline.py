@@ -39,6 +39,7 @@ class KsanaPipeline(KsanaBasePipeline):
     def from_models(
         model_path,
         *,
+        vace_model: list[str] | None = None,
         model_config: KsanaModelConfig = None,
         dist_config: KsanaDistributedConfig = None,
         pipeline_key: KsanaModelKey = None,  # used model key as pipeline key now
@@ -63,6 +64,7 @@ class KsanaPipeline(KsanaBasePipeline):
             text_checkpoint_dir=text_checkpoint_dir,
             vae_checkpoint_dir=vae_checkpoint_dir,
             lora_config=lora_config,
+            vace_model=vace_model,
         )
         return pipeline
 
@@ -70,6 +72,7 @@ class KsanaPipeline(KsanaBasePipeline):
         self,
         model_path,
         *,
+        vace_model: list[str] | None = None,
         model_config: KsanaModelConfig = None,
         text_checkpoint_dir=None,
         vae_checkpoint_dir=None,
@@ -96,6 +99,7 @@ class KsanaPipeline(KsanaBasePipeline):
             model_key=self.model_key,
             lora_config=list_of_loras_list,
             model_config=model_config,
+            vace_model=vace_model,
         )
 
         # 3. load vae model
@@ -120,6 +124,7 @@ class KsanaPipeline(KsanaBasePipeline):
         sample_config: KsanaSampleConfig = None,
         runtime_config: KsanaRuntimeConfig = None,
         cache_config: list[KsanaCacheConfig | KsanaHybridCacheConfig] = None,
+        input_latent: torch.Tensor = None,
         video_control_config: KsanaVaceVideoEncodeConfig = None,
     ):
         """local use for generate"""
@@ -176,6 +181,7 @@ class KsanaPipeline(KsanaBasePipeline):
             sample_config=sample_config,
             runtime_config=runtime_config,
             cache_config=cache_config,
+            input_latent=input_latent,
             control_video_config=vace_video_control_config,
         )
         del positive, negative, img_latents

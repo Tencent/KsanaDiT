@@ -16,6 +16,7 @@ class KsanaNodeModelLoader:
         cls,
         high_noise_model_path: str,
         low_noise_model_path: str = None,
+        vace_model: list[str] | None = None,
         run_dtype="float16",
         rms_dtype="float",
         linear_backend: KsanaLinearBackend | str = KsanaLinearBackend.DEFAULT,
@@ -23,7 +24,7 @@ class KsanaNodeModelLoader:
         model_boundary=None,
         torch_compile_args=None,
         lora=None,
-        comfy_progress_bar_func=None
+        comfy_progress_bar_func=None,
     ):
         # Qwen-Image is much more stable in bfloat16; fp16 frequently overflows to NaN in practice.
         # Our own example script uses bfloat16 by default.
@@ -74,6 +75,7 @@ class KsanaNodeModelLoader:
                 model_config=model_config,
                 comfy_bar_callback=comfy_bar_callback,
                 lora_config=lora,
+                vace_model=vace_model,
             )
         except Exception as e:  # pylint: disable=broad-except
             cls.LOADED_MODEL = None

@@ -123,9 +123,8 @@ class KsanaBasePipeline(ABC):
         num_frames = runtime_config.frame_num
         latent_format = get_wan21_latent_format()
 
-        def vae_encode_fn(frames: torch.Tensor) -> torch.Tensor:
-            res = self.engine.forward_vae_encode_frames(vae_key=self.vae_model_key, frames=frames)
-            latents = next(iter(res.values())) if isinstance(res, dict) else res
+        def vae_encode_fn(frame: torch.Tensor) -> torch.Tensor:
+            latents = self.engine.forward_vae_encode_image(model_key=self.vae_model_key, image=frame)
             return latent_format.process_out(latents)
 
         vace_config = build_vace_video_control_config(

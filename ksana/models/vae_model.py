@@ -87,6 +87,30 @@ class KsanaVAEModel(KsanaModel):
         lat_f = (target_f - 1) // vae_stride[0] + 1
         return self.z_dim, lat_f, lat_h, lat_w
 
+    def forward_encode_image(
+        self,
+        *,
+        image: torch.Tensor = None,
+        device,
+        target_batch_size: int = 1,
+    ):
+        if image is None:
+            return None
+        # Ensure frames are in (N, C, H, W) format
+        if image.ndim == 4 and image.shape[-1] == 3:
+            # (N, H, W, C) -> (N, C, H, W)
+            image = image.permute(0, 3, 1, 2)
+        image = image.unsqueeze(0).permute(0, 2, 1, 3, 4).to(device)
+        image = image * 2.0 - 1.0  # bs, f, c, h, w -> bs, c, f, h, w
+        current_device = self.device
+        if current_device != device:
+            self.to(device)
+        y = self.encode(image, with_end_image=False)
+        self.to(current_device)
+        y = y.repeat(target_batch_size, 1, 1, 1, 1)
+        log.info(f"image_latents shape {y.shape}, {y.device}, {y.dtype}")
+        return y
+
     def forward_encode(
         self,
         target_f: int,

@@ -37,6 +37,7 @@ class KsanaSampleConfig:
     denoise: float | None = field(default=DEFAULT_DENOISE)
     sigmas: list[float] | None = field(default=None)
     video_control: KsanaVideoControlConfig | None = field(default=None)
+    add_noise_to_latent: bool = field(default=False)  # Whether to add noise to the input latent
 
     def __post_init__(self):
         if self.solver is not None and not isinstance(self.solver, KsanaSolverType):

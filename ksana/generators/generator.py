@@ -176,6 +176,22 @@ class KsanaBaseGenerator(KsanaRunnerUnit):
         negative = self._expand_to_total_prompts_size(negative, batch_size_per_prompts)
         return positive, negative
 
+    def _valid_input_latent(self, input_latent: torch.Tensor, noise_shape: tuple[int]):
+        if input_latent is None:
+            return
+        if input_latent.dim() != len(noise_shape) or len(noise_shape) != 5:  # [bs, z_dim, f, h, w]
+            raise ValueError(
+                f"input_latent.dim() {input_latent.dim()} must be equal to noise_shape.len()"
+                f" {len(noise_shape)} and both must be 5"
+            )
+        input_bs, input_z_dim, _, input_h, input_w = input_latent.shape
+        noise_bs, noise_z_dim, _, noise_h, noise_w = noise_shape
+        if input_bs != noise_bs or input_z_dim != noise_z_dim or input_h != noise_h or input_w != noise_w:
+            raise ValueError(
+                f"input_latent shape {input_latent.shape} must match "
+                f" noise_shape {noise_shape} in all dimensions except frame dimension"
+            )
+
     def _cast_to(self, src, *, dtype: torch.dtype, device: torch.device):
         if src.dtype != dtype:
             src = src.to(dtype)
@@ -240,6 +256,9 @@ class KsanaBaseGenerator(KsanaRunnerUnit):
 
     def _use_cfg(self, cfg_scale: float, eps: float = 1e-6):
         return abs(cfg_scale - 1.0) > eps
+
+    def _apply_input_latent(self, *args, **kwargs):
+        raise NotImplementedError("subclass must implement _apply_input_latent method")
 
     def run_one_batch(
         self,
@@ -389,6 +408,7 @@ class KsanaBaseGenerator(KsanaRunnerUnit):
         negative: torch.Tensor,
         img_latents: torch.Tensor,
         sample_config: KsanaRuntimeConfig,
+        input_latent: torch.Tensor,
         run_steps_kwargs: dict,
     ):
         log.info(f"batch_strategy={batch_strategy}")
@@ -407,10 +427,14 @@ class KsanaBaseGenerator(KsanaRunnerUnit):
             batch_negative = self._split_tensors(negative, strategy_item.start, strategy_item.end)
             batch_noise_latent = self._split_tensors(noise_latents, strategy_item.start, strategy_item.end)
             batch_img_latent = self._split_tensors(img_latents, strategy_item.start, strategy_item.end)
+            batch_input_latent = self._split_tensors(input_latent, strategy_item.start, strategy_item.end)
 
             device = run_steps_kwargs["device"]
             sample_scheduler, _, timesteps = get_sample_scheduler(
                 num_train_timesteps=num_train_timesteps, sample_config=sample_config, device=device
+            )
+            self._apply_input_latent(
+                batch_noise_latent, batch_input_latent, sample_config, timesteps, num_train_timesteps
             )
             with torch.no_grad():
                 processed_latents = self.run_one_batch(
@@ -443,6 +467,7 @@ class KsanaBaseGenerator(KsanaRunnerUnit):
             int
         ],  # Note: noise shape do not include batch size :[vae_z_dim, lat_f, lat_h, lat_w] or [vae_z_dim, h, w]
         img_latents: torch.Tensor = None,  # [bs, vae_z_dim+4, lat_f, lat_h, lat_w]
+        input_latent: torch.Tensor = None,
         cache_config: list[KsanaCacheConfig | KsanaHybridCacheConfig] = None,
         device=None,
         offload_device=None,
@@ -492,9 +517,11 @@ class KsanaBaseGenerator(KsanaRunnerUnit):
         batch_strategy = self.batch_scheduler.build_batch_strategy(
             self.model_key, noise_latents.shape, total_samples_num, run_dtype, device
         )
+        self._valid_input_latent(input_latent, noise_latents.shape)
         # Note: pack need after build strategy since strategy use noise_latents shape as 5D tensor
         patch_size = self._get_patch_size(diffusion_model)
         noise_latents = self.pack_noise_latents(noise_latents, patch_size)
+
         log.info(
             f"num_prompts: {num_prompts}, batch_size_per_prompts: {runtime_config.batch_size_per_prompts}, "
             f"total_samples_num: {total_samples_num} split as {len(batch_strategy)} batches"
@@ -526,6 +553,7 @@ class KsanaBaseGenerator(KsanaRunnerUnit):
             negative=negative,
             img_latents=img_latents,
             sample_config=sample_config,
+            input_latent=input_latent,
             run_steps_kwargs=run_steps_kwargs,
         )
         noise_latents = self.unpack_noise_latents(noise_latents, patch_size)
@@ -690,6 +718,48 @@ class KsanaWanGenerator(KsanaBaseGenerator):
             self.boundary = boundary * self._get_num_train_timesteps(default_settings)
             log.info(f"model boundary: {boundary}")
         return self.boundary
+
+    def _apply_input_latent(
+        self,
+        noise_latents: torch.Tensor,
+        input_latent: torch.Tensor,
+        sample_config: KsanaSampleConfig,
+        timesteps: torch.Tensor,
+        num_train_timesteps: int,
+    ):
+        if input_latent is None:
+            return noise_latents
+
+        if noise_latents.dim() != 5:  # [bs, z_dim, f, h, w]
+            raise ValueError(f"noise_latents {noise_latents.shape} must be 5D tensor")
+
+        input_latent = input_latent.to(noise_latents)
+        frame_dim = 2
+        if noise_latents.shape[frame_dim] < input_latent.shape[frame_dim]:
+            raise ValueError(
+                f"noise_latents {noise_latents.shape} frame dim must be >= input_latent {input_latent.shape}"
+            )
+        if input_latent.shape[frame_dim] != noise_latents.shape[frame_dim]:
+            input_latent = torch.cat(
+                [
+                    input_latent[:, :, :1].repeat(
+                        1, 1, noise_latents.shape[frame_dim] - input_latent.shape[frame_dim], 1, 1
+                    ),
+                    input_latent,
+                ],
+                dim=frame_dim,
+            )
+
+        if sample_config.add_noise_to_latent:
+            latent_timestep = timesteps[:1].to(noise_latents)
+            noise_latents = (
+                noise_latents * latent_timestep / num_train_timesteps
+                + (1 - latent_timestep / num_train_timesteps) * input_latent
+            )
+        else:
+            noise_latents = input_latent
+
+        return noise_latents
 
     def get_running_model(self, diffusion_model, timestep_id: int, device=None, offload_device=None):
         if device is None:
@@ -933,6 +1003,18 @@ class KsanaQwenGenerator(KsanaBaseGenerator):
             "txt_seq_lens": negative_txt_seq_lens,
         }
         return base | arg_cond, base | arg_uncond
+
+    def _apply_input_latent(
+        self,
+        noise_latents: torch.Tensor,
+        input_latent: torch.Tensor,
+        sample_config: KsanaSampleConfig,
+        timesteps: torch.Tensor,
+        num_train_timesteps: int,
+    ):
+        if input_latent is not None or sample_config.add_noise_to_latent:
+            raise NotImplementedError(f"{self.model_key} does not support input_latent or add_noise_to_latent yet!")
+        return noise_latents
 
     def _get_latent_img_shapes(self):
         if self.latent_img_shapes is None:

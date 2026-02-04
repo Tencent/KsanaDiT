@@ -22,6 +22,7 @@ from .types import (
     KSANA_TEXT_ENCODE_OUTPUT,
     KSANA_TORCH_COMPILE,
     KSANA_VACE_EMBEDS,
+    KSANA_VACE_MODEL,
     KSANA_VAE_ENCODE_OUTPUT,
     KSANA_VAE_MODEL,
     KSANA_VIDEO_CONTROL_CONFIG,
@@ -29,7 +30,7 @@ from .types import (
     WANVIDEO_FETA_ARGS,
     WANVIDEO_SLG_ARGS,
 )
-from .vae import KsanaNodeVAELoader, vae_decode, vae_encode
+from .vae import KsanaNodeVAELoader, vae_decode, vae_encode, vae_encode_image
 
 __all__ = [
     "KSANA_DIFFUSION_MODEL",
@@ -45,6 +46,7 @@ __all__ = [
     "KSANA_CATEGORY_VAE",
     "KSANA_VAE_ENCODE_OUTPUT",
     "KSANA_VAE_MODEL",
+    "KSANA_VACE_MODEL",
     "KSANA_TEXT_ENCODE_OUTPUT",
     "KSANA_VIDEO_CONTROL_CONFIG",
     "KSANA_SLG_ARGS",
@@ -68,6 +70,7 @@ __all__ = [
     "mag_cache",
     "generate",
     "vae_encode",
+    "vae_encode_image",
     "vae_decode",
     "build_list_of_lora_config",
     "torch_compile_config",

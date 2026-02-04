@@ -71,7 +71,7 @@ class TestKsanaPipelineWanI2V(unittest.TestCase):
             PROMPTS,
             img_path="./examples/images/start_image.png",
             end_img_path="./examples/images/end_image.png",
-            sample_config=KsanaSampleConfig(steps=TEST_STEPS),
+            sample_config=KsanaSampleConfig(steps=TEST_STEPS, add_noise_to_latent=True),
             runtime_config=KsanaRuntimeConfig(
                 seed=SEED,
                 size=TEST_SIZE,

@@ -132,7 +132,7 @@ def run_load_and_generate(model_path, image_latent_shape, text_shape, steps, **k
         load_output,
         positive=[[positive_text_embeddings]],
         negative=[[negtive_text_embeddings]],
-        latent_image=nodes.KsanaNodeVAEEncodeOutput(
+        image_embeds=nodes.KsanaNodeVAEEncodeOutput(
             samples=image_latent, batch_size_per_prompts=batch_size_per_prompts
         ),
         steps=steps,

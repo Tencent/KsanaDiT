@@ -135,7 +135,7 @@ def merge_lora_weight(
 
 @time_range
 def load_state_dict_and_merge_lora(
-    model_path: str, loras_list: list = None, run_dtype: torch.dtype = None, device=None
+    model_path: str, loras_list: list = None, run_dtype: torch.dtype = None, device=None, vace_model: str = None
 ):
     sd = {}
 
@@ -172,4 +172,8 @@ def load_state_dict_and_merge_lora(
         for _, value in base_sd.items():
             value.data = value.to("cpu")
         sd.update(base_sd)
+
+    if vace_model:
+        sd.update(load_file_to_state_dict(vace_model, device=device))
+        log.info(f"loaded vace_model: {vace_model}")
     return sd

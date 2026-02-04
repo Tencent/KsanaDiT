@@ -48,6 +48,24 @@ class KsanaDiffusionLoaderUnit(KsanaLoaderUnit):
             raise ValueError(f"model_path must be a file/dir or a list of file/dir, but got {model_path}")
         return load_model_path_or_files
 
+    def _valid_input_vace_model(self, vace_model: None | list[str], model_count: int) -> list[str | None] | None:
+        if vace_model is None:
+            return None
+        if isinstance(vace_model, str):
+            return [vace_model] + [None] * (model_count - 1)
+        elif isinstance(vace_model, list):
+            if len(vace_model) > model_count:
+                raise ValueError(f"len of vace_model list must not exceed {model_count}, but got {vace_model}")
+            vace_model = vace_model + [None] * (model_count - len(vace_model))
+            if len(vace_model) == 0:
+                return None
+            for one_model in vace_model:
+                if one_model is not None and not isinstance(one_model, str):
+                    raise ValueError(f"vace_model[i] must be str, but got {one_model}")
+        else:
+            raise ValueError(f"vace_model must be list of str, but got {vace_model}")
+        return vace_model
+
     def _valid_input_lora(
         self, lora_config: None | list[list[KsanaLoraConfig]] | list[KsanaLoraConfig], model_count: int
     ) -> list:
@@ -75,7 +93,14 @@ class KsanaDiffusionLoaderUnit(KsanaLoaderUnit):
             return_list.append(one_list)
         return return_list
 
-    def _load_state_dict(self, model_path: str, run_dtype, device, lora_config: None | list[KsanaLoraConfig] = None):
+    def _load_state_dict(
+        self,
+        model_path: str,
+        run_dtype,
+        device,
+        lora_config: None | list[KsanaLoraConfig] = None,
+        vace_model: str = None,
+    ):
         if self.model_key == KsanaModelKey.QwenImage_T2I and os.path.isdir(model_path):
             if getattr(self.default_settings.diffusion, "transformer_subdir", None) is None:
                 raise ValueError(
@@ -83,15 +108,18 @@ class KsanaDiffusionLoaderUnit(KsanaLoaderUnit):
                     f" {self.model_key}, but got {self.default_settings.diffusion}"
                 )
             transformer_dir = os.path.join(model_path, self.default_settings.diffusion.transformer_subdir)
-            return load_state_dict_and_merge_lora(transformer_dir, device=device)
+            return load_state_dict_and_merge_lora(transformer_dir, device=device, vace_model=vace_model)
         else:
-            return load_state_dict_and_merge_lora(model_path, lora_config, run_dtype, device=device)
+            return load_state_dict_and_merge_lora(
+                model_path, lora_config, run_dtype, device=device, vace_model=vace_model
+            )
 
     @time_range
     def run(
         self,
         model_path: str | list[str],
         *,
+        vace_model: list[str] | None = None,
         model_config: KsanaModelConfig = None,
         lora_config: None | list[list[KsanaLoraConfig]] = None,
         dist_config=None,
@@ -102,6 +130,7 @@ class KsanaDiffusionLoaderUnit(KsanaLoaderUnit):
     ) -> list[KsanaModel]:
         log.info(f"{self.model_key} loading diffuion model from: {model_path}")
         load_model_path_or_files = self._valid_input_model_path(model_path)
+        vace_model = self._valid_input_vace_model(vace_model, len(load_model_path_or_files))
         list_of_loras_list = self._valid_input_lora(lora_config, len(load_model_path_or_files))
         self.default_settings = load_default_settings(self.model_key, with_lora=list_of_loras_list is not None)
         device = device or torch.device("cuda")
@@ -115,7 +144,10 @@ class KsanaDiffusionLoaderUnit(KsanaLoaderUnit):
         for i in range(len(load_model_path_or_files)):
             one_model_path = load_model_path_or_files[i]
             loras_list = list_of_loras_list[i] if list_of_loras_list is not None else None
-            model_state_dict = self._load_state_dict(one_model_path, model_config.run_dtype, device, loras_list)
+            onve_vace_model = vace_model[i] if vace_model is not None else None
+            model_state_dict = self._load_state_dict(
+                one_model_path, model_config.run_dtype, device, loras_list, onve_vace_model
+            )
             model_class = self._MAP_KEY_TO_MODEL_CLASS.get(self.model_key, None)
             if model_class is None:
                 raise ValueError(f"model_key {self.model_key} not supported")

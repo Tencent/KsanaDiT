@@ -77,10 +77,30 @@ def vae_encode(
         start_img=start_image,
         end_img=end_image,
         mask=mask,
+        batch_size=batch_size,
     )
     return KsanaNodeVAEEncodeOutput(
         samples=latents,
         with_end_image=with_end_image,
+        batch_size_per_prompts=int(batch_size),
+    )
+
+
+def vae_encode_image(
+    vae=None,
+    image=None,
+    batch_size=None,
+):
+    ksana_engine = get_engine()
+    log.info(f"encoder vae: {vae}")
+    latents = ksana_engine.forward_vae_encode_image(
+        model_key=vae,
+        image=image,
+        batch_size=batch_size,
+    )
+    return KsanaNodeVAEEncodeOutput(
+        samples=latents,
+        with_end_image=False,
         batch_size_per_prompts=int(batch_size),
     )
 

@@ -172,7 +172,7 @@ class KsanaEngine(ABC):
         pass
 
     @auto_dispatch
-    def forward_vae_encode_frames(self, *args, **kwargs):
+    def forward_vae_encode_image(self, *args, **kwargs):
         pass
 
     @auto_dispatch

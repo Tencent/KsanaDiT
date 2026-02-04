@@ -121,28 +121,12 @@ class KsanaExecutor(ABC):
         vae_encoder = KsanaUnitFactory.create(KsanaUnitType.ENCODER, model_key)
         return vae_encoder.run(vae_model, device=self.device, **kwargs)
 
-    @time_range
-    def forward_vae_encode_frames(self, vae_key, frames):
-        # WAN2.1-Vace control_video + reference_image + control_masks encode
-        vae = self.model_pool.get_model(vae_key)
+    def forward_vae_encode_image(self, model_key, **kwargs):
         if self.rank_id != 0:
-            return {self.rank_id: None}
-
-        # Ensure frames are in (N, C, H, W) format
-        if frames.ndim == 4 and frames.shape[-1] == 3:
-            # (N, H, W, C) -> (N, C, H, W)
-            frames = frames.permute(0, 3, 1, 2)
-
-        # Convert to video format: (N, C, H, W) -> (1, C, N, H, W)
-        frames_video = frames.unsqueeze(0).permute(0, 2, 1, 3, 4)
-        frames_video = frames_video * 2.0 - 1.0
-        current_device = vae.device
-        if current_device != self.device:
-            vae.to(self.device)
-
-        latents = vae.encode(frames_video.to(self.device))
-        vae.to(current_device)
-        return {self.rank_id: latents}
+            return
+        vae_model = self.model_pool.get_model(model_key)
+        vae_encoder = KsanaUnitFactory.create(KsanaUnitType.ENCODER, model_key)
+        return vae_encoder.run(vae_model, device=self.device, **kwargs)
 
     @time_range
     def forward_vae_decode(self, model_key, **kwargs):
