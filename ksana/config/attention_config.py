@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from enum import Enum
 
+from ksana.accelerator import platform
+
 
 class KsanaAttentionBackend(Enum):
     SAGE_ATTN = "sage_attention"
@@ -15,6 +17,9 @@ class KsanaAttentionBackend(Enum):
     def get_supported_list(exclude: list[KsanaAttentionBackend] = None) -> list[str]:
         if exclude is None:
             exclude = []
+        # NPU only supports TORCH_SDPA
+        if platform.is_npu():
+            return [KsanaAttentionBackend.TORCH_SDPA.value]
         return [b.value for b in KsanaAttentionBackend if b not in exclude]
 
     @staticmethod
@@ -27,9 +32,13 @@ class KsanaAttentionBackend(Enum):
             return False
 
 
+# Attention backend: TORCH_SDPA for NPU, FLASH_ATTN for GPU
+DEFAULT_ATTENTION_BACKEND = KsanaAttentionBackend.TORCH_SDPA if platform.is_npu() else KsanaAttentionBackend.FLASH_ATTN
+
+
 @dataclass(frozen=True)
 class KsanaAttentionConfig:
-    backend: KsanaAttentionBackend | None = field(default=KsanaAttentionBackend.FLASH_ATTN)
+    backend: KsanaAttentionBackend | None = field(default=DEFAULT_ATTENTION_BACKEND)
 
     def __post_init__(self):
         if not KsanaAttentionBackend.support(self.backend):

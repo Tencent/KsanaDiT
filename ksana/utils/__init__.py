@@ -1,3 +1,4 @@
+from ..accelerator.dtype import normalize_dtype_for_platform
 from .debug import print_recursive
 from .device import get_intermediate_device
 from .distribute import all_to_all, gather_forward, get_gpu_count, get_rank_id, get_world_size
@@ -41,6 +42,7 @@ __all__ = [
     "log",
     "reset_logging",
     "singleton",
+    "normalize_dtype_for_platform",
     "evolve_with_recommend",
     "str_to_list",
     "is_file_or_dir",

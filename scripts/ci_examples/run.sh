@@ -26,5 +26,10 @@ conda activate env-novelai
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 export CUDA_VISIBLE_DEVICES=${GPU_CARDS}
 
+# Only set Ascend RT visible devices for NPU
+if which npu-smi > /dev/null 2>&1; then
+    export ASCEND_RT_VISIBLE_DEVICES=${GPU_CARDS}
+fi
+
 cd /ci_workspace/${BK_CI_GIT_REPO_HEAD_COMMIT_ID}/
 python examples/${EXAMPLES}.py

@@ -3,6 +3,7 @@ import sys
 from abc import abstractmethod
 
 import torch
+import torch.nn.functional as F
 from tqdm import tqdm
 
 from ..cache import create_hybrid_cache
@@ -334,7 +335,11 @@ class KsanaBaseGenerator(KsanaRunnerUnit):
 
             noise_latent_shape = noise_latent.shape
             step_out = sample_scheduler_step_func(noise_pred, t, noise_latent, return_dict=False, generator=seed_g)
-            noise_latent_forward = step_out if sample_config.solver == KsanaSolverType.EULER else step_out[0]
+            noise_latent_forward = step_out[0] if isinstance(step_out, (tuple, list)) else step_out
+            if noise_latent_forward.numel() != int(torch.prod(torch.tensor(noise_latent_shape))):
+                raise RuntimeError(
+                    f"can not reshape {noise_latent_forward.shape} to {noise_latent_shape}, please debug sample solver"
+                )
             noise_latent_forward = noise_latent_forward.reshape(noise_latent_shape)
 
             if video_control_config["bidirectional_sampling"] and noise_latent.ndim == 5:
@@ -890,6 +895,9 @@ class KsanaQwenGenerator(KsanaBaseGenerator):
         img_shapes = self._get_latent_img_shapes()
         positive_txt_seq_lens = positive_mask.sum(dim=1).tolist()
         negative_txt_seq_lens = negative_mask.sum(dim=1).tolist()
+        positive_embeds, positive_mask, negative_embeds, negative_mask = self._pad_text_pair(
+            positive_embeds, positive_mask, negative_embeds, negative_mask
+        )
         use_cfg = self._use_cfg(cfg_scale)
         if use_cfg and combine_cond_uncond:
             combine_x = torch.cat([noise_latent, noise_latent], dim=0)
@@ -970,3 +978,15 @@ class KsanaQwenGenerator(KsanaBaseGenerator):
         sample_config = evolve_with_recommend(sample_config, {"shift": mu})
         log.info(f"update sample_config shift to {sample_config}")
         return sample_config
+
+    def _pad_text_pair(self, embeds_a, mask_a, embeds_b, mask_b):
+        max_txt_len = max(embeds_a.shape[1], embeds_b.shape[1])
+        pad_a = max_txt_len - embeds_a.shape[1]
+        pad_b = max_txt_len - embeds_b.shape[1]
+        if pad_a > 0:
+            embeds_a = F.pad(embeds_a, (0, 0, 0, pad_a))
+            mask_a = F.pad(mask_a, (0, pad_a))
+        if pad_b > 0:
+            embeds_b = F.pad(embeds_b, (0, 0, 0, pad_b))
+            mask_b = F.pad(mask_b, (0, pad_b))
+        return embeds_a, mask_a, embeds_b, mask_b

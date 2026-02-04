@@ -1,7 +1,11 @@
 import os
 import unittest
 
-from nodes_test_helper import COMFY_MODEL_DIFFUSION_ROOT, TEST_MODELS, run_load_and_generate
+from nodes_test_helper import (
+    COMFY_MODEL_DIFFUSION_ROOT,
+    iter_test_models,
+    run_load_and_generate,
+)
 
 from ksana.utils.distribute import get_rank_id
 
@@ -30,7 +34,7 @@ class TestBatchingForAllModels(unittest.TestCase):
             self.assertIsNone(generate_output)
 
     def test_batching(self):
-        for model_name, img_shape, text_shape, expected_model_key in TEST_MODELS:
+        for model_name, img_shape, text_shape, expected_model_key in iter_test_models():
             for prompt_size in PROMPT_SIZE:
                 text_shape = text_shape.copy()
                 text_shape[0] = prompt_size

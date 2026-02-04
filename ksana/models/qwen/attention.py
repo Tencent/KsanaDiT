@@ -9,6 +9,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from ksana.accelerator import platform
 from ksana.operations.fuse_qkv import QKVProjectionMixin
 from ksana.utils import all_to_all, get_rank_id, get_world_size
 from ksana.utils.distribute import all_gather
@@ -284,6 +285,10 @@ class QwenDoubleStreamAttention(nn.Module, QKVProjectionMixin):
     def _gather_text_output(self, x: torch.Tensor) -> torch.Tensor:
         if self.sp_size == 1:
             return x
+        # NPU's HCCL requires contiguous tensors for all_gather operations,
+        # while GPU's NCCL handles non-contiguous tensors internally.
+        if platform.is_npu():
+            x = x.contiguous()
         gathered = all_gather(x)
         return torch.cat(gathered, dim=2)
 

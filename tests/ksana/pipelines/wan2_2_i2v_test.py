@@ -1,9 +1,19 @@
 import unittest
 
 import torch
-from pipeline_test_helper import PROMPTS, SEED, TEST_EPS_PLACE, TEST_FRAME_NUM, TEST_PORT, TEST_SIZE, TEST_STEPS
+from pipeline_test_helper import (
+    PROMPTS,
+    SEED,
+    TEST_EPS_PLACE,
+    TEST_FRAME_NUM,
+    TEST_PORT,
+    TEST_SIZE,
+    TEST_STEPS,
+    get_platform_config_or_skip,
+)
 
 from ksana import KsanaPipeline
+from ksana.accelerator import platform
 from ksana.config import (
     KsanaAttentionBackend,
     KsanaAttentionConfig,
@@ -18,10 +28,28 @@ from ksana.utils.distribute import get_gpu_count
 
 
 class TestKsanaPipelineWanI2V(unittest.TestCase):
+    MODEL_CONFIG = KsanaModelConfig(attention_config=KsanaAttentionConfig())
 
     def test_simple_i2v(self):
         print("-----------------test_simple_i2v-----------------")
-        pipeline = KsanaPipeline.from_models("./Wan2.2-I2V-A14B", dist_config=KsanaDistributedConfig(port=TEST_PORT))
+        config = {
+            "GPU": {
+                "mean0": 0.6250113248825073,
+                "mean1": 0.47325804829597473,
+                "mean2": 0.4958144426345825,
+            },
+            "NPU": {
+                "mean0": 0.6235621571540833,
+                "mean1": 0.4429611563682556,
+                "mean2": 0.44211167097091675,
+            },
+        }
+        expected_means = get_platform_config_or_skip(config, test_name="wan_i2v.test_simple_i2v")
+        pipeline = KsanaPipeline.from_models(
+            "./Wan2.2-I2V-A14B",
+            model_config=self.MODEL_CONFIG,
+            dist_config=KsanaDistributedConfig(port=TEST_PORT),
+        )
         videos = pipeline.generate(
             PROMPTS[0],
             img_path="./examples/images/input.png",
@@ -57,17 +85,26 @@ class TestKsanaPipelineWanI2V(unittest.TestCase):
         mean2 = videos[1].cpu().abs().mean().item()
         with self.subTest(msg="bs 2 Shape Check"):
             self.assertEqual(list(videos.shape), [2, 3, TEST_FRAME_NUM, 576, 576])
+        places = TEST_EPS_PLACE if platform.is_gpu() else 1
         with self.subTest(msg="Mean 0 Check"):
-            self.assertAlmostEqual(mean0, 0.6250113248825073, places=TEST_EPS_PLACE)
+            self.assertAlmostEqual(mean0, expected_means["mean0"], places=places)
 
-        with self.subTest(msg="Mean 1 Check"):
-            self.assertAlmostEqual(mean1, 0.47325804829597473, places=TEST_EPS_PLACE)
+            with self.subTest(msg="Mean 1 Check"):
+                self.assertAlmostEqual(mean1, expected_means["mean1"], places=places)
 
-        with self.subTest(msg="Mean 2 Check"):
-            self.assertAlmostEqual(mean2, 0.4958144426345825, places=TEST_EPS_PLACE)
+            with self.subTest(msg="Mean 2 Check"):
+                self.assertAlmostEqual(mean2, expected_means["mean2"], places=places)
 
     def test_turbo_wan_i2v(self):
         print("-----------------test_turbo_wan_i2v-----------------")
+        config = {
+            "GPU": {
+                "mean0": 0.6127950549125671,
+                "mean1": 0.44853246212005615,
+                "mean2": 0.45431801676750183,
+            }
+        }
+        expected_means = get_platform_config_or_skip(config, test_name="wan_i2v.test_turbo_wan_i2v")
         sage_sla_config = KsanaSageSLAConfig(
             dense_attention_config=KsanaAttentionConfig(backend=KsanaAttentionBackend.SAGE_ATTN), topk=0.1
         )
@@ -125,14 +162,15 @@ class TestKsanaPipelineWanI2V(unittest.TestCase):
 
         with self.subTest(msg="bs 2 Shape Check"):
             self.assertEqual(list(videos.shape), [2, 3, TEST_FRAME_NUM, 576, 576])
+
         with self.subTest(msg="Mean 0 Check"):
-            self.assertAlmostEqual(mean0, 0.6127950549125671, places=places)
+            self.assertAlmostEqual(mean0, expected_means["mean0"], places=places)
 
         with self.subTest(msg="Mean 1 Check"):
-            self.assertAlmostEqual(mean1, 0.44853246212005615, places=places)
+            self.assertAlmostEqual(mean1, expected_means["mean1"], places=places)
 
         with self.subTest(msg="Mean 2 Check"):
-            self.assertAlmostEqual(mean2, 0.45431801676750183, places=places)
+            self.assertAlmostEqual(mean2, expected_means["mean2"], places=places)
 
 
 if __name__ == "__main__":

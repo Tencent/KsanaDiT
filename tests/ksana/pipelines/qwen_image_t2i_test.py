@@ -1,10 +1,17 @@
 import unittest
 
 import torch
-from pipeline_test_helper import PROMPTS, SEED, TEST_PORT, TEST_STEPS
+from pipeline_test_helper import (
+    PROMPTS,
+    SEED,
+    TEST_PORT,
+    TEST_STEPS,
+    get_platform_config_or_skip,
+)
 
 from ksana import KsanaPipeline
 from ksana.config import (
+    KsanaAttentionConfig,
     KsanaDistributedConfig,
     KsanaModelConfig,
     KsanaRuntimeConfig,
@@ -25,9 +32,17 @@ class TestKsanaQwenImageT2I(unittest.TestCase):
 
     def test_batch_prompts(self):
         print("-----------------qwen_image test_batch_prompts-----------------")
+        config = {
+            "GPU": {"mean0": 0.3167570531368255, "mean1": 0.6125394105911255, "mean2": 0.5676110982894897},
+            "NPU": {"mean0": 0.304778993, "mean1": 0.6123599410057068, "mean2": 0.598247766494751},
+        }
+        expected = get_platform_config_or_skip(config, test_name="qwen_image.test_batch_prompts")
         generator = KsanaPipeline.from_models(
             "./Qwen-Image",
-            model_config=KsanaModelConfig(run_dtype=TEST_DTYPE),
+            model_config=KsanaModelConfig(
+                run_dtype=TEST_DTYPE,
+                attention_config=KsanaAttentionConfig(),
+            ),
             dist_config=KsanaDistributedConfig(port=TEST_PORT),
             offload_device="cpu",
         )
@@ -49,11 +64,11 @@ class TestKsanaQwenImageT2I(unittest.TestCase):
         mean1 = images[1].detach().float().mean().item()
         mean2 = images[2].detach().float().mean().item()
         with self.subTest(msg="Mean 0 Check"):
-            self.assertAlmostEqual(mean0, 0.324187323, places=TEST_EPS_PLACE)
+            self.assertAlmostEqual(mean0, expected["mean0"], places=TEST_EPS_PLACE)
         with self.subTest(msg="Mean 1 Check"):
-            self.assertAlmostEqual(mean1, 0.6177374720573425, places=TEST_EPS_PLACE)
+            self.assertAlmostEqual(mean1, expected["mean1"], places=TEST_EPS_PLACE)
         with self.subTest(msg="Mean 2 Check"):
-            self.assertAlmostEqual(mean2, 0.5726516246795654, places=TEST_EPS_PLACE)
+            self.assertAlmostEqual(mean2, expected["mean2"], places=TEST_EPS_PLACE)
 
 
 if __name__ == "__main__":

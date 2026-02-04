@@ -1,12 +1,14 @@
 import os
 import unittest
 
-from nodes_test_helper import COMFY_MODEL_DIFFUSION_ROOT, TEST_MODELS, TEST_STEPS, run_load_and_generate
+from nodes_test_helper import COMFY_MODEL_DIFFUSION_ROOT, TEST_STEPS, iter_test_models, run_load_and_generate
 
+from ksana.accelerator import platform
 from ksana.config import KsanaLinearBackend
 from ksana.utils.distribute import get_rank_id
 
 
+@unittest.skipIf(platform.is_npu(), "Linear backend tests require GPU")
 class TestLinearForAllModels(unittest.TestCase):
 
     def run_once(self, model_name, image_latent_shape, text_shape, expected_model_key, linear_backend):
@@ -26,8 +28,15 @@ class TestLinearForAllModels(unittest.TestCase):
             self.assertIsNone(generate_output)
 
     def test_all_linear_backend(self):
-        for model_name, img_shape, text_shape, expected_model_key in TEST_MODELS:
+        for model_name, img_shape, text_shape, expected_model_key in iter_test_models():
             for linear_backend in KsanaLinearBackend.get_supported_list():
+                backend_enum = KsanaLinearBackend(linear_backend)
+                if not platform.is_gpu() and backend_enum in (
+                    KsanaLinearBackend.FP8_GEMM,
+                    KsanaLinearBackend.FP8_GEMM_DYNAMIC,
+                ):
+                    print(f"Skipping linear backend {backend_enum} on non-GPU platform")
+                    continue
                 if KsanaLinearBackend(linear_backend) == KsanaLinearBackend.FP8_GEMM and "fp8" not in model_name:
                     # Note: fp8_gemm only can used in fp8
                     print(f"-----------------skip test {model_name} {linear_backend} -----------------")

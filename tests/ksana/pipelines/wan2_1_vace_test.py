@@ -1,6 +1,7 @@
 import unittest
 
 import torch
+from pipeline_test_helper import get_platform_config_or_skip
 
 from ksana import KsanaPipeline
 from ksana.config import (
@@ -38,6 +39,10 @@ class TestKsanaPipelineWanVace(unittest.TestCase):
 
     def test_simple(self):
         print("-----------------wan2.1 vace test_simple-----------------")
+        config = {
+            "GPU": {"mean0": 0.80013597},
+        }
+        expected = get_platform_config_or_skip(config, test_name="wan2_1_vace.test_simple")
         pipeline = KsanaPipeline.from_models("./Wan2.1-VACE-14B")
         video = pipeline.generate(
             prompts[0],
@@ -58,6 +63,7 @@ class TestKsanaPipelineWanVace(unittest.TestCase):
         )
         self._assert_video_tensor_ok(video)
         mean = video.detach().float().abs().mean().item()
+        self.assertAlmostEqual(mean, expected["mean0"], places=TEST_EPS_PLACE)
         self.assertAlmostEqual(mean, 0.80013597, places=TEST_EPS_PLACE)
 
 

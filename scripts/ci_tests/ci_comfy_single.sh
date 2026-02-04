@@ -2,7 +2,6 @@
 set -xe
 
 BK_CI_GIT_REPO_HEAD_COMMIT_ID=$1
-GIT_REPO_HEAD_COMMIT_ID=$1
 GPU_CARDS=$2
 COMFYUI_PORT=$3
 if [ -z "${BK_CI_GIT_REPO_HEAD_COMMIT_ID}" ]; then
@@ -19,10 +18,8 @@ echo "BK_CI_GIT_REPO_HEAD_COMMIT_ID: ${BK_CI_GIT_REPO_HEAD_COMMIT_ID} "
 echo "USE GPUS ${GPU_CARDS}"
 echo "USE COMFYUI_PORT ${COMFYUI_PORT}"
 
-source /data/miniconda3/etc/profile.d/conda.sh
-conda activate env-novelai
-
-unset http_proxy https_proxy HTTP_PROXY HTTPS_PROXY
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "${SCRIPT_DIR}/test_env.sh" ${GPU_CARDS}
 
 cd /ci_workspace/${BK_CI_GIT_REPO_HEAD_COMMIT_ID}/tests/comfy
 python workflow_test.py --workflows-file ./test_configs.json --seed 321 --gpus ${GPU_CARDS} --port ${COMFYUI_PORT}

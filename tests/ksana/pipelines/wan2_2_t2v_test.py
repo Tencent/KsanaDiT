@@ -11,9 +11,11 @@ from pipeline_test_helper import (
     TEST_PORT,
     TEST_SIZE,
     TEST_STEPS,
+    get_platform_config_or_skip,
 )
 
 from ksana import KsanaPipeline
+from ksana.accelerator import platform
 from ksana.config import (
     KsanaAttentionBackend,
     KsanaAttentionConfig,
@@ -28,10 +30,28 @@ from ksana.config import (
 
 
 class TestKsanaPipelineWanT2V(unittest.TestCase):
+    MODEL_CONFIG = KsanaModelConfig(attention_config=KsanaAttentionConfig())
 
     def test_batch_size_per_prompt(self):
         print("-----------------test_batch_size_per_prompt-----------------")
-        pipeline = KsanaPipeline.from_models("./Wan2.2-T2V-A14B", dist_config=KsanaDistributedConfig(port=TEST_PORT))
+        config = {
+            "GPU": {
+                "mean0": 0.666492760181427,
+                "mean1": 0.6856070756912231,
+                "mean2": 0.6659576892852783,
+            },
+            "NPU": {
+                "mean0": 0.6717330813407898,
+                "mean1": 0.6497427821159363,
+                "mean2": 0.6722963452339172,
+            },
+        }
+        expected_means = get_platform_config_or_skip(config, test_name="wan_t2v.test_batch_size_per_prompt")
+        pipeline = KsanaPipeline.from_models(
+            "./Wan2.2-T2V-A14B",
+            model_config=self.MODEL_CONFIG,
+            dist_config=KsanaDistributedConfig(port=TEST_PORT),
+        )
         batch_size_per_prompts = [2, 3]
         videos = pipeline.generate(
             PROMPTS,
@@ -51,12 +71,12 @@ class TestKsanaPipelineWanT2V(unittest.TestCase):
             )
         mean0 = videos[0].cpu().abs().mean().item()
         mean1 = videos[1].cpu().abs().mean().item()
-
+        places = TEST_EPS_PLACE if platform.is_gpu() else 1
         with self.subTest(msg="Mean 0 Check"):
-            self.assertAlmostEqual(mean0, 0.666492760181427, places=TEST_EPS_PLACE)
+            self.assertAlmostEqual(mean0, expected_means["mean0"], places=places)
 
         with self.subTest(msg="Mean 1 Check"):
-            self.assertAlmostEqual(mean1, 0.6856070756912231, places=TEST_EPS_PLACE)
+            self.assertAlmostEqual(mean1, expected_means["mean1"], places=places)
 
         videos = pipeline.generate(
             PROMPTS[0],
@@ -74,11 +94,26 @@ class TestKsanaPipelineWanT2V(unittest.TestCase):
             self.assertEqual(list(videos.shape), [1, 3, TEST_FRAME_NUM, TEST_SIZE[1], TEST_SIZE[0]])
         mean2 = videos.cpu().abs().mean().item()
         with self.subTest(msg="Mean 2 Check"):
-            self.assertAlmostEqual(mean2, 0.6659576892852783, places=TEST_EPS_PLACE)
+            self.assertAlmostEqual(mean2, expected_means["mean2"], places=TEST_EPS_PLACE)
 
     def test_larger_seq_batch(self):
         print("-----------------test_larger_seq_batch-----------------")
-        pipeline = KsanaPipeline.from_models("./Wan2.2-T2V-A14B", dist_config=KsanaDistributedConfig(port=TEST_PORT))
+        config = {
+            "GPU": {
+                "mean0": 0.518387496471405,
+                "mean1": 0.2239505499601364,
+            },
+            "NPU": {
+                "mean0": 0.43504077196121216,
+                "mean1": 0.27056941390037537,
+            },
+        }
+        expected_means = get_platform_config_or_skip(config, test_name="wan_t2v.test_larger_seq_batch")
+        pipeline = KsanaPipeline.from_models(
+            "./Wan2.2-T2V-A14B",
+            model_config=self.MODEL_CONFIG,
+            dist_config=KsanaDistributedConfig(port=TEST_PORT),
+        )
         videos = pipeline.generate(
             PROMPTS,
             sample_config=KsanaSampleConfig(steps=TEST_STEPS),
@@ -94,14 +129,18 @@ class TestKsanaPipelineWanT2V(unittest.TestCase):
             self.assertEqual(list(videos.shape), [len(PROMPTS), 3, 81, 720, 1280])
         mean0 = videos[0].cpu().abs().mean().item()
         mean1 = videos[1].cpu().abs().mean().item()
+        places = TEST_EPS_PLACE if platform.is_gpu() else 1
         with self.subTest(msg="Mean 0 Check"):
-            self.assertAlmostEqual(mean0, 0.518387496471405, places=TEST_EPS_PLACE)
+            self.assertAlmostEqual(mean0, expected_means["mean0"], places=places)
 
         with self.subTest(msg="Mean 1 Check"):
-            self.assertAlmostEqual(mean1, 0.2239505499601364, places=TEST_EPS_PLACE)
+            self.assertAlmostEqual(mean1, expected_means["mean1"], places=places)
 
+    @unittest.skipIf(not platform.is_gpu(), "FP8 pipeline test runs only on GPU")
     def test_fp8(self):
         print("-----------------test_fp8-----------------")
+        config = {"GPU": {"mean0": 0.66}}
+        expected = get_platform_config_or_skip(config, test_name="wan_t2v.test_fp8")
         low_noise_model_path = "./comfy_models/diffusion_models/wan2.2_t2v_low_noise_14B_fp8_scaled.safetensors"
         high_noise_model_path = "./comfy_models/diffusion_models/wan2.2_t2v_high_noise_14B_fp8_scaled.safetensors"
         text_dir = "./Wan2.2-T2V-A14B"
@@ -134,13 +173,16 @@ class TestKsanaPipelineWanT2V(unittest.TestCase):
         with self.subTest(msg="Shape Check"):
             self.assertEqual(list(video.shape), [1, 3, TEST_FRAME_NUM, TEST_SIZE[1], TEST_SIZE[0]])
         mean = video.cpu().abs().mean().item()
-        self.assertAlmostEqual(mean, 0.66, places=1)
+        self.assertAlmostEqual(mean, expected["mean0"], places=1)
 
     def test_lora(self):
         print("-----------------test_lora-----------------")
+        config = {"GPU": {"mean0": 0.24302400648593903}, "NPU": {"mean0": 0.2562920153141022}}
+        expected = get_platform_config_or_skip(config, test_name="wan_t2v.test_lora")
         pipeline = KsanaPipeline.from_models(
             "./Wan2.2-T2V-A14B",
             lora_config=KsanaLoraConfig("./Wan2.2-Lightning/Wan2.2-T2V-A14B-4steps-lora-rank64-Seko-V1"),
+            model_config=self.MODEL_CONFIG,
             dist_config=KsanaDistributedConfig(port=TEST_PORT),
         )
 
@@ -161,7 +203,7 @@ class TestKsanaPipelineWanT2V(unittest.TestCase):
                 [1, 3, RADIAL_ATTN_TEST_FRAME_NUM, RADIAL_ATTN_TEST_SIZE[1], RADIAL_ATTN_TEST_SIZE[0]],
             )
         mean = video.cpu().abs().mean().item()
-        self.assertAlmostEqual(mean, 0.24302400648593903, places=TEST_EPS_PLACE)
+        self.assertAlmostEqual(mean, expected["mean0"], places=TEST_EPS_PLACE)
 
 
 if __name__ == "__main__":

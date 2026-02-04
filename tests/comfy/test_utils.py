@@ -1,13 +1,4 @@
 #!/usr/bin/env python3
-"""
-ComfyUI 测试工具函数
-
-提供 ComfyUI 测试所需的通用工具函数：
-- Server 管理（启动、等待、关闭）
-- Workflow 加载和转换
-- WebSocket 通信
-- 执行监控
-"""
 
 import json
 import logging
@@ -93,8 +84,8 @@ def start_server(comfyui_root: Path | None = None, host: str = "127.0.0.1", port
     process = subprocess.Popen(
         ["python", "main.py", "--listen", host, "--port", str(port)],
         cwd=str(comfyui_root),
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
     )
 
     logger.info(f"Server PID: {process.pid}")

@@ -6,6 +6,8 @@ from pathlib import Path
 import torch
 import torch.nn as nn
 
+from ksana.accelerator import platform
+
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from ksana.operations.fuse_qkv import QKVProjectionMixin
 
@@ -113,7 +115,7 @@ class TestQKVProjectionMixinPerformance(unittest.TestCase):
         torch.testing.assert_close(k_sep, k_fused, rtol=0.01, atol=0.005)
         torch.testing.assert_close(v_sep, v_fused, rtol=0.01, atol=0.005)
 
-    @unittest.skipIf(not torch.cuda.is_available(), "CUDA not available")
+    @unittest.skipIf(not platform.is_gpu(), "CUDA not available")
     def test_mixin_performance_wan_style(self):
         self._run_mixin_performance_test(
             scenario_name="Wan (single stream, no bias)",
@@ -122,7 +124,7 @@ class TestQKVProjectionMixinPerformance(unittest.TestCase):
             bias=False,
         )
 
-    @unittest.skipIf(not torch.cuda.is_available(), "CUDA not available")
+    @unittest.skipIf(not platform.is_gpu(), "CUDA not available")
     def test_mixin_performance_qwen_style(self):
         self._run_mixin_performance_test(
             scenario_name="Qwen (image stream, with bias)",
@@ -131,7 +133,7 @@ class TestQKVProjectionMixinPerformance(unittest.TestCase):
             bias=True,
         )
 
-    @unittest.skipIf(not torch.cuda.is_available(), "CUDA not available")
+    @unittest.skipIf(not platform.is_gpu(), "CUDA not available")
     def test_mixin_performance_qwen_dual_stream(self):
         dim = 3072
         batch = 1

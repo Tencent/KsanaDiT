@@ -1,7 +1,11 @@
 import os
 import unittest
 
-from nodes_test_helper import COMFY_MODEL_DIFFUSION_ROOT, TEST_MODELS, run_load_and_generate
+from nodes_test_helper import (
+    COMFY_MODEL_DIFFUSION_ROOT,
+    iter_test_models,
+    run_load_and_generate,
+)
 
 from ksana.config import DBCacheConfig, DCacheConfig, KsanaHybridCacheConfig
 from ksana.models import KsanaModelKey
@@ -36,7 +40,7 @@ class TestCacheAllModels(unittest.TestCase):
             self.assertIsNone(generate_output)
 
     def test_all_cache_configs(self):
-        for model_name, img_shape, text_shape, expected_model_key in TEST_MODELS:
+        for model_name, img_shape, text_shape, expected_model_key in iter_test_models():
             if expected_model_key in [KsanaModelKey.Wan2_2_I2V_14B, KsanaModelKey.QwenImage_T2I]:
                 print(f"-----------------skip {expected_model_key}, cache not supported yet -----------------")
                 continue

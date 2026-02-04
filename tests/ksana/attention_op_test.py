@@ -3,6 +3,7 @@ import unittest
 import torch
 import torch.nn.functional as F
 
+from ksana.accelerator import platform
 from ksana.config import KsanaAttentionBackend, KsanaAttentionConfig
 from ksana.operations.attention import pick_attn_op
 
@@ -40,13 +41,11 @@ def _sdpa_reference(
 
 
 class TestLocalAttentionOpBackends(unittest.TestCase):
-    @unittest.skipIf(
-        not torch.cuda.is_available(),
-        "CUDA not available.",
-    )
-    def test_sdpa_cuda(self) -> None:
-        """SDPA backend should run on CUDA with basic correctness checks."""
-        device = torch.device("cuda")
+    @unittest.skipIf(not (platform.is_gpu() or platform.is_npu()), "CUDA/NPU not available.")
+    def test_sdpa_accelerator(self) -> None:
+        """SDPA backend should run on CUDA or NPU with basic correctness checks."""
+        device_type = "cuda" if platform.is_gpu() else "npu"
+        device = torch.device(device_type)
         q, k, v = _make_inputs(device=device, dtype=torch.float16)
 
         # Set deterministic seed for reproducible logs
@@ -65,6 +64,7 @@ class TestLocalAttentionOpBackends(unittest.TestCase):
         self.assertEqual(out.shape, q.shape)
         self.assertFalse(torch.isnan(out).any())
 
+    @unittest.skipIf(not platform.is_gpu(), "CUDA not available.")
     def test_flash_attn_cuda(self) -> None:
         """FlashAttention backend should initialize and run on CUDA."""
         device = torch.device("cuda")
@@ -87,6 +87,7 @@ class TestLocalAttentionOpBackends(unittest.TestCase):
         self.assertEqual(out.shape, q.shape)
         self.assertFalse(torch.isnan(out).any())
 
+    @unittest.skipIf(not platform.is_gpu(), "CUDA not available.")
     def test_sage_attn_cuda(self) -> None:
         """SageAttention backend should initialize and run on CUDA."""
         device = torch.device("cuda")
@@ -109,6 +110,7 @@ class TestLocalAttentionOpBackends(unittest.TestCase):
         self.assertEqual(out.shape, q.shape)
         self.assertFalse(torch.isnan(out).any())
 
+    @unittest.skipIf(not platform.is_gpu(), "CUDA not available.")
     def test_flash_attn_accuracy_vs_sdpa(self) -> None:
         """FlashAttention output should be numerically close to SDPA baseline."""
         device = torch.device("cuda")
@@ -137,6 +139,7 @@ class TestLocalAttentionOpBackends(unittest.TestCase):
         self.assertEqual(out.shape, ref.shape)
         torch.testing.assert_close(out, ref, rtol=1e-2, atol=1e-3)
 
+    @unittest.skipIf(not platform.is_gpu(), "CUDA not available.")
     def test_sage_attn_accuracy_vs_sdpa(self) -> None:
         """SageAttention output should be numerically close to SDPA baseline."""
         device = torch.device("cuda")

@@ -17,6 +17,8 @@ from test_utils import (
     wait_for_completion,
 )
 
+from ksana.accelerator import platform as runtime_platform
+
 # 配置日志
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
 logger = logging.getLogger(__name__)
@@ -171,6 +173,18 @@ def test_workflow(workflow_path: str, params: dict, expect_values: dict | None =
         return False
 
 
+def _resolve_expectation(config: dict, num_gpus: int):
+    platform_expect = config.get("platform_expect_values")
+    platform_key = "NPU" if runtime_platform.is_npu() else "GPU" if runtime_platform.is_gpu() else "CPU"
+    platform_config = platform_expect.get(platform_key)
+    if platform_config:
+        expect_key = "multi" if num_gpus > 1 else "single"
+        expect_values = platform_config.get(expect_key)
+        if expect_values:
+            return expect_values
+    return None
+
+
 def run_workflows_batch(
     comfyui_root: str,
     workflow_configs: list,
@@ -190,6 +204,10 @@ def run_workflows_batch(
         workflow_path_list = [config["workflow_path"] for config in configs]
         logger.info(f"开始执行 workflow 配置组 [{i}/{len(workflow_configs)}] {workflow_path_list}")
         for j, config in enumerate(configs, 1):
+            expect_values = _resolve_expectation(config, num_gpus)
+            if expect_values is None:
+                logger.info(f"配置 {config} 在当前平台无可运行 workflow，跳过")
+                continue
             if restart_server:
                 server_process = start_server(comfyui_root=comfyui_root, port=port)
             config["seed"] = seed
@@ -199,9 +217,6 @@ def run_workflows_batch(
             logger.info("=" * 60)
 
             workflow_start_time = time.time()
-            expect_values = config.get("gpus_expect_values") if num_gpus > 1 else config.get("expect_values")
-            if expect_values is None:
-                expect_values = config.get("expect_values")
             success = test_workflow(
                 workflow_path=config["workflow_path"], params=config, expect_values=expect_values, port=port
             )
@@ -229,7 +244,6 @@ def create_argument_parser():
 示例:
   # 单个 workflow
     python flow_tests.py --steps 3 --width 1280 --height 720 --frames 25
-
   # 多个 workflow，从配置文件加载多个 workflow，配置文件格式：workflows_config.json
     python flow_tests.py --workflows-file workflows_config.json
 注意:
@@ -335,8 +349,11 @@ def main():
     server_process = None
 
     try:
-        os.environ["CUDA_VISIBLE_DEVICES"] = args.gpus
-        logger.info(f"设置 CUDA_VISIBLE_DEVICES = {args.gpus}")
+        if runtime_platform.is_npu():
+            os.environ["ASCEND_RT_VISIBLE_DEVICES"] = args.gpus
+        else:
+            os.environ["CUDA_VISIBLE_DEVICES"] = args.gpus
+        logger.info(f"设置 VISIBLE_DEVICES = {args.gpus}")
         num_gpus = len(args.gpus.split(","))
 
         logger.info("=" * 60)

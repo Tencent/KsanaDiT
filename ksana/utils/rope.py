@@ -1,6 +1,6 @@
-from __future__ import annotations
-
 import torch
+
+from ..accelerator.dtype import normalize_dtype_for_platform
 
 # #################### default rope ###########################
 
@@ -74,6 +74,11 @@ def apply_default_rope(
     if head_dim % 2 != 0:
         raise ValueError(f"head_dim must be even for RoPE, got {head_dim}")
 
+    rope_dtype = normalize_dtype_for_platform(torch.float64)
+
+    complex_dtype = normalize_dtype_for_platform(torch.complex128)  # 在 NPU 上返回 complex64
+    freqs = freqs.to(complex_dtype)
+
     half_dim = head_dim // 2
     freqs_split = _split_default_rope_freqs(freqs, half_dim)
 
@@ -93,14 +98,14 @@ def apply_default_rope(
             freqs_rank = freqs_full[start:end]
 
             x_i = torch.view_as_complex(
-                x[sample_index, :local_seq_len].to(torch.float64).reshape(local_seq_len, num_heads, -1, 2)
+                x[sample_index, :local_seq_len].to(rope_dtype).reshape(local_seq_len, num_heads, -1, 2)
             )
             x_i = torch.view_as_real(x_i * freqs_rank).flatten(2)
             x_i = torch.cat([x_i, x[sample_index, local_seq_len:]])
             outputs.append(x_i)
         else:
             x_i = torch.view_as_complex(
-                x[sample_index, :true_seq_len].to(torch.float64).reshape(true_seq_len, num_heads, -1, 2)
+                x[sample_index, :true_seq_len].to(rope_dtype).reshape(true_seq_len, num_heads, -1, 2)
             )
             x_i = torch.view_as_real(x_i * freqs_full).flatten(2)
             x_i = torch.cat([x_i, x[sample_index, true_seq_len:]])

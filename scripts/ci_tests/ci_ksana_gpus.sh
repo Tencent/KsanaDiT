@@ -1,5 +1,4 @@
 #!/bin/bash
-
 set -xe
 
 BK_CI_GIT_REPO_HEAD_COMMIT_ID=$1
@@ -19,15 +18,13 @@ echo "BK_CI_GIT_REPO_HEAD_COMMIT_ID: ${BK_CI_GIT_REPO_HEAD_COMMIT_ID} "
 echo "USE GPUS ${GPU_CARDS}"
 echo "USE KSANA_TEST_PORT ${KSANA_TEST_PORT}"
 
-# sudo su - mqq
-source /data/miniconda3/etc/profile.d/conda.sh
-conda activate env-novelai
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "${SCRIPT_DIR}/test_env.sh" ${GPU_CARDS}
 
 export KSANA_TEST_PORT=${KSANA_TEST_PORT}
 export CUDA_VISIBLE_DEVICES=${GPU_CARDS}
 cd /ci_workspace/${BK_CI_GIT_REPO_HEAD_COMMIT_ID}/
 pytest -s -v tests/ksana/pipelines/
-
 
 for file in "tests/ksana/nodes/*.py"; do
     [ -e "$file" ] || continue
