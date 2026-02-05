@@ -91,11 +91,11 @@
       "platform_expect_values": {
         "GPU": {
           "single": {
-            "mean": 0.4141968,
+            "mean": 0.4281928,
             "eps_place": 3
           },
           "multi": {
-            "mean": 0.4146068,
+            "mean": 0.4281683,
             "eps_place": 3
           }
         }

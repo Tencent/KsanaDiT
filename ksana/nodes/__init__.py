@@ -1,5 +1,6 @@
 from .attn_config import attention_config, radial_sage_attention_config, sage_sla_config
 from .cache import KsanaNodeDBCache, custom_step_cache, dcache, easy_cache, hybrid_cache, mag_cache, teacache
+from .convert import convert_text_embeds_to_ksana
 from .generate import generate
 from .load import KsanaNodeModelLoader
 from .lora import build_list_of_lora_config
@@ -10,6 +11,7 @@ from .types import (
     KSANA_CACHE_CONFIG,
     KSANA_CATEGORY_CACHE,
     KSANA_CATEGORY_CONFIGS,
+    KSANA_CATEGORY_CONVERTER,
     KSANA_CATEGORY_LORA,
     KSANA_CATEGORY_UTILS,
     KSANA_CATEGORY_VAE,
@@ -38,6 +40,7 @@ __all__ = [
     "KSANA_CACHE_CONFIG",
     "KSANA_CATEGORY_UTILS",
     "KSANA_CATEGORY_CONFIGS",
+    "KSANA_CATEGORY_CONVERTER",
     "KSANA_TORCH_COMPILE",
     "KSANA_ATTENTION_CONFIG",
     "KSANA_LORA",
@@ -77,4 +80,5 @@ __all__ = [
     "attention_config",
     "radial_sage_attention_config",
     "sage_sla_config",
+    "convert_text_embeds_to_ksana",
 ]
