@@ -2,109 +2,111 @@
 
 <div align="center">
 
-**高性能视频/图像生成 DiT (Diffusion Transformer) 推理框架**
+**High-Performance DiT (Diffusion Transformer) Inference Framework for Video & Image Generation**
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/)
 [![PyTorch](https://img.shields.io/badge/PyTorch-2.0%2B-orange.svg)](https://pytorch.org/)
 
-[English](README.md) | [简体中文](README_zh.md)
+[English](README.md) | [简体中文](README_cn.md)
 
 </div>
 
-## 📖 简介
+## 📖 Introduction
 
-KsanaDiT 是一个专为扩散模型（Diffusion Transformer）设计的高性能推理框架，支持视频生成（T2V/I2V）和图像生成（T2I）任务。框架提供了丰富的优化技术和灵活的配置选项，可在单卡或多卡环境下高效运行大规模 DiT 模型。
+KsanaDiT is a high-performance inference framework specifically designed for Diffusion Transformers (DiT), supporting video generation (T2V/I2V) and image generation (T2I) tasks. The framework provides a rich set of optimization techniques and flexible configuration options, enabling efficient execution of large-scale DiT models on single or multi-GPU environments.
 
-### ✨ 核心特性
+### ✨ Key Features
 
-- 🚀 **高性能推理**: 支持 FP8 量化、Torch Compile、多种注意力机制优化
-- 🎬 **多模态生成**: 支持文本生成视频（T2V）、图像生成视频（I2V）、文本生成图像（T2I）
-- 💾 **智能缓存**: 内置多种缓存策略（DCache、DBCache、EasyCache、MagCache、TeaCache、CustomCache）
-- 🔧 **灵活配置**: 支持 LoRA、多种采样器、自定义 Sigma 调度
-- 🌐 **分布式支持**: 支持单卡、多卡（torchrun）、Ray 分布式推理
-- 🎯 **多后端支持**: Flash Attention、Sage Attention、Radial Sage Attention、Torch SDPA
-- 🔌 **ComfyUI 集成**: 提供 ComfyUI 节点支持，方便可视化工作流
+- 🚀 **High-Performance Inference**: FP8 quantization, QKV Fuse, Torch Compile, and various attention optimizations
+- 🎯 **Multiple Attention Backends**: SLA Attention, Flash Attention, Sage Attention, Radial Sage Attention, Torch SDPA
+- 🎬 **Multi-Modal Generation**: Text-to-Video (T2V), Image-to-Video (I2V), Video Controllable Editing (Vace), Text-to-Image (T2I)
+- 💾 **Smart Caching**: Built-in caching strategies (DBCache, EasyCache (WIP), MagCache (WIP), TeaCache (WIP), CustomStepCache, HybridCache)
+- 🔧 **Flexible Configuration**: LoRA support, multiple samplers (Euler, UniPC, DPM++), custom sigma scheduling
+- 🌐 **Distributed Support**: Single-GPU, multi-GPU (torchrun), Ray distributed inference, Model Pool management
+- 🔌 **ComfyUI Integration**: ComfyUI node support (standalone submodule) for visual workflow design
+- 🖥️ **Multi-Platform Support**: GPU, NPU, XPU (WIP)
 
-## 📦 支持的模型
+## 📦 Supported Models
 
-### 视频生成模型
+### Video Generation Models
 
-| 模型 | 类型 | 参数量 | 支持任务 | 状态 |
-|------|------|--------|---------|------|
-| Wan2.2-T2V | 文本生成视频 | 5B/14B | T2V | ✅ |
-| Wan2.2-I2V | 图像生成视频 | 14B | I2V | ✅ |
+| Model | Type | Parameters | Tasks | Status |
+|-------|------|------------|-------|--------|
+| Turbo Diffusion | Image-to-Video | 14B | I2V | ✅ |
+| Wan2.2-T2V | Text-to-Video | 5B/14B | T2V | ✅ |
+| Wan2.2-I2V | Image-to-Video | 14B | I2V | ✅ |
+| Wan2.1-Vace | Video Controllable Editing | 14B | Vace | ✅ |
 
-### 图像生成模型
+### Image Generation Models
 
-| 模型 | 类型 | 参数量 | 支持任务 | 状态 |
-|------|------|--------|---------|------|
-| Qwen-Image | 文本生成图像 | 20B | T2I | ✅ |
+| Model | Type | Parameters | Tasks | Status |
+|-------|------|------------|-------|--------|
+| Qwen-Image | Text-to-Image | 20B | T2I | ✅ |
 
-## 🛠️ 安装
+## 🛠️ Installation
 
-### 环境要求
+### Docker
+
+We are actively working on Dockerfiles. Stay tuned!
+
+### Requirements
 
 - **Python**: >= 3.10, < 4.0
 - **PyTorch**: >= 2.0
-- **GPU 环境**:
+- **GPU Environment**:
   - CUDA >= 12.8
-  - 推荐显卡: NVIDIA
-- **NPU 环境**:
+  - Recommended: NVIDIA GPUs
+- **NPU Environment**:
   - CANN >= 8.0
-  - torch_npu 适配层
+  - torch_npu adapter
 
-### 基础安装
+### Basic Installation
 
 ```bash
-# 克隆仓库
-git clone https://github.com/your-org/KsanaDiT.git
+# Clone the repository
+git clone https://github.com/Tencent/KsanaDiT.git
 cd KsanaDiT
 
-# 安装基础依赖
+# Install base dependencies (GPU version by default)
 pip install -e .
 ```
 
-### GPU 加速安装
+### GPU Accelerated Installation
 
 ```bash
-# 安装 GPU 优化依赖（推荐）
+# Install GPU optimization dependencies (recommended)
 pip install -e ".[gpu]"
 
-# 或手动安装
+# Or install manually
 pip install xformers>=0.0.29 flash-attn>=2.6.0 triton>=3.2.0
 ```
 
-### NPU 环境安装
+### NPU Environment Installation
 
 ```bash
-# 1. 安装 CANN 工具包（参考官方文档）
+# 1. Install CANN toolkit (refer to official documentation)
 # https://www.hiascend.com/software/cann
 
-# 2. 安装 torch_npu
+# 2. Install torch_npu
 pip install torch-npu
 
-# 3. 安装 KsanaDiT（NPU 版本）
+# 3. Install KsanaDiT (NPU version)
 pip install -e ".[npu]"
 
-# 4. 验证 NPU 环境
+# 4. Verify NPU environment
 python -c "import torch_npu; print(torch_npu.npu.is_available())"
 ```
 
-### 开发环境安装
+### Release Installation
 
-```bash
-# 安装开发依赖
-pip install -e ".[dev]"
+Direct installation via wheel packages coming soon.
 
-# 配置代码风格检查
-pip install pre-commit black ruff
-pre-commit install
-```
+## 🚀 Quick Start
 
-## 🚀 快速开始
+For detailed code examples, refer to [examples](./examples/).
 
-### 文本生成视频 (T2V)
+### Text-to-Video (T2V)
 
 ```python
 import torch
@@ -115,15 +117,15 @@ from ksana.config import (
     KsanaSampleConfig,
 )
 
-# 创建推理管道
+# Create inference pipeline
 pipeline = KsanaPipeline.from_models(
     "path/to/Wan2.2-T2V-A14B",
     dist_config=KsanaDistributedConfig(num_gpus=1)
 )
 
-# 生成视频
+# Generate video
 video = pipeline.generate(
-    "街头摄影，戴耳机的酷女孩滑板，纽约街头，涂鸦墙背景",
+    "Street photography, cool girl with headphones skateboarding, New York streets, graffiti wall background",
     sample_config=KsanaSampleConfig(steps=40),
     runtime_config=KsanaRuntimeConfig(
         seed=1234,
@@ -133,10 +135,10 @@ video = pipeline.generate(
     ),
 )
 
-print(f"生成视频形状: {video.shape}")
+print(f"Generated video shape: {video.shape}")
 ```
 
-### 图像生成视频 (I2V)
+### Image-to-Video (I2V)
 
 ```python
 from ksana import KsanaPipeline
@@ -145,7 +147,7 @@ from ksana.config import KsanaRuntimeConfig, KsanaSampleConfig
 pipeline = KsanaPipeline.from_models("path/to/Wan2.2-I2V-A14B")
 
 video = pipeline.generate(
-    "女孩扇子轻微挥动，吹口仙气后，手上的闪电飞到空中开始打雷",
+    "Girl gently waves her fan, blows a breath of fairy air, lightning flies from her hand into the sky and thunder begins",
     img_path="input.png",
     sample_config=KsanaSampleConfig(steps=40),
     runtime_config=KsanaRuntimeConfig(
@@ -156,7 +158,11 @@ video = pipeline.generate(
 )
 ```
 
-### 文本生成图像 (T2I)
+#### Turbo Diffusion
+
+See [run_turbo_diffusion](./examples/wan/wan2_2_i2v.py:L115)
+
+### Text-to-Image (T2I)
 
 ```python
 import torch
@@ -174,7 +180,7 @@ pipeline = KsanaPipeline.from_models(
 )
 
 image = pipeline.generate(
-    "一只可爱的橘猫坐在窗台上，阳光透过窗户洒在它的毛发上",
+    "A cute orange cat sitting on a windowsill, sunlight streaming through the window onto its fur",
     sample_config=KsanaSampleConfig(
         steps=20,
         cfg_scale=4.0,
@@ -187,9 +193,9 @@ image = pipeline.generate(
 )
 ```
 
-## 🎯 高级功能
+## 🎯 Advanced Features
 
-### FP8 量化推理
+### FP8 Quantized Inference
 
 ```python
 import torch
@@ -213,7 +219,7 @@ pipeline = KsanaPipeline.from_models(
 )
 ```
 
-### LoRA 加速推理
+### LoRA Accelerated Inference
 
 ```python
 from ksana import KsanaPipeline
@@ -224,7 +230,7 @@ pipeline = KsanaPipeline.from_models(
     lora_config=KsanaLoraConfig("path/to/Wan2.2-Lightning-4steps-lora"),
 )
 
-# 使用 4 步快速生成
+# Fast generation with 4 steps
 video = pipeline.generate(
     prompt,
     sample_config=KsanaSampleConfig(
@@ -235,7 +241,7 @@ video = pipeline.generate(
 )
 ```
 
-### 智能缓存优化
+### Smart Cache Optimization - *Under Active Development*
 
 ```python
 from ksana.config.cache_config import (
@@ -244,7 +250,7 @@ from ksana.config.cache_config import (
     KsanaHybridCacheConfig,
 )
 
-# 使用混合缓存策略
+# Use hybrid caching strategy
 cache_config = KsanaHybridCacheConfig(
     step_cache=DCacheConfig(fast_degree=50),
     block_cache=DBCacheConfig(),
@@ -256,13 +262,13 @@ video = pipeline.generate(
 )
 ```
 
-### 多 GPU 分布式推理
+### Multi-GPU Distributed Inference
 
 ```bash
-# 方式 1: 使用 CUDA_VISIBLE_DEVICES
+# Method 1: Using CUDA_VISIBLE_DEVICES
 CUDA_VISIBLE_DEVICES=0,1,2,3 python your_script.py
 
-# 方式 2: 使用 torchrun
+# Method 2: Using torchrun
 CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 your_script.py
 ```
 
@@ -276,147 +282,146 @@ pipeline = KsanaPipeline.from_models(
 )
 ```
 
-## 📊 性能优化技术
+## 📊 Performance Optimization Techniques
 
-### 注意力机制后端
+### Quantization & Compute Optimization
 
-| 后端 | 特点 | 适用场景 |
-|------|------|---------|
-| Flash Attention | 高性能、内存高效 | 通用推荐 |
-| Sage Attention | 优化的注意力计算 | 长序列 |
-| Radial Sage Attention | 径向稀疏注意力 | 超长序列 |
-| Torch SDPA | PyTorch 原生实现 | 兼容性优先 |
+| Technique | Description | Effect |
+|-----------|-------------|--------|
+| FP8 GEMM | FP8 quantized matrix multiplication | Reduced memory, improved speed |
+| Torchao FP8 Dynamic | Dynamic FP8 quantization | Adaptive precision, balanced quality and performance |
+| QKV Fuse | QKV projection fusion | Reduced memory access, improved throughput |
+| torch.compile | Graph compilation optimization | 10-30% end-to-end speedup |
 
-### 缓存策略
+### Attention Backends
 
-| 策略 | 说明 | 加速比 |
-|------|------|--------|
-| DCache | 动态缓存，自适应步数 | 1.5-2x |
-| DBCache | 双缓冲块缓存 | 1.3-1.8x |
-| EasyCache | 简单缓存策略 | 1.2-1.5x |
-| MagCache | 幅度感知缓存 | 1.4-1.9x |
-| TeaCache | 时间高效自适应缓存 | 1.6-2.2x |
-| CustomCache | 自定义步数缓存 | 可配置 |
+| Backend | Characteristics | Use Case |
+|---------|-----------------|----------|
+| Flash Attention | High performance, memory efficient | General recommendation |
+| Sage Attention | Optimized attention computation | Long sequences |
+| Radial Sage Attention | Radial sparse attention | Very long sequences |
+| Torch SDPA | PyTorch native implementation | Compatibility priority |
 
-### 采样器
+### Caching Strategies
 
-- **Euler**: 快速采样，适合 4-8 步推理
-- **UniPC**: 高质量采样，适合 20-40 步推理
-- **FlowMatch Euler**: 流匹配采样，适合图像生成
+EasyCache, MagCache, TeaCache - *Under active optimization*
 
-## 🔧 配置说明
+### Samplers
 
-### 环境变量
+| Sampler | Description | Use Case |
+|---------|-------------|----------|
+| Euler | Fast sampling | 4-8 step inference |
+| UniPC | High-quality sampling | 20-40 step inference |
+| DPM++ | Efficient multi-step sampling | General purpose |
+| Turbo Diffusion | Ultra-fast sampling | 4-step inference |
+| FlowMatch Euler | Flow matching sampling | Image generation |
+
+## 🔧 Configuration
+
+### Environment Variables
 
 ```bash
-# 日志级别: debug/info/warn/error
+# Log level: debug/info/warn/error
 export KSANA_LOGGER_LEVEL=info
-
-# 启用内存分析
-export KSANA_MEMORY_PROFILER=1
-
-# 启用性能分析
-export KSANA_PROFILER=1
 ```
 
-详细配置说明请参考 [ENV_CONFIG.md](ENV_CONFIG.md)
+### Model Configuration
 
-### 模型配置
+The framework supports model parameter configuration via YAML files, located in the [`ksana/settings/`](ksana/settings/) directory:
 
-框架支持通过 YAML 文件配置模型参数，配置文件位于 [`ksana/settings/`](ksana/settings/) 目录：
+- [`qwen/t2i_20b.yaml`](ksana/settings/qwen/t2i_20b.yaml) - Qwen image generation model config
+- [`wan/t2v_14b.yaml`](ksana/settings/wan/t2v_14b.yaml) - Wan2.2 T2V model config
+- [`wan/i2v_14b.yaml`](ksana/settings/wan/i2v_14b.yaml) - Wan2.2 I2V model config
+- [`wan/vace_14b.yaml`](ksana/settings/wan/vace_14b.yaml) - Wan2.1 Vace model config
 
-- [`qwen/t2i_20b.yaml`](ksana/settings/qwen/t2i_20b.yaml) - Qwen 图像生成模型配置
-- [`wan/t2v_14b.yaml`](ksana/settings/wan/t2v_14b.yaml) - Wan2.2 T2V 模型配置
-- [`wan/i2v_14b.yaml`](ksana/settings/wan/i2v_14b.yaml) - Wan2.2 I2V 模型配置
+## 📚 Code Examples
 
-## 📚 示例代码
+Complete example code is available in the [`examples/`](examples/) directory:
 
-完整示例代码位于 [`examples/`](examples/) 目录：
+- [`examples/wan/wan2_2_t2v.py`](examples/wan/wan2_2_t2v.py) - Text-to-Video example
+- [`examples/wan/wan2_2_i2v.py`](examples/wan/wan2_2_i2v.py) - Image-to-Video example
+- [`examples/wan/wan2_1_vace.py`](examples/wan/wan2_1_vace.py) - Video controllable editing example
+- [`examples/qwen/qwen_image_t2i.py`](examples/qwen/qwen_image_t2i.py) - Text-to-Image example
 
-- [`examples/wan/wan2_2_t2v.py`](examples/wan/wan2_2_t2v.py) - 文本生成视频示例
-- [`examples/wan/wan2_2_i2v.py`](examples/wan/wan2_2_i2v.py) - 图像生成视频示例
-- [`examples/qwen/qwen_image_t2i.py`](examples/qwen/qwen_image_t2i.py) - 文本生成图像示例
+## 🧪 Testing
 
-## 🧪 测试
+We have comprehensive test coverage. Tests are currently time-consuming; we will continue to streamline them. For developers only.
 
 ```bash
-# 运行所有测试
+# Run all tests
 pytest tests/
 
-# 运行特定测试
+# Run specific tests
 pytest tests/ksana/pipelines/wan2_2_t2v_test.py
 
-# 运行 GPU 测试
+# Run GPU tests
 bash scripts/ci_tests/ci_ksana_gpus.sh
 ```
 
-## 🤝 贡献指南
+## 🤝 Contributing
 
-我们欢迎社区贡献！在提交 PR 之前，请确保：
+We welcome community contributions! Before submitting a PR, please ensure:
 
-1. 代码通过所有测试
-2. 遵循项目代码风格（使用 `black` 和 `ruff`）
-3. 添加必要的文档和注释
-4. 更新相关的 README 和示例
+1. Code passes all tests
+2. Follows project code style (using `black` and `ruff`)
+3. Includes necessary documentation and comments
+4. Updates relevant README and examples
 
 ```bash
-# 安装开发依赖
+# Install development dependencies
 pip install -e ".[dev]"
 
-# 运行代码风格检查
+# Run code style checks
 pre-commit run --all-files
 
-# 运行测试
+# Run tests
 pytest tests/
 ```
 
-## 📄 许可证
+## 📄 License
 
-本项目采用 Apache 2.0 许可证 - 详见 [LICENSE](LICENSE) 文件
+This project is licensed under the Apache 2.0 License - see the [LICENSE](LICENSE) file for details.
 
-## 🙏 致谢
+## 🙏 Acknowledgments
 
-本项目受益于以下优秀开源项目：
+This project benefits from the following excellent open-source projects:
 
-- [Wan-Video](https://github.com/Wan-Video/Wan2.2) - Wan2.2 视频生成模型
-- [ComfyUI-WanVideoWrapper](https://github.com/kijai/ComfyUI-WanVideoWrapper) - ComfyUI 集成参考
-- [FastVideo](https://github.com/hao-ai-lab/FastVideo) - 视频生成优化技术
-- [Nunchaku](https://github.com/nunchaku-tech/nunchaku) - 推理优化方案
+- [Wan-Video](https://github.com/Wan-Video/Wan2.2) - Wan2.2 video generation model
+- [ComfyUI-WanVideoWrapper](https://github.com/kijai/ComfyUI-WanVideoWrapper) - ComfyUI integration reference
+- [FastVideo](https://github.com/hao-ai-lab/FastVideo) - Video generation optimization techniques
+- [Nunchaku](https://github.com/nunchaku-tech/nunchaku) - Quantization optimization solutions
+- [TurboDiffusion](https://github.com/thu-ml/TurboDiffusion) - Inference acceleration solutions
 
-## 📮 联系方式
+## 📮 Contact
 
-- 问题反馈: [GitHub Issues](https://github.com/tencent/KsanaDiT/issues)
-- 功能建议: [GitHub Discussions](https://github.com/tencent/KsanaDiT/discussions)
+- Bug Reports: [GitHub Issues](https://github.com/tencent/KsanaDiT/issues)
+- Feature Requests: [GitHub Discussions](https://github.com/tencent/KsanaDiT/discussions)
 
-## 🗺️ 路线图
+## 🗺️ Roadmap
 
-- [ ] 支持更多视频生成模型（CogVideoX、Mochi 等）
-- [ ] 优化内存占用，支持更长视频生成
-- [ ] 增加批量推理支持
-- [ ] 提供 Web UI 界面
-- [ ] 支持视频编辑功能（风格迁移、局部编辑等）
-- [ ] NPU (Ascend) 后端优化
-- [ ] 模型量化工具链
+### Completed ✅
 
-## 📊 性能基准
+- [x] **Multi-Platform Support**: NPU backend support
+- [x] **Batch Inference**: Support for batch size > 1, merged cond/uncond
+- [x] **Video Editing**: Wan2.1 Vace video controllable editing
+- [x] **Advanced Samplers**: DPM++, Turbo Diffusion support
+- [x] **Performance Optimization**: QKV Fuse + Dynamic FP8 optimization
+- [x] **Memory Optimization**: Pin Manager to resolve OOM issues
 
-| 模型 | 分辨率 | 帧数 | 硬件 | 显存 | 时间 | 优化 |
-|------|--------|------|-----|------|------|------|
-| Wan2.2-T2V-14B | 720x480 | 17 | A100 80G | ~45GB | ~30s | FP16 + Flash Attn |
-| Wan2.2-T2V-14B | 720x480 | 17 | A100 80G | ~28GB | ~25s | FP8 + Sage Attn + DCache |
-| Wan2.2-T2V-14B | 1280x720 | 81 | 4xA100 80G | ~60GB | ~120s | FP16 + LoRA + Cache |
-| Wan2.2-I2V-14B | 512x512 | 17 | A100 80G | ~42GB | ~28s | FP16 + Flash Attn |
-| Qwen-Image-20B | 1024x1024 | - | A100 80G | ~35GB | ~15s | BF16 + Flash Attn |
-| Wan2.2-T2V-14B | 720x480 | 17 | Ascend 910B | ~48GB | ~35s | FP16 (NPU) |
+### In Progress 🚧
 
-*注: 性能数据仅供参考，实际性能取决于硬件配置和优化设置*
+- [ ] Support for more generation models (Qwen Image Edit, Z-Image, Hunyuan, etc.)
+- [ ] Memory optimization for longer video generation
+- [ ] Additional caching strategies
+- [ ] Model quantization toolchain
+- [ ] Support for more hardware backends
 
 ---
 
 <div align="center">
 
-**如果这个项目对你有帮助，请给我们一个 ⭐️ Star！**
+**If this project helps you, please give us a ⭐️ Star!**
 
-Made with ❤️ by KsanaDiT Team
+Made with ❤️ by the KsanaDiT Team
 
 </div>
