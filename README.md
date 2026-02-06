@@ -198,7 +198,7 @@ video = pipeline.generate(
 
 #### Turbo Diffusion
 
-See [run_turbo_diffusion](./examples/wan/wan2_2_i2v.py:L115)
+See [run_turbo_diffusion](./examples/wan/wan2_2_i2v.py#L115)
 
 ### Text-to-Image (T2I)
 
