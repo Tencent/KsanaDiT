@@ -1,0 +1,1451 @@
+{
+  "id": "15c83e60-fecb-4611-b022-65462405137a",
+  "revision": 0,
+  "last_node_id": 150,
+  "last_link_id": 270,
+  "nodes": [
+    {
+      "id": 122,
+      "type": "KsanaDebugNode",
+      "pos": [
+        1497,
+        356
+      ],
+      "size": [
+        315,
+        58
+      ],
+      "flags": {},
+      "order": 11,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "source",
+          "name": "source",
+          "type": "*",
+          "link": 238
+        },
+        {
+          "localized_name": "name",
+          "name": "name",
+          "shape": 7,
+          "type": "STRING",
+          "widget": {
+            "name": "name"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [],
+      "properties": {
+        "Node name for S&R": "KsanaDebugNode",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "version": "7.5.2",
+          "input_ue_unconnectable": {}
+        }
+      },
+      "widgets_values": [
+        ""
+      ]
+    },
+    {
+      "id": 7,
+      "type": "CLIPTextEncode",
+      "pos": [
+        592,
+        787
+      ],
+      "size": [
+        419.752197265625,
+        115.21111297607422
+      ],
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "clip",
+          "name": "clip",
+          "type": "CLIP",
+          "link": 75
+        },
+        {
+          "localized_name": "text",
+          "name": "text",
+          "type": "STRING",
+          "widget": {
+            "name": "text"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "CONDITIONING",
+          "name": "CONDITIONING",
+          "type": "CONDITIONING",
+          "slot_index": 0,
+          "links": [
+            236
+          ]
+        }
+      ],
+      "title": "CLIP Text Encode (Negative Prompt)",
+      "properties": {
+        "Node name for S&R": "CLIPTextEncode",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "version": "7.5.2",
+          "input_ue_unconnectable": {}
+        }
+      },
+      "widgets_values": [
+        "色调艳丽，过曝，静态，细节模糊不清，字幕，风格，作品，画作，画面，静止，整体发灰，最差质量，低质量，JPEG压缩残留，丑陋的，残缺的，多余的手指，画得不好的手部，画得不好的脸部，畸形的，毁容的，形态畸形的肢体，手指融合，静止不动的画面，杂乱的背景，三条腿，背景人很多，倒着走"
+      ],
+      "color": "#322",
+      "bgcolor": "#533"
+    },
+    {
+      "id": 38,
+      "type": "CLIPLoader",
+      "pos": [
+        102,
+        621
+      ],
+      "size": [
+        394.3128967285156,
+        116.17143249511719
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "clip_name",
+          "name": "clip_name",
+          "type": "COMBO",
+          "widget": {
+            "name": "clip_name"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "type",
+          "name": "type",
+          "type": "COMBO",
+          "widget": {
+            "name": "type"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "device",
+          "name": "device",
+          "shape": 7,
+          "type": "COMBO",
+          "widget": {
+            "name": "device"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "CLIP",
+          "name": "CLIP",
+          "type": "CLIP",
+          "slot_index": 0,
+          "links": [
+            74,
+            75
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "CLIPLoader",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "version": "7.5.2",
+          "input_ue_unconnectable": {}
+        }
+      },
+      "widgets_values": [
+        "umt5_xxl_fp8_e4m3fn_scaled.safetensors",
+        "wan",
+        "default"
+      ],
+      "color": "#223",
+      "bgcolor": "#335"
+    },
+    {
+      "id": 138,
+      "type": "KsanaVAEDecodeNode",
+      "pos": [
+        1561.9295515573956,
+        612.1154076512463
+      ],
+      "size": [
+        184.3775390625,
+        46
+      ],
+      "flags": {},
+      "order": 12,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "vae",
+          "name": "vae",
+          "type": "KSANA_VAE_MODEL",
+          "link": 250
+        },
+        {
+          "localized_name": "latent",
+          "name": "latent",
+          "type": "KSANA_GENERATE_OUTPUT",
+          "link": 247
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "image",
+          "name": "image",
+          "type": "IMAGE",
+          "links": [
+            251
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "KsanaVAEDecodeNode",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.5.2"
+        }
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 141,
+      "type": "LoadImage",
+      "pos": [
+        -142.23693752201504,
+        987.7846384718678
+      ],
+      "size": [
+        270,
+        314.0000000000001
+      ],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "image",
+          "name": "image",
+          "type": "COMBO",
+          "widget": {
+            "name": "image"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "choose file to upload",
+          "name": "upload",
+          "type": "IMAGEUPLOAD",
+          "widget": {
+            "name": "upload"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "IMAGE",
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            255
+          ]
+        },
+        {
+          "localized_name": "MASK",
+          "name": "MASK",
+          "type": "MASK",
+          "links": null
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "LoadImage",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.5.2"
+        }
+      },
+      "widgets_values": [
+        "start_image.png",
+        "image"
+      ]
+    },
+    {
+      "id": 6,
+      "type": "CLIPTextEncode",
+      "pos": [
+        595,
+        574
+      ],
+      "size": [
+        419.5483093261719,
+        130.8181915283203
+      ],
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "clip",
+          "name": "clip",
+          "type": "CLIP",
+          "link": 74
+        },
+        {
+          "localized_name": "text",
+          "name": "text",
+          "type": "STRING",
+          "widget": {
+            "name": "text"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "CONDITIONING",
+          "name": "CONDITIONING",
+          "type": "CONDITIONING",
+          "slot_index": 0,
+          "links": [
+            235
+          ]
+        }
+      ],
+      "title": "CLIP Text Encode (Positive Prompt)",
+      "properties": {
+        "Node name for S&R": "CLIPTextEncode",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "version": "7.5.2",
+          "input_ue_unconnectable": {}
+        }
+      },
+      "widgets_values": [
+        "缓慢的平移镜头，在外滩边上，有清风吹过。镜头从远到近，女孩在动作的特写，舞姿非常美丽，舞姿缓慢的移动，最后定格。镜头从远景到近景，外滩的背景清晰，给出了女孩的特写和细节"
+      ],
+      "color": "#232",
+      "bgcolor": "#353"
+    },
+    {
+      "id": 114,
+      "type": "VHS_VideoCombine",
+      "pos": [
+        1866,
+        495
+      ],
+      "size": [
+        497.2565637413022,
+        238
+      ],
+      "flags": {},
+      "order": 13,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "images",
+          "name": "images",
+          "type": "IMAGE",
+          "link": 251
+        },
+        {
+          "localized_name": "audio",
+          "name": "audio",
+          "shape": 7,
+          "type": "AUDIO",
+          "link": null
+        },
+        {
+          "localized_name": "meta_batch",
+          "name": "meta_batch",
+          "shape": 7,
+          "type": "VHS_BatchManager",
+          "link": null
+        },
+        {
+          "localized_name": "vae",
+          "name": "vae",
+          "shape": 7,
+          "type": "VAE",
+          "link": null
+        },
+        {
+          "localized_name": "frame_rate",
+          "name": "frame_rate",
+          "type": "FLOAT",
+          "widget": {
+            "name": "frame_rate"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "loop_count",
+          "name": "loop_count",
+          "type": "INT",
+          "widget": {
+            "name": "loop_count"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "filename_prefix",
+          "name": "filename_prefix",
+          "type": "STRING",
+          "widget": {
+            "name": "filename_prefix"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "format",
+          "name": "format",
+          "type": "COMBO",
+          "widget": {
+            "name": "format"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "pingpong",
+          "name": "pingpong",
+          "type": "BOOLEAN",
+          "widget": {
+            "name": "pingpong"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "save_output",
+          "name": "save_output",
+          "type": "BOOLEAN",
+          "widget": {
+            "name": "save_output"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "Filenames",
+          "name": "Filenames",
+          "type": "VHS_FILENAMES",
+          "links": null
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "VHS_VideoCombine",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "version": "7.5.2",
+          "input_ue_unconnectable": {}
+        }
+      },
+      "widgets_values": {
+        "frame_rate": 16,
+        "loop_count": 0,
+        "filename_prefix": "AnimateDiff",
+        "format": "image/gif",
+        "pingpong": false,
+        "save_output": true,
+        "videopreview": {
+          "hidden": false,
+          "paused": false,
+          "params": {
+            "filename": "AnimateDiff_00402.gif",
+            "subfolder": "",
+            "type": "output",
+            "format": "image/gif",
+            "frame_rate": 16,
+            "workflow": "AnimateDiff_00402.png",
+            "fullpath": "/workspace/user_code/00_sd_webui_private_00/outputs/output/AnimateDiff_00402.gif"
+          }
+        }
+      }
+    },
+    {
+      "id": 132,
+      "type": "KsanaGeneratorNode",
+      "pos": [
+        1166,
+        568
+      ],
+      "size": [
+        317.4000244140625,
+        518
+      ],
+      "flags": {},
+      "order": 10,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "model",
+          "name": "model",
+          "type": "KSANA_DIFFUSION_MODEL",
+          "link": 233
+        },
+        {
+          "localized_name": "positive",
+          "name": "positive",
+          "type": "CONDITIONING",
+          "link": 235
+        },
+        {
+          "localized_name": "negative",
+          "name": "negative",
+          "type": "CONDITIONING",
+          "link": 236
+        },
+        {
+          "localized_name": "image_embeds",
+          "name": "image_embeds",
+          "type": "KSANA_VAE_ENCODE_OUTPUT",
+          "link": 245
+        },
+        {
+          "localized_name": "cache_config",
+          "name": "cache_config",
+          "shape": 7,
+          "type": "KSANA_CACHE_CONFIG",
+          "link": null
+        },
+        {
+          "localized_name": "sigmas",
+          "name": "sigmas",
+          "shape": 7,
+          "type": "FLOAT",
+          "link": null
+        },
+        {
+          "localized_name": "latent",
+          "name": "latent",
+          "shape": 7,
+          "type": "KSANA_VAE_ENCODE_OUTPUT",
+          "link": 270
+        },
+        {
+          "localized_name": "video_control_config",
+          "name": "video_control_config",
+          "shape": 7,
+          "type": "KSANA_VIDEO_CONTROL_CONFIG",
+          "link": null
+        },
+        {
+          "localized_name": "vace_embeds",
+          "name": "vace_embeds",
+          "shape": 7,
+          "type": "KSANA_VACE_EMBEDS",
+          "link": null
+        },
+        {
+          "localized_name": "steps",
+          "name": "steps",
+          "type": "INT",
+          "widget": {
+            "name": "steps"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "seed",
+          "name": "seed",
+          "type": "INT",
+          "widget": {
+            "name": "seed"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "scheduler",
+          "name": "scheduler",
+          "type": "COMBO",
+          "widget": {
+            "name": "scheduler"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "solver_name",
+          "name": "solver_name",
+          "type": "COMBO",
+          "widget": {
+            "name": "solver_name"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "sample_guide_scale",
+          "name": "sample_guide_scale",
+          "type": "FLOAT",
+          "widget": {
+            "name": "sample_guide_scale"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "sample_shift",
+          "name": "sample_shift",
+          "type": "FLOAT",
+          "widget": {
+            "name": "sample_shift"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "denoise",
+          "name": "denoise",
+          "type": "FLOAT",
+          "widget": {
+            "name": "denoise"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "rope_function",
+          "name": "rope_function",
+          "shape": 7,
+          "type": "COMBO",
+          "widget": {
+            "name": "rope_function"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "low_sample_guide_scale",
+          "name": "low_sample_guide_scale",
+          "shape": 7,
+          "type": "FLOAT",
+          "widget": {
+            "name": "low_sample_guide_scale"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "add_noise_to_latent",
+          "name": "add_noise_to_latent",
+          "shape": 7,
+          "type": "BOOLEAN",
+          "widget": {
+            "name": "add_noise_to_latent"
+          },
+          "link": null
+        },
+        {
+          "name": "cache_configs",
+          "shape": 7,
+          "type": "KSANA_CACHE_CONFIG",
+          "link": null
+        },
+        {
+          "name": "high_cache_config",
+          "shape": 7,
+          "type": "KSANA_CACHE_CONFIG",
+          "link": null
+        },
+        {
+          "name": "low_cache_config",
+          "shape": 7,
+          "type": "KSANA_CACHE_CONFIG",
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "latents",
+          "name": "latents",
+          "type": "KSANA_GENERATE_OUTPUT",
+          "slot_index": 0,
+          "links": [
+            238,
+            247
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "KsanaGeneratorNode",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "version": "7.5.2",
+          "input_ue_unconnectable": {}
+        }
+      },
+      "widgets_values": [
+        4,
+        42,
+        "fixed",
+        "simple",
+        "euler",
+        1,
+        1,
+        1,
+        "comfy",
+        1,
+        true
+      ]
+    },
+    {
+      "id": 137,
+      "type": "KsanaVAEEncodeNode",
+      "pos": [
+        766.5846957432219,
+        1052.940639733154
+      ],
+      "size": [
+        270,
+        190
+      ],
+      "flags": {},
+      "order": 9,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "vae",
+          "name": "vae",
+          "shape": 7,
+          "type": "KSANA_VAE_MODEL",
+          "link": 246
+        },
+        {
+          "localized_name": "start_image",
+          "name": "start_image",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": 256
+        },
+        {
+          "localized_name": "end_image",
+          "name": "end_image",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": null
+        },
+        {
+          "localized_name": "mask",
+          "name": "mask",
+          "shape": 7,
+          "type": "MASK",
+          "link": null
+        },
+        {
+          "localized_name": "num_frames",
+          "name": "num_frames",
+          "shape": 7,
+          "type": "INT",
+          "widget": {
+            "name": "num_frames"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "width",
+          "name": "width",
+          "shape": 7,
+          "type": "INT",
+          "widget": {
+            "name": "width"
+          },
+          "link": 266
+        },
+        {
+          "localized_name": "height",
+          "name": "height",
+          "shape": 7,
+          "type": "INT",
+          "widget": {
+            "name": "height"
+          },
+          "link": 267
+        },
+        {
+          "localized_name": "batch_size",
+          "name": "batch_size",
+          "shape": 7,
+          "type": "INT",
+          "widget": {
+            "name": "batch_size"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "latent",
+          "name": "latent",
+          "type": "KSANA_VAE_ENCODE_OUTPUT",
+          "links": [
+            245
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "KsanaVAEEncodeNode",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.5.2"
+        }
+      },
+      "widgets_values": [
+        81,
+        512,
+        512,
+        1
+      ]
+    },
+    {
+      "id": 136,
+      "type": "KsanaVAELoaderNode",
+      "pos": [
+        276.5762603549581,
+        921.0638493629867
+      ],
+      "size": [
+        270,
+        58
+      ],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "vae_name",
+          "name": "vae_name",
+          "type": "COMBO",
+          "widget": {
+            "name": "vae_name"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "vae",
+          "name": "vae",
+          "type": "KSANA_VAE_MODEL",
+          "links": [
+            246,
+            250,
+            268
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "KsanaVAELoaderNode",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.5.2"
+        }
+      },
+      "widgets_values": [
+        "Wan2.1_VAE.pth"
+      ]
+    },
+    {
+      "id": 145,
+      "type": "ImageResizeKJv2",
+      "pos": [
+        314.28027417779015,
+        1169.2838565500076
+      ],
+      "size": [
+        270,
+        336
+      ],
+      "flags": {},
+      "order": 6,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "image",
+          "name": "image",
+          "type": "IMAGE",
+          "link": 255
+        },
+        {
+          "localized_name": "mask",
+          "name": "mask",
+          "shape": 7,
+          "type": "MASK",
+          "link": null
+        },
+        {
+          "localized_name": "width",
+          "name": "width",
+          "type": "INT",
+          "widget": {
+            "name": "width"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "height",
+          "name": "height",
+          "type": "INT",
+          "widget": {
+            "name": "height"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "upscale_method",
+          "name": "upscale_method",
+          "type": "COMBO",
+          "widget": {
+            "name": "upscale_method"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "keep_proportion",
+          "name": "keep_proportion",
+          "type": "COMBO",
+          "widget": {
+            "name": "keep_proportion"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "pad_color",
+          "name": "pad_color",
+          "type": "STRING",
+          "widget": {
+            "name": "pad_color"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "crop_position",
+          "name": "crop_position",
+          "type": "COMBO",
+          "widget": {
+            "name": "crop_position"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "divisible_by",
+          "name": "divisible_by",
+          "type": "INT",
+          "widget": {
+            "name": "divisible_by"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "device",
+          "name": "device",
+          "shape": 7,
+          "type": "COMBO",
+          "widget": {
+            "name": "device"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "IMAGE",
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            256,
+            269
+          ]
+        },
+        {
+          "localized_name": "width",
+          "name": "width",
+          "type": "INT",
+          "links": [
+            266
+          ]
+        },
+        {
+          "localized_name": "height",
+          "name": "height",
+          "type": "INT",
+          "links": [
+            267
+          ]
+        },
+        {
+          "localized_name": "mask",
+          "name": "mask",
+          "type": "MASK",
+          "links": null
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "ImageResizeKJv2",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "version": "7.5.2",
+          "input_ue_unconnectable": {}
+        },
+        "cnr_id": "comfyui-kjnodes",
+        "ver": "a6b867b63a29ca48ddb15c589e17a9f2d8530d57"
+      },
+      "widgets_values": [
+        512,
+        512,
+        "lanczos",
+        "crop",
+        "0, 0, 0",
+        "center",
+        8,
+        "cpu"
+      ]
+    },
+    {
+      "id": 149,
+      "type": "KsanaVAEImageEncodeNode",
+      "pos": [
+        748.536322512163,
+        1339.4788212808587
+      ],
+      "size": [
+        290.29453125,
+        78
+      ],
+      "flags": {},
+      "order": 8,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "vae",
+          "name": "vae",
+          "shape": 7,
+          "type": "KSANA_VAE_MODEL",
+          "link": 268
+        },
+        {
+          "localized_name": "image",
+          "name": "image",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": 269
+        },
+        {
+          "localized_name": "batch_size",
+          "name": "batch_size",
+          "shape": 7,
+          "type": "INT",
+          "widget": {
+            "name": "batch_size"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "latent",
+          "name": "latent",
+          "type": "KSANA_VAE_ENCODE_OUTPUT",
+          "links": [
+            270
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "KsanaVAEImageEncodeNode",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.5.2"
+        }
+      },
+      "widgets_values": [
+        1
+      ]
+    },
+    {
+      "id": 131,
+      "type": "KsanaModelLoaderNode",
+      "pos": [
+        564,
+        287
+      ],
+      "size": [
+        474.4811096191406,
+        258
+      ],
+      "flags": {},
+      "order": 7,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "attention_config",
+          "name": "attention_config",
+          "shape": 7,
+          "type": "KSANA_ATTENTION_CONFIG",
+          "link": null
+        },
+        {
+          "localized_name": "torch_compile_args",
+          "name": "torch_compile_args",
+          "shape": 7,
+          "type": "KSANA_TORCH_COMPILE",
+          "link": null
+        },
+        {
+          "localized_name": "lora",
+          "name": "lora",
+          "shape": 7,
+          "type": "KSANA_LORA",
+          "link": null
+        },
+        {
+          "localized_name": "vace_model",
+          "name": "vace_model",
+          "shape": 7,
+          "type": "KSANA_VACE_MODEL",
+          "link": 259
+        },
+        {
+          "localized_name": "model_name",
+          "name": "model_name",
+          "type": "COMBO",
+          "widget": {
+            "name": "model_name"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "run_dtype",
+          "name": "run_dtype",
+          "shape": 7,
+          "type": "COMBO",
+          "widget": {
+            "name": "run_dtype"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "rms_dtype",
+          "name": "rms_dtype",
+          "shape": 7,
+          "type": "COMBO",
+          "widget": {
+            "name": "rms_dtype"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "linear_backend",
+          "name": "linear_backend",
+          "shape": 7,
+          "type": "COMBO",
+          "widget": {
+            "name": "linear_backend"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "low_noise_model_name",
+          "name": "low_noise_model_name",
+          "shape": 7,
+          "type": "COMBO",
+          "widget": {
+            "name": "low_noise_model_name"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "model_boundary",
+          "name": "model_boundary",
+          "shape": 7,
+          "type": "FLOAT",
+          "widget": {
+            "name": "model_boundary"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "vace_models",
+          "name": "vace_models",
+          "shape": 7,
+          "type": "KSANA_VACE_MODEL",
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "model",
+          "name": "model",
+          "type": "KSANA_DIFFUSION_MODEL",
+          "slot_index": 0,
+          "links": [
+            233
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "KsanaModelLoaderNode",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "version": "7.5.2",
+          "input_ue_unconnectable": {}
+        }
+      },
+      "widgets_values": [
+        "wan2.2_i2v_low_noise_14B_fp16.safetensors",
+        "float16",
+        "float",
+        "fp16_gemm",
+        "Empty",
+        0.875
+      ]
+    },
+    {
+      "id": 146,
+      "type": "KsanaVaceModelSelectNode",
+      "pos": [
+        190.80788704487668,
+        336.54004421482614
+      ],
+      "size": [
+        276.2876953125,
+        82
+      ],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "vace_model",
+          "name": "vace_model",
+          "type": "COMBO",
+          "widget": {
+            "name": "vace_model"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "vace_low_model",
+          "name": "vace_low_model",
+          "shape": 7,
+          "type": "COMBO",
+          "widget": {
+            "name": "vace_low_model"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "vace_model",
+          "name": "vace_model",
+          "type": "KSANA_VACE_MODEL",
+          "links": [
+            259
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "KsanaVaceModelSelectNode",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.5.2"
+        }
+      },
+      "widgets_values": [
+        "wan2.2_i2v_high_noise_14B_fp16.safetensors",
+        "Empty"
+      ]
+    }
+  ],
+  "links": [
+    [
+      74,
+      38,
+      0,
+      6,
+      0,
+      "CLIP"
+    ],
+    [
+      75,
+      38,
+      0,
+      7,
+      0,
+      "CLIP"
+    ],
+    [
+      233,
+      131,
+      0,
+      132,
+      0,
+      "KSANAMODEL"
+    ],
+    [
+      235,
+      6,
+      0,
+      132,
+      1,
+      "CONDITIONING"
+    ],
+    [
+      236,
+      7,
+      0,
+      132,
+      2,
+      "CONDITIONING"
+    ],
+    [
+      238,
+      132,
+      0,
+      122,
+      0,
+      "*"
+    ],
+    [
+      245,
+      137,
+      0,
+      132,
+      3,
+      "LATENT"
+    ],
+    [
+      246,
+      136,
+      0,
+      137,
+      0,
+      "KSANAVAE"
+    ],
+    [
+      247,
+      132,
+      0,
+      138,
+      1,
+      "LATENT"
+    ],
+    [
+      250,
+      136,
+      0,
+      138,
+      0,
+      "KSANAVAE"
+    ],
+    [
+      251,
+      138,
+      0,
+      114,
+      0,
+      "IMAGE"
+    ],
+    [
+      255,
+      141,
+      0,
+      145,
+      0,
+      "IMAGE"
+    ],
+    [
+      256,
+      145,
+      0,
+      137,
+      1,
+      "IMAGE"
+    ],
+    [
+      259,
+      146,
+      0,
+      131,
+      3,
+      "KSANA_VACE_MODEL"
+    ],
+    [
+      266,
+      145,
+      1,
+      137,
+      5,
+      "INT"
+    ],
+    [
+      267,
+      145,
+      2,
+      137,
+      6,
+      "INT"
+    ],
+    [
+      268,
+      136,
+      0,
+      149,
+      0,
+      "KSANA_VAE_MODEL"
+    ],
+    [
+      269,
+      145,
+      0,
+      149,
+      1,
+      "IMAGE"
+    ],
+    [
+      270,
+      149,
+      0,
+      132,
+      6,
+      "KSANA_VAE_ENCODE_OUTPUT"
+    ]
+  ],
+  "groups": [],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 0.8688473471431137,
+      "offset": [
+        37.0680932052613,
+        -93.83153086940408
+      ]
+    },
+    "frontendVersion": "1.32.10",
+    "workflowRendererVersion": "LG",
+    "ue_links": [],
+    "VHS_latentpreview": false,
+    "VHS_latentpreviewrate": 0,
+    "VHS_MetadataImage": true,
+    "VHS_KeepIntermediate": true,
+    "links_added_by_ue": []
+  },
+  "version": 0.4
+}

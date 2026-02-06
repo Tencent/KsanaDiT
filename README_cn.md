@@ -103,6 +103,43 @@ python -c "import torch_npu; print(torch_npu.npu.is_available())"
 
 直接通过whl包安装，敬请期待。
 
+## 🔌 接口支持
+
+KsanaDiT 提供多种使用方式，满足不同场景的需求：
+
+### 本地 Pipeline 方式
+
+通过 Python Pipeline API 直接在本地运行，适合脚本化批量生成或集成到自有系统中：
+
+```python
+from ksana import KsanaPipeline
+
+# 创建推理管道
+pipeline = KsanaPipeline.from_models("path/to/model")
+
+# 生成视频/图像
+result = pipeline.generate(prompt, ...)
+```
+
+详细用法请参考 [快速开始](#-快速开始) 和 [examples](./examples/) 目录。
+
+### ComfyUI 集成
+
+KsanaDiT 支持作为 ComfyUI 的自定义节点使用，提供可视化工作流体验：
+
+```bash
+# 1. 进入 ComfyUI 的 custom_nodes 目录
+cd /path/to/ComfyUI/custom_nodes
+
+# 2. 克隆 KsanaDiT 仓库
+git clone https://github.com/Tencent/KsanaDiT.git
+
+# 3. 进入 KsanaDiT 目录并安装依赖
+cd KsanaDiT
+./scripts/install_dev.sh
+```
+
+安装完成后，重启 ComfyUI 即可在节点列表中看到 KsanaDiT 相关节点。更多 ComfyUI 使用说明请参考 [comfyui/README.md](./comfyui/README.md)。
 
 ## 🚀 快速开始
 详细的代码可以参考[examples](./examples/)

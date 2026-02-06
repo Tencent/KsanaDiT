@@ -1,0 +1,832 @@
+{
+  "last_node_id": 498,
+  "last_link_id": 157,
+  "nodes": [
+    {
+      "id": 450,
+      "type": "CLIPTextEncode",
+      "pos": [
+        1593,
+        -1177
+      ],
+      "size": {
+        "0": 400,
+        "1": 200
+      },
+      "flags": {},
+      "order": 7,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "link": 27
+        }
+      ],
+      "outputs": [
+        {
+          "name": "CONDITIONING",
+          "type": "CONDITIONING",
+          "links": [
+            136
+          ],
+          "shape": 3,
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "CLIPTextEncode"
+      },
+      "widgets_values": [
+        "a cute anime girl with massive fennec ears and a big fluffy tail turning around and dancing and singing on stage like an idol"
+      ]
+    },
+    {
+      "id": 449,
+      "type": "CLIPLoader",
+      "pos": [
+        1137,
+        -1149
+      ],
+      "size": {
+        "0": 315,
+        "1": 106
+      },
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "outputs": [
+        {
+          "name": "CLIP",
+          "type": "CLIP",
+          "links": [
+            27,
+            29
+          ],
+          "shape": 3,
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "CLIPLoader"
+      },
+      "widgets_values": [
+        "umt5_xxl_fp8_e4m3fn_scaled.safetensors",
+        "wan",
+        "default"
+      ]
+    },
+    {
+      "id": 451,
+      "type": "CLIPTextEncode",
+      "pos": [
+        1188,
+        -926
+      ],
+      "size": {
+        "0": 400,
+        "1": 200
+      },
+      "flags": {},
+      "order": 8,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "link": 29
+        }
+      ],
+      "outputs": [
+        {
+          "name": "CONDITIONING",
+          "type": "CONDITIONING",
+          "links": [
+            137
+          ],
+          "shape": 3,
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "CLIPTextEncode"
+      },
+      "widgets_values": [
+        "色调艳丽，过曝，静态，细节模糊不清，字幕，风格，作品，画作，画面，静止，整体发灰，最差质量，低质量，JPEG压缩残留，丑陋的，残缺的，多余的手指，画得不好的手部，画得不好的脸部，畸形的，毁容的，形态畸形的肢体，手指融合，静止不动的画面，杂乱的背景，三条腿，背景人很多，倒着走"
+      ]
+    },
+    {
+      "id": 482,
+      "type": "KsanaVAELoaderNode",
+      "pos": [
+        1757,
+        -862
+      ],
+      "size": {
+        "0": 315,
+        "1": 58
+      },
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "outputs": [
+        {
+          "name": "vae",
+          "type": "KSANA_VAE_MODEL",
+          "links": [
+            127,
+            142
+          ],
+          "shape": 3,
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "KsanaVAELoaderNode"
+      },
+      "widgets_values": [
+        "wan_2.1_vae.safetensors"
+      ]
+    },
+    {
+      "id": 483,
+      "type": "KsanaVAEDecodeNode",
+      "pos": [
+        2867,
+        -860
+      ],
+      "size": {
+        "0": 210,
+        "1": 46
+      },
+      "flags": {},
+      "order": 12,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "vae",
+          "type": "KSANA_VAE_MODEL",
+          "link": 127
+        },
+        {
+          "name": "latent",
+          "type": "KSANA_GENERATE_OUTPUT",
+          "link": 139
+        }
+      ],
+      "outputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "links": [
+            126
+          ],
+          "shape": 3,
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "KsanaVAEDecodeNode"
+      }
+    },
+    {
+      "id": 485,
+      "type": "VHS_VideoCombine",
+      "pos": [
+        3311,
+        -828
+      ],
+      "size": [
+        220.3603515625,
+        238
+      ],
+      "flags": {},
+      "order": 13,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 126
+        },
+        {
+          "name": "audio",
+          "type": "AUDIO",
+          "link": null
+        },
+        {
+          "name": "meta_batch",
+          "type": "VHS_BatchManager",
+          "link": null
+        },
+        {
+          "name": "vae",
+          "type": "VAE",
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "Filenames",
+          "type": "VHS_FILENAMES",
+          "links": null,
+          "shape": 3
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "VHS_VideoCombine"
+      },
+      "widgets_values": {
+        "frame_rate": 16,
+        "loop_count": 0,
+        "filename_prefix": "AnimateDiff",
+        "format": "image/gif",
+        "pingpong": false,
+        "save_output": true,
+        "videopreview": {
+          "hidden": false,
+          "paused": false,
+          "params": {
+            "filename": "AnimateDiff_00030.gif",
+            "subfolder": "",
+            "type": "output",
+            "format": "image/gif",
+            "frame_rate": 16,
+            "workflow": "AnimateDiff_00030.png",
+            "fullpath": "/data/ComfyUI/output/AnimateDiff_00030.gif"
+          }
+        }
+      }
+    },
+    {
+      "id": 478,
+      "type": "KsanaModelLoaderNode",
+      "pos": [
+        2446,
+        -454
+      ],
+      "size": {
+        "0": 315,
+        "1": 242
+      },
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "attention_config",
+          "type": "KSANA_ATTENTION_CONFIG",
+          "link": null
+        },
+        {
+          "name": "torch_compile_args",
+          "type": "KSANA_TORCH_COMPILE",
+          "link": null
+        },
+        {
+          "name": "lora",
+          "type": "KSANA_LORA",
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "model",
+          "type": "KSANA_DIFFUSION_MODEL",
+          "links": [
+            135
+          ],
+          "shape": 3,
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "KsanaModelLoaderNode"
+      },
+      "widgets_values": [
+        "wan2.1_vace_14B_fp16.safetensors",
+        "float16",
+        "float",
+        "default",
+        "Empty",
+        0.875
+      ]
+    },
+    {
+      "id": 488,
+      "type": "KsanaSLGNode",
+      "pos": [
+        1274,
+        -1949
+      ],
+      "size": {
+        "0": 315,
+        "1": 106
+      },
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "outputs": [
+        {
+          "name": "slg_args",
+          "type": "KSANA_SLG_ARGS",
+          "links": [
+            154
+          ],
+          "shape": 3,
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "KsanaSLGNode"
+      },
+      "widgets_values": [
+        "10",
+        0.3,
+        1
+      ]
+    },
+    {
+      "id": 490,
+      "type": "KsanaEnhanceAVideoNode",
+      "pos": [
+        1280,
+        -1780
+      ],
+      "size": {
+        "0": 315,
+        "1": 106
+      },
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "outputs": [
+        {
+          "name": "feta_args",
+          "type": "KSANA_FETA_ARGS",
+          "links": [
+            155
+          ],
+          "shape": 3,
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "KsanaEnhanceAVideoNode"
+      },
+      "widgets_values": [
+        2,
+        0,
+        1
+      ]
+    },
+    {
+      "id": 489,
+      "type": "KsanaExperimentalArgsNode",
+      "pos": [
+        1270,
+        -1600
+      ],
+      "size": {
+        "0": 315,
+        "1": 370
+      },
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "outputs": [
+        {
+          "name": "exp_args",
+          "type": "KSANA_EXPERIMENTAL_ARGS",
+          "links": [
+            156
+          ],
+          "shape": 3,
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "KsanaExperimentalArgsNode"
+      },
+      "widgets_values": [
+        true,
+        true,
+        0,
+        true,
+        1,
+        1.25,
+        20,
+        false,
+        0.05,
+        false,
+        false,
+        0.95,
+        1,
+        "0"
+      ]
+    },
+    {
+      "id": 493,
+      "type": "KsanaWanVaceToVideoNode",
+      "pos": [
+        2567,
+        -1176
+      ],
+      "size": {
+        "0": 355.20001220703125,
+        "1": 282
+      },
+      "flags": {},
+      "order": 10,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "vae",
+          "type": "KSANA_VAE_MODEL",
+          "link": 142
+        },
+        {
+          "name": "control_video",
+          "type": "IMAGE",
+          "link": null
+        },
+        {
+          "name": "control_masks",
+          "type": "MASK",
+          "link": null
+        },
+        {
+          "name": "reference_image",
+          "type": "IMAGE",
+          "link": 144
+        },
+        {
+          "name": "prev_vace_embeds",
+          "type": "KSANA_VACE_EMBEDS",
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "vace_embeds",
+          "type": "KSANA_VACE_EMBEDS",
+          "links": [
+            145
+          ],
+          "shape": 3,
+          "slot_index": 0
+        },
+        {
+          "name": "image_embeds",
+          "type": "KSANA_VAE_ENCODE_OUTPUT",
+          "links": [
+            146
+          ],
+          "shape": 3,
+          "slot_index": 1
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "KsanaWanVaceToVideoNode"
+      },
+      "widgets_values": [
+        512,
+        512,
+        1,
+        25,
+        1,
+        0,
+        1
+      ]
+    },
+    {
+      "id": 481,
+      "type": "LoadImage",
+      "pos": [
+        2098,
+        -1325
+      ],
+      "size": {
+        "0": 315,
+        "1": 314
+      },
+      "flags": {},
+      "order": 6,
+      "mode": 0,
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            144
+          ],
+          "shape": 3,
+          "slot_index": 0
+        },
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "links": null,
+          "shape": 3
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "LoadImage"
+      },
+      "widgets_values": [
+        "fennec_girl_sing.png",
+        "image"
+      ]
+    },
+    {
+      "id": 487,
+      "type": "KsanaVideoControlConfigNode",
+      "pos": [
+        1963,
+        -1748
+      ],
+      "size": {
+        "0": 481.1999816894531,
+        "1": 126
+      },
+      "flags": {},
+      "order": 9,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "slg_args",
+          "type": "KSANA_SLG_ARGS",
+          "link": 154
+        },
+        {
+          "name": "feta_args",
+          "type": "KSANA_FETA_ARGS",
+          "link": 155
+        },
+        {
+          "name": "experimental_args",
+          "type": "KSANA_EXPERIMENTAL_ARGS",
+          "link": 156
+        },
+        {
+          "name": "wanvideo_slg_args",
+          "type": "SLGARGS",
+          "link": null
+        },
+        {
+          "name": "wanvideo_feta_args",
+          "type": "FETAARGS",
+          "link": null
+        },
+        {
+          "name": "wanvideo_exp_args",
+          "type": "EXPERIMENTALARGS",
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "video_control_config",
+          "type": "KSANA_VIDEO_CONTROL_CONFIG",
+          "links": [
+            157
+          ],
+          "shape": 3,
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "KsanaVideoControlConfigNode"
+      }
+    },
+    {
+      "id": 492,
+      "type": "KsanaGeneratorNode",
+      "pos": [
+        3119,
+        -1533
+      ],
+      "size": {
+        "0": 355.20001220703125,
+        "1": 418
+      },
+      "flags": {},
+      "order": 11,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "KSANA_DIFFUSION_MODEL",
+          "link": 135
+        },
+        {
+          "name": "positive",
+          "type": "CONDITIONING",
+          "link": 136
+        },
+        {
+          "name": "negative",
+          "type": "CONDITIONING",
+          "link": 137
+        },
+        {
+          "name": "image_embeds",
+          "type": "KSANA_VAE_ENCODE_OUTPUT",
+          "link": 146
+        },
+        {
+          "name": "cache_config",
+          "type": "KSANA_CACHE_CONFIG",
+          "link": null
+        },
+        {
+          "name": "video_control_config",
+          "type": "KSANA_VIDEO_CONTROL_CONFIG",
+          "link": 157
+        },
+        {
+          "name": "vace_embeds",
+          "type": "KSANA_VACE_EMBEDS",
+          "link": 145
+        },
+        {
+          "name": "sigmas",
+          "type": "FLOAT",
+          "link": null,
+          "widget": {
+            "name": "sigmas"
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "name": "latents",
+          "type": "KSANA_GENERATE_OUTPUT",
+          "links": [
+            139
+          ],
+          "shape": 3,
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "KsanaGeneratorNode"
+      },
+      "widgets_values": [
+        20,
+        899153740593604,
+        "fixed",
+        "simple",
+        "uni_pc",
+        4,
+        5,
+        1,
+        "default",
+        3,
+        0
+      ]
+    }
+  ],
+  "links": [
+    [
+      27,
+      449,
+      0,
+      450,
+      0,
+      "CLIP"
+    ],
+    [
+      29,
+      449,
+      0,
+      451,
+      0,
+      "CLIP"
+    ],
+    [
+      126,
+      483,
+      0,
+      485,
+      0,
+      "IMAGE"
+    ],
+    [
+      127,
+      482,
+      0,
+      483,
+      0,
+      "KSANA_VAE_MODEL"
+    ],
+    [
+      135,
+      478,
+      0,
+      492,
+      0,
+      "KSANA_DIFFUSION_MODEL"
+    ],
+    [
+      136,
+      450,
+      0,
+      492,
+      1,
+      "CONDITIONING"
+    ],
+    [
+      137,
+      451,
+      0,
+      492,
+      2,
+      "CONDITIONING"
+    ],
+    [
+      139,
+      492,
+      0,
+      483,
+      1,
+      "KSANA_GENERATE_OUTPUT"
+    ],
+    [
+      142,
+      482,
+      0,
+      493,
+      0,
+      "KSANA_VAE_MODEL"
+    ],
+    [
+      144,
+      481,
+      0,
+      493,
+      3,
+      "IMAGE"
+    ],
+    [
+      145,
+      493,
+      0,
+      492,
+      6,
+      "KSANA_VACE_EMBEDS"
+    ],
+    [
+      146,
+      493,
+      1,
+      492,
+      3,
+      "KSANA_VAE_ENCODE_OUTPUT"
+    ],
+    [
+      154,
+      488,
+      0,
+      487,
+      0,
+      "KSANA_SLG_ARGS"
+    ],
+    [
+      155,
+      490,
+      0,
+      487,
+      1,
+      "KSANA_FETA_ARGS"
+    ],
+    [
+      156,
+      489,
+      0,
+      487,
+      2,
+      "KSANA_EXPERIMENTAL_ARGS"
+    ],
+    [
+      157,
+      487,
+      0,
+      492,
+      5,
+      "KSANA_VIDEO_CONTROL_CONFIG"
+    ]
+  ],
+  "groups": [],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 0.9229599817706448,
+      "offset": {
+        "0": -739.7802655904459,
+        "1": 2146.6320405906336
+      }
+    }
+  },
+  "version": 0.4
+}

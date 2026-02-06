@@ -1,0 +1,1088 @@
+{
+  "id": "00000000-0000-0000-0000-000000000000",
+  "revision": 0,
+  "last_node_id": 145,
+  "last_link_id": 40,
+  "nodes": [
+    {
+      "id": 138,
+      "type": "KsanaVAEDecodeNode",
+      "pos": [
+        1924.6876122025062,
+        893.4319776182152
+      ],
+      "size": [
+        184.3775390625,
+        46
+      ],
+      "flags": {},
+      "order": 17,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "vae",
+          "type": "KSANA_VAE_MODEL",
+          "link": 31
+        },
+        {
+          "name": "latent",
+          "type": "KSANA_GENERATE_OUTPUT",
+          "link": 32
+        }
+      ],
+      "outputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "links": [
+            22
+          ]
+        }
+      ],
+      "properties": {
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {}
+        },
+        "Node name for S&R": "KsanaVAEDecodeNode"
+      }
+    },
+    {
+      "id": 122,
+      "type": "KsanaDebugNode",
+      "pos": [
+        1806.7114710642184,
+        655.7170494415939
+      ],
+      "size": [
+        270,
+        58
+      ],
+      "flags": {},
+      "order": 16,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "source",
+          "type": "*",
+          "link": 23
+        }
+      ],
+      "outputs": [],
+      "properties": {
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {}
+        },
+        "Node name for S&R": "KsanaDebugNode"
+      },
+      "widgets_values": [
+        ""
+      ]
+    },
+    {
+      "id": 132,
+      "type": "KsanaGeneratorNode",
+      "pos": [
+        1511.7918592562082,
+        800.0787345658325
+      ],
+      "size": [
+        298.0859375,
+        374
+      ],
+      "flags": {},
+      "order": 15,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "KSANA_DIFFUSION_MODEL",
+          "link": 25
+        },
+        {
+          "name": "positive",
+          "type": "CONDITIONING",
+          "link": 26
+        },
+        {
+          "name": "negative",
+          "type": "CONDITIONING",
+          "link": 27
+        },
+        {
+          "name": "image_embeds",
+          "type": "KSANA_VAE_ENCODE_OUTPUT",
+          "link": 28
+        },
+        {
+          "name": "cache_config",
+          "shape": 7,
+          "type": "KSANA_CACHE_CONFIG",
+          "link": 29
+        },
+        {
+          "name": "sigmas",
+          "shape": 7,
+          "type": "FLOAT",
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "latents",
+          "type": "KSANA_GENERATE_OUTPUT",
+          "links": [
+            23,
+            32
+          ]
+        }
+      ],
+      "properties": {
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {}
+        },
+        "Node name for S&R": "KsanaGeneratorNode"
+      },
+      "widgets_values": [
+        20,
+        1050538576399273,
+        "randomize",
+        "simple",
+        "uni_pc",
+        4,
+        5,
+        1,
+        "default",
+        3
+      ]
+    },
+    {
+      "id": 131,
+      "type": "KsanaModelLoaderNode",
+      "pos": [
+        1069.2387152580773,
+        616.502268251383
+      ],
+      "size": [
+        383.40526877501816,
+        219.7583385123521
+      ],
+      "flags": {},
+      "order": 8,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "attention_config",
+          "shape": 7,
+          "type": "KSANA_ATTENTION_CONFIG",
+          "link": 39
+        },
+        {
+          "name": "torch_compile_args",
+          "shape": 7,
+          "type": "KSANA_TORCH_COMPILE",
+          "link": 24
+        },
+        {
+          "name": "lora",
+          "shape": 7,
+          "type": "KSANA_LORA",
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "model",
+          "type": "KSANA_DIFFUSION_MODEL",
+          "links": [
+            25
+          ]
+        }
+      ],
+      "properties": {
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {}
+        },
+        "Node name for S&R": "KsanaModelLoaderNode"
+      },
+      "widgets_values": [
+        "wan2.2_t2v_high_noise_14B_fp8_scaled.safetensors",
+        "float16",
+        "float",
+        "default",
+        "wan2.2_t2v_low_noise_14B_fp8_scaled.safetensors",
+        0.875
+      ]
+    },
+    {
+      "id": 6,
+      "type": "CLIPTextEncode",
+      "pos": [
+        602.5137107634242,
+        725.2558605993555
+      ],
+      "size": [
+        400,
+        200
+      ],
+      "flags": {},
+      "order": 9,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "link": 20
+        }
+      ],
+      "outputs": [
+        {
+          "name": "CONDITIONING",
+          "type": "CONDITIONING",
+          "links": [
+            26
+          ]
+        }
+      ],
+      "title": "CLIP Text Encode (Positive Prompt)",
+      "properties": {
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {}
+        },
+        "Node name for S&R": "CLIPTextEncode"
+      },
+      "widgets_values": [
+        "街头摄影，戴耳机的酷女孩滑板，纽约街头，涂鸦墙背景，动态姿势，风吹头发，黄金时刻光线，主体清晰背景虚化，街头潮牌。"
+      ]
+    },
+    {
+      "id": 7,
+      "type": "CLIPTextEncode",
+      "pos": [
+        610.5025834094288,
+        966.8087927893001
+      ],
+      "size": [
+        400,
+        200
+      ],
+      "flags": {},
+      "order": 10,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "link": 21
+        }
+      ],
+      "outputs": [
+        {
+          "name": "CONDITIONING",
+          "type": "CONDITIONING",
+          "links": [
+            27
+          ]
+        }
+      ],
+      "title": "CLIP Text Encode (Negative Prompt)",
+      "properties": {
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {}
+        },
+        "Node name for S&R": "CLIPTextEncode"
+      },
+      "widgets_values": [
+        "色调艳丽，过曝，静态，细节模糊不清，字幕，风格，作品，画作，画面，静止，整体发灰，最差质量，低质量，JPEG压缩残留，丑陋的，残缺的，多余的手指，画得不好的手部，画得不好的脸部，畸形的，毁容的，形态畸形的肢体，手指融合，静止不动的画面，杂乱的背景，三条腿，背景人很多，倒着走"
+      ]
+    },
+    {
+      "id": 144,
+      "type": "KsanaAttentionConfigNode",
+      "pos": [
+        691.3937247447919,
+        613.9562585832309
+      ],
+      "size": [
+        270,
+        58
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "attention_config",
+          "type": "KSANA_ATTENTION_CONFIG",
+          "links": [
+            39
+          ]
+        }
+      ],
+      "properties": {
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {}
+        },
+        "Node name for S&R": "KsanaAttentionConfigNode"
+      },
+      "widgets_values": [
+        "flash_attention"
+      ]
+    },
+    {
+      "id": 125,
+      "type": "KsanaTorchCompileNode",
+      "pos": [
+        666.9039946444663,
+        301.11382492886037
+      ],
+      "size": [
+        342.74609375,
+        250
+      ],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "torch_compile_args",
+          "type": "KSANA_TORCH_COMPILE",
+          "links": [
+            24
+          ]
+        }
+      ],
+      "properties": {
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {}
+        },
+        "Node name for S&R": "KsanaTorchCompileNode"
+      },
+      "widgets_values": [
+        "inductor",
+        false,
+        "default",
+        false,
+        true,
+        128,
+        128,
+        false,
+        false
+      ]
+    },
+    {
+      "id": 38,
+      "type": "CLIPLoader",
+      "pos": [
+        296.10831093007425,
+        924.8414773343283
+      ],
+      "size": [
+        270,
+        106
+      ],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "CLIP",
+          "type": "CLIP",
+          "links": [
+            20,
+            21
+          ]
+        }
+      ],
+      "properties": {
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {}
+        },
+        "Node name for S&R": "CLIPLoader"
+      },
+      "widgets_values": [
+        "umt5_xxl_fp8_e4m3fn_scaled.safetensors",
+        "wan",
+        "default"
+      ]
+    },
+    {
+      "id": 137,
+      "type": "KsanaVAEEncodeNode",
+      "pos": [
+        1197.1242117087593,
+        1551.3845283209985
+      ],
+      "size": [
+        270,
+        190
+      ],
+      "flags": {},
+      "order": 11,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "vae",
+          "type": "KSANA_VAE_MODEL",
+          "link": 30
+        },
+        {
+          "name": "start_image",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": null
+        },
+        {
+          "name": "end_image",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": null
+        },
+        {
+          "name": "mask",
+          "shape": 7,
+          "type": "MASK",
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "latent",
+          "type": "KSANA_VAE_ENCODE_OUTPUT",
+          "links": [
+            28
+          ]
+        }
+      ],
+      "properties": {
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {}
+        },
+        "Node name for S&R": "KsanaVAEEncodeNode"
+      },
+      "widgets_values": [
+        81,
+        720,
+        480,
+        1
+      ]
+    },
+    {
+      "id": 139,
+      "type": "KsanaCacheCombineNode",
+      "pos": [
+        1173.0673206285917,
+        1377.7026026872468
+      ],
+      "size": [
+        253.13671875,
+        46
+      ],
+      "flags": {},
+      "order": 14,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "cache",
+          "type": "KSANA_CACHE_CONFIG",
+          "link": 33
+        },
+        {
+          "name": "low_noise_model_cache",
+          "shape": 7,
+          "type": "KSANA_CACHE_CONFIG",
+          "link": 34
+        }
+      ],
+      "outputs": [
+        {
+          "name": "cache_config",
+          "type": "KSANA_CACHE_CONFIG",
+          "links": [
+            29
+          ]
+        }
+      ],
+      "properties": {
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {}
+        },
+        "Node name for S&R": "KsanaCacheCombineNode"
+      }
+    },
+    {
+      "id": 136,
+      "type": "KsanaVAELoaderNode",
+      "pos": [
+        616.7990224825455,
+        1277.7943677078974
+      ],
+      "size": [
+        270,
+        58
+      ],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "vae",
+          "type": "KSANA_VAE_MODEL",
+          "links": [
+            30,
+            31
+          ]
+        }
+      ],
+      "properties": {
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {}
+        },
+        "Node name for S&R": "KsanaVAELoaderNode"
+      },
+      "widgets_values": [
+        "Wan2.1_VAE.pth"
+      ]
+    },
+    {
+      "id": 140,
+      "type": "KsanaHybridCacheNode",
+      "pos": [
+        669.6424846041917,
+        1458.335292462158
+      ],
+      "size": [
+        270,
+        78
+      ],
+      "flags": {},
+      "order": 13,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "step_cache",
+          "shape": 7,
+          "type": "KSANA_CACHE_CONFIG",
+          "link": 35
+        },
+        {
+          "name": "block_cache",
+          "shape": 7,
+          "type": "KSANA_CACHE_CONFIG",
+          "link": 40
+        }
+      ],
+      "outputs": [
+        {
+          "name": "hybrid_cache",
+          "type": "KSANA_CACHE_CONFIG",
+          "links": [
+            33
+          ]
+        }
+      ],
+      "properties": {
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {}
+        },
+        "Node name for S&R": "KsanaHybridCacheNode"
+      },
+      "widgets_values": [
+        "HybridCache"
+      ]
+    },
+    {
+      "id": 142,
+      "type": "KsanaHybridCacheNode",
+      "pos": [
+        666.8845860422163,
+        1598.318146934529
+      ],
+      "size": [
+        270,
+        78
+      ],
+      "flags": {},
+      "order": 12,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "step_cache",
+          "shape": 7,
+          "type": "KSANA_CACHE_CONFIG",
+          "link": 37
+        },
+        {
+          "name": "block_cache",
+          "shape": 7,
+          "type": "KSANA_CACHE_CONFIG",
+          "link": 38
+        }
+      ],
+      "outputs": [
+        {
+          "name": "hybrid_cache",
+          "type": "KSANA_CACHE_CONFIG",
+          "links": [
+            34
+          ]
+        }
+      ],
+      "properties": {
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {}
+        },
+        "Node name for S&R": "KsanaHybridCacheNode"
+      },
+      "widgets_values": [
+        "HybridCache"
+      ]
+    },
+    {
+      "id": 143,
+      "type": "KsanaDBCacheNode",
+      "pos": [
+        229.50317168674414,
+        1746.7816603161432
+      ],
+      "size": [
+        332.111328125,
+        346
+      ],
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "cache_config",
+          "type": "KSANA_CACHE_CONFIG",
+          "links": [
+            38
+          ]
+        }
+      ],
+      "properties": {
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {}
+        },
+        "Node name for S&R": "KsanaDBCacheNode"
+      },
+      "widgets_values": [
+        8,
+        6,
+        0.12,
+        5,
+        1,
+        -1,
+        -1,
+        true,
+        false,
+        true,
+        1,
+        40,
+        "balanced"
+      ]
+    },
+    {
+      "id": 135,
+      "type": "KsanaDCacheNode",
+      "pos": [
+        225.61661258313802,
+        1519.187595455436
+      ],
+      "size": [
+        328.091796875,
+        178
+      ],
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "cache_config",
+          "type": "KSANA_CACHE_CONFIG",
+          "links": [
+            37
+          ]
+        }
+      ],
+      "properties": {
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {}
+        },
+        "Node name for S&R": "KsanaDCacheNode"
+      },
+      "widgets_values": [
+        50,
+        25,
+        2,
+        4,
+        "",
+        false
+      ]
+    },
+    {
+      "id": 134,
+      "type": "KsanaDCacheNode",
+      "pos": [
+        -200.48816010019058,
+        1064.0508737166078
+      ],
+      "size": [
+        328.091796875,
+        178
+      ],
+      "flags": {},
+      "order": 6,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "cache_config",
+          "type": "KSANA_CACHE_CONFIG",
+          "links": [
+            35
+          ]
+        }
+      ],
+      "properties": {
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {}
+        },
+        "Node name for S&R": "KsanaDCacheNode"
+      },
+      "widgets_values": [
+        55,
+        35,
+        1,
+        5,
+        "",
+        false
+      ]
+    },
+    {
+      "id": 145,
+      "type": "KsanaDBCacheNode",
+      "pos": [
+        -195.42975735112202,
+        1316.0729234275914
+      ],
+      "size": [
+        332.111328125,
+        346
+      ],
+      "flags": {},
+      "order": 7,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "cache_config",
+          "type": "KSANA_CACHE_CONFIG",
+          "links": [
+            40
+          ]
+        }
+      ],
+      "properties": {
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {}
+        },
+        "Node name for S&R": "KsanaDBCacheNode"
+      },
+      "widgets_values": [
+        8,
+        6,
+        0.12,
+        5,
+        1,
+        -1,
+        -1,
+        true,
+        false,
+        true,
+        1,
+        40,
+        "balanced"
+      ]
+    },
+    {
+      "id": 114,
+      "type": "VHS_VideoCombine",
+      "pos": [
+        2183.912494178301,
+        926.421011936874
+      ],
+      "size": [
+        219.3603515625,
+        238
+      ],
+      "flags": {},
+      "order": 18,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 22
+        },
+        {
+          "name": "audio",
+          "shape": 7,
+          "type": "AUDIO",
+          "link": null
+        },
+        {
+          "name": "meta_batch",
+          "shape": 7,
+          "type": "VHS_BatchManager",
+          "link": null
+        },
+        {
+          "name": "vae",
+          "shape": 7,
+          "type": "VAE",
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "Filenames",
+          "type": "VHS_FILENAMES",
+          "links": null
+        }
+      ],
+      "properties": {
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {}
+        },
+        "Node name for S&R": "VHS_VideoCombine"
+      },
+      "widgets_values": {
+        "frame_rate": 16,
+        "loop_count": 0,
+        "filename_prefix": "AnimateDiff",
+        "format": "image/gif",
+        "pingpong": false,
+        "save_output": true,
+        "videopreview": {
+          "hidden": false,
+          "paused": false,
+          "params": {
+            "filename": "AnimateDiff_00207.gif",
+            "subfolder": "",
+            "type": "output",
+            "format": "image/gif",
+            "frame_rate": 16,
+            "workflow": "AnimateDiff_00207.png",
+            "fullpath": "/workspace/user_code/00_sd_webui_private_00/outputs/output/AnimateDiff_00207.gif"
+          }
+        }
+      }
+    }
+  ],
+  "links": [
+    [
+      20,
+      38,
+      0,
+      6,
+      0,
+      "CLIP"
+    ],
+    [
+      21,
+      38,
+      0,
+      7,
+      0,
+      "CLIP"
+    ],
+    [
+      22,
+      138,
+      0,
+      114,
+      0,
+      "IMAGE"
+    ],
+    [
+      23,
+      132,
+      0,
+      122,
+      0,
+      "*"
+    ],
+    [
+      24,
+      125,
+      0,
+      131,
+      1,
+      "KSANA_TORCH_COMPILE"
+    ],
+    [
+      25,
+      131,
+      0,
+      132,
+      0,
+      "KSANA_DIFFUSION_MODEL"
+    ],
+    [
+      26,
+      6,
+      0,
+      132,
+      1,
+      "CONDITIONING"
+    ],
+    [
+      27,
+      7,
+      0,
+      132,
+      2,
+      "CONDITIONING"
+    ],
+    [
+      28,
+      137,
+      0,
+      132,
+      3,
+      "KSANA_VAE_ENCODE_OUTPUT"
+    ],
+    [
+      29,
+      139,
+      0,
+      132,
+      4,
+      "KSANA_CACHE_CONFIG"
+    ],
+    [
+      30,
+      136,
+      0,
+      137,
+      0,
+      "KSANA_VAE_MODEL"
+    ],
+    [
+      31,
+      136,
+      0,
+      138,
+      0,
+      "KSANA_VAE_MODEL"
+    ],
+    [
+      32,
+      132,
+      0,
+      138,
+      1,
+      "KSANA_GENERATE_OUTPUT"
+    ],
+    [
+      33,
+      140,
+      0,
+      139,
+      0,
+      "KSANA_CACHE_CONFIG"
+    ],
+    [
+      34,
+      142,
+      0,
+      139,
+      1,
+      "KSANA_CACHE_CONFIG"
+    ],
+    [
+      35,
+      134,
+      0,
+      140,
+      0,
+      "KSANA_CACHE_CONFIG"
+    ],
+    [
+      37,
+      135,
+      0,
+      142,
+      0,
+      "KSANA_CACHE_CONFIG"
+    ],
+    [
+      38,
+      143,
+      0,
+      142,
+      1,
+      "KSANA_CACHE_CONFIG"
+    ],
+    [
+      39,
+      144,
+      0,
+      131,
+      0,
+      "KSANA_ATTENTION_CONFIG"
+    ],
+    [
+      40,
+      145,
+      0,
+      140,
+      1,
+      "KSANA_CACHE_CONFIG"
+    ]
+  ],
+  "groups": [],
+  "config": {},
+  "extra": {
+    "ue_links": [],
+    "ds": {
+      "scale": 0.8271696542623352,
+      "offset": [
+        115.68682050605196,
+        -123.23457108267284
+      ]
+    },
+    "frontendVersion": "1.32.10",
+    "VHS_latentpreview": false,
+    "VHS_latentpreviewrate": 0,
+    "VHS_MetadataImage": true,
+    "VHS_KeepIntermediate": true
+  },
+  "version": 0.4
+}

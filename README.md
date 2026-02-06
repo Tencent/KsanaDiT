@@ -102,6 +102,44 @@ python -c "import torch_npu; print(torch_npu.npu.is_available())"
 
 Direct installation via wheel packages coming soon.
 
+## 🔌 Interface Support
+
+KsanaDiT provides multiple usage methods to meet different scenario requirements:
+
+### Local Pipeline Mode
+
+Run locally through the Python Pipeline API, suitable for scripted batch generation or integration into your own systems:
+
+```python
+from ksana import KsanaPipeline
+
+# Create inference pipeline
+pipeline = KsanaPipeline.from_models("path/to/model")
+
+# Generate video/image
+result = pipeline.generate(prompt, ...)
+```
+
+For detailed usage, refer to [Quick Start](#-quick-start) and the [examples](./examples/) directory.
+
+### ComfyUI Integration
+
+KsanaDiT supports usage as ComfyUI custom nodes, providing a visual workflow experience:
+
+```bash
+# 1. Navigate to ComfyUI's custom_nodes directory
+cd /path/to/ComfyUI/custom_nodes
+
+# 2. Clone the KsanaDiT repository
+git clone https://github.com/Tencent/KsanaDiT.git
+
+# 3. Enter the KsanaDiT directory and install dependencies
+cd KsanaDiT
+./scripts/install_dev.sh
+```
+
+After installation, restart ComfyUI and you will see KsanaDiT-related nodes in the node list. For more ComfyUI usage instructions, refer to [comfyui/README.md](./comfyui/README.md).
+
 ## 🚀 Quick Start
 
 For detailed code examples, refer to [examples](./examples/).
