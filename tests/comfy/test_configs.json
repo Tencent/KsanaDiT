@@ -1,6 +1,26 @@
 {
   "independent_tests": [
     {
+      "workflow_path": "../../comfyui/examples/wan/t2v/wan2.2_t2v_fp16_dbcache.json",
+      "steps": 1,
+      "width": 1280,
+      "height": 720,
+      "frames": 81,
+      "attn_backend": "laser_attention",
+      "platform_expect_values": {
+        "NPU": {
+          "single": {
+            "mean": 0.4020190,
+            "eps_place": 4
+          },
+          "multi": {
+            "mean": 0.4020140,
+            "eps_place": 3
+          }
+        }
+      }
+    },
+    {
       "workflow_path": "../../comfyui/examples/wan/i2v/wan2.1_vace_add_noise_i2v_test.json",
       "steps": 1,
       "frames": 81,
@@ -270,7 +290,7 @@
         },
         "NPU": {
           "single": {
-            "mean": 0.4018765,
+            "mean": 0.4020337,
             "eps_place": 4
           },
           "multi": {

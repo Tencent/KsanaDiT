@@ -26,15 +26,37 @@ class KsanaAttentionBackend(Enum):
     TORCH_SDPA = "torch_sdpa"
     RADIAL_SAGE_ATTN = "radial_sage_attention"
     SAGE_SLA = "sage_sla"
+    LASER_ATTN = "laser_attention"
+
+    @staticmethod
+    def _get_npu_supported() -> list["KsanaAttentionBackend"]:
+        return [
+            KsanaAttentionBackend.TORCH_SDPA,
+            KsanaAttentionBackend.LASER_ATTN,
+        ]
+
+    @staticmethod
+    def _get_gpu_supported() -> list["KsanaAttentionBackend"]:
+        return [
+            KsanaAttentionBackend.SAGE_ATTN,
+            KsanaAttentionBackend.FLASH_ATTN,
+            KsanaAttentionBackend.TORCH_SDPA,
+            KsanaAttentionBackend.RADIAL_SAGE_ATTN,
+            KsanaAttentionBackend.SAGE_SLA,
+        ]
 
     @staticmethod
     def get_supported_list(exclude: list[KsanaAttentionBackend] = None) -> list[str]:
         if exclude is None:
             exclude = []
-        # NPU only supports TORCH_SDPA
+
         if platform.is_npu():
-            return [KsanaAttentionBackend.TORCH_SDPA.value]
-        return [b.value for b in KsanaAttentionBackend if b not in exclude]
+            supported_backends = KsanaAttentionBackend._get_npu_supported()
+        else:
+            supported_backends = KsanaAttentionBackend._get_gpu_supported()
+
+        exclude_set = set(exclude)
+        return [backend.value for backend in supported_backends if backend not in exclude_set]
 
     @staticmethod
     def support(type: str) -> bool:

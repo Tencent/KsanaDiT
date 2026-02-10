@@ -47,6 +47,7 @@ _MODEL_KEY_TO_CONF_PATH_MAP = {
 _MODEL_LORA_PATH_MAP = {
     KsanaModelKey.Wan2_2_I2V_14B: "wan/modules/lora.yaml",
     KsanaModelKey.Wan2_2_T2V_14B: "wan/modules/lora.yaml",
+    KsanaModelKey.Wan2_1_VACE_14B: "wan/modules/lora.yaml",
     KsanaModelKey.QwenImage_T2I: "qwen/modules/lora.yaml",
 }
 

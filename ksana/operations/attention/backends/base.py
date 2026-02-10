@@ -30,6 +30,7 @@ def get_backend_mapping():
     if _ATTN_BACKEND_TO_IMPL is None:
         # lazy import to avoid circular import
         from .flash_attn import FlashAttentionImpl
+        from .laser_attn import LaserAttentionImpl
         from .radial_sage_attn.radial_sage_attn import RadialSageAttentionImpl
         from .sage_attn import SageAttentionImpl
         from .sage_sla import SageSLAAttentionImpl
@@ -39,6 +40,7 @@ def get_backend_mapping():
             FlashAttentionImpl.type(): FlashAttentionImpl,
             SageAttentionImpl.type(): SageAttentionImpl,
             SDPAImpl.type(): SDPAImpl,
+            LaserAttentionImpl.type(): LaserAttentionImpl,
             SageSLAAttentionImpl.type(): SageSLAAttentionImpl,
             RadialSageAttentionImpl.type(): RadialSageAttentionImpl,
         }

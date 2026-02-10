@@ -27,6 +27,8 @@ unset http_proxy https_proxy HTTP_PROXY HTTPS_PROXY
 
 # NPU/Ascend environment setup (if available)
 if command -v npu-smi > /dev/null 2>&1; then
+    export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+    export ASCEND_CUSTOM_OPP_PATH=/data/MindIE-SD/build/pkg/vendors/customize:/data/MindIE-SD/build/pkg/vendors/aie_ascendc:
     export ASCEND_TOOLKIT_HOME=/usr/local/Ascend/ascend-toolkit/latest
     export LD_LIBRARY_PATH=/usr/local/Ascend/driver/lib64/driver:/usr/local/Ascend/driver/lib64:/usr/local/Ascend/driver/lib64/common:${ASCEND_TOOLKIT_HOME}/lib64:$LD_LIBRARY_PATH
     if [ -f "/usr/local/Ascend/ascend-toolkit/set_env.sh" ]; then

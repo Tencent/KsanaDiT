@@ -15,7 +15,6 @@
 import torch
 import torch.nn.functional as F
 
-from ksana.accelerator import platform
 from ksana.config import KsanaAttentionBackend, KsanaAttentionConfig
 
 from .base import KsanaAttentionBackendImpl
@@ -64,11 +63,6 @@ class SDPAImpl(KsanaAttentionBackendImpl):
         q = query.transpose(1, 2)
         k = key.transpose(1, 2)
         v = value.transpose(1, 2)
-
-        if platform.is_npu():
-            q = q.to(dtype=torch.bfloat16)
-            k = k.to(dtype=torch.bfloat16)
-            v = v.to(dtype=torch.bfloat16)
 
         if q.shape[1] != k.shape[1]:
             attn = F.scaled_dot_product_attention(

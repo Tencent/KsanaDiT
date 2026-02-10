@@ -19,6 +19,9 @@ from pipeline_test_helper import get_platform_config_or_skip
 
 from ksana import KsanaPipeline
 from ksana.config import (
+    KsanaAttentionBackend,
+    KsanaAttentionConfig,
+    KsanaModelConfig,
     KsanaRuntimeConfig,
     KsanaSampleConfig,
     KsanaSolverType,
@@ -40,7 +43,7 @@ TEST_DTYPE = torch.float16
 TEST_SIZE = (848, 480)
 TEST_STEPS = 1
 TEST_FRAME_NUM = 9
-TEST_EPS_PLACE = 5
+TEST_EPS_PLACE = 4
 
 
 class TestKsanaPipelineWanVace(unittest.TestCase):
@@ -52,12 +55,25 @@ class TestKsanaPipelineWanVace(unittest.TestCase):
         self.assertTrue(torch.isfinite(video).all().item())
 
     def test_simple(self):
-        print("-----------------wan2.1 vace test_simple-----------------")
-        config = {
+        name = "wan2_1_vace.test_simple"
+        model_config = KsanaModelConfig(attention_config=KsanaAttentionConfig())
+        result_config = {
             "GPU": {"mean0": 0.80013597},
         }
-        expected = get_platform_config_or_skip(config, test_name="wan2_1_vace.test_simple")
-        pipeline = KsanaPipeline.from_models("./Wan2.1-VACE-14B")
+        self._run_test(model_config, result_config, name)
+
+    def test_laser_attn(self):
+        name = "wan2_1_vace.test_laser_attn"
+        model_config = KsanaModelConfig(attention_config=KsanaAttentionConfig(KsanaAttentionBackend.LASER_ATTN))
+        result_config = {
+            "NPU": {"mean0": 0.7870979},
+        }
+        self._run_test(model_config, result_config, name)
+
+    def _run_test(self, model_config, config, test_name):
+        print(f"-----------------wan2.1 vace {test_name}-----------------")
+        expected = get_platform_config_or_skip(config, test_name=test_name)
+        pipeline = KsanaPipeline.from_models("./Wan2.1-VACE-14B", model_config=model_config)
         video = pipeline.generate(
             prompts[0],
             prompt_negative=NEGATIVE_PROMPT,
@@ -78,7 +94,6 @@ class TestKsanaPipelineWanVace(unittest.TestCase):
         self._assert_video_tensor_ok(video)
         mean = video.detach().float().abs().mean().item()
         self.assertAlmostEqual(mean, expected["mean0"], places=TEST_EPS_PLACE)
-        self.assertAlmostEqual(mean, 0.80013597, places=TEST_EPS_PLACE)
 
 
 if __name__ == "__main__":

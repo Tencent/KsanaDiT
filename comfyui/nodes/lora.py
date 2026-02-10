@@ -17,6 +17,14 @@ import folder_paths
 from ksana.nodes import KSANA_CATEGORY_LORA, KSANA_LORA, build_list_of_lora_config
 
 
+def _get_full_lora_path(lora):
+    if lora and lora != "Empty":
+        lora_path = folder_paths.get_full_path_or_raise("loras", lora)
+    else:
+        lora_path = None
+    return lora_path
+
+
 class KsanaLoraSelectMultiNode:
     @classmethod
     def INPUT_TYPES(s):  # pylint: disable=invalid-name
@@ -92,11 +100,11 @@ class KsanaLoraSelectMultiNode:
         self, lora_0, strength_0, lora_1, strength_1, lora_2, strength_2, lora_3, strength_3, lora_4, strength_4
     ):
         lora_inputs = [
-            (lora_0, strength_0),
-            (lora_1, strength_1),
-            (lora_2, strength_2),
-            (lora_3, strength_3),
-            (lora_4, strength_4),
+            (_get_full_lora_path(lora_0), strength_0),
+            (_get_full_lora_path(lora_1), strength_1),
+            (_get_full_lora_path(lora_2), strength_2),
+            (_get_full_lora_path(lora_3), strength_3),
+            (_get_full_lora_path(lora_4), strength_4),
         ]
         return (build_list_of_lora_config(lora_inputs),)
 
@@ -127,11 +135,7 @@ class KsanaLoraSelectNode:
     DESCRIPTION = "Select a LoRA model from loras"
 
     def get_lora_path(self, lora, strength):
-        if lora and lora != "Empty":
-            lora_path = folder_paths.get_full_path_or_raise("loras", lora)
-        else:
-            lora_path = None
-        return (build_list_of_lora_config([(lora_path, strength)]),)
+        return (build_list_of_lora_config([(_get_full_lora_path(lora), strength)]),)
 
 
 class KsanaLoraCombineNode:

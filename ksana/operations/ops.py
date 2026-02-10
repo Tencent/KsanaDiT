@@ -84,7 +84,7 @@ class RMSNorm(torch.nn.RMSNorm):
         elif self.weight.dtype == torch.float32:
             return self.float_rmsnorm(*args, **kwargs)
 
-        return super().forward(*args, **kwargs)
+        return super().forward(*args, **kwargs).type_as(args[0])
 
 
 class ConvTranspose2d(torch.nn.ConvTranspose2d):
