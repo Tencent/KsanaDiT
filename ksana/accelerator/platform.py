@@ -15,6 +15,8 @@
 import shutil
 from functools import cache
 
+import torch
+
 
 @cache
 def is_gpu() -> bool:
@@ -24,3 +26,14 @@ def is_gpu() -> bool:
 @cache
 def is_npu() -> bool:
     return shutil.which("npu-smi") is not None
+
+
+def empty_cache() -> None:
+    """清空加速器显存缓存，自动适配 CUDA/NPU 平台。"""
+    if is_gpu():
+        torch.cuda.empty_cache()
+        torch.cuda.ipc_collect()
+    if is_npu():
+        import torch_npu
+
+        torch_npu.npu.empty_cache()

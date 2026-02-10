@@ -17,6 +17,7 @@ from abc import abstractmethod
 import numpy as np
 import torch
 
+from ..accelerator.platform import empty_cache
 from ..models.model_key import KsanaModelKey
 from ..utils.logger import log
 from ..utils.profile import time_range
@@ -230,7 +231,7 @@ class KsanaVAEModel(KsanaModel):
         current_device = self.device
         if current_device != device:
             self.to(device)
-        torch.cuda.empty_cache()
+        empty_cache()
         # TODO: Enable batch decoding when latent size is small enough to fit in memory
         decoded_latents = []
         for i in range(latents.shape[0]):

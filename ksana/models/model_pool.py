@@ -14,8 +14,7 @@
 
 import gc
 
-import torch
-
+from ..accelerator.platform import empty_cache
 from ..utils.logger import log
 from .base_model import KsanaModel
 from .model_key import KsanaModelKey
@@ -65,7 +64,7 @@ class KsanaModelPool:
             self.loaded_models.clear()
             self.loaded_models = {}
             gc.collect()
-            torch.cuda.empty_cache()
+            empty_cache()
             log.info("clear all models")
             return
         log.info(f"clear models {model_keys}")
@@ -75,4 +74,4 @@ class KsanaModelPool:
             self.loaded_models.pop(one_model_key)
             log.info(f"clear {one_model_key}")
         gc.collect()
-        torch.cuda.empty_cache()
+        empty_cache()
