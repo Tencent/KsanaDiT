@@ -21,7 +21,7 @@ import torch
 import torch.nn as nn
 
 from .distribute import get_rank_id
-from .load import batch_safetensors_by_size, load_file_to_state_dict, load_files_to_state_dict
+from .load import get_safetensors_list, load_file_to_state_dict, load_files_to_state_dict
 from .logger import log
 from .profile import time_range
 
@@ -151,13 +151,12 @@ def merge_lora_weight(
 def load_state_dict_and_merge_lora(
     model_path: str, loras_list: list = None, run_dtype: torch.dtype = None, device=None, vace_model: str = None
 ):
-    sd = {}
+    state_dict = {}
 
     if loras_list is not None and run_dtype is None:
         raise RuntimeError("run_dtype cannot be None when loras_list is provided.")
     need_merge = loras_list is not None and len(loras_list) > 0
     if not need_merge:
-        device = "cpu"
         loras_list = []
 
     # TODO(rockcao): support merge lora on gpu
@@ -166,28 +165,22 @@ def load_state_dict_and_merge_lora(
     log.info(f"load_state_dict_and_merge_lora on rank {get_rank_id()} via device {device}")
 
     if Path(model_path).is_file():
-        files_list = [[model_path]]
+        files = [model_path]
     elif Path(model_path).is_dir():
-        # group files by size to reduce memory usage
-        files_list = batch_safetensors_by_size(model_path)
+        files = get_safetensors_list(model_path)
     else:
         raise ValueError(f"model_path {model_path} is not a file or dir")
 
-    for files in files_list:
-        base_sd = load_files_to_state_dict(files, device=device)
-
-        for lora in loras_list:
-            log.info(f"start to merge lora: {lora.path}")
-            lora_sd = load_file_to_state_dict(lora.path, device=device)
-            base_sd = merge_lora_weight(base_sd, lora_sd, run_dtype, strength=lora.strength)
-            del lora_sd
-
-        log.debug("start to offload to cpu")
-        for _, value in base_sd.items():
-            value.data = value.to("cpu")
-        sd.update(base_sd)
+    state_dict = load_files_to_state_dict(files, device=device)
 
     if vace_model:
-        sd.update(load_file_to_state_dict(vace_model, device=device))
-        log.info(f"loaded vace_model: {vace_model}")
-    return sd
+        log.info(f"loading vace_model: {vace_model}")
+        state_dict.update(load_file_to_state_dict(vace_model, device=device))
+
+    for lora in loras_list:
+        log.info(f"starting to merge lora: {lora.path}")
+        lora_sd = load_file_to_state_dict(lora.path, device=device)
+        merge_lora_weight(state_dict, lora_sd, run_dtype, strength=lora.strength)
+        del lora_sd
+
+    return state_dict

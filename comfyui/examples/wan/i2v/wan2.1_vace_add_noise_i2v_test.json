@@ -1,8 +1,8 @@
 {
   "id": "15c83e60-fecb-4611-b022-65462405137a",
   "revision": 0,
-  "last_node_id": 150,
-  "last_link_id": 270,
+  "last_node_id": 151,
+  "last_link_id": 271,
   "nodes": [
     {
       "id": 122,
@@ -16,7 +16,7 @@
         58
       ],
       "flags": {},
-      "order": 11,
+      "order": 12,
       "mode": 0,
       "inputs": [
         {
@@ -38,6 +38,8 @@
       ],
       "outputs": [],
       "properties": {
+        "aux_id": "KsanaDiT.git",
+        "ver": "48be56b60060b484e7143a3a0cbb71064055a9ce",
         "Node name for S&R": "KsanaDebugNode",
         "ue_properties": {
           "widget_ue_connectable": {},
@@ -61,7 +63,7 @@
         115.21111297607422
       ],
       "flags": {},
-      "order": 5,
+      "order": 8,
       "mode": 0,
       "inputs": [
         {
@@ -93,6 +95,8 @@
       ],
       "title": "CLIP Text Encode (Negative Prompt)",
       "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.7.0",
         "Node name for S&R": "CLIPTextEncode",
         "ue_properties": {
           "widget_ue_connectable": {},
@@ -107,78 +111,6 @@
       "bgcolor": "#533"
     },
     {
-      "id": 38,
-      "type": "CLIPLoader",
-      "pos": [
-        102,
-        621
-      ],
-      "size": [
-        394.3128967285156,
-        116.17143249511719
-      ],
-      "flags": {},
-      "order": 0,
-      "mode": 0,
-      "inputs": [
-        {
-          "localized_name": "clip_name",
-          "name": "clip_name",
-          "type": "COMBO",
-          "widget": {
-            "name": "clip_name"
-          },
-          "link": null
-        },
-        {
-          "localized_name": "type",
-          "name": "type",
-          "type": "COMBO",
-          "widget": {
-            "name": "type"
-          },
-          "link": null
-        },
-        {
-          "localized_name": "device",
-          "name": "device",
-          "shape": 7,
-          "type": "COMBO",
-          "widget": {
-            "name": "device"
-          },
-          "link": null
-        }
-      ],
-      "outputs": [
-        {
-          "localized_name": "CLIP",
-          "name": "CLIP",
-          "type": "CLIP",
-          "slot_index": 0,
-          "links": [
-            74,
-            75
-          ]
-        }
-      ],
-      "properties": {
-        "Node name for S&R": "CLIPLoader",
-        "ue_properties": {
-          "widget_ue_connectable": {},
-          "version": "7.5.2",
-          "input_ue_unconnectable": {}
-        }
-      },
-      "widgets_values": [
-        "umt5_xxl_fp8_e4m3fn_scaled.safetensors",
-        "wan",
-        "default"
-      ],
-      "color": "#223",
-      "bgcolor": "#335"
-    },
-    {
       "id": 138,
       "type": "KsanaVAEDecodeNode",
       "pos": [
@@ -186,11 +118,11 @@
         612.1154076512463
       ],
       "size": [
-        184.3775390625,
+        190.0787109375,
         46
       ],
       "flags": {},
-      "order": 12,
+      "order": 13,
       "mode": 0,
       "inputs": [
         {
@@ -217,6 +149,8 @@
         }
       ],
       "properties": {
+        "aux_id": "KsanaDiT.git",
+        "ver": "48be56b60060b484e7143a3a0cbb71064055a9ce",
         "Node name for S&R": "KsanaVAEDecodeNode",
         "ue_properties": {
           "widget_ue_connectable": {},
@@ -238,7 +172,7 @@
         314.0000000000001
       ],
       "flags": {},
-      "order": 1,
+      "order": 0,
       "mode": 0,
       "inputs": [
         {
@@ -277,6 +211,8 @@
         }
       ],
       "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.7.0",
         "Node name for S&R": "LoadImage",
         "ue_properties": {
           "widget_ue_connectable": {},
@@ -301,7 +237,7 @@
         130.8181915283203
       ],
       "flags": {},
-      "order": 4,
+      "order": 7,
       "mode": 0,
       "inputs": [
         {
@@ -333,6 +269,8 @@
       ],
       "title": "CLIP Text Encode (Positive Prompt)",
       "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.7.0",
         "Node name for S&R": "CLIPTextEncode",
         "ue_properties": {
           "widget_ue_connectable": {},
@@ -358,7 +296,7 @@
         238
       ],
       "flags": {},
-      "order": 13,
+      "order": 14,
       "mode": 0,
       "inputs": [
         {
@@ -470,13 +408,13 @@
           "hidden": false,
           "paused": false,
           "params": {
-            "filename": "AnimateDiff_00402.gif",
+            "filename": "AnimateDiff_00503.gif",
             "subfolder": "",
             "type": "output",
             "format": "image/gif",
             "frame_rate": 16,
-            "workflow": "AnimateDiff_00402.png",
-            "fullpath": "/workspace/user_code/00_sd_webui_private_00/outputs/output/AnimateDiff_00402.gif"
+            "workflow": "AnimateDiff_00503.png",
+            "fullpath": "/workspace/user_code/00_sd_webui_private_00/outputs/output/AnimateDiff_00503.gif"
           }
         }
       }
@@ -493,7 +431,7 @@
         518
       ],
       "flags": {},
-      "order": 10,
+      "order": 11,
       "mode": 0,
       "inputs": [
         {
@@ -680,6 +618,8 @@
         }
       ],
       "properties": {
+        "aux_id": "KsanaDiT.git",
+        "ver": "48be56b60060b484e7143a3a0cbb71064055a9ce",
         "Node name for S&R": "KsanaGeneratorNode",
         "ue_properties": {
           "widget_ue_connectable": {},
@@ -713,7 +653,7 @@
         190
       ],
       "flags": {},
-      "order": 9,
+      "order": 10,
       "mode": 0,
       "inputs": [
         {
@@ -796,6 +736,8 @@
         }
       ],
       "properties": {
+        "aux_id": "KsanaDiT.git",
+        "ver": "48be56b60060b484e7143a3a0cbb71064055a9ce",
         "Node name for S&R": "KsanaVAEEncodeNode",
         "ue_properties": {
           "widget_ue_connectable": {},
@@ -822,7 +764,7 @@
         58
       ],
       "flags": {},
-      "order": 2,
+      "order": 1,
       "mode": 0,
       "inputs": [
         {
@@ -848,6 +790,8 @@
         }
       ],
       "properties": {
+        "aux_id": "KsanaDiT.git",
+        "ver": "48be56b60060b484e7143a3a0cbb71064055a9ce",
         "Node name for S&R": "KsanaVAELoaderNode",
         "ue_properties": {
           "widget_ue_connectable": {},
@@ -871,7 +815,7 @@
         336
       ],
       "flags": {},
-      "order": 6,
+      "order": 5,
       "mode": 0,
       "inputs": [
         {
@@ -1012,7 +956,8 @@
         "0, 0, 0",
         "center",
         8,
-        "cpu"
+        "cpu",
+        "<tr><td>Output: </td><td><b>1</b> x <b>512</b> x <b>512 | 3.00MB</b></td></tr>"
       ]
     },
     {
@@ -1027,7 +972,7 @@
         78
       ],
       "flags": {},
-      "order": 8,
+      "order": 9,
       "mode": 0,
       "inputs": [
         {
@@ -1066,6 +1011,8 @@
         }
       ],
       "properties": {
+        "aux_id": "KsanaDiT.git",
+        "ver": "48be56b60060b484e7143a3a0cbb71064055a9ce",
         "Node name for S&R": "KsanaVAEImageEncodeNode",
         "ue_properties": {
           "widget_ue_connectable": {},
@@ -1089,7 +1036,7 @@
         258
       ],
       "flags": {},
-      "order": 7,
+      "order": 6,
       "mode": 0,
       "inputs": [
         {
@@ -1111,7 +1058,7 @@
           "name": "lora",
           "shape": 7,
           "type": "KSANA_LORA",
-          "link": null
+          "link": 271
         },
         {
           "localized_name": "vace_model",
@@ -1199,6 +1146,8 @@
         }
       ],
       "properties": {
+        "aux_id": "KsanaDiT.git",
+        "ver": "48be56b60060b484e7143a3a0cbb71064055a9ce",
         "Node name for S&R": "KsanaModelLoaderNode",
         "ue_properties": {
           "widget_ue_connectable": {},
@@ -1227,7 +1176,7 @@
         82
       ],
       "flags": {},
-      "order": 3,
+      "order": 2,
       "mode": 0,
       "inputs": [
         {
@@ -1261,6 +1210,8 @@
         }
       ],
       "properties": {
+        "aux_id": "KsanaDiT.git",
+        "ver": "48be56b60060b484e7143a3a0cbb71064055a9ce",
         "Node name for S&R": "KsanaVaceModelSelectNode",
         "ue_properties": {
           "widget_ue_connectable": {},
@@ -1272,6 +1223,218 @@
         "wan2.2_i2v_high_noise_14B_fp16.safetensors",
         "Empty"
       ]
+    },
+    {
+      "id": 151,
+      "type": "KsanaLoraSelectMultiNode",
+      "pos": [
+        38.02381841494926,
+        2.6695723664478237
+      ],
+      "size": [
+        413.1273339928561,
+        274
+      ],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "lora_0",
+          "name": "lora_0",
+          "type": "COMBO",
+          "widget": {
+            "name": "lora_0"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "strength_0",
+          "name": "strength_0",
+          "type": "FLOAT",
+          "widget": {
+            "name": "strength_0"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "lora_1",
+          "name": "lora_1",
+          "type": "COMBO",
+          "widget": {
+            "name": "lora_1"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "strength_1",
+          "name": "strength_1",
+          "type": "FLOAT",
+          "widget": {
+            "name": "strength_1"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "lora_2",
+          "name": "lora_2",
+          "type": "COMBO",
+          "widget": {
+            "name": "lora_2"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "strength_2",
+          "name": "strength_2",
+          "type": "FLOAT",
+          "widget": {
+            "name": "strength_2"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "lora_3",
+          "name": "lora_3",
+          "type": "COMBO",
+          "widget": {
+            "name": "lora_3"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "strength_3",
+          "name": "strength_3",
+          "type": "FLOAT",
+          "widget": {
+            "name": "strength_3"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "lora_4",
+          "name": "lora_4",
+          "type": "COMBO",
+          "widget": {
+            "name": "lora_4"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "strength_4",
+          "name": "strength_4",
+          "type": "FLOAT",
+          "widget": {
+            "name": "strength_4"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "lora",
+          "name": "lora",
+          "type": "KSANA_LORA",
+          "links": [
+            271
+          ]
+        }
+      ],
+      "properties": {
+        "aux_id": "KsanaDiT.git",
+        "ver": "48be56b60060b484e7143a3a0cbb71064055a9ce",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {}
+        },
+        "Node name for S&R": "KsanaLoraSelectMultiNode"
+      },
+      "widgets_values": [
+        "lora/Wan2.2-I2V-A14B-4steps-lora-rank64-Seko-V1/high_noise_model.safetensors",
+        0.5,
+        "lora/Wan2.2-I2V-A14B-4steps-lora-rank64-Seko-V1/low_noise_model.safetensors",
+        1,
+        "Empty",
+        1,
+        "Empty",
+        1,
+        "Empty",
+        1
+      ]
+    },
+    {
+      "id": 38,
+      "type": "CLIPLoader",
+      "pos": [
+        102,
+        621
+      ],
+      "size": [
+        394.3128967285156,
+        116.17143249511719
+      ],
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "clip_name",
+          "name": "clip_name",
+          "type": "COMBO",
+          "widget": {
+            "name": "clip_name"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "type",
+          "name": "type",
+          "type": "COMBO",
+          "widget": {
+            "name": "type"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "device",
+          "name": "device",
+          "shape": 7,
+          "type": "COMBO",
+          "widget": {
+            "name": "device"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "CLIP",
+          "name": "CLIP",
+          "type": "CLIP",
+          "slot_index": 0,
+          "links": [
+            74,
+            75
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.7.0",
+        "Node name for S&R": "CLIPLoader",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "version": "7.5.2",
+          "input_ue_unconnectable": {}
+        }
+      },
+      "widgets_values": [
+        "umt5_xxl_fp16.safetensors",
+        "wan",
+        "default"
+      ],
+      "color": "#223",
+      "bgcolor": "#335"
     }
   ],
   "links": [
@@ -1426,6 +1589,14 @@
       132,
       6,
       "KSANA_VAE_ENCODE_OUTPUT"
+    ],
+    [
+      271,
+      151,
+      0,
+      131,
+      2,
+      "KSANA_LORA"
     ]
   ],
   "groups": [],
@@ -1434,8 +1605,8 @@
     "ds": {
       "scale": 0.8688473471431137,
       "offset": [
-        37.0680932052613,
-        -93.83153086940408
+        140.3076699479315,
+        -85.93499341357047
       ]
     },
     "frontendVersion": "1.32.10",

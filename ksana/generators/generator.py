@@ -447,7 +447,7 @@ class KsanaBaseGenerator(KsanaRunnerUnit):
             sample_scheduler, _, timesteps = get_sample_scheduler(
                 num_train_timesteps=num_train_timesteps, sample_config=sample_config, device=device
             )
-            self._apply_input_latent(
+            batch_noise_latent = self._apply_input_latent(
                 batch_noise_latent, batch_input_latent, sample_config, timesteps, num_train_timesteps
             )
             with torch.no_grad():

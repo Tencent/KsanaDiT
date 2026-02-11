@@ -15,7 +15,7 @@
           },
           "multi": {
             "mean": 0.4020140,
-            "eps_place": 3
+            "eps_place": 1
           }
         }
       }
@@ -26,14 +26,16 @@
       "frames": 81,
       "seed": 1234,
       "input_image": "../../examples/images/start_image.png",
+      "lora_model_name_0": "Wan2.2-I2V-A14B-4steps-lora-rank64-Seko-V1_low_noise.safetensors",
+      "lora_model_name_1": "Wan2.2-I2V-A14B-4steps-lora-rank64-Seko-V1_low_noise.safetensors",
       "platform_expect_values": {
         "GPU":{
           "single": {
-            "mean": 0.7194474,
+            "mean": 0.7250447,
             "eps_place": 3
           },
           "multi": {
-            "mean": 0.7194223,
+            "mean": 0.7251003,
             "eps_place": 3
           }
         }

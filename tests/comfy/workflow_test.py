@@ -116,6 +116,12 @@ def modify_workflow_params(api_prompt: dict, params: dict) -> dict:
             if params.get("lora_model_name"):
                 inputs["lora"] = params["lora_model_name"]
 
+        elif class_type == "KsanaLoraSelectMultiNode":
+            if params.get("lora_model_name_0"):
+                inputs["lora_0"] = params["lora_model_name_0"]
+            if params.get("lora_model_name_1"):
+                inputs["lora_1"] = params["lora_model_name_1"]
+
         elif class_type == "StringToFloatList":
             if "sigmas" in params and "string" in inputs:
                 sigmas_str = ",".join(map(str, params["sigmas"]))
