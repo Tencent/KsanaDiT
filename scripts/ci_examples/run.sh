@@ -36,6 +36,28 @@ echo "GPU COUNT ${gpu_count}"
 source /data/miniconda3/etc/profile.d/conda.sh
 conda activate env-novelai
 
+# CPU memory limit (160 GB), override via KSANA_CPU_MEM_LIMIT_GB env var.
+# Uses cgroup to limit physical (RSS) memory only, so GPU virtual address
+# space mappings are not affected.
+KSANA_CPU_MEM_LIMIT_GB=${KSANA_CPU_MEM_LIMIT_GB:-160}
+export KSANA_CPU_MEM_LIMIT_GB
+if [ "${KSANA_CPU_MEM_LIMIT_GB}" -gt 0 ] 2>/dev/null; then
+    MEM_LIMIT_BYTES=$((KSANA_CPU_MEM_LIMIT_GB * 1024 * 1024 * 1024))
+    if [ -f /sys/fs/cgroup/memory.max ]; then
+        # cgroup v2
+        echo "${MEM_LIMIT_BYTES}" > /sys/fs/cgroup/memory.max 2>/dev/null && \
+            echo "CPU memory limit set to ${KSANA_CPU_MEM_LIMIT_GB} GB via cgroup v2" || \
+            echo "WARNING: failed to set cgroup v2 memory limit (no permission?)"
+    elif [ -f /sys/fs/cgroup/memory/memory.limit_in_bytes ]; then
+        # cgroup v1
+        echo "${MEM_LIMIT_BYTES}" > /sys/fs/cgroup/memory/memory.limit_in_bytes 2>/dev/null && \
+            echo "CPU memory limit set to ${KSANA_CPU_MEM_LIMIT_GB} GB via cgroup v1" || \
+            echo "WARNING: failed to set cgroup v1 memory limit (no permission?)"
+    else
+        echo "WARNING: cgroup memory interface not found, CPU memory limit not applied"
+    fi
+fi
+
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 export CUDA_VISIBLE_DEVICES=${GPU_CARDS}
 
