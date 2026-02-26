@@ -30,7 +30,7 @@ from ..settings import load_default_settings
 from ..units import KsanaUnitFactory, KsanaUnitType
 from ..utils import log, time_range
 from ..utils.media import save_image
-from ..utils.vace import KsanaVaceVideoEncodeConfig
+from ..utils.vace import KsanaVaceContext
 from .base_pipeline import KsanaBasePipeline
 
 
@@ -139,7 +139,7 @@ class KsanaPipeline(KsanaBasePipeline):
         runtime_config: KsanaRuntimeConfig = None,
         cache_config: list[KsanaCacheConfig | KsanaHybridCacheConfig] = None,
         input_latent: torch.Tensor = None,
-        video_control_config: KsanaVaceVideoEncodeConfig = None,
+        video_control_config: KsanaVaceContext = None,
     ):
         """local use for generate"""
         num_prompts = self._get_num_prompts(prompt)

@@ -12,9 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .generator import KsanaQwenGenerator, KsanaWanGenerator
+from .generator import KsanaQwenGenerator, KsanaVaceGenerator, KsanaWanGenerator
 
 __all__ = [
     "KsanaWanGenerator",
+    "KsanaVaceGenerator",
     "KsanaQwenGenerator",
 ]

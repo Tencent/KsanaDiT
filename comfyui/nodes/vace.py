@@ -30,8 +30,8 @@ from ksana.nodes import (
 )
 from ksana.nodes.output_types import KsanaNodeVAEEncodeOutput
 from ksana.utils import common_upscale, get_intermediate_device
-from ksana.utils.latent_format import get_wan21_latent_format
 from ksana.utils.logger import log
+from ksana.utils.vace import VAE_STRIDE, latent_process_out
 
 
 class KsanaWanVaceToVideoNode:
@@ -163,16 +163,15 @@ class KsanaWanVaceToVideoNode:
         reference_image=None,
         prev_vace_embeds=None,
     ):
-        log.info("[KsanaWanVaceToVideoNode] Starting encode...")
         log.info(
-            f"  Input params: width={width}, height={height}, "
-            f"num_frames={num_frames}, batch_size={batch_size}, strength={strength}"
+            f"[KsanaWanVaceToVideoNode] Starting encode... "
+            f"width={width}, height={height}, num_frames={num_frames}, batch_size={batch_size}, strength={strength}, "
+            f"vace_start_percent={vace_start_percent}, vace_end_percent={vace_end_percent}, "
+            f"control_video={control_video.shape if control_video is not None else None}, "
+            f"control_masks={control_masks.shape if control_masks is not None else None}, "
+            f"reference_image={reference_image.shape if reference_image is not None else None}, "
+            f"prev_vace_embeds={prev_vace_embeds is not None}"
         )
-        log.info(f"  vace_start_percent: {vace_start_percent}, vace_end_percent: {vace_end_percent}")
-        log.info(f"  control_video: {control_video.shape if control_video is not None else None}")
-        log.info(f"  control_masks: {control_masks.shape if control_masks is not None else None}")
-        log.info(f"  reference_image: {reference_image.shape if reference_image is not None else None}")
-        log.info(f"  prev_vace_embeds: {prev_vace_embeds is not None}")
 
         if vae is None:
             raise ValueError("'vae' (KSANA_VAE_MODEL) must be connected.")
@@ -205,18 +204,16 @@ class KsanaWanVaceToVideoNode:
         if isinstance(control_video, torch.Tensor):
             control_video = control_video.to(device=work_device, dtype=work_dtype)
 
-        # Process reference_image
         if reference_image is not None:
             reference_image = common_upscale(
                 reference_image[:1].movedim(-1, 1), width, height, "bilinear", "center"
             ).movedim(1, -1)
             reference_image = self._vae_encode(vae, reference_image)
             reference_image = torch.cat(
-                [reference_image, get_wan21_latent_format().process_out(torch.zeros_like(reference_image))],
+                [reference_image, latent_process_out(torch.zeros_like(reference_image))],
                 dim=1,
             )
 
-        # Process control_masks
         if control_masks is None:
             mask = torch.ones((length, height, width, 1), device=work_device, dtype=work_dtype)
         else:
@@ -229,7 +226,6 @@ class KsanaWanVaceToVideoNode:
             if isinstance(mask, torch.Tensor):
                 mask = mask.to(device=work_device, dtype=work_dtype)
 
-        # Generate inactive and reactive latent representations
         control_video = control_video - 0.5
         inactive = (control_video * (1 - mask)) + 0.5
         reactive = (control_video * mask) + 0.5
@@ -241,13 +237,11 @@ class KsanaWanVaceToVideoNode:
         if reference_image is not None:
             control_video_latent = torch.cat((reference_image, control_video_latent), dim=2)
 
-        # Process mask for latent space
-        vae_stride = 8
-        height_mask = height // vae_stride
-        width_mask = width // vae_stride
-        mask = mask.view(length, height_mask, vae_stride, width_mask, vae_stride)
+        height_mask = height // VAE_STRIDE
+        width_mask = width // VAE_STRIDE
+        mask = mask.view(length, height_mask, VAE_STRIDE, width_mask, VAE_STRIDE)
         mask = mask.permute(2, 4, 0, 1, 3)
-        mask = mask.reshape(vae_stride * vae_stride, length, height_mask, width_mask)
+        mask = mask.reshape(VAE_STRIDE * VAE_STRIDE, length, height_mask, width_mask)
         mask = torch.nn.functional.interpolate(
             mask.unsqueeze(0), size=(latent_length, height_mask, width_mask), mode="nearest-exact"
         ).squeeze(0)
@@ -262,7 +256,6 @@ class KsanaWanVaceToVideoNode:
         mask = mask.unsqueeze(0)
         mask = mask.to(device=control_video_latent.device, dtype=control_video_latent.dtype)
 
-        # Build vace_embeds output (similar to WanVideoWrapper format)
         vace_embeds = {
             "vace_frames": [control_video_latent],
             "vace_mask": [mask],
@@ -276,13 +269,11 @@ class KsanaWanVaceToVideoNode:
             "additional_vace_inputs": [],
         }
 
-        # Handle prev_vace_embeds for chaining multiple VACE inputs
         if prev_vace_embeds is not None:
             if "additional_vace_inputs" in prev_vace_embeds and prev_vace_embeds["additional_vace_inputs"]:
                 vace_embeds["additional_vace_inputs"] = prev_vace_embeds["additional_vace_inputs"].copy()
             vace_embeds["additional_vace_inputs"].append(prev_vace_embeds)
 
-        # Create output latent
         latent = torch.zeros(
             [batch_size, 16, latent_length, height // 8, width // 8],
             device=get_intermediate_device(),
@@ -293,29 +284,18 @@ class KsanaWanVaceToVideoNode:
             batch_size_per_prompts=batch_size,
         )
 
-        log.info("[KsanaWanVaceToVideoNode] Encode complete:")
-        log.info(f"  control_video_latent shape: {control_video_latent.shape}")
-        log.info(f"  mask shape: {mask.shape}")
-        log.info(f"  output latent shape: {latent.shape}")
-        log.info(f"  latent_length: {latent_length}, trim_latent: {trim_latent}")
-        log.info(f"  vace_start_percent: {vace_start_percent}, vace_end_percent: {vace_end_percent}")
-        log.info(f"  vace_embeds keys: {list(vace_embeds.keys())}")
+        log.debug(
+            f"[KsanaWanVaceToVideoNode] Encode complete: "
+            f"control_video_latent={control_video_latent.shape}, mask={mask.shape}, latent={latent.shape}, "
+            f"latent_length={latent_length}, trim_latent={trim_latent}, "
+            f"vace_start_percent={vace_start_percent}, vace_end_percent={vace_end_percent}, "
+            f"vace_embeds keys={list(vace_embeds.keys())}"
+        )
 
         return (vace_embeds, out_latent)
 
 
 class KsanaSLGNode:
-    """
-    Skip Layer Guidance (SLG) Node.
-
-    SLG is a sampling optimization that skips unconditional (negative prompt) inference
-    on specified transformer blocks during CFG computation. This can significantly
-    speed up generation while maintaining quality, as not all blocks contribute
-    equally to the CFG signal.
-
-    Typical usage: For Wan 14B models, blocks like 9, 10, or 11 often work well.
-    """
-
     @classmethod
     def input_types(s):
         return {
@@ -363,33 +343,20 @@ class KsanaSLGNode:
     )
 
     def create_config(self, blocks: str, start_percent: float, end_percent: float):
-        # Parse blocks string to list of integers
         block_list = [int(x.strip()) for x in blocks.split(",") if x.strip()]
         config = KsanaSLGConfig(
             blocks=block_list,
             start_percent=start_percent,
             end_percent=end_percent,
         )
-        log.info("=" * 60)
-        log.info("[KsanaSLGNode] CREATE_CONFIG CALLED - Skip Layer Guidance")
-        log.info(f"  blocks: {block_list}")
-        log.info(f"  start_percent: {start_percent}, end_percent: {end_percent}")
-        log.info(f"  Created config: {config}")
-        log.info("=" * 60)
+        log.debug(
+            f"[KsanaSLGNode] CREATE_CONFIG CALLED - Skip Layer Guidance "
+            f"blocks={block_list}, start_percent={start_percent}, end_percent={end_percent}, config={config}"
+        )
         return (config,)
 
 
 class KsanaEnhanceAVideoNode:
-    """
-    Enhance-A-Video (FETA) Node.
-
-    FETA (Frame-Enhanced Temporal Attention) improves video temporal consistency
-    by computing cross-frame attention scores and using them to modulate
-    self-attention outputs. This reduces flickering and improves coherence.
-
-    Reference: https://github.com/NUS-HPC-AI-Lab/Enhance-A-Video
-    """
-
     @classmethod
     def input_types(s):
         return {
@@ -444,34 +411,18 @@ class KsanaEnhanceAVideoNode:
             start_percent=start_percent,
             end_percent=end_percent,
         )
-        log.info("=" * 60)
-        log.info("[KsanaEnhanceAVideoNode] CREATE_CONFIG CALLED - Enhance-A-Video (FETA)")
-        log.info(f"  weight: {weight}")
-        log.info(f"  start_percent: {start_percent}, end_percent: {end_percent}")
-        log.info(f"  Created config: {config}")
-        log.info("=" * 60)
+        log.debug(
+            f"[KsanaEnhanceAVideoNode] CREATE_CONFIG CALLED - Enhance-A-Video (FETA) "
+            f"weight={weight}, start_percent={start_percent}, end_percent={end_percent}, config={config}"
+        )
         return (config,)
 
 
 class KsanaExperimentalArgsNode:
-    """
-    Experimental Sampling Arguments Node.
-
-    This node provides access to various experimental sampling optimizations:
-
-    - CFG-Zero-Star: Optimizes CFG scaling to reduce oversaturation artifacts
-    - FreSca: Frequency-domain filtering for cleaner CFG
-    - TCFG: Tangential CFG to reduce color shifts
-    - RAAG: Ratio-aware adaptive guidance
-    - Bidirectional Sampling: Forward+backward temporal sampling
-    - TSR: Temporal score rescaling for consistency
-    """
-
     @classmethod
     def input_types(s):
         return {
             "required": {
-                # CFG-Zero-Star: Optimized CFG scaling
                 "cfg_zero_star": (
                     "BOOLEAN",
                     {
@@ -498,7 +449,6 @@ class KsanaExperimentalArgsNode:
                         "tooltip": "Number of initial steps to apply zero initialization.",
                     },
                 ),
-                # FreSca: Frequency scaling
                 "use_fresca": (
                     "BOOLEAN",
                     {
@@ -536,7 +486,6 @@ class KsanaExperimentalArgsNode:
                         "tooltip": "FreSca frequency cutoff threshold.",
                     },
                 ),
-                # TCFG: Tangential CFG
                 "use_tcfg": (
                     "BOOLEAN",
                     {
@@ -545,7 +494,6 @@ class KsanaExperimentalArgsNode:
                         "Ref: https://arxiv.org/abs/2503.18137",
                     },
                 ),
-                # RAAG: Ratio-aware adaptive guidance
                 "raag_alpha": (
                     "FLOAT",
                     {
@@ -556,7 +504,6 @@ class KsanaExperimentalArgsNode:
                         "tooltip": "RAAG alpha: Adaptively adjusts CFG based on cond/uncond ratio. 0 = disabled.",
                     },
                 ),
-                # Bidirectional sampling
                 "bidirectional_sampling": (
                     "BOOLEAN",
                     {
@@ -565,7 +512,6 @@ class KsanaExperimentalArgsNode:
                         "Improves consistency but doubles compute. Ref: https://github.com/ff2416/WanFM",
                     },
                 ),
-                # TSR: Temporal score rescaling
                 "temporal_score_rescaling": (
                     "BOOLEAN",
                     {
@@ -594,7 +540,6 @@ class KsanaExperimentalArgsNode:
                         "tooltip": "TSR sigma: How early TSR influences sampling.",
                     },
                 ),
-                # Attention split for multi-prompt
                 "video_attention_split_steps": (
                     "STRING",
                     {
@@ -646,44 +591,24 @@ class KsanaExperimentalArgsNode:
             tsr_sigma=tsr_sigma,
             video_attention_split_steps=video_attention_split_steps,
         )
-        log.info("=" * 60)
-        log.info("[KsanaExperimentalArgsNode] CREATE_CONFIG CALLED - Experimental Args")
-        log.info(
-            f"  cfg_zero_star: {cfg_zero_star}, use_zero_init: {use_zero_init}, zero_star_steps: {zero_star_steps}"
+        log.debug(
+            f"[KsanaExperimentalArgsNode] CREATE_CONFIG CALLED - Experimental Args "
+            f"cfg_zero_star={cfg_zero_star}, use_zero_init={use_zero_init}, zero_star_steps={zero_star_steps}, "
+            f"use_fresca={use_fresca}, fresca_scale_low={fresca_scale_low}, fresca_scale_high={fresca_scale_high}, "
+            f"fresca_freq_cutoff={fresca_freq_cutoff}, use_tcfg={use_tcfg}, raag_alpha={raag_alpha}, "
+            f"bidirectional_sampling={bidirectional_sampling}, temporal_score_rescaling={temporal_score_rescaling}, "
+            f"tsr_k={tsr_k}, tsr_sigma={tsr_sigma}, video_attention_split_steps={video_attention_split_steps}, "
+            f"config={config}"
         )
-        log.info(
-            f"  use_fresca: {use_fresca}, fresca_scale_low: {fresca_scale_low}, fresca_scale_high: {fresca_scale_high}"
-        )
-        log.info(f"  fresca_freq_cutoff: {fresca_freq_cutoff}, use_tcfg: {use_tcfg}, raag_alpha: {raag_alpha}")
-        log.info(
-            f"  bidirectional_sampling: {bidirectional_sampling}, temporal_score_rescaling: {temporal_score_rescaling}"
-        )
-        log.info(
-            f"  tsr_k: {tsr_k}, tsr_sigma: {tsr_sigma}, video_attention_split_steps: {video_attention_split_steps}"
-        )
-        log.info(f"  Created config: {config}")
-        log.info("=" * 60)
         return (config,)
 
 
 class KsanaVideoControlConfigNode:
-    """
-    Video Control Config Node.
-
-    Combines multiple video control parameters into a single configuration:
-    - SLG (Skip Layer Guidance): Skip uncond inference on specific blocks
-    - FETA (Enhance-A-Video): Improve temporal consistency
-    - Experimental: CFG-Zero-Star, FreSca, TCFG, TSR, etc.
-
-    Also supports WanVideoWrapper compatible types (SLGARGS, FETAARGS, EXPERIMENTALARGS).
-    """
-
     @classmethod
     def INPUT_TYPES(s):  # pylint: disable=invalid-name
         return {
             "required": {},
             "optional": {
-                # KsanaDiT native types
                 "slg_args": (
                     KSANA_SLG_ARGS,
                     {"tooltip": "Skip Layer Guidance args: skip uncond inference on specific blocks for speed."},
@@ -696,7 +621,6 @@ class KsanaVideoControlConfigNode:
                     KSANA_EXPERIMENTAL_ARGS,
                     {"tooltip": "Experimental args: CFG-Zero-Star, FreSca, TCFG, TSR, etc."},
                 ),
-                # WanVideoWrapper compatible types
                 "wanvideo_slg_args": (
                     WANVIDEO_SLG_ARGS,
                     {"tooltip": "WanVideoWrapper SLG args (compatible input)."},
@@ -722,7 +646,6 @@ class KsanaVideoControlConfigNode:
     )
 
     def _convert_slg_args(self, args):
-        """Convert dict to KsanaSLGConfig if needed."""
         if args is None:
             return None
         if isinstance(args, KsanaSLGConfig):
@@ -736,7 +659,6 @@ class KsanaVideoControlConfigNode:
         return args
 
     def _convert_feta_args(self, args):
-        """Convert dict to KsanaFETAConfig if needed."""
         if args is None:
             return None
         if isinstance(args, KsanaFETAConfig):
@@ -750,7 +672,6 @@ class KsanaVideoControlConfigNode:
         return args
 
     def _convert_experimental_args(self, args):
-        """Convert dict to KsanaExperimentalConfig if needed."""
         if args is None:
             return None
         if isinstance(args, KsanaExperimentalConfig):
@@ -792,10 +713,8 @@ class KsanaVideoControlConfigNode:
             "feta_args": final_feta,
             "experimental_args": final_exp,
         }
-        log.info("=" * 60)
-        log.info("[KsanaVideoControlConfigNode] CREATE_CONFIG CALLED")
-        log.info(f"  slg_args: {final_slg}")
-        log.info(f"  feta_args: {final_feta}")
-        log.info(f"  experimental_args: {final_exp}")
-        log.info("=" * 60)
+        log.debug(
+            f"[KsanaVideoControlConfigNode] CREATE_CONFIG CALLED "
+            f"slg_args={final_slg}, feta_args={final_feta}, experimental_args={final_exp}"
+        )
         return (config,)

@@ -21,6 +21,7 @@ from ..accelerator.platform import empty_cache
 from ..models.model_key import KsanaModelKey
 from ..utils.logger import log
 from ..utils.profile import time_range
+from ..utils.vace import init_latent_stats
 from .base_model import KsanaModel
 from .qwen.vae import KsanaQwenImageVAE
 from .wan import Wan2_1_VAE, Wan2_2_VAE
@@ -267,7 +268,15 @@ class KsanaWanVAEModel(KsanaVAEModel):
     def load(self, model_path: str, shard_fn=None):
         self.dtype = torch.bfloat16
         if self.model_key is KsanaModelKey.VAE_WAN2_1:
-            self.model = Wan2_1_VAE(vae_pth=model_path, dtype=self.dtype, device=self.device)
+            vae_cfg = self.default_settings.vae
+            self.model = Wan2_1_VAE(
+                vae_pth=model_path,
+                dtype=self.dtype,
+                device=self.device,
+                latents_mean=vae_cfg.latents_mean,
+                latents_std=vae_cfg.latents_std,
+            )
+            init_latent_stats(vae_cfg.latents_mean, vae_cfg.latents_std)
         elif self.model_key is KsanaModelKey.VAE_WAN2_2:
             self.model = Wan2_2_VAE(vae_pth=model_path, dtype=self.dtype, device=self.device)
         else:

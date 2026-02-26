@@ -31,7 +31,7 @@ from ..scheduler import KsanaBatchScheduler
 from ..units import KsanaRunnerUnit, KsanaUnitFactory, KsanaUnitType
 from ..utils import evolve_with_recommend, log, time_range
 from ..utils.vace import (
-    KsanaVaceVideoEncodeConfig,
+    KsanaVaceContext,
     apply_bidirectional_sampling,
     apply_experimental_cfg,
     apply_temporal_score_rescaling,
@@ -289,7 +289,7 @@ class KsanaBaseGenerator(KsanaRunnerUnit):
         timesteps: torch.Tensor,  # Tensor(list[int])
         run_dtype: torch.dtype,
         sample_scheduler_step_func,
-        sample_scheduler,  # Full scheduler object for bidirectional sampling
+        sample_scheduler,
         seed_g: torch.Generator,
         device: torch.device,
         offload_device: torch.device = None,
@@ -298,14 +298,7 @@ class KsanaBaseGenerator(KsanaRunnerUnit):
     ) -> torch.Tensor:
         log.info(f"timesteps:{timesteps}, combine_cond_uncond:{combine_cond_uncond}")
         dit_cache = self._create_cache(cache_config, self.model_key)
-        video_control_config = parse_video_control_kwargs(
-            video_control_kwargs,
-            diffusion_model,
-            sample_scheduler,
-            slg_config_cls=KsanaSLGConfig,
-            feta_config_cls=KsanaFETAConfig,
-            experimental_config_cls=KsanaExperimentalConfig,
-        )
+        denoise_video_control_args = self.init_denoising_loop(video_control_kwargs, diffusion_model, sample_scheduler)
 
         total_steps = len(timesteps)
         cur_batch_size = self._get_num_prompts(positive)
@@ -322,14 +315,7 @@ class KsanaBaseGenerator(KsanaRunnerUnit):
             running_cache = self.get_running_cache(dit_cache, timestep_id=timestep_id)
             running_cfg_scale = self.get_running_cfg_scale(cfg_scale=sample_config.cfg_scale, timestep_id=timestep_id)
 
-            step_video_control_config = get_step_video_control(
-                video_control_config,
-                current_step_percent,
-                iter_id,
-                total_steps,
-                slg_config_cls=KsanaSLGConfig,
-                feta_config_cls=KsanaFETAConfig,
-            )
+            step_kwargs = self.get_step_kwargs(denoise_video_control_args, current_step_percent, iter_id, total_steps)
 
             forward_kargs = self.prepare_model_forward_kargs(
                 running_cfg_scale,
@@ -341,7 +327,7 @@ class KsanaBaseGenerator(KsanaRunnerUnit):
                 positive=positive,
                 negative=negative,
                 img_latent=img_latent,
-                **step_video_control_config,
+                **step_kwargs,
             )
             if self._use_cfg(running_cfg_scale):
                 if combine_cond_uncond:
@@ -357,14 +343,14 @@ class KsanaBaseGenerator(KsanaRunnerUnit):
                     running_cfg_scale,
                     noise_pred_cond,
                     noise_pred_uncond,
-                    experimental_config=video_control_config["exp_config"],
+                    denoise_video_control_args=denoise_video_control_args,
                     step_index=iter_id,
                     total_steps=total_steps,
                 )
             else:
                 noise_pred = running_model.forward(**forward_kargs)
 
-            noise_pred = apply_temporal_score_rescaling(noise_pred, noise_latent, t, video_control_config["exp_config"])
+            noise_pred = self.post_noise_prediction(noise_pred, noise_latent, t, denoise_video_control_args)
 
             noise_latent_shape = noise_latent.shape
             step_out = sample_scheduler_step_func(noise_pred, t, noise_latent, return_dict=False, generator=seed_g)
@@ -375,33 +361,25 @@ class KsanaBaseGenerator(KsanaRunnerUnit):
                 )
             noise_latent_forward = noise_latent_forward.reshape(noise_latent_shape)
 
-            if video_control_config["bidirectional_sampling"] and noise_latent.ndim == 5:
-                noise_latent = apply_bidirectional_sampling(
-                    noise_latent=noise_latent,
-                    noise_latent_forward=noise_latent_forward,
-                    running_model=running_model,
-                    running_cfg_scale=running_cfg_scale,
-                    timestep=timestep,
-                    t=t,
-                    iter_id=iter_id,
-                    total_steps=total_steps,
-                    current_step_percent=current_step_percent,
-                    combine_cond_uncond=combine_cond_uncond,
-                    positive=positive,
-                    negative=negative,
-                    img_latent=img_latent,
-                    step_vc=step_video_control_config,
-                    exp_config=video_control_config["exp_config"],
-                    sample_scheduler_flipped=video_control_config["sample_scheduler_flipped"],
-                    sample_config=sample_config,
-                    seed_g=seed_g,
-                    prepare_model_forward_kargs_fn=self.prepare_model_forward_kargs,
-                    use_cfg_fn=self._use_cfg,
-                    apply_cfg_fn=self.apply_cfg,
-                    solver_type_euler=KsanaSolverType.EULER,
-                )
-            else:
-                noise_latent = noise_latent_forward
+            noise_latent = self.finalize_step(
+                noise_latent,
+                noise_latent_forward,
+                denoise_video_control_args,
+                running_model=running_model,
+                running_cfg_scale=running_cfg_scale,
+                timestep=timestep,
+                t=t,
+                iter_id=iter_id,
+                total_steps=total_steps,
+                current_step_percent=current_step_percent,
+                combine_cond_uncond=combine_cond_uncond,
+                positive=positive,
+                negative=negative,
+                img_latent=img_latent,
+                step_kwargs=step_kwargs,
+                sample_config=sample_config,
+                seed_g=seed_g,
+            )
 
             if comfy_bar_callback is not None:
                 steps = sample_config.steps
@@ -487,7 +465,7 @@ class KsanaBaseGenerator(KsanaRunnerUnit):
         offload_device=None,
         comfy_bar_callback=None,
         video_control: KsanaVideoControlConfig | None = None,
-        control_video_config: KsanaVaceVideoEncodeConfig | None = None,
+        control_video_config: KsanaVaceContext | None = None,
     ) -> torch.Tensor:
         """_summary_
 
@@ -541,7 +519,7 @@ class KsanaBaseGenerator(KsanaRunnerUnit):
             f"total_samples_num: {total_samples_num} split as {len(batch_strategy)} batches"
         )
 
-        video_control_kwargs = build_vace_kwargs(
+        video_control_kwargs = self.build_video_control_kwargs(
             control_video_config=control_video_config,
             noise_shape=noise_latents.shape,
             device=device,
@@ -571,7 +549,7 @@ class KsanaBaseGenerator(KsanaRunnerUnit):
             run_steps_kwargs=run_steps_kwargs,
         )
         noise_latents = self.unpack_noise_latents(noise_latents, patch_size)
-        noise_latents = apply_vace_trim(noise_latents, video_control_kwargs.get("trim_latent", 0))
+        noise_latents = self.post_run(noise_latents, video_control_kwargs)
 
         # TODO(qian): add auto estimate memory for automatic loading for all models
         if offload_device:
@@ -659,39 +637,36 @@ class KsanaBaseGenerator(KsanaRunnerUnit):
     def get_running_cache(self, dit_cache: list, **kwargs):
         return dit_cache[0] if isinstance(dit_cache, (list, tuple)) else dit_cache
 
-    def apply_cfg(
-        self,
-        cfg_scale,
-        cond,
-        uncond,
-        experimental_config: KsanaExperimentalConfig | None = None,
-        step_index: int = 0,
-        total_steps: int = 1,
-    ):
-        if experimental_config is None:
-            return uncond + float(cfg_scale) * (cond - uncond)
-        else:
-            return apply_experimental_cfg(cfg_scale, cond, uncond, experimental_config, step_index)
+    def apply_cfg(self, cfg_scale, cond, uncond, **kwargs):
+        return uncond + float(cfg_scale) * (cond - uncond)
+
+    def init_denoising_loop(self, video_control_kwargs, diffusion_model, sample_scheduler):
+        return {}
+
+    def get_step_kwargs(self, denoise_video_control_args, current_step_percent, iter_id, total_steps):
+        return {}
+
+    def post_noise_prediction(self, noise_pred, noise_latent, t, denoise_video_control_args):
+        return noise_pred
+
+    def finalize_step(self, noise_latent, noise_latent_forward, denoise_video_control_args, **step_state):
+        return noise_latent_forward
+
+    def build_video_control_kwargs(self, **kwargs):
+        return {}
+
+    def post_run(self, noise_latents, video_control_kwargs):
+        return noise_latents
 
     @abstractmethod
-    def prepare_model_forward_kargs(
-        self,
-        cfg_scale: float,
-        *,
-        vace_context=None,
-        vace_context_scale=1.0,
-        slg_config=None,
-        feta_config=None,
-        current_step_percent=0.0,
-        **kwargs,
-    ) -> dict | tuple[dict, dict]:
+    def prepare_model_forward_kargs(self, cfg_scale, **kwargs) -> dict | tuple[dict, dict]:
         raise NotImplementedError("prepare_model_forward_kargs must be implemented in subclass")
 
 
 # TODO: need better abstract base implement for vace, vace can not invade base
 @KsanaUnitFactory.register(
     KsanaUnitType.GENERATOR,
-    [KsanaModelKey.Wan2_2_T2V_14B, KsanaModelKey.Wan2_2_I2V_14B, KsanaModelKey.Wan2_1_VACE_14B],
+    [KsanaModelKey.Wan2_2_T2V_14B, KsanaModelKey.Wan2_2_I2V_14B],
 )
 class KsanaWanGenerator(KsanaBaseGenerator):
     def __init__(self):
@@ -841,29 +816,12 @@ class KsanaWanGenerator(KsanaBaseGenerator):
         positive,
         negative,
         img_latent,
-        vace_context=None,
-        vace_context_scale=1.0,
-        slg_config=None,
-        feta_config=None,
-        current_step_percent=0.0,
+        **_,
     ) -> dict:
         base = {"cache": cache, "step_iter": step_iter}
 
-        # Add SLG/FETA/VACE parameters
-        if slg_config is not None:
-            base["slg_config"] = slg_config
-        if feta_config is not None:
-            base["feta_config"] = feta_config
-        base["current_step_percent"] = current_step_percent
-
-        # Add VACE parameters if available
-        if vace_context is not None:
-            base["vace_context"] = vace_context
-            base["vace_context_scale"] = vace_context_scale
-
         use_cfg = self._use_cfg(cfg_scale)
         if use_cfg and combine_cond_uncond:
-            # latent: [bs, z_dim, fi, hi, wi] => [2*bs, z_dim, fi, hi, wi]
             combine_x = torch.cat([noise_latent, noise_latent], dim=0)
             combine_t = torch.cat([timestep, timestep], dim=0)
             combine_context = torch.cat([positive, negative], dim=0)
@@ -875,9 +833,6 @@ class KsanaWanGenerator(KsanaBaseGenerator):
             }
             if self.model_key == KsanaModelKey.Wan2_2_I2V_14B and img_latent is not None:
                 combine_kargs["y"] = torch.cat([img_latent, img_latent], dim=0)
-            # Duplicate vace_context for combine mode
-            if vace_context is not None:
-                combine_kargs["vace_context"] = vace_context + vace_context
             return base | combine_kargs
 
         base.update({"x": noise_latent, "t": timestep})
@@ -886,6 +841,139 @@ class KsanaWanGenerator(KsanaBaseGenerator):
         if self.model_key == KsanaModelKey.Wan2_2_I2V_14B:
             arg_cond["y"] = img_latent
             arg_uncond["y"] = img_latent
+        if use_cfg:
+            return base | arg_cond, base | arg_uncond
+        else:
+            return base | arg_cond
+
+
+@KsanaUnitFactory.register(KsanaUnitType.GENERATOR, KsanaModelKey.Wan2_1_VACE_14B)
+class KsanaVaceGenerator(KsanaWanGenerator):
+    def init_denoising_loop(self, video_control_kwargs, diffusion_model, sample_scheduler):
+        return parse_video_control_kwargs(
+            video_control_kwargs,
+            diffusion_model,
+            sample_scheduler,
+            slg_config_cls=KsanaSLGConfig,
+            feta_config_cls=KsanaFETAConfig,
+            experimental_config_cls=KsanaExperimentalConfig,
+        )
+
+    def get_step_kwargs(self, denoise_video_control_args, current_step_percent, iter_id, total_steps):
+        return get_step_video_control(
+            denoise_video_control_args,
+            current_step_percent,
+            iter_id,
+            total_steps,
+            slg_config_cls=KsanaSLGConfig,
+            feta_config_cls=KsanaFETAConfig,
+        )
+
+    def apply_cfg(
+        self,
+        cfg_scale,
+        cond,
+        uncond,
+        *,
+        denoise_video_control_args=None,
+        experimental_config=None,
+        step_index=0,
+        total_steps=1,
+        **kwargs,
+    ):
+        exp_config = experimental_config or (
+            denoise_video_control_args.get("exp_config") if denoise_video_control_args else None
+        )
+        if exp_config is None:
+            return super().apply_cfg(cfg_scale, cond, uncond)
+        return apply_experimental_cfg(cfg_scale, cond, uncond, exp_config, step_index)
+
+    def post_noise_prediction(self, noise_pred, noise_latent, t, denoise_video_control_args):
+        return apply_temporal_score_rescaling(noise_pred, noise_latent, t, denoise_video_control_args.get("exp_config"))
+
+    def finalize_step(self, noise_latent, noise_latent_forward, denoise_video_control_args, **step_state):
+        if not (denoise_video_control_args.get("bidirectional_sampling") and noise_latent.ndim == 5):
+            return noise_latent_forward
+        return apply_bidirectional_sampling(
+            noise_latent=noise_latent,
+            noise_latent_forward=noise_latent_forward,
+            running_model=step_state["running_model"],
+            running_cfg_scale=step_state["running_cfg_scale"],
+            timestep=step_state["timestep"],
+            t=step_state["t"],
+            iter_id=step_state["iter_id"],
+            total_steps=step_state["total_steps"],
+            current_step_percent=step_state["current_step_percent"],
+            combine_cond_uncond=step_state["combine_cond_uncond"],
+            positive=step_state["positive"],
+            negative=step_state["negative"],
+            img_latent=step_state["img_latent"],
+            step_vc=step_state["step_kwargs"],
+            exp_config=denoise_video_control_args["exp_config"],
+            sample_scheduler_flipped=denoise_video_control_args["sample_scheduler_flipped"],
+            sample_config=step_state["sample_config"],
+            seed_g=step_state["seed_g"],
+            prepare_model_forward_kargs_fn=self.prepare_model_forward_kargs,
+            use_cfg_fn=self._use_cfg,
+            apply_cfg_fn=self.apply_cfg,
+            solver_type_euler=KsanaSolverType.EULER,
+        )
+
+    def build_video_control_kwargs(self, **kwargs):
+        return build_vace_kwargs(**kwargs)
+
+    def post_run(self, noise_latents, video_control_kwargs):
+        return apply_vace_trim(noise_latents, video_control_kwargs.get("trim_latent", 0))
+
+    def prepare_model_forward_kargs(
+        self,
+        cfg_scale: float,
+        *,
+        noise_latent,
+        timestep,
+        combine_cond_uncond,
+        step_iter,
+        cache,
+        positive,
+        negative,
+        img_latent,
+        vace_context=None,
+        vace_context_scale=1.0,
+        slg_config=None,
+        feta_config=None,
+        current_step_percent=0.0,
+        **_,
+    ) -> dict:
+        base = {"cache": cache, "step_iter": step_iter}
+
+        if slg_config is not None:
+            base["slg_config"] = slg_config
+        if feta_config is not None:
+            base["feta_config"] = feta_config
+        base["current_step_percent"] = current_step_percent
+
+        if vace_context is not None:
+            base["vace_context"] = vace_context
+            base["vace_context_scale"] = vace_context_scale
+
+        use_cfg = self._use_cfg(cfg_scale)
+        if use_cfg and combine_cond_uncond:
+            combine_x = torch.cat([noise_latent, noise_latent], dim=0)
+            combine_t = torch.cat([timestep, timestep], dim=0)
+            combine_context = torch.cat([positive, negative], dim=0)
+            combine_kargs = {
+                "phase": "combine",
+                "x": combine_x,
+                "t": combine_t,
+                "context": combine_context,
+            }
+            if vace_context is not None:
+                combine_kargs["vace_context"] = vace_context + vace_context
+            return base | combine_kargs
+
+        base.update({"x": noise_latent, "t": timestep})
+        arg_cond = {"phase": "cond", "context": positive}
+        arg_uncond = {"phase": "uncond", "context": negative}
         if use_cfg:
             return base | arg_cond, base | arg_uncond
         else:

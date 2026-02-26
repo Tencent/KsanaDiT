@@ -28,10 +28,9 @@ from ..config.lora_config import KsanaLoraConfig
 from ..engine import KsanaEngine
 from ..models.model_key import KsanaModelKey
 from ..utils import log, merge_video_audio
-from ..utils.latent_format import get_wan21_latent_format
 from ..utils.media import save_video
 from ..utils.types import evolve_with_recommend, str_to_list
-from ..utils.vace import KsanaVaceVideoEncodeConfig, build_vace_video_control_config
+from ..utils.vace import KsanaVaceContext, build_vace_video_control_config, latent_process_out
 
 
 class KsanaBasePipeline(ABC):
@@ -130,16 +129,15 @@ class KsanaBasePipeline(ABC):
 
     def _valid_video_control_config(
         self,
-        video_control_config: KsanaVaceVideoEncodeConfig | None,
+        video_control_config: KsanaVaceContext | None,
         runtime_config: KsanaRuntimeConfig,
-    ) -> KsanaVaceVideoEncodeConfig | None:
+    ) -> KsanaVaceContext | None:
         width, height = runtime_config.size
         num_frames = runtime_config.frame_num
-        latent_format = get_wan21_latent_format()
 
         def vae_encode_fn(frame: torch.Tensor) -> torch.Tensor:
             latents = self.engine.forward_vae_encode_image(model_key=self.vae_model_key, image=frame)
-            return latent_format.process_out(latents)
+            return latent_process_out(latents)
 
         vace_config = build_vace_video_control_config(
             video_control_config=video_control_config,

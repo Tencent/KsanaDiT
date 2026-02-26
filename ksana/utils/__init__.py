@@ -36,13 +36,16 @@ from .profile import KsanaProfiler, MemoryProfiler, nvtx_range, time_range
 from .sample_solver import apply_sigma_shift, get_sigmas_with_denoise
 from .types import any_key_in_str, evolve_with_recommend, is_file_or_dir, str_to_list
 from .vace import (
-    KsanaVaceVideoEncodeConfig,
+    KsanaVaceContext,
     apply_bidirectional_sampling,
     apply_experimental_cfg,
     apply_temporal_score_rescaling,
     apply_vace_trim,
     build_vace_kwargs,
     get_step_video_control,
+    init_latent_stats,
+    latent_process_in,
+    latent_process_out,
     parse_video_control_kwargs,
 )
 
@@ -91,12 +94,15 @@ __all__ = [
     "compute_raag_guidance",
     "fourier_filter",
     "temporal_score_rescaling",
-    "KsanaVaceVideoEncodeConfig",
+    "KsanaVaceContext",
     "apply_bidirectional_sampling",
     "apply_experimental_cfg",
     "apply_temporal_score_rescaling",
     "apply_vace_trim",
     "build_vace_kwargs",
     "get_step_video_control",
+    "init_latent_stats",
+    "latent_process_in",
+    "latent_process_out",
     "parse_video_control_kwargs",
 ]

@@ -537,7 +537,7 @@ class WanModel(ModelMixin, ConfigMixin):
         "text_dim",
         "window_size",
     ]
-    _no_split_modules = ["WanAttentionBlock", "BaseWanVaceAttentionBlock", "VaceWanAttentionBlock"]
+    _no_split_modules = ["WanAttentionBlock"]
 
     @register_to_config
     def __init__(
@@ -617,7 +617,6 @@ class WanModel(ModelMixin, ConfigMixin):
             model_type = "i2v" if is_i2v_type else "t2v"
         assert model_type in ["t2v", "i2v", "ti2v", "s2v", "vace"]
         self.model_type = model_type
-        self.is_vace = model_type == "vace"
         self.is_i2v_type = model_type in ["i2v", "ti2v", "s2v"] or is_i2v_type
 
         self.patch_size = patch_size
@@ -639,19 +638,7 @@ class WanModel(ModelMixin, ConfigMixin):
 
         self.is_turbo_diffusion_wan_model = is_turbo_diffusion_wan_model
 
-        if self.is_vace:
-            if vace_layers is None:
-                self.vace_num_blocks = num_layers // 2
-            elif isinstance(vace_layers, int):
-                self.vace_num_blocks = vace_layers
-            else:
-                raise ValueError(f"vace_layers must be None or int, got {type(vace_layers)}")
-
-            self.vace_in_dim = vace_in_dim if vace_in_dim is not None else in_dim
-            layer_step = num_layers // self.vace_num_blocks
-            self.vace_layers_mapping = {i: n for n, i in enumerate(range(0, num_layers, layer_step))}
-            assert 0 in self.vace_layers_mapping, "vace_layers_mapping must include layer 0"
-        else:
+        if not hasattr(self, "vace_num_blocks"):
             self.vace_num_blocks = 0
             self.vace_in_dim = None
             self.vace_layers_mapping = {}
@@ -680,63 +667,7 @@ class WanModel(ModelMixin, ConfigMixin):
             "rms_dtype": getattr(operations, "rms_dtype", None),
         }
 
-        if self.is_vace:
-            self.blocks = nn.ModuleList(
-                [
-                    BaseWanVaceAttentionBlock(
-                        dim,
-                        ffn_dim,
-                        num_heads,
-                        block_id=i,
-                        window_size=window_size,
-                        qk_norm=qk_norm,
-                        cross_attn_norm=cross_attn_norm,
-                        eps=eps,
-                        operation_settings=operation_settings,
-                    )
-                    for i in range(num_layers)
-                ]
-            )
-            for i, block in enumerate(self.blocks):
-                block.vace_block_id = self.vace_layers_mapping.get(i, None)
-
-            self.vace_blocks = nn.ModuleList(
-                [
-                    VaceWanAttentionBlock(
-                        dim,
-                        ffn_dim,
-                        num_heads,
-                        block_id=idx,
-                        window_size=window_size,
-                        qk_norm=qk_norm,
-                        cross_attn_norm=cross_attn_norm,
-                        eps=eps,
-                        operation_settings=operation_settings,
-                    )
-                    for idx in range(self.vace_num_blocks)
-                ]
-            )
-            self.vace_patch_embedding = operations.Conv3d(
-                self.vace_in_dim, dim, kernel_size=patch_size, stride=patch_size, device=device, dtype=torch.float32
-            )
-        else:
-            self.blocks = nn.ModuleList(
-                [
-                    WanAttentionBlock(
-                        dim,
-                        ffn_dim,
-                        num_heads,
-                        block_id,
-                        window_size,
-                        qk_norm,
-                        cross_attn_norm,
-                        eps,
-                        operation_settings=operation_settings,
-                        is_turbo_diffusion_wan_model=is_turbo_diffusion_wan_model,
-                    )
-                    for block_id in range(num_layers)
-                ]
-            )
+        self.blocks = self._create_blocks(operation_settings)
 
         # head
         self.head = Head(dim, out_dim, patch_size, eps, operation_settings=operation_settings)
@@ -764,6 +695,25 @@ class WanModel(ModelMixin, ConfigMixin):
         # video_attention_split_steps: steps where attention should be split for multi-prompt
         # This is set externally by the generator based on experimental_args
         self.video_attention_split_steps = []
+
+    def _create_blocks(self, operation_settings):
+        return nn.ModuleList(
+            [
+                WanAttentionBlock(
+                    self.dim,
+                    self.ffn_dim,
+                    self.num_heads,
+                    block_id,
+                    self.window_size,
+                    self.qk_norm,
+                    self.cross_attn_norm,
+                    self.eps,
+                    operation_settings=operation_settings,
+                    is_turbo_diffusion_wan_model=self.is_turbo_diffusion_wan_model,
+                )
+                for block_id in range(self.num_layers)
+            ]
+        )
 
     def set_rope_function(self, rope_function: str | None):
         rope_value = rope_function or "default"
@@ -817,54 +767,11 @@ class WanModel(ModelMixin, ConfigMixin):
             "img_emb.proj.0",
             "img_emb.proj.4",
         ]
-        # Add VACE-specific modules if in VACE mode
-        if self.is_vace:
-            fp32_modules.append("vace_patch_embedding")
-
         self._keep_in_fp32_modules = fp32_modules
         self._keep_in_fp32_params = self._find_fp32_params(["modulation"])
 
     def _find_fp32_params(self, keywords):
         return [name for name, _ in self.named_parameters() if any(keyword in name for keyword in keywords)]
-
-    def forward_vace(self, x, vace_context, seq_len, kwargs):
-        device = x.device
-        dtype = x.dtype
-        batch_size = x.shape[0]
-
-        c = [self.vace_patch_embedding(u.unsqueeze(0).to(device).float()).to(dtype) for u in vace_context]
-        c = [u.flatten(2).transpose(1, 2) for u in c]
-        c = torch.cat([torch.cat([u, u.new_zeros(1, seq_len - u.size(1), u.size(2))], dim=1) for u in c])
-
-        if c.shape[0] != batch_size:
-            if batch_size % c.shape[0] == 0:
-                repeat_factor = batch_size // c.shape[0]
-                c = c.repeat(repeat_factor, 1, 1)
-            else:
-                raise ValueError(
-                    f"VACE batch size mismatch: x has batch {batch_size}, "
-                    f"but vace_context produces batch {c.shape[0]}. "
-                    f"For combine_cond_uncond mode, ensure vace_context is duplicated "
-                    f"at the pipeline layer."
-                )
-
-        if self.sp_size > 1:
-            c = torch.chunk(c, self.sp_size, dim=1)[get_rank_id()]
-        else:
-            if x.shape[1] > c.shape[1]:
-                c = torch.cat([c.new_zeros(batch_size, x.shape[1] - c.shape[1], c.shape[2]), c], dim=1)
-            if c.shape[1] > x.shape[1]:
-                c = c[:, : x.shape[1]]
-
-        new_kwargs = dict(x=x)
-        new_kwargs.update(kwargs)
-
-        hints = []
-        for block in self.vace_blocks:
-            c_skip, c = block(c, **new_kwargs)
-            hints.append(c_skip)
-
-        return hints
 
     def _get_seq_len(self, latent_shape):
         if len(latent_shape) != 5:
@@ -876,6 +783,16 @@ class WanModel(ModelMixin, ConfigMixin):
         max_seq_len = (lat_f * lat_h * lat_w) // (self.patch_size[1] * self.patch_size[2])
         return int(math.ceil(max_seq_len / self.sp_size)) * self.sp_size
 
+    def _run_blocks(self, x, cache, phase, timestep, kwargs, slg_active, slg_blocks, seq_len, **extra_kwargs):
+        if cache is None:
+            for block_idx, block in enumerate(self.blocks):
+                if slg_active and block_idx in slg_blocks:
+                    continue
+                x = block(x, **kwargs)
+        else:
+            x = self._forward_with_cache(x, cache, phase, timestep, **kwargs)
+        return x
+
     def forward(
         self,
         x: torch.Tensor,
@@ -884,13 +801,11 @@ class WanModel(ModelMixin, ConfigMixin):
         cache: KsanaHybridCache | None,
         phase: str,
         context: torch.Tensor,
-        # seq_len, # seem can cal inside forward now
         y=None,
-        vace_context=None,
-        vace_context_scale=1.0,
         slg_config: KsanaSLGConfig | None = None,
         feta_config: KsanaFETAConfig | None = None,
         current_step_percent: float = 0.0,
+        **extra_kwargs,
     ):
         r"""
         Forward pass through the diffusion model
@@ -912,10 +827,6 @@ class WanModel(ModelMixin, ConfigMixin):
                 Maximum sequence length for positional encoding
             y (List[Tensor], *optional*):
                 Conditional video inputs for image-to-video mode, same shape as x
-            vace_context (List[Tensor], *optional*):
-                List of VACE context tensors for video-to-video control (only for model_type='vace')
-            vace_context_scale (float, *optional*, defaults to 1.0):
-                Scale factor for VACE hints injection
             slg_config (KsanaSLGConfig, *optional*):
                 Skip Layer Guidance config. When provided, skips uncond inference on
                 specified blocks for speedup. See KsanaSLGConfig for details.
@@ -1014,12 +925,10 @@ class WanModel(ModelMixin, ConfigMixin):
         if rope_freqs.device != device:
             rope_freqs = rope_freqs.to(device)
 
-        # Determine number of frames for FETA computation
         num_frames = grid_sizes[0, 0].item() if grid_sizes.numel() > 0 else 1
 
-        # FETA configuration
         feta_enabled = False
-        feta_weight = 2.0
+        feta_weight = KsanaFETAConfig().weight
         if feta_config is not None:
             feta_enabled = feta_config.start_percent <= current_step_percent <= feta_config.end_percent
             feta_weight = feta_config.weight
@@ -1049,28 +958,8 @@ class WanModel(ModelMixin, ConfigMixin):
             and slg_config.start_percent <= current_step_percent <= slg_config.end_percent
         )
 
-        vace_hints = None
-        if self.is_vace:
-            if vace_context is not None:
-                vace_hints = self.forward_vace(x, vace_context, seq_len, kwargs)
-
         # x: [bs, seqlen, 5120]
-        if cache is None:
-            skipped_blocks_log = []
-            if self.is_vace:
-                for block_idx, block in enumerate(self.blocks):
-                    if slg_active and block_idx in slg_blocks:
-                        skipped_blocks_log.append(block_idx)
-                        continue
-                    x = block(x, vace_hints=vace_hints, vace_context_scale=vace_context_scale, **kwargs)
-            else:
-                for block_idx, block in enumerate(self.blocks):
-                    if slg_active and block_idx in slg_blocks:
-                        skipped_blocks_log.append(block_idx)
-                        continue
-                    x = block(x, **kwargs)
-        else:
-            x = self._forward_with_cache(x, cache, phase, timestep, **kwargs)
+        x = self._run_blocks(x, cache, phase, timestep, kwargs, slg_active, slg_blocks, seq_len, **extra_kwargs)
 
         # head
         # [bs, seqlen, 5120] => [bs, seqlen, 64], e:[bs, seqlen, freq_dim=>self.dim:5120]
@@ -1156,20 +1045,193 @@ class WanModel(ModelMixin, ConfigMixin):
         # init output layer
         nn.init.zeros_(self.head.head.weight)
 
-        # init VACE-specific layers
-        if self.is_vace:
-            # VACE patch embedding
-            nn.init.xavier_uniform_(self.vace_patch_embedding.weight.flatten(1))
 
-            # Zero initialize VACE projection layers
-            for block in self.vace_blocks:
-                if hasattr(block, "before_proj"):
-                    nn.init.zeros_(block.before_proj.weight)
-                    if block.before_proj.bias is not None:
-                        nn.init.zeros_(block.before_proj.bias)
-                nn.init.zeros_(block.after_proj.weight)
-                if block.after_proj.bias is not None:
-                    nn.init.zeros_(block.after_proj.bias)
+class VaceWanModel(WanModel):
+    _no_split_modules = ["BaseWanVaceAttentionBlock", "VaceWanAttentionBlock"]
 
+    def __init__(self, **kwargs):
+        vace_layers = kwargs.pop("vace_layers", None)
+        vace_in_dim = kwargs.pop("vace_in_dim", None)
+        num_layers = kwargs.get("num_layers", 32)
+        in_dim = kwargs.get("in_dim", 16)
 
-VaceWanModel = WanModel
+        if vace_layers is None:
+            self.vace_num_blocks = num_layers // 2
+        elif isinstance(vace_layers, int):
+            self.vace_num_blocks = vace_layers
+        else:
+            raise ValueError(f"vace_layers must be None or int, got {type(vace_layers)}")
+
+        self.vace_in_dim = vace_in_dim if vace_in_dim is not None else in_dim
+        layer_step = num_layers // self.vace_num_blocks
+        self.vace_layers_mapping = {i: n for n, i in enumerate(range(0, num_layers, layer_step))}
+
+        operations = kwargs.get("operations")
+        device = kwargs.get("device")
+        dtype = kwargs.get("dtype")
+
+        kwargs.setdefault("model_type", "vace")
+        super().__init__(vace_layers=vace_layers, vace_in_dim=vace_in_dim, **kwargs)
+
+        # VACE-specific modules
+        operation_settings = {
+            "operations": operations,
+            "device": device,
+            "dtype": dtype,
+            "rms_dtype": getattr(operations, "rms_dtype", None),
+        }
+
+        self.vace_blocks = nn.ModuleList(
+            [
+                VaceWanAttentionBlock(
+                    self.dim,
+                    self.ffn_dim,
+                    self.num_heads,
+                    block_id=idx,
+                    window_size=self.window_size,
+                    qk_norm=self.qk_norm,
+                    cross_attn_norm=self.cross_attn_norm,
+                    eps=self.eps,
+                    operation_settings=operation_settings,
+                )
+                for idx in range(self.vace_num_blocks)
+            ]
+        )
+        self.vace_patch_embedding = operations.Conv3d(
+            self.vace_in_dim,
+            self.dim,
+            kernel_size=self.patch_size,
+            stride=self.patch_size,
+            device=device,
+            dtype=torch.float32,
+        )
+
+    def _create_blocks(self, operation_settings):
+        blocks = nn.ModuleList(
+            [
+                BaseWanVaceAttentionBlock(
+                    self.dim,
+                    self.ffn_dim,
+                    self.num_heads,
+                    block_id=i,
+                    window_size=self.window_size,
+                    qk_norm=self.qk_norm,
+                    cross_attn_norm=self.cross_attn_norm,
+                    eps=self.eps,
+                    operation_settings=operation_settings,
+                )
+                for i in range(self.num_layers)
+            ]
+        )
+        for i, block in enumerate(blocks):
+            block.vace_block_id = self.vace_layers_mapping.get(i, None)
+        return blocks
+
+    def set_keep_in_fp32_modules(self):
+        super().set_keep_in_fp32_modules()
+        self._keep_in_fp32_modules.append("vace_patch_embedding")
+
+    def forward_vace(self, x, vace_context, seq_len, kwargs):
+        device = x.device
+        dtype = x.dtype
+        batch_size = x.shape[0]
+
+        c = [self.vace_patch_embedding(u.unsqueeze(0).to(device).float()).to(dtype) for u in vace_context]
+        c = [u.flatten(2).transpose(1, 2) for u in c]
+        c = torch.cat([torch.cat([u, u.new_zeros(1, seq_len - u.size(1), u.size(2))], dim=1) for u in c])
+
+        if c.shape[0] != batch_size:
+            if batch_size % c.shape[0] == 0:
+                c = c.repeat(batch_size // c.shape[0], 1, 1)
+            else:
+                raise ValueError(
+                    f"VACE batch size mismatch: x has batch {batch_size}, "
+                    f"but vace_context produces batch {c.shape[0]}."
+                )
+
+        if self.sp_size > 1:
+            c = torch.chunk(c, self.sp_size, dim=1)[get_rank_id()]
+        else:
+            if x.shape[1] > c.shape[1]:
+                c = torch.cat([c.new_zeros(batch_size, x.shape[1] - c.shape[1], c.shape[2]), c], dim=1)
+            if c.shape[1] > x.shape[1]:
+                c = c[:, : x.shape[1]]
+
+        new_kwargs = dict(x=x)
+        new_kwargs.update(kwargs)
+
+        hints = []
+        for block in self.vace_blocks:
+            c_skip, c = block(c, **new_kwargs)
+            hints.append(c_skip)
+        return hints
+
+    def _run_blocks(
+        self,
+        x,
+        cache,
+        phase,
+        timestep,
+        kwargs,
+        slg_active,
+        slg_blocks,
+        seq_len,
+        vace_context=None,
+        vace_context_scale=1.0,
+        **extra_kwargs,
+    ):
+        vace_hints = None
+        if vace_context is not None:
+            vace_hints = self.forward_vace(x, vace_context, seq_len, kwargs)
+
+        if cache is None:
+            for block_idx, block in enumerate(self.blocks):
+                if slg_active and block_idx in slg_blocks:
+                    continue
+                x = block(x, vace_hints=vace_hints, vace_context_scale=vace_context_scale, **kwargs)
+        else:
+            x = self._forward_with_cache(x, cache, phase, timestep, **kwargs)
+        return x
+
+    def forward(
+        self,
+        x,
+        t,
+        step_iter,
+        cache,
+        phase,
+        context,
+        y=None,
+        vace_context=None,
+        vace_context_scale=1.0,
+        slg_config=None,
+        feta_config=None,
+        current_step_percent=0.0,
+    ):
+        return super().forward(
+            x,
+            t,
+            step_iter,
+            cache,
+            phase,
+            context,
+            y=y,
+            slg_config=slg_config,
+            feta_config=feta_config,
+            current_step_percent=current_step_percent,
+            vace_context=vace_context,
+            vace_context_scale=vace_context_scale,
+        )
+
+    @time_range
+    def init_weights(self):
+        super().init_weights()
+        nn.init.xavier_uniform_(self.vace_patch_embedding.weight.flatten(1))
+        for block in self.vace_blocks:
+            if hasattr(block, "before_proj"):
+                nn.init.zeros_(block.before_proj.weight)
+                if block.before_proj.bias is not None:
+                    nn.init.zeros_(block.before_proj.bias)
+            nn.init.zeros_(block.after_proj.weight)
+            if block.after_proj.bias is not None:
+                nn.init.zeros_(block.after_proj.bias)

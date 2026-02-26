@@ -30,7 +30,7 @@ from ksana.config import (
     KsanaVideoControlConfig,
 )
 from ksana.utils import load_control_frames
-from ksana.utils.vace import KsanaVaceVideoEncodeConfig
+from ksana.utils.vace import KsanaVaceContext
 
 prompts = [
     "a cute anime girl with massive fennec ears and a big fluffy tail "
@@ -81,36 +81,28 @@ def run_with_experimental_configs(args):
         dist_config=KsanaDistributedConfig(num_gpus=args.num_gpus),
     )
 
-    # SLG Config: Skip uncond on blocks 9,10,11 for 14B model
-    # This can speed up sampling by ~15-20% with minimal quality loss
     slg_config = KsanaSLGConfig(
-        blocks=[9],  # Transformer block indices to skip uncond
-        start_percent=0.1,  # Start SLG after 10% of steps
-        end_percent=1.0,  # Enable until the end
+        blocks=[9],
+        start_percent=0.1,
+        end_percent=1.0,
     )
 
-    # FETA Config: Enhance temporal consistency
-    # Higher weight = stronger temporal smoothing
     feta_config = KsanaFETAConfig(
-        weight=2.0,  # Enhancement weight (1.0-5.0 typical)
-        start_percent=0.0,  # Start from beginning
-        end_percent=1.0,  # Enable until the end
+        weight=2.0,
+        start_percent=0.0,
+        end_percent=1.0,
     )
 
     experimental_config = KsanaExperimentalConfig(
         cfg_zero_star=True,
         use_zero_init=False,
         zero_star_steps=0,
-        # FreSca: Frequency-domain filtering
         use_fresca=False,
         fresca_scale_low=1.0,
         fresca_scale_high=1.25,
         fresca_freq_cutoff=20,
-        # TCFG: Tangential CFG to reduce color shifts
         use_tcfg=False,
-        # RAAG: Ratio-aware adaptive guidance (0 = disabled)
         raag_alpha=0.0,
-        # TSR: Temporal score rescaling for consistency
         temporal_score_rescaling=False,
         tsr_k=0.95,
         tsr_sigma=1.0,
@@ -120,16 +112,13 @@ def run_with_experimental_configs(args):
     print(f"feta_config: {feta_config}")
     print(f"experimental_config: {experimental_config}")
 
-    # Handle control video if provided
     video_control_config = None
     size = args.size if args.size else (512, 512)
     frame_num = args.num_frames
 
     if args.control_video:
-        # Load as reference image (ComfyUI uses reference_image, not control_video)
         reference_image = load_control_frames(args.control_video, max_frames=1, target_size=size)
-        print(f"Reference image shape: {reference_image.shape}")
-        video_control_config = KsanaVaceVideoEncodeConfig(
+        video_control_config = KsanaVaceContext(
             reference_image=reference_image,
             strength=args.vace_strength,
         )
@@ -170,11 +159,8 @@ def run_with_control_video(args):
     target_size = args.size if args.size else (512, 512)
     target_frames = args.num_frames
 
-    # Load as reference image (ComfyUI uses reference_image, not control_video)
     reference_image = load_control_frames(args.control_video, max_frames=1, target_size=target_size)
-    print(f"Reference image shape: {reference_image.shape}")
-
-    video_control_config = KsanaVaceVideoEncodeConfig(
+    video_control_config = KsanaVaceContext(
         reference_image=reference_image,
         strength=args.vace_strength,
     )
@@ -256,7 +242,6 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    # Parse size argument
     if args.size:
         try:
             w, h = args.size.lower().split("x")
