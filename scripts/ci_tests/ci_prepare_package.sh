@@ -22,6 +22,21 @@ source /data/miniconda3/etc/profile.d/conda.sh
 conda activate env-novelai
 
 echo "BK_CI_GIT_REPO_HEAD_COMMIT_ID: ${BK_CI_GIT_REPO_HEAD_COMMIT_ID} "
+
+sudo pkill -9 -f comfy 2>/dev/null || true
+sudo pkill -9 -f ksana 2>/dev/null || true
+sudo pkill -9 -f pytest 2>/dev/null || true
+sudo pkill -9 -f workflow_test 2>/dev/null || true
+ray stop --force 2>/dev/null || true
+sudo pkill -9 -u mqq -f "ray::" 2>/dev/null || true
+sudo pkill -9 -u mqq -f raylet 2>/dev/null || true
+sudo pkill -9 -u mqq -f gcs_server 2>/dev/null || true
+sleep 5
+rm -rf /tmp/ray /tmp/ray_ksana /tmp/ray_comfy 2>/dev/null || true
+if command -v npu-smi > /dev/null 2>&1; then
+    rm -rf /dev/shm/hccl_* 2>/dev/null || true
+fi
+
 sudo chown mqq:mqq -R /ci_workspace/
 sudo chown mqq:mqq -R /data/ComfyUI/
 
@@ -47,6 +62,3 @@ ln -sf /dockerdata/ci-models/single/TurboWan2.2-I2V-A14B-720P .
 
 mkdir -p /data/stable-diffusion-webui
 ln -sf /dockerdata/ci-models/single/comfy_models /data/stable-diffusion-webui/models
-
-sudo pkill -f comfy
-sudo pkill -f ksana

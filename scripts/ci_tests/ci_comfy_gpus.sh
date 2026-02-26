@@ -35,6 +35,8 @@ echo "USE COMFYUI_PORT ${COMFYUI_PORT}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/test_env.sh" ${GPU_CARDS}
 
+export RAY_TMPDIR=/tmp/ray_comfy
+export HCCL_IF_BASE_PORT=22000
 export KSANA_CI_MODELS_ROOT=/dockerdata/ci-models
 cd /ci_workspace/${BK_CI_GIT_REPO_HEAD_COMMIT_ID}/tests/comfy
 python workflow_test.py --workflows-file ./test_configs.json --seed 321 --gpus ${GPU_CARDS} --port ${COMFYUI_PORT}

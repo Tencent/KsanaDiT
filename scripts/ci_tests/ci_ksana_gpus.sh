@@ -35,6 +35,8 @@ echo "USE KSANA_TEST_PORT ${KSANA_TEST_PORT}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/test_env.sh" ${GPU_CARDS}
 
+export RAY_TMPDIR=/tmp/ray_ksana
+export HCCL_IF_BASE_PORT=21000
 export KSANA_TEST_PORT=${KSANA_TEST_PORT}
 export CUDA_VISIBLE_DEVICES=${GPU_CARDS}
 cd /ci_workspace/${BK_CI_GIT_REPO_HEAD_COMMIT_ID}/
