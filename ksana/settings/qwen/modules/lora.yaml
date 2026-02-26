@@ -1,0 +1,5 @@
+
+sample_config:
+  steps: 4
+  solver: "flowmatch_euler"
+  cfg_scale: 1

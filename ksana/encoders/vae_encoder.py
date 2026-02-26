@@ -32,7 +32,6 @@ class KsanaVaeEncoder(KsanaRunnerUnit):
         start_img: torch.Tensor = None,
         end_img: torch.Tensor = None,
         mask: torch.Tensor = None,
-        image: torch.Tensor = None,
         batch_size: int = None,
         **kwargs,
     ):
@@ -46,13 +45,21 @@ class KsanaVaeEncoder(KsanaRunnerUnit):
             f"end_image shape: {end_img.shape if end_img is not None else None}, "
             f"mask shape: {mask.shape if mask is not None else None}, {kwargs}"
         )
-        if image is not None and start_img is not None:
-            raise ValueError("image and start_img cannot be both not None")
-        if image is not None:  # only encode image
-            return vae_model.forward_encode_image(
-                image=image, device=kwargs.get("device"), target_batch_size=batch_size
-            )
-        else:
-            return vae_model.forward_encode(
-                start_img=start_img, end_img=end_img, mask=mask, target_batch_size=batch_size, **kwargs
-            )
+        return vae_model.forward_encode(
+            start_img=start_img, end_img=end_img, mask=mask, target_batch_size=batch_size, **kwargs
+        )
+
+    @time_range
+    def run_encode_image(
+        self,
+        vae_model,
+        *,
+        image: torch.Tensor | list[torch.Tensor] = None,
+        device=None,
+        batch_size: int = 1,
+    ):
+        log.info(
+            f"vae_encode_image with model_key: {vae_model.model_key}, "
+            f"image type: {type(image).__name__}, batch_size: {batch_size}"
+        )
+        return vae_model.forward_encode_image(image=image, device=device, target_batch_size=batch_size)

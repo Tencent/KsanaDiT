@@ -20,6 +20,7 @@ import os
 import time
 import urllib.error
 
+from ksana.accelerator import platform as runtime_platform
 from test_utils import (
     check_media_data,
     connect_websocket,
@@ -30,20 +31,12 @@ from test_utils import (
     wait_for_completion,
 )
 
-from ksana.accelerator import platform as runtime_platform
-
-# 配置日志
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
 logger = logging.getLogger(__name__)
 
 
 def modify_workflow_params(api_prompt: dict, params: dict) -> dict:
     """修改 workflow 参数
-
-    Args:
-        api_prompt: API workflow 数据
-        params: 包含参数的字典
-
     支持的节点类型和参数映射:
         - KsanaGeneratorNode: steps, seed
         - KsanaVAEEncodeNode: width, height, num_frames (从 params["frames"] 获取)
@@ -130,6 +123,12 @@ def modify_workflow_params(api_prompt: dict, params: dict) -> dict:
         elif class_type == "LoadImage":
             if "input_image" in params and "image" in inputs:
                 inputs["image"] = os.path.abspath(params["input_image"])
+            elif "input_image_map" in params and "image" in inputs:
+                original = inputs["image"]
+                for key, replacement in params["input_image_map"].items():
+                    if key in original:
+                        inputs["image"] = os.path.abspath(replacement)
+                        break
 
         elif class_type == "KsanaEmptyImageLatentNode":
             if "image_width" in params and "width" in inputs:
@@ -141,15 +140,7 @@ def modify_workflow_params(api_prompt: dict, params: dict) -> dict:
 
 
 def test_workflow(workflow_path: str, params: dict, expect_values: dict | None = None, port: int = 8188) -> bool:
-    """测试 workflow
-    Args:
-        workflow_path: workflow 文件路径
-        params: 包含参数的字典
-        expect_values: 期望值，用于结果校验
-        port: ComfyUI 服务器端口
-    Returns:
-        是否成功
-    """
+
     server_address = f"127.0.0.1:{port}"
 
     try:

@@ -15,17 +15,6 @@
 import unittest
 
 import torch
-from pipeline_test_helper import (
-    PROMPTS,
-    SEED,
-    TEST_EPS_PLACE,
-    TEST_FRAME_NUM,
-    TEST_PORT,
-    TEST_SIZE,
-    TEST_STEPS,
-    get_platform_config_or_skip,
-)
-
 from ksana import KsanaPipeline
 from ksana.accelerator import platform
 from ksana.config import (
@@ -39,6 +28,16 @@ from ksana.config import (
     KsanaSolverType,
 )
 from ksana.utils.distribute import get_gpu_count
+from pipeline_test_helper import (
+    PROMPTS,
+    SEED,
+    TEST_EPS_PLACE,
+    TEST_FRAME_NUM,
+    TEST_PORT,
+    TEST_SIZE,
+    TEST_STEPS,
+    get_platform_config_or_skip,
+)
 
 
 class TestKsanaPipelineWanI2V(unittest.TestCase):
@@ -66,7 +65,7 @@ class TestKsanaPipelineWanI2V(unittest.TestCase):
         )
         videos = pipeline.generate(
             PROMPTS[0],
-            img_path="./examples/images/input.png",
+            start_img_path="./examples/images/input.png",
             sample_config=KsanaSampleConfig(steps=TEST_STEPS),
             runtime_config=KsanaRuntimeConfig(
                 seed=SEED,
@@ -83,7 +82,7 @@ class TestKsanaPipelineWanI2V(unittest.TestCase):
 
         videos = pipeline.generate(
             PROMPTS,
-            img_path="./examples/images/start_image.png",
+            start_img_path="./examples/images/start_image.png",
             end_img_path="./examples/images/end_image.png",
             sample_config=KsanaSampleConfig(steps=TEST_STEPS, add_noise_to_latent=True),
             runtime_config=KsanaRuntimeConfig(
@@ -142,7 +141,7 @@ class TestKsanaPipelineWanI2V(unittest.TestCase):
 
         videos = pipeline.generate(
             PROMPTS[0],
-            img_path="./examples/images/input.png",
+            start_img_path="./examples/images/input.png",
             sample_config=sample_config,
             runtime_config=KsanaRuntimeConfig(
                 seed=SEED,
@@ -158,7 +157,7 @@ class TestKsanaPipelineWanI2V(unittest.TestCase):
 
         videos = pipeline.generate(
             PROMPTS,
-            img_path="./examples/images/start_image.png",
+            start_img_path="./examples/images/start_image.png",
             end_img_path="./examples/images/end_image.png",
             sample_config=sample_config,
             runtime_config=KsanaRuntimeConfig(

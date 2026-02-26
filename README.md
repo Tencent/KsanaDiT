@@ -186,7 +186,7 @@ pipeline = KsanaPipeline.from_models("path/to/Wan2.2-I2V-A14B")
 
 video = pipeline.generate(
     "Girl gently waves her fan, blows a breath of fairy air, lightning flies from her hand into the sky and thunder begins",
-    img_path="input.png",
+    start_img_path="input.png",
     sample_config=KsanaSampleConfig(steps=40),
     runtime_config=KsanaRuntimeConfig(
         seed=1234,

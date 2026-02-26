@@ -161,24 +161,48 @@ class KsanaBaseGenerator(KsanaRunnerUnit):
             tensor = tensor.repeat_interleave(repeats, dim=0)
         return tensor
 
+    # TODO(qiannan): img_latents 双重类型 (Tensor | list[Tensor])
+    # ●涉及文件: KsanaQwenVAEModel.forward_encode_image()、KsanaQwenGenerator.preprocess_image_latent()、
+    # _valid_image_to_total_prompts_size()
+    # ●原因: 为了兼容 I2V（单张图 → torch.Tensor）和 QwenImageEdit（多参考图 → list[torch.Tensor]）两种模式。
+    # 当前设计是有意为之，统一类型需要同时改动 I2V 和 Edit 两条链路，影响面较大。
+    # ●建议: 后续可考虑统一为 list[torch.Tensor]，I2V 场景包装为单元素 list。
     def _valid_image_to_total_prompts_size(
-        self, img_latents: torch.Tensor, num_prompts: int, batch_size_per_prompts: list[int]
+        self, img_latents: torch.Tensor | list[torch.Tensor], num_prompts: int, batch_size_per_prompts: list[int]
     ):
         if img_latents is None:
-            return
-        if num_prompts > img_latents.shape[0]:
-            # Note: load img only get one tensor for each image to save memory, so batchsize at each prompt need repeats
-            repeats_num = num_prompts // img_latents.shape[0]
-            if repeats_num * img_latents.shape[0] != num_prompts:
-                raise ValueError(
-                    f"repeats_num({repeats_num}) * img_latents.shape{img_latents.shape}[0] must be equal"
-                    f" num_prompts {num_prompts}"
-                )
-            img_latents = img_latents.repeat_interleave(repeats_num, dim=0)
-        img_latents = self._expand_to_total_prompts_size(img_latents, batch_size_per_prompts)
-        return img_latents
+            return None
 
-    def _valid_promots_to_total_prompts_size(
+        if isinstance(img_latents, list):
+            return self._expand_list_latents(img_latents, num_prompts, batch_size_per_prompts)
+        else:
+            return self._expand_single_latents(img_latents, num_prompts, batch_size_per_prompts)
+
+    def _expand_list_latents(
+        self, img_latents: list[torch.Tensor], num_prompts: int, batch_size_per_prompts: list[int]
+    ):
+        """处理Edit模式下的list[tensor]格式latents"""
+        if len(img_latents) != num_prompts:
+            raise ValueError(f"img_latents list length ({len(img_latents)}) must match num_prompts ({num_prompts})")
+        stacked = torch.stack(img_latents)  # [num_prompts, num_refs, C, 1, H, W]
+        expanded = self._expand_to_total_prompts_size(
+            stacked, batch_size_per_prompts
+        )  # [total_batch, num_refs, C, 1, H, W]
+        # 转置结构：[total_batch, num_refs, ...] -> list[num_refs] of [total_batch, ...]
+        return list(expanded.transpose(0, 1))  # list[num_refs] of [total_batch, C, 1, H, W]
+
+    def _expand_single_latents(self, img_latents: torch.Tensor, num_prompts: int, batch_size_per_prompts: list[int]):
+        """处理单个tensor格式的latents"""
+        # 如果需要重复latents以匹配prompt数量
+        if num_prompts > img_latents.shape[0]:
+            current_batch_size = img_latents.shape[0]
+            repeats_num = num_prompts // current_batch_size
+            if repeats_num * current_batch_size != num_prompts:
+                raise ValueError(f"Cannot evenly distribute {current_batch_size} images to {num_prompts} prompts")
+            img_latents = img_latents.repeat_interleave(repeats_num, dim=0)
+        return self._expand_to_total_prompts_size(img_latents, batch_size_per_prompts)
+
+    def _valid_prompts_to_total_prompts_size(
         self,
         positive: torch.Tensor,
         negative: torch.Tensor,
@@ -494,7 +518,7 @@ class KsanaBaseGenerator(KsanaRunnerUnit):
         img_latents = self._valid_image_to_total_prompts_size(
             img_latents, num_prompts, runtime_config.batch_size_per_prompts
         )
-        positive, negative = self._valid_promots_to_total_prompts_size(
+        positive, negative = self._valid_prompts_to_total_prompts_size(
             positive, negative, runtime_config.batch_size_per_prompts
         )
         run_dtype = diffusion_model[0].run_dtype
@@ -513,6 +537,9 @@ class KsanaBaseGenerator(KsanaRunnerUnit):
         # Note: pack need after build strategy since strategy use noise_latents shape as 5D tensor
         patch_size = self._get_patch_size(diffusion_model)
         noise_latents = self.pack_noise_latents(noise_latents, patch_size)
+
+        if img_latents is not None and len(img_latents) > 0:
+            img_latents = self.pack_ref_latents(img_latents, patch_size)
 
         log.info(
             f"num_prompts: {num_prompts}, batch_size_per_prompts: {runtime_config.batch_size_per_prompts}, "
@@ -614,6 +641,9 @@ class KsanaBaseGenerator(KsanaRunnerUnit):
     def pack_noise_latents(self, noise_latents: torch.Tensor, patch_size) -> torch.Tensor:
         return noise_latents
 
+    def pack_ref_latents(self, ref_latents: list[torch.Tensor], patch_size: int) -> list[torch.Tensor]:
+        return ref_latents
+
     def unpack_noise_latents(self, noise_latents: torch.Tensor, patch_size) -> torch.Tensor:
         return noise_latents
 
@@ -626,7 +656,12 @@ class KsanaBaseGenerator(KsanaRunnerUnit):
         return positive, negative
 
     def cast_image_tensor_to(self, img_latents, *, dtype: torch.dtype, device: torch.device):
-        return self._cast_to(img_latents, dtype=dtype, device=device) if img_latents is not None else None
+        if img_latents is None:
+            return None
+        # 支持 list[Tensor]（Edit 模式多 prompt）
+        if isinstance(img_latents, list):
+            return [self._cast_to(lat, dtype=dtype, device=device) for lat in img_latents]
+        return self._cast_to(img_latents, dtype=dtype, device=device)
 
     def get_running_cfg_scale(self, cfg_scale: list[float], **kwargs):
         return cfg_scale[0] if isinstance(cfg_scale, (list, tuple)) else cfg_scale
@@ -980,7 +1015,7 @@ class KsanaVaceGenerator(KsanaWanGenerator):
             return base | arg_cond
 
 
-@KsanaUnitFactory.register(KsanaUnitType.GENERATOR, KsanaModelKey.QwenImage_T2I)
+@KsanaUnitFactory.register(KsanaUnitType.GENERATOR, [KsanaModelKey.QwenImage_T2I, KsanaModelKey.QwenImage_Edit])
 class KsanaQwenGenerator(KsanaBaseGenerator):
 
     def __init__(self):
@@ -1001,6 +1036,13 @@ class KsanaQwenGenerator(KsanaBaseGenerator):
             return embeds, mask
         raise ValueError(f"Unsupported conditioning format: {type(conditioning)}")
 
+    def preprocess_image_latent(self, img_latent):
+        if img_latent is None:
+            return None
+        if isinstance(img_latent, torch.Tensor):
+            return [img_latent]
+        return img_latent
+
     def _valid_prompts(self, positive: tuple, negative: tuple):
         pos, pos_mask = positive
         neg, neg_mask = negative
@@ -1014,7 +1056,7 @@ class KsanaQwenGenerator(KsanaBaseGenerator):
             raise ValueError(f"pos_mask.shape[0] of {positive.shape}, neg_mask.shape[0] of {negative.shape} must equal")
         return (pos, pos_mask), (neg, neg_mask)
 
-    def _valid_promots_to_total_prompts_size(
+    def _valid_prompts_to_total_prompts_size(
         self,
         positive: tuple,
         negative: tuple,
@@ -1022,8 +1064,8 @@ class KsanaQwenGenerator(KsanaBaseGenerator):
     ):
         pos, pos_mask = positive
         neg, neg_mask = negative
-        pos, neg = super()._valid_promots_to_total_prompts_size(pos, neg, batch_size_per_prompts)
-        pos_mask, neg_mask = super()._valid_promots_to_total_prompts_size(pos_mask, neg_mask, batch_size_per_prompts)
+        pos, neg = super()._valid_prompts_to_total_prompts_size(pos, neg, batch_size_per_prompts)
+        pos_mask, neg_mask = super()._valid_prompts_to_total_prompts_size(pos_mask, neg_mask, batch_size_per_prompts)
         neg = self._expand_to_total_prompts_size(neg, batch_size_per_prompts)
         pos_mask = self._expand_to_total_prompts_size(pos_mask, batch_size_per_prompts)
         neg_mask = self._expand_to_total_prompts_size(neg_mask, batch_size_per_prompts)
@@ -1033,7 +1075,38 @@ class KsanaQwenGenerator(KsanaBaseGenerator):
         pos, pos_mask = positive
         neg, neg_mask = negative
         pos, neg = super().cast_text_tensors_to(pos, neg, dtype=dtype, device=device)
+        # Mask tensors must also be on the same device for attention mask construction
+        pos_mask = pos_mask.to(device=device)
+        neg_mask = neg_mask.to(device=device)
         return (pos, pos_mask), (neg, neg_mask)
+
+    def apply_cfg(
+        self,
+        cfg_scale,
+        cond,
+        uncond,
+        experimental_config: KsanaExperimentalConfig | None = None,
+        step_index: int = 0,
+        total_steps: int = 1,
+        **kwargs,
+    ):
+        if experimental_config is not None:
+            return super().apply_cfg(
+                cfg_scale,
+                cond,
+                uncond,
+                experimental_config=experimental_config,
+                step_index=step_index,
+                total_steps=total_steps,
+            )
+        comb_pred = uncond + float(cfg_scale) * (cond - uncond)
+        if self.model_key == KsanaModelKey.QwenImage_Edit:
+            # Normalize to conditional prediction norm (per-token, last-dim), matching diffusers.
+            cond_norm = torch.norm(cond, dim=-1, keepdim=True)
+            comb_norm = torch.norm(comb_pred, dim=-1, keepdim=True)
+            scale = (cond_norm / comb_norm).to(dtype=comb_pred.dtype)
+            comb_pred = comb_pred * scale
+        return comb_pred
 
     def calculate_shift(self, seq_len: int, configs) -> float:
         base_seq_len = getattr(configs, "base_seq_len", 256)
@@ -1072,13 +1145,20 @@ class KsanaQwenGenerator(KsanaBaseGenerator):
             positive_embeds, positive_mask, negative_embeds, negative_mask
         )
         use_cfg = self._use_cfg(cfg_scale)
+
+        ref_latents = img_latent
         if use_cfg and combine_cond_uncond:
             combine_x = torch.cat([noise_latent, noise_latent], dim=0)
             combine_t = torch.cat([timestep, timestep], dim=0)
             combine_embs = torch.cat([positive_embeds, negative_embeds], dim=0)
             combine_mask = torch.cat([positive_mask, negative_mask], dim=0)
             combine_txt_seq_lens = positive_txt_seq_lens + negative_txt_seq_lens
-            combine_img_shapes = img_shapes + img_shapes
+            combine_img_shapes = [list(shapes) for shapes in img_shapes] + [list(shapes) for shapes in img_shapes]
+
+            combine_ref_latents = ref_latents
+            if ref_latents is not None:
+                combine_ref_latents = [torch.cat([r, r], dim=0) for r in ref_latents]
+
             combine_kargs = {
                 "phase": "combine",
                 "x": combine_x,
@@ -1087,10 +1167,18 @@ class KsanaQwenGenerator(KsanaBaseGenerator):
                 "encoder_hidden_states": combine_embs,
                 "encoder_hidden_states_mask": combine_mask,
                 "txt_seq_lens": combine_txt_seq_lens,
+                "ref_latents": combine_ref_latents,
             }
             return base | combine_kargs
 
-        base.update({"x": noise_latent, "t": timestep, "img_shapes": img_shapes})
+        base.update(
+            {
+                "x": noise_latent,
+                "t": timestep,
+                "img_shapes": img_shapes,
+                "ref_latents": ref_latents,
+            }
+        )
         arg_cond = {
             "phase": "cond",
             "encoder_hidden_states": positive_embeds,
@@ -1115,8 +1203,11 @@ class KsanaQwenGenerator(KsanaBaseGenerator):
         timesteps: torch.Tensor,
         num_train_timesteps: int,
     ):
-        if input_latent is not None or sample_config.add_noise_to_latent:
-            raise NotImplementedError(f"{self.model_key} does not support input_latent or add_noise_to_latent yet!")
+        # TODO: implement input_latent blending for image editing
+        log.warning(
+            "input_latent blending for image editing is not implemented yet. "
+            "Currently input_latent is not used for qwen, mainly for getting output shape"
+        )
         return noise_latents
 
     def _get_latent_img_shapes(self):
@@ -1140,6 +1231,25 @@ class KsanaQwenGenerator(KsanaBaseGenerator):
         self.latent_img_shapes = [[(1, new_h, new_w)] for _ in range(num)]
         log.info(f"{self.model_key} pack noise latents to shape {latents.shape}")
         return latents
+
+    def pack_ref_latents(self, ref_latents: list[torch.Tensor], patch_size: int) -> list[torch.Tensor]:
+        packed_refs = []
+        for ref in ref_latents:
+            latent = ref.squeeze(2) if ref.dim() == 5 else ref
+            if latent.dim() == 4:
+                b, c, h, w = latent.shape
+                latent = latent.view(b, c, h // patch_size, patch_size, w // patch_size, patch_size)
+                latent = latent.permute(0, 2, 4, 1, 3, 5).reshape(
+                    b, (h // patch_size) * (w // patch_size), c * patch_size * patch_size
+                )
+            packed_refs.append(latent)
+            h, w = ref.shape[-2], ref.shape[-1]
+            ref_shape = (1, h // patch_size, w // patch_size)
+            for i in range(len(self.latent_img_shapes)):
+                self.latent_img_shapes[i].append(ref_shape)
+
+        log.info(f"{self.model_key} packed {len(ref_latents)} reference latents")
+        return packed_refs
 
     def unpack_noise_latents(self, latents, patch_size):
         if latents.dim() != 3:

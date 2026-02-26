@@ -275,6 +275,90 @@ class QwenImageUpBlock(nn.Module):
         return x
 
 
+class QwenImageEncoder3d(nn.Module):
+    def __init__(
+        self,
+        dim: int = 128,
+        z_dim: int = 4,
+        dim_mult: list[int] = None,
+        num_res_blocks: int = 2,
+        attn_scales: list[float] = None,
+        temperal_downsample: list[bool] = None,
+        dropout: float = 0.0,
+        input_channels: int = 3,
+        non_linearity: str = "silu",
+    ):
+        if dim_mult is None:
+            dim_mult = [1, 2, 4, 4]
+        if attn_scales is None:
+            attn_scales = []
+        if temperal_downsample is None:
+            temperal_downsample = [True, True, False]
+        super().__init__()
+        self.dim = dim
+        self.z_dim = z_dim
+        self.dim_mult = dim_mult
+        self.num_res_blocks = num_res_blocks
+        self.attn_scales = attn_scales
+        self.temperal_downsample = temperal_downsample
+        self.nonlinearity = get_activation(non_linearity)
+
+        dims = [dim * u for u in [1] + dim_mult]
+
+        self.conv_in = QwenImageCausalConv3d(input_channels, dims[0], 3, padding=1)
+
+        self.down_blocks = nn.ModuleList([])
+        for i, (in_dim, out_dim) in enumerate(zip(dims[:-1], dims[1:])):
+            for _ in range(num_res_blocks):
+                self.down_blocks.append(QwenImageResidualBlock(in_dim, out_dim, dropout))
+                in_dim = out_dim
+
+            if i != len(dim_mult) - 1:
+                mode = "downsample3d" if temperal_downsample[i] else "downsample2d"
+                self.down_blocks.append(QwenImageResample(out_dim, mode=mode))
+
+        self.mid_block = QwenImageMidBlock(out_dim, dropout, non_linearity, num_layers=1)
+
+        self.norm_out = QwenImageRMSNorm(out_dim, images=False)
+        self.conv_out = QwenImageCausalConv3d(out_dim, z_dim, 3, padding=1)
+
+    def forward(self, x, feat_cache=None, feat_idx=None):
+        if feat_idx is None:
+            feat_idx = [0]
+        if feat_cache is not None:
+            idx = feat_idx[0]
+            cache_x = x[:, :, -CACHE_T:, :, :].clone()
+            if cache_x.shape[2] < 2 and feat_cache[idx] is not None:
+                cache_x = torch.cat([feat_cache[idx][:, :, -1, :, :].unsqueeze(2).to(cache_x.device), cache_x], dim=2)
+            x = self.conv_in(x, feat_cache[idx])
+            feat_cache[idx] = cache_x
+            feat_idx[0] += 1
+        else:
+            x = self.conv_in(x)
+
+        for layer in self.down_blocks:
+            if feat_cache is not None:
+                x = layer(x, feat_cache, feat_idx)
+            else:
+                x = layer(x)
+
+        x = self.mid_block(x, feat_cache, feat_idx)
+
+        x = self.norm_out(x)
+        x = self.nonlinearity(x)
+        if feat_cache is not None:
+            idx = feat_idx[0]
+            cache_x = x[:, :, -CACHE_T:, :, :].clone()
+            if cache_x.shape[2] < 2 and feat_cache[idx] is not None:
+                cache_x = torch.cat([feat_cache[idx][:, :, -1, :, :].unsqueeze(2).to(cache_x.device), cache_x], dim=2)
+            x = self.conv_out(x, feat_cache[idx])
+            feat_cache[idx] = cache_x
+            feat_idx[0] += 1
+        else:
+            x = self.conv_out(x)
+        return x
+
+
 class QwenImageDecoder3d(nn.Module):
     def __init__(
         self,
@@ -359,6 +443,7 @@ class AutoencoderKLQwenImage(nn.Module):
         dropout: float = 0.0,
         latents_mean: list[float] = None,
         latents_std: list[float] = None,
+        input_channels: int = 3,
     ):
         if dim_mult is None:
             dim_mult = [1, 2, 4, 4]
@@ -373,6 +458,21 @@ class AutoencoderKLQwenImage(nn.Module):
         self.latents_mean = latents_mean
         self.latents_std = latents_std
 
+        self.encoder = QwenImageEncoder3d(
+            base_dim,
+            z_dim * 2,
+            list(dim_mult),
+            num_res_blocks,
+            attn_scales,
+            self.temperal_downsample,
+            dropout,
+            input_channels,
+        )
+        self.quant_conv = QwenImageCausalConv3d(z_dim * 2, z_dim * 2, 1)
+
+        self._enc_feat_map = None
+        self._enc_conv_idx = None
+
         self.post_quant_conv = QwenImageCausalConv3d(z_dim, z_dim, 1)
         self.decoder = QwenImageDecoder3d(
             base_dim, z_dim, list(dim_mult), num_res_blocks, attn_scales, self.temperal_upsample, dropout
@@ -385,6 +485,37 @@ class AutoencoderKLQwenImage(nn.Module):
         conv_num = sum(isinstance(m, QwenImageCausalConv3d) for m in self.decoder.modules())
         self._conv_idx = [0]
         self._feat_map = [None] * conv_num
+
+    def clear_enc_cache(self):
+        conv_num = sum(isinstance(m, QwenImageCausalConv3d) for m in self.encoder.modules())
+        self._enc_conv_idx = [0]
+        self._enc_feat_map = [None] * conv_num
+
+    def _encode(self, x: torch.Tensor) -> torch.Tensor:
+        _, _, num_frame, _, _ = x.shape
+
+        self.clear_enc_cache()
+        iter_ = 1 + (num_frame - 1) // 4
+        for i in range(iter_):
+            self._enc_conv_idx = [0]
+            if i == 0:
+                out = self.encoder(x[:, :, :1, :, :], feat_cache=self._enc_feat_map, feat_idx=self._enc_conv_idx)
+            else:
+                out_ = self.encoder(
+                    x[:, :, 1 + 4 * (i - 1) : 1 + 4 * i, :, :],
+                    feat_cache=self._enc_feat_map,
+                    feat_idx=self._enc_conv_idx,
+                )
+                out = torch.cat([out, out_], 2)
+
+        enc = self.quant_conv(out)
+        self.clear_enc_cache()
+        return enc
+
+    def encode(self, x: torch.Tensor) -> torch.Tensor:
+        h = self._encode(x)
+        mean, _ = torch.chunk(h, 2, dim=1)
+        return mean
 
     def decode(self, z: torch.Tensor) -> tuple[torch.Tensor]:
         _, _, num_frame, _, _ = z.shape
@@ -435,9 +566,17 @@ class KsanaQwenImageVAE:
 
         state_dict = load_state_dict_and_merge_lora(vae_path, device=str(device))
         load_state_dict(self.model, state_dict, strict=False)
-        self.model.to(device, dtype=dtype)
+        self.model.eval().requires_grad_(False).to(device, dtype=dtype)
 
-    def decode(self, latents: torch.Tensor, with_end_image: bool = False) -> tuple[torch.Tensor]:
+    def encode(self, image: torch.Tensor) -> torch.Tensor:
+        with amp.autocast(dtype=self.dtype):
+            latent = self.model.encode(image)
+            latents_mean = torch.tensor(self.latents_mean).view(1, -1, 1, 1, 1).to(latent)
+            latents_std = torch.tensor(self.latents_std).view(1, -1, 1, 1, 1).to(latent)
+            latent = (latent - latents_mean) / latents_std
+            return latent.float()
+
+    def decode(self, latents: torch.Tensor, with_end_image: bool = False) -> torch.Tensor:
         with amp.autocast(dtype=self.dtype):
             latents_mean = torch.tensor(self.latents_mean).view(1, -1, 1, 1, 1).to(latents)
             latents_std = torch.tensor(self.latents_std).view(1, -1, 1, 1, 1).to(latents)

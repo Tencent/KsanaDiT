@@ -1,0 +1,1241 @@
+{
+  "id": "00000000-0000-0000-0000-000000000000",
+  "revision": 0,
+  "last_node_id": 41,
+  "last_link_id": 120,
+  "nodes": [
+    {
+      "id": 12,
+      "type": "CLIPLoader",
+      "pos": [
+        1487.193345491121,
+        -462.8490855158414
+      ],
+      "size": [
+        270,
+        106
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "clip_name",
+          "name": "clip_name",
+          "type": "COMBO",
+          "widget": {
+            "name": "clip_name"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "type",
+          "name": "type",
+          "type": "COMBO",
+          "widget": {
+            "name": "type"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "device",
+          "name": "device",
+          "shape": 7,
+          "type": "COMBO",
+          "widget": {
+            "name": "device"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "CLIP",
+          "name": "CLIP",
+          "type": "CLIP",
+          "links": [
+            52,
+            69
+          ]
+        }
+      ],
+      "title": "加载CLIP",
+      "properties": {
+        "Node name for S&R": "CLIPLoader",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.5.2"
+        }
+      },
+      "widgets_values": [
+        "qwen_2.5_vl_7b.safetensors",
+        "qwen_image",
+        "default"
+      ]
+    },
+    {
+      "id": 16,
+      "type": "KsanaVAEDecodeNode",
+      "pos": [
+        3393.0799028978086,
+        64.60103773318662
+      ],
+      "size": [
+        190.0787109375,
+        46
+      ],
+      "flags": {},
+      "order": 11,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "vae",
+          "name": "vae",
+          "type": "KSANA_VAE_MODEL",
+          "link": 59
+        },
+        {
+          "localized_name": "latent",
+          "name": "latent",
+          "type": "KSANA_GENERATE_OUTPUT",
+          "link": 120
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "image",
+          "name": "image",
+          "type": "IMAGE",
+          "links": [
+            95
+          ]
+        }
+      ],
+      "title": "KsanaDiT VAE解码",
+      "properties": {
+        "Node name for S&R": "KsanaVAEDecodeNode",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.5.2"
+        }
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 10,
+      "type": "KsanaModelLoaderNode",
+      "pos": [
+        1440.8285732033814,
+        -239.28695675409122
+      ],
+      "size": [
+        298.150390625,
+        238
+      ],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "attention_config",
+          "name": "attention_config",
+          "shape": 7,
+          "type": "KSANA_ATTENTION_CONFIG",
+          "link": null
+        },
+        {
+          "localized_name": "torch_compile_args",
+          "name": "torch_compile_args",
+          "shape": 7,
+          "type": "KSANA_TORCH_COMPILE",
+          "link": null
+        },
+        {
+          "localized_name": "lora",
+          "name": "lora",
+          "shape": 7,
+          "type": "KSANA_LORA",
+          "link": null
+        },
+        {
+          "localized_name": "vace_model",
+          "name": "vace_model",
+          "shape": 7,
+          "type": "KSANA_VACE_MODEL",
+          "link": null
+        },
+        {
+          "localized_name": "model_name",
+          "name": "model_name",
+          "type": "COMBO",
+          "widget": {
+            "name": "model_name"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "run_dtype",
+          "name": "run_dtype",
+          "shape": 7,
+          "type": "COMBO",
+          "widget": {
+            "name": "run_dtype"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "rms_dtype",
+          "name": "rms_dtype",
+          "shape": 7,
+          "type": "COMBO",
+          "widget": {
+            "name": "rms_dtype"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "linear_backend",
+          "name": "linear_backend",
+          "shape": 7,
+          "type": "COMBO",
+          "widget": {
+            "name": "linear_backend"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "low_noise_model_name",
+          "name": "low_noise_model_name",
+          "shape": 7,
+          "type": "COMBO",
+          "widget": {
+            "name": "low_noise_model_name"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "model_boundary",
+          "name": "model_boundary",
+          "shape": 7,
+          "type": "FLOAT",
+          "widget": {
+            "name": "model_boundary"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "model",
+          "name": "model",
+          "type": "KSANA_DIFFUSION_MODEL",
+          "links": [
+            105
+          ]
+        }
+      ],
+      "title": "KsanaDiT 加载模型",
+      "properties": {
+        "Node name for S&R": "KsanaModelLoaderNode",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.5.2"
+        }
+      },
+      "widgets_values": [
+        "qwen_image_edit_2511_bf16.safetensors",
+        "bfloat16",
+        "float",
+        "default",
+        "Empty",
+        0.875
+      ]
+    },
+    {
+      "id": 11,
+      "type": "KsanaVAELoaderNode",
+      "pos": [
+        1515.9320219404647,
+        458.11110415945325
+      ],
+      "size": [
+        270,
+        58
+      ],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "vae_name",
+          "name": "vae_name",
+          "type": "COMBO",
+          "widget": {
+            "name": "vae_name"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "vae",
+          "name": "vae",
+          "type": "KSANA_VAE_MODEL",
+          "links": [
+            59,
+            109
+          ]
+        }
+      ],
+      "title": "KsanaDiT 加载VAE",
+      "properties": {
+        "Node name for S&R": "KsanaVAELoaderNode",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.5.2"
+        }
+      },
+      "widgets_values": [
+        "qwen_image_vae_hf.safetensors"
+      ]
+    },
+    {
+      "id": 40,
+      "type": "ImageBatchMulti",
+      "pos": [
+        2017.3697240687172,
+        552.8816376549499
+      ],
+      "size": [
+        270,
+        102
+      ],
+      "flags": {},
+      "order": 8,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "image_1",
+          "name": "image_1",
+          "type": "IMAGE",
+          "link": 115
+        },
+        {
+          "localized_name": "image_2",
+          "name": "image_2",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": 116
+        },
+        {
+          "localized_name": "inputcount",
+          "name": "inputcount",
+          "type": "INT",
+          "widget": {
+            "name": "inputcount"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "images",
+          "name": "images",
+          "type": "IMAGE",
+          "links": [
+            117
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "ImageBatchMulti",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.5.2"
+        }
+      },
+      "widgets_values": [
+        2,
+        null
+      ]
+    },
+    {
+      "id": 39,
+      "type": "KsanaVAEEncodeNode",
+      "pos": [
+        2407.19051960791,
+        743.3431490291437
+      ],
+      "size": [
+        270,
+        190
+      ],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "vae",
+          "name": "vae",
+          "shape": 7,
+          "type": "KSANA_VAE_MODEL",
+          "link": null
+        },
+        {
+          "localized_name": "start_image",
+          "name": "start_image",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": null
+        },
+        {
+          "localized_name": "end_image",
+          "name": "end_image",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": null
+        },
+        {
+          "localized_name": "mask",
+          "name": "mask",
+          "shape": 7,
+          "type": "MASK",
+          "link": null
+        },
+        {
+          "localized_name": "num_frames",
+          "name": "num_frames",
+          "shape": 7,
+          "type": "INT",
+          "widget": {
+            "name": "num_frames"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "width",
+          "name": "width",
+          "shape": 7,
+          "type": "INT",
+          "widget": {
+            "name": "width"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "height",
+          "name": "height",
+          "shape": 7,
+          "type": "INT",
+          "widget": {
+            "name": "height"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "batch_size",
+          "name": "batch_size",
+          "shape": 7,
+          "type": "INT",
+          "widget": {
+            "name": "batch_size"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "latent",
+          "name": "latent",
+          "type": "KSANA_VAE_ENCODE_OUTPUT",
+          "links": [
+            119
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "KsanaVAEEncodeNode",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.5.2"
+        }
+      },
+      "widgets_values": [
+        1,
+        1024,
+        1024,
+        1
+      ]
+    },
+    {
+      "id": 36,
+      "type": "KsanaGeneratorNode",
+      "pos": [
+        2885.297953906349,
+        309.32587340657363
+      ],
+      "size": [
+        302.609375,
+        458
+      ],
+      "flags": {},
+      "order": 10,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "model",
+          "name": "model",
+          "type": "KSANA_DIFFUSION_MODEL",
+          "link": 105
+        },
+        {
+          "localized_name": "positive",
+          "name": "positive",
+          "type": "CONDITIONING",
+          "link": 106
+        },
+        {
+          "localized_name": "negative",
+          "name": "negative",
+          "type": "CONDITIONING",
+          "link": 107
+        },
+        {
+          "localized_name": "image_embeds",
+          "name": "image_embeds",
+          "type": "KSANA_VAE_ENCODE_OUTPUT",
+          "link": 118
+        },
+        {
+          "localized_name": "cache_config",
+          "name": "cache_config",
+          "shape": 7,
+          "type": "KSANA_CACHE_CONFIG",
+          "link": null
+        },
+        {
+          "localized_name": "sigmas",
+          "name": "sigmas",
+          "shape": 7,
+          "type": "FLOAT",
+          "link": null
+        },
+        {
+          "localized_name": "latent",
+          "name": "latent",
+          "shape": 7,
+          "type": "KSANA_VAE_ENCODE_OUTPUT",
+          "link": 119
+        },
+        {
+          "localized_name": "video_control_config",
+          "name": "video_control_config",
+          "shape": 7,
+          "type": "KSANA_VIDEO_CONTROL_CONFIG",
+          "link": null
+        },
+        {
+          "localized_name": "vace_embeds",
+          "name": "vace_embeds",
+          "shape": 7,
+          "type": "KSANA_VACE_EMBEDS",
+          "link": null
+        },
+        {
+          "localized_name": "steps",
+          "name": "steps",
+          "type": "INT",
+          "widget": {
+            "name": "steps"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "seed",
+          "name": "seed",
+          "type": "INT",
+          "widget": {
+            "name": "seed"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "scheduler",
+          "name": "scheduler",
+          "type": "COMBO",
+          "widget": {
+            "name": "scheduler"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "solver_name",
+          "name": "solver_name",
+          "type": "COMBO",
+          "widget": {
+            "name": "solver_name"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "sample_guide_scale",
+          "name": "sample_guide_scale",
+          "type": "FLOAT",
+          "widget": {
+            "name": "sample_guide_scale"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "sample_shift",
+          "name": "sample_shift",
+          "type": "FLOAT",
+          "widget": {
+            "name": "sample_shift"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "denoise",
+          "name": "denoise",
+          "type": "FLOAT",
+          "widget": {
+            "name": "denoise"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "rope_function",
+          "name": "rope_function",
+          "shape": 7,
+          "type": "COMBO",
+          "widget": {
+            "name": "rope_function"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "low_sample_guide_scale",
+          "name": "low_sample_guide_scale",
+          "shape": 7,
+          "type": "FLOAT",
+          "widget": {
+            "name": "low_sample_guide_scale"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "add_noise_to_latent",
+          "name": "add_noise_to_latent",
+          "shape": 7,
+          "type": "BOOLEAN",
+          "widget": {
+            "name": "add_noise_to_latent"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "latents",
+          "name": "latents",
+          "type": "KSANA_GENERATE_OUTPUT",
+          "links": [
+            120
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "KsanaGeneratorNode",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.5.2"
+        }
+      },
+      "widgets_values": [
+        40,
+        321,
+        "fixed",
+        "simple",
+        "flowmatch_euler",
+        4,
+        -1,
+        1,
+        "default",
+        3,
+        false
+      ]
+    },
+    {
+      "id": 37,
+      "type": "KsanaVAEImageEncodeNode",
+      "pos": [
+        2413.4767728268052,
+        421.9999850129106
+      ],
+      "size": [
+        297.007421875,
+        78
+      ],
+      "flags": {},
+      "order": 9,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "vae",
+          "name": "vae",
+          "shape": 7,
+          "type": "KSANA_VAE_MODEL",
+          "link": 109
+        },
+        {
+          "localized_name": "image",
+          "name": "image",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": 117
+        },
+        {
+          "localized_name": "batch_size",
+          "name": "batch_size",
+          "shape": 7,
+          "type": "INT",
+          "widget": {
+            "name": "batch_size"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "latent",
+          "name": "latent",
+          "type": "KSANA_VAE_ENCODE_OUTPUT",
+          "links": [
+            118
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "KsanaVAEImageEncodeNode",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.5.2"
+        }
+      },
+      "widgets_values": [
+        1
+      ]
+    },
+    {
+      "id": 1,
+      "type": "LoadImage",
+      "pos": [
+        975.4483127449477,
+        -21.816059905189725
+      ],
+      "size": [
+        282.798828125,
+        314
+      ],
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "image",
+          "name": "image",
+          "type": "COMBO",
+          "widget": {
+            "name": "image"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "choose file to upload",
+          "name": "upload",
+          "type": "IMAGEUPLOAD",
+          "widget": {
+            "name": "upload"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "IMAGE",
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            90,
+            91,
+            115
+          ]
+        },
+        {
+          "localized_name": "MASK",
+          "name": "MASK",
+          "type": "MASK",
+          "links": null
+        }
+      ],
+      "title": "加载图像1 (原图)",
+      "properties": {
+        "Node name for S&R": "LoadImage",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.5.2"
+        }
+      },
+      "widgets_values": [
+        "man.png",
+        "image"
+      ]
+    },
+    {
+      "id": 2,
+      "type": "LoadImage",
+      "pos": [
+        955.9980697392386,
+        499.36035958468125
+      ],
+      "size": [
+        282.798828125,
+        314.00000000000006
+      ],
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "image",
+          "name": "image",
+          "type": "COMBO",
+          "widget": {
+            "name": "image"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "choose file to upload",
+          "name": "upload",
+          "type": "IMAGEUPLOAD",
+          "widget": {
+            "name": "upload"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "IMAGE",
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            92,
+            93,
+            116
+          ]
+        },
+        {
+          "localized_name": "MASK",
+          "name": "MASK",
+          "type": "MASK",
+          "links": null
+        }
+      ],
+      "title": "加载图像2 (参考图)",
+      "properties": {
+        "Node name for S&R": "LoadImage",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.5.2"
+        }
+      },
+      "widgets_values": [
+        "woman.png",
+        "image"
+      ]
+    },
+    {
+      "id": 13,
+      "type": "TextEncodeQwenImageEditPlus",
+      "pos": [
+        2123.7308484365963,
+        -327.95876694957127
+      ],
+      "size": [
+        400,
+        200
+      ],
+      "flags": {},
+      "order": 6,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "clip",
+          "name": "clip",
+          "type": "CLIP",
+          "link": 52
+        },
+        {
+          "localized_name": "vae",
+          "name": "vae",
+          "shape": 7,
+          "type": "VAE",
+          "link": null
+        },
+        {
+          "localized_name": "image1",
+          "name": "image1",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": 90
+        },
+        {
+          "localized_name": "image2",
+          "name": "image2",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": 92
+        },
+        {
+          "localized_name": "image3",
+          "name": "image3",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": null
+        },
+        {
+          "localized_name": "prompt",
+          "name": "prompt",
+          "type": "STRING",
+          "widget": {
+            "name": "prompt"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "CONDITIONING",
+          "name": "CONDITIONING",
+          "type": "CONDITIONING",
+          "links": [
+            106
+          ]
+        }
+      ],
+      "title": "TextEncodeQwenImageEditPlus (Positive)",
+      "properties": {
+        "Node name for S&R": "TextEncodeQwenImageEditPlus",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.5.2"
+        }
+      },
+      "widgets_values": [
+        "the woman and man are hugging together"
+      ]
+    },
+    {
+      "id": 24,
+      "type": "TextEncodeQwenImageEditPlus",
+      "pos": [
+        2046.5995748283613,
+        -11.245524467620239
+      ],
+      "size": [
+        400,
+        200
+      ],
+      "flags": {},
+      "order": 7,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "clip",
+          "name": "clip",
+          "type": "CLIP",
+          "link": 69
+        },
+        {
+          "localized_name": "vae",
+          "name": "vae",
+          "shape": 7,
+          "type": "VAE",
+          "link": null
+        },
+        {
+          "localized_name": "image1",
+          "name": "image1",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": 91
+        },
+        {
+          "localized_name": "image2",
+          "name": "image2",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": 93
+        },
+        {
+          "localized_name": "image3",
+          "name": "image3",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": null
+        },
+        {
+          "localized_name": "prompt",
+          "name": "prompt",
+          "type": "STRING",
+          "widget": {
+            "name": "prompt"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "CONDITIONING",
+          "name": "CONDITIONING",
+          "type": "CONDITIONING",
+          "links": [
+            107
+          ]
+        }
+      ],
+      "title": "TextEncodeQwenImageEditPlus (Negative)",
+      "properties": {
+        "Node name for S&R": "TextEncodeQwenImageEditPlus",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.5.2"
+        }
+      },
+      "widgets_values": [
+        "blur, bad anatomy, deformed face"
+      ]
+    },
+    {
+      "id": 19,
+      "type": "SaveImage",
+      "pos": [
+        3765.9060522233635,
+        16.66199970507089
+      ],
+      "size": [
+        270,
+        270.00000000000006
+      ],
+      "flags": {},
+      "order": 12,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "images",
+          "name": "images",
+          "type": "IMAGE",
+          "link": 95
+        },
+        {
+          "localized_name": "filename_prefix",
+          "name": "filename_prefix",
+          "type": "STRING",
+          "widget": {
+            "name": "filename_prefix"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [],
+      "title": "保存原始输出",
+      "properties": {
+        "Node name for S&R": "SaveImage",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.5.2"
+        }
+      },
+      "widgets_values": [
+        "ksana_raw"
+      ]
+    }
+  ],
+  "links": [
+    [
+      52,
+      12,
+      0,
+      13,
+      0,
+      "CLIP"
+    ],
+    [
+      59,
+      11,
+      0,
+      16,
+      0,
+      "KSANA_VAE_MODEL"
+    ],
+    [
+      69,
+      12,
+      0,
+      24,
+      0,
+      "CLIP"
+    ],
+    [
+      90,
+      1,
+      0,
+      13,
+      2,
+      "IMAGE"
+    ],
+    [
+      91,
+      1,
+      0,
+      24,
+      2,
+      "IMAGE"
+    ],
+    [
+      92,
+      2,
+      0,
+      13,
+      3,
+      "IMAGE"
+    ],
+    [
+      93,
+      2,
+      0,
+      24,
+      3,
+      "IMAGE"
+    ],
+    [
+      95,
+      16,
+      0,
+      19,
+      0,
+      "IMAGE"
+    ],
+    [
+      105,
+      10,
+      0,
+      36,
+      0,
+      "KSANA_DIFFUSION_MODEL"
+    ],
+    [
+      106,
+      13,
+      0,
+      36,
+      1,
+      "CONDITIONING"
+    ],
+    [
+      107,
+      24,
+      0,
+      36,
+      2,
+      "CONDITIONING"
+    ],
+    [
+      109,
+      11,
+      0,
+      37,
+      0,
+      "KSANA_VAE_MODEL"
+    ],
+    [
+      115,
+      1,
+      0,
+      40,
+      0,
+      "IMAGE"
+    ],
+    [
+      116,
+      2,
+      0,
+      40,
+      1,
+      "IMAGE"
+    ],
+    [
+      117,
+      40,
+      0,
+      37,
+      1,
+      "IMAGE"
+    ],
+    [
+      118,
+      37,
+      0,
+      36,
+      3,
+      "KSANA_VAE_ENCODE_OUTPUT"
+    ],
+    [
+      119,
+      39,
+      0,
+      36,
+      6,
+      "KSANA_VAE_ENCODE_OUTPUT"
+    ],
+    [
+      120,
+      36,
+      0,
+      16,
+      1,
+      "KSANA_GENERATE_OUTPUT"
+    ]
+  ],
+  "groups": [],
+  "config": {},
+  "extra": {
+    "ue_links": [],
+    "links_added_by_ue": [],
+    "ds": {
+      "scale": 0.5878402239496762,
+      "offset": [
+        -1242.2667280733185,
+        723.825823698101
+      ]
+    },
+    "workflowRendererVersion": "LG"
+  },
+  "version": 0.4
+}

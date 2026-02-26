@@ -24,7 +24,10 @@ from ..units import KsanaLoaderUnit, KsanaUnitFactory, KsanaUnitType
 from ..utils import log, time_range
 
 
-@KsanaUnitFactory.register(KsanaUnitType.LOADER, [KsanaModelKey.Qwen2VLTextEncoder, KsanaModelKey.T5TextEncoder])
+@KsanaUnitFactory.register(
+    KsanaUnitType.LOADER,
+    [KsanaModelKey.Qwen2VLTextEncoder, KsanaModelKey.Qwen2VLTextEncoderMultimodal, KsanaModelKey.T5TextEncoder],
+)
 class KsanaTextEncoderLoaderUnit(KsanaLoaderUnit):
 
     @time_range

@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import torch
-
 from ksana import get_engine
 from ksana.config import KsanaDistributedConfig
 from ksana.utils import get_gpu_count, log
@@ -105,6 +104,8 @@ def vae_encode_image(
     image=None,
     batch_size=None,
 ):
+    if isinstance(image, torch.Tensor):
+        image = image.sub(0.5).div(0.5)
     ksana_engine = get_engine()
     log.info(f"encoder vae: {vae}")
     latents = ksana_engine.forward_vae_encode_image(

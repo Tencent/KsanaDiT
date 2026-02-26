@@ -25,10 +25,11 @@ WAN2_2 = ["wan2.2", "wan22", "wan2_2", "wan_2_2", "wan_2.2"]
 WAN2_1 = ["wan2.1", "wan21", "wan2_1", "wan_2_1", "wan_2.1"]
 WAN_PARAMS = ["14b", "a14b"]
 QWEN_IMAGE = ["qwen-image", "qwen_image"]
+QWEN_IMAGE_EDIT = ["qwen-image-edit", "qwen_image_edit"]
 
 # TODO: support "s2v", "ti2v"
 X2V_TYPES = ["t2v", "i2v", "vace"]
-X2I_TYPES = ["t2i", "i2i"]
+X2I_TYPES = ["t2i", "i2i", "edit"]
 
 
 @unique
@@ -40,12 +41,14 @@ class KsanaModelKey(Enum):
 
     T5TextEncoder = auto()
     Qwen2VLTextEncoder = auto()
+    Qwen2VLTextEncoderMultimodal = auto()
     QwenImageVAE = auto()
     VAE_WAN2_1 = auto()
     VAE_WAN2_2 = auto()
 
     # diffusion models key, as well as pipeline key
     QwenImage_T2I = auto()
+    QwenImage_Edit = auto()
     Wan2_2_T2V_14B = auto()
     Wan2_2_I2V_14B = auto()
     Wan2_2_TI2V_5B = auto()
@@ -56,6 +59,12 @@ class KsanaModelKey(Enum):
 
     def is_vace_type(self) -> bool:
         return self in [KsanaModelKey.Wan2_1_VACE_14B]
+
+    def is_edit_type(self) -> bool:
+        return self in [KsanaModelKey.QwenImage_Edit]
+
+    def is_image_type(self) -> bool:
+        return self in [KsanaModelKey.QwenImage_T2I, KsanaModelKey.QwenImage_Edit]
 
 
 def get_model_key_from_path(model_path: str | list[str]):
@@ -90,7 +99,9 @@ def get_model_key_from_path(model_path: str | list[str]):
                 f"maybe not in support list { WAN2_2 + WAN2_1 + QWEN_IMAGE}"
             )
     else:
-        if any_key_in_str(QWEN_IMAGE, file_name) is not None:
+        if any_key_in_str(QWEN_IMAGE_EDIT, file_name) is not None:
+            return KsanaModelKey.QwenImage_Edit
+        elif any_key_in_str(QWEN_IMAGE, file_name) is not None:
             # model_name = QWEN_IMAGE[0]
             # model_type = "t2i"
             # model_size = "20B"

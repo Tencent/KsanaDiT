@@ -22,6 +22,8 @@ from transformers import AutoTokenizer, Qwen2_5_VLForConditionalGeneration
 
 
 class Qwen2VLTextEncoderModel:
+    _DEFAULT_DROP_IDX = 34
+
     def __init__(
         self,
         checkpoint_path: str,
@@ -29,10 +31,12 @@ class Qwen2VLTextEncoderModel:
         dtype: torch.dtype = torch.bfloat16,
         device: torch.device = torch.device("cpu"),
         text_len: int = 1024,
+        prompt_template_drop_idx: int | None = None,
     ):
         self.device = device
         self.dtype = dtype
         self.max_length = text_len
+        self.drop_idx = prompt_template_drop_idx if prompt_template_drop_idx is not None else self._DEFAULT_DROP_IDX
 
         self.prompt_template = (
             "<|im_start|>system\n"
@@ -40,7 +44,6 @@ class Qwen2VLTextEncoderModel:
             "quantity, text, spatial relationships of the objects and background:"
             "<|im_end|>\n<|im_start|>user\n{}<|im_end|>\n<|im_start|>assistant\n"
         )
-        self.drop_idx = 34
 
         self.tokenizer = AutoTokenizer.from_pretrained(tokenizer_path, trust_remote_code=True)
         self.model = Qwen2_5_VLForConditionalGeneration.from_pretrained(

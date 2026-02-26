@@ -30,10 +30,8 @@ import torch
 import websocket
 from PIL import Image, ImageSequence
 
-# 配置日志
 logger = logging.getLogger(__name__)
 
-# 标记是否已安装 playwright
 PLAYWRIGHT_AVAILABLE = False
 try:
     from playwright.sync_api import sync_playwright
@@ -49,16 +47,7 @@ except ImportError:
 
 
 def wait_for_server(server_address: str = "127.0.0.1:8188", max_wait: int = 300, check_interval: int = 5) -> bool:
-    """等待 server 启动就绪
-
-    Args:
-        server_address: server 地址
-        max_wait: 最大等待时间（秒）
-        check_interval: 检查间隔（秒）
-
-    Returns:
-        是否成功启动
-    """
+    """等待 server 启动就绪"""
     url = f"http://{server_address}/object_info"
     start_time = time.time()
 
@@ -76,22 +65,16 @@ def wait_for_server(server_address: str = "127.0.0.1:8188", max_wait: int = 300,
 
 def start_server(comfyui_root: Path | None = None, host: str = "127.0.0.1", port: int = 8188) -> subprocess.Popen:
     """启动 ComfyUI server
-
     Args:
         comfyui_root: ComfyUI 根目录，默认自动推断
         host: 监听地址
         port: 监听端口
-
-    Returns:
-        server 进程对象
-
     Raises:
         TimeoutError: 启动超时
     """
     logger.info("启动 ComfyUI server...")
 
     if comfyui_root is None:
-        # 默认从当前文件位置推断
         comfyui_root = Path(__file__).parent.parent.parent.parent.parent
 
     process = subprocess.Popen(

@@ -18,11 +18,11 @@ Reference (Diffusers):
 """
 
 import math
+from math import prod
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-
 from ksana.utils import gather_forward, get_rank_id
 
 from .attention import (
@@ -126,6 +126,7 @@ class QwenImageTransformerBlock(nn.Module):
         num_attention_heads: int,
         attention_head_dim: int,
         eps: float = 1e-6,
+        zero_cond_t: bool = False,
         operation_settings=None,
     ):
         super().__init__()
@@ -136,6 +137,7 @@ class QwenImageTransformerBlock(nn.Module):
         self.dim = dim
         self.num_attention_heads = num_attention_heads
         self.attention_head_dim = attention_head_dim
+        self.zero_cond_t = zero_cond_t
 
         self.img_mod = nn.Sequential(
             nn.SiLU(),
@@ -166,26 +168,50 @@ class QwenImageTransformerBlock(nn.Module):
             operation_settings=operation_settings,
         )
 
-    def _modulate(self, x: torch.Tensor, mod_params: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+    def _modulate(
+        self, x: torch.Tensor, mod_params: torch.Tensor, index: torch.Tensor | None = None
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        """Apply modulation to input tensor, with optional per-token index selection for zero_cond_t."""
         shift, scale, gate = mod_params.chunk(3, dim=-1)
-        return x * (1 + scale.unsqueeze(1)) + shift.unsqueeze(1), gate.unsqueeze(1)
+
+        if index is not None:
+            # mod_params batch dim is 2*actual_batch (from [real_timestep, zero_timestep])
+            actual_batch = shift.size(0) // 2
+            shift_0, shift_1 = shift[:actual_batch], shift[actual_batch:]
+            scale_0, scale_1 = scale[:actual_batch], scale[actual_batch:]
+            gate_0, gate_1 = gate[:actual_batch], gate[actual_batch:]
+
+            index_expanded = index.unsqueeze(-1)  # [b, l, 1]
+
+            shift_result = torch.where(index_expanded == 0, shift_0.unsqueeze(1), shift_1.unsqueeze(1))
+            scale_result = torch.where(index_expanded == 0, scale_0.unsqueeze(1), scale_1.unsqueeze(1))
+            gate_result = torch.where(index_expanded == 0, gate_0.unsqueeze(1), gate_1.unsqueeze(1))
+        else:
+            shift_result = shift.unsqueeze(1)
+            scale_result = scale.unsqueeze(1)
+            gate_result = gate.unsqueeze(1)
+
+        return x * (1 + scale_result) + shift_result, gate_result
 
     def forward(
         self,
         hidden_states: torch.Tensor,
         encoder_hidden_states: torch.Tensor,
-        encoder_hidden_states_mask: torch.Tensor | None,
         temb: torch.Tensor,
         image_rotary_emb: tuple[torch.Tensor, torch.Tensor] | None = None,
+        modulate_index: torch.Tensor | None = None,
     ) -> tuple[torch.Tensor, torch.Tensor]:
         img_mod_params = self.img_mod(temb)
+
+        if self.zero_cond_t:
+            temb = torch.chunk(temb, 2, dim=0)[0]
         txt_mod_params = self.txt_mod(temb)
 
         img_mod1, img_mod2 = img_mod_params.chunk(2, dim=-1)
         txt_mod1, txt_mod2 = txt_mod_params.chunk(2, dim=-1)
 
         img_normed = self.img_norm1(hidden_states)
-        img_modulated, img_gate1 = self._modulate(img_normed, img_mod1)
+        img_modulated, img_gate1 = self._modulate(img_normed, img_mod1, modulate_index)
 
         txt_normed = self.txt_norm1(encoder_hidden_states)
         txt_modulated, txt_gate1 = self._modulate(txt_normed, txt_mod1)
@@ -193,7 +219,6 @@ class QwenImageTransformerBlock(nn.Module):
         img_attn_out, txt_attn_out = self.attn(
             hidden_states=img_modulated,
             encoder_hidden_states=txt_modulated,
-            encoder_hidden_states_mask=encoder_hidden_states_mask,
             image_rotary_emb=image_rotary_emb,
         )
 
@@ -201,7 +226,7 @@ class QwenImageTransformerBlock(nn.Module):
         encoder_hidden_states = encoder_hidden_states + txt_gate1 * txt_attn_out
 
         img_normed2 = self.img_norm2(hidden_states)
-        img_modulated2, img_gate2 = self._modulate(img_normed2, img_mod2)
+        img_modulated2, img_gate2 = self._modulate(img_normed2, img_mod2, modulate_index)
         hidden_states = hidden_states + img_gate2 * self.img_mlp(img_modulated2)
 
         txt_normed2 = self.txt_norm2(encoder_hidden_states)
@@ -227,6 +252,7 @@ class QwenImageTransformer2DModel(nn.Module):
         num_attention_heads: int = 24,
         joint_attention_dim: int = 3584,
         axes_dims_rope: tuple[int, int, int] = (16, 56, 56),
+        zero_cond_t: bool = False,
         operations=None,
         device=None,
         dtype=None,
@@ -238,6 +264,7 @@ class QwenImageTransformer2DModel(nn.Module):
         self.out_channels = out_channels
         self.inner_dim = num_attention_heads * attention_head_dim
         self.sp_size = sp_size
+        self.zero_cond_t = zero_cond_t
         if operations is None:
             raise ValueError("operations parameter is required for optimized QwenImageTransformer2DModel")
         operation_settings = {
@@ -267,6 +294,7 @@ class QwenImageTransformer2DModel(nn.Module):
                     dim=self.inner_dim,
                     num_attention_heads=num_attention_heads,
                     attention_head_dim=attention_head_dim,
+                    zero_cond_t=zero_cond_t,
                     operation_settings=operation_settings,
                 )
                 for _ in range(num_layers)
@@ -288,47 +316,116 @@ class QwenImageTransformer2DModel(nn.Module):
     def device(self) -> torch.device:
         return next(self.parameters()).device
 
+    def _process_ref_latents(
+        self,
+        hidden_states: torch.Tensor,
+        ref_latents: list[torch.Tensor],
+    ) -> torch.Tensor:
+        for ref_packed in ref_latents:
+            ref_projected = self.img_in(ref_packed)
+
+            hidden_states = torch.cat([hidden_states, ref_projected], dim=1)
+
+        return hidden_states
+
+    @staticmethod
+    def _compute_text_seq_len_from_mask(
+        encoder_hidden_states_mask: torch.Tensor,
+    ) -> list[int]:
+        """Compute actual text sequence lengths from attention mask (sum of True/1 values per sample)."""
+        return encoder_hidden_states_mask.sum(dim=1).tolist()
+
     def forward(
         self,
         hidden_states: torch.Tensor,
         encoder_hidden_states: torch.Tensor,
         encoder_hidden_states_mask: torch.Tensor = None,
         timestep: torch.Tensor = None,
-        img_shapes: list[tuple[int, int, int]] | None = None,
+        img_shapes: list[list[tuple[int, int, int]]] | None = None,
         txt_seq_lens: list[int] | None = None,
+        ref_latents: list[torch.Tensor] | None = None,
         **kwargs,
     ) -> torch.Tensor:
+        batch_size = hidden_states.shape[0]
         hidden_states = self.img_in(hidden_states)
+        original_seq_len = hidden_states.shape[1]
+
+        if ref_latents is not None and len(ref_latents) > 0:
+            hidden_states = self._process_ref_latents(hidden_states, ref_latents)
+
         encoder_hidden_states = self.txt_norm(encoder_hidden_states)
         encoder_hidden_states = self.txt_in(encoder_hidden_states)
 
+        # --- zero_cond_t: dual-timestep conditioning ---
+        # For Qwen-Image-Edit-2511: noise latent uses real timestep, ref latents use zero timestep.
+        modulate_index = None
+        if self.zero_cond_t:
+            # Concatenate [real_timestep, zero_timestep] for dual modulation
+            timestep = torch.cat([timestep, timestep * 0], dim=0)
+
+            # Build modulate_index: [batch, img_seq_len]
+            # For each sample: first image (noise latent) gets index 0 (real timestep),
+            # subsequent images (ref latents) get index 1 (zero timestep).
+            modulate_index_list = []
+            for b in range(batch_size):
+                sample_shapes = img_shapes[b]
+                indices = []
+                for i, shape in enumerate(sample_shapes):
+                    seq_len = prod(shape)
+                    idx_val = 0 if i == 0 else 1
+                    indices.extend([idx_val] * seq_len)
+                modulate_index_list.append(indices)
+
+            modulate_index = torch.tensor(modulate_index_list, dtype=torch.long, device=hidden_states.device)
+
         temb = self.time_text_embed(timestep, hidden_states)
+
+        # Compute txt_seq_lens from mask if not provided
+        # NOTE(qiannan): encoder_hidden_states_mask 仅用于此处推导 txt_seq_lens，
+        # 未用于 attention mask。因为当前的attention暂时不支持mask。
+        if txt_seq_lens is None and encoder_hidden_states_mask is not None:
+            txt_seq_lens = self._compute_text_seq_len_from_mask(encoder_hidden_states_mask)
+
         image_rotary_emb = self.pos_embed(img_shapes, txt_seq_lens, device=hidden_states.device)
+
         img_seq_len = hidden_states.shape[1]
         pad_len = 0
         if self.sp_size > 1:
-            # qwen-image 不需要对 text 在 sequence 维度切分，只对 hidden state进行切分
+            # Note: qwen-image 不需要对 text 在 sequence 维度切分，只对 hidden state进行切分
             remainder = hidden_states.shape[1] % self.sp_size
             if remainder != 0:
                 pad_len = self.sp_size - remainder
                 hidden_states = F.pad(hidden_states, (0, 0, 0, pad_len, 0, 0))
+                if modulate_index is not None:
+                    modulate_index = F.pad(modulate_index, (0, pad_len), value=0)
             hidden_states = torch.chunk(hidden_states, self.sp_size, dim=1)[get_rank_id()]
+            if modulate_index is not None:
+                modulate_index = torch.chunk(modulate_index, self.sp_size, dim=1)[get_rank_id()]
 
         for block in self.transformer_blocks:
             encoder_hidden_states, hidden_states = block(
                 hidden_states=hidden_states,
                 encoder_hidden_states=encoder_hidden_states,
-                encoder_hidden_states_mask=encoder_hidden_states_mask,
                 temb=temb,
                 image_rotary_emb=image_rotary_emb,
+                modulate_index=modulate_index,
             )
 
-        hidden_states = self.norm_out(hidden_states, temb)
+        # For norm_out, use the real-timestep temb (first half if zero_cond_t)
+        if self.zero_cond_t:
+            norm_temb = torch.chunk(temb, 2, dim=0)[0]
+        else:
+            norm_temb = temb
+        hidden_states = self.norm_out(hidden_states, norm_temb)
         output = self.proj_out(hidden_states)
 
         if self.sp_size > 1:
             output = gather_forward(output, dim=1)
             if pad_len > 0:
                 output = output[:, :img_seq_len, :]
+
+        # Note: Edit 模式下截断 output，只返回 noise latent 部分，去除参考图像部分
+        if ref_latents is not None and len(ref_latents) > 0:
+            output = output[:, :original_seq_len, :]
 
         return output

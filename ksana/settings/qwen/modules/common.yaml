@@ -19,11 +19,11 @@ sample_config:
   cfg_scale: 4
   num_train_timesteps: 1000
 
-  # for calculate_shift
+  # for calculate_shift (aligned with Qwen-Image-Edit-2511 scheduler_config.json)
   base_seq_len: 256
-  max_seq_len : 4096
+  max_seq_len: 8192
   base_shift: 0.5
-  max_shift: 1.15
+  max_shift: 0.9
 
 scheduler_subdir: "scheduler"
 

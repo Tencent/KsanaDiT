@@ -50,7 +50,7 @@ def run_simple(args):
 
     video = pipeline.generate(
         prompts,
-        img_path=args.img_path,
+        start_img_path=args.img_path,
         sample_config=KsanaSampleConfig(steps=40),
         runtime_config=KsanaRuntimeConfig(
             seed=SEED,
@@ -62,7 +62,7 @@ def run_simple(args):
 
     video = pipeline.generate(
         prompts[0],
-        img_path=args.img_path,
+        start_img_path=args.img_path,
         sample_config=KsanaSampleConfig(steps=40),
         runtime_config=KsanaRuntimeConfig(
             seed=SEED,
@@ -98,7 +98,7 @@ def run_start_and_end_with_lora(args):
 
     video = pipeline.generate(
         prompts[2],
-        img_path="./examples/images/start_image.png",
+        start_img_path="./examples/images/start_image.png",
         end_img_path="./examples/images/end_image.png",
         sample_config=sample_config,
         runtime_config=KsanaRuntimeConfig(
@@ -147,7 +147,7 @@ def run_turbo_diffusion(args):
 
     pipeline.generate(
         text,
-        img_path="./examples/images/cat.png",
+        start_img_path="./examples/images/cat.png",
         runtime_config=KsanaRuntimeConfig(size=(1280, 720), seed=SEED, frame_num=81),
         sample_config=sample_config,
     )

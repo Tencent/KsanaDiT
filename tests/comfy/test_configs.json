@@ -1,6 +1,28 @@
 {
   "independent_tests": [
     {
+      "workflow_path": "../../comfyui/benchmarks/qwen/qwen_image_edit_2511.json",
+      "steps": 1,
+      "width": 1024,
+      "height": 1024,
+      "input_image_map": {
+        "man.png": "../../examples/images/man.png",
+        "woman.png": "../../examples/images/woman.png"
+      },
+      "platform_expect_values": {
+        "GPU": {
+          "single": {
+            "mean": 0.5004687,
+            "eps_place": 2
+          },
+          "multi": {
+            "mean": 0.5024485,
+            "eps_place": 2
+          }
+        }
+      }
+    },
+    {
       "workflow_path": "../../comfyui/examples/wan/t2v/wan2.2_t2v_fp16_dbcache.json",
       "steps": 1,
       "width": 1280,

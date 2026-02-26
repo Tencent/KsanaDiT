@@ -12,10 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import comfy
-import comfy.model_management as mm
-from comfy.utils import ProgressBar
-
 import ksana.nodes as nodes
 from ksana.config.sample_config import KsanaSolverType
 from ksana.nodes import (
@@ -27,6 +23,10 @@ from ksana.nodes import (
     KSANA_VAE_ENCODE_OUTPUT,
     KSANA_VIDEO_CONTROL_CONFIG,
 )
+
+import comfy
+import comfy.model_management as mm
+from comfy.utils import ProgressBar
 
 
 class KsanaGeneratorNode:
@@ -100,7 +100,7 @@ class KsanaGeneratorNode:
                         "default": 5.0,
                         "min": -1.0,
                         "max": 100.0,
-                        "step": 0.1,
+                        "step": 0.01,
                         "round": 0.01,
                         "tooltip": "Noise schedule shift. For Qwen-Image, use -1 for auto (let pipeline compute).",
                     },

@@ -140,7 +140,7 @@ class KsanaExecutor(ABC):
             return
         vae_model = self.model_pool.get_model(model_key)
         vae_encoder = KsanaUnitFactory.create(KsanaUnitType.ENCODER, model_key)
-        return vae_encoder.run(vae_model, device=self.device, **kwargs)
+        return vae_encoder.run_encode_image(vae_model, device=self.device, **kwargs)
 
     @time_range
     def forward_vae_decode(self, model_key, **kwargs):
@@ -150,13 +150,20 @@ class KsanaExecutor(ABC):
 
     @time_range
     def forward_generator(
-        self, model_key, *, noise_shape: list[int] = None, img_latents: torch.Tensor = None, **kwargs
+        self,
+        model_key,
+        *,
+        noise_shape: list[int] = None,
+        img_latents: torch.Tensor | list[torch.Tensor] = None,
+        **kwargs,
     ):
         diffusion_model = self.model_pool.get_model(model_key)
         if noise_shape is None and img_latents is None:
             raise ValueError("noise_shape or img_latents must be provided at least one")
         if noise_shape is None:
-            noise_shape = list(img_latents.shape[1:])
+            # 支持 list[Tensor]（Edit 模式多 prompt）
+            first_latent = img_latents[0] if isinstance(img_latents, list) else img_latents
+            noise_shape = list(first_latent.shape[1:])
         generator = KsanaUnitFactory.create(KsanaUnitType.GENERATOR, model_key)
         latents = generator.run(
             diffusion_model=diffusion_model,

@@ -19,6 +19,7 @@ from ksana.memory.estimator import (
     estimate_ksana_model_memory,
     get_available_memory,
 )
+from ksana.models.model_key import KsanaModelKey
 from ksana.utils import log
 from ksana.utils.profile import MemoryProfiler
 from ksana.utils.vace import prepare_video_control_config
@@ -91,7 +92,14 @@ def generate(
     ksana_engine = get_engine()
 
     MemoryProfiler.record_memory("before_ksana_engine_generate_with_tensors")
-    latent_shape = image_embeds.samples.shape
+
+    # For memory estimation, use latent shape if available, otherwise infer from image_embeds
+    if latent is not None:
+        latent_shape = latent.samples.shape
+    elif isinstance(image_embeds.samples, list):
+        latent_shape = image_embeds.samples[0].shape
+    else:
+        latent_shape = image_embeds.samples.shape
     if comfy_free_mem_func is not None and comfy_device is not None:
         _prepare_memory_for_ksana_models(
             diffusion_model_key,
@@ -120,13 +128,26 @@ def generate(
         video_control_config=video_control_config,
         vace_embeds=vace_embeds,
     )
+    noise_shape = None
+    img_latents = image_embeds.samples  # [bs, 16, 5, h/, w/] or list[Tensor]
+    # Qwen Image Edit: latent 直接决定输出 shape，不需要修正
+    # Wan I2V (wan2.1_vace_add_noise_i2v_test.json): latent 来自 KsanaVAEImageEncodeNode（单帧），
+    # TODO(qiannan): 需要进一步明确各 workflow 中 latent 输入的语义
+    if latent is not None and diffusion_model_key == KsanaModelKey.QwenImage_Edit:
+        noise_shape = list(latent.samples.shape[1:])
+    elif diffusion_model_key == KsanaModelKey.QwenImage_T2I:
+        # T2I: image_embeds 仅用于提供输出 shape，不作为图像条件传入 generator
+        first_sample = img_latents[0] if isinstance(img_latents, list) else img_latents
+        noise_shape = list(first_sample.shape[1:])
+        img_latents = None
 
     # TODO: maybe need to latent_format process_in for positive/negative?
     samples = ksana_engine.forward_generator(
         model_key=diffusion_model_key,
+        noise_shape=noise_shape,
         positive=positive[0][0],
         negative=negative[0][0],
-        img_latents=image_embeds.samples,  # [bs, 16, 5, h/, w/]
+        img_latents=img_latents,
         input_latent=latent.samples if latent is not None else None,
         sample_config=KsanaSampleConfig(
             steps=steps,

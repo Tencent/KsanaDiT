@@ -19,6 +19,7 @@ import torch
 from .base_model import KsanaModel
 from .model_key import KsanaModelKey
 from .qwen import Qwen2VLTextEncoderModel
+from .qwen.multimodal_text_encoder import Qwen2VLMultimodalTextEncoderModel
 from .wan import T5EncoderModel
 
 
@@ -27,11 +28,13 @@ class KsanaTextEncoderModel(KsanaModel):
     _MAP_KEY_TO_CLASS = {
         KsanaModelKey.T5TextEncoder: T5EncoderModel,
         KsanaModelKey.Qwen2VLTextEncoder: Qwen2VLTextEncoderModel,
+        KsanaModelKey.Qwen2VLTextEncoderMultimodal: Qwen2VLMultimodalTextEncoderModel,
     }
 
     def __init__(self, model_key: KsanaModelKey, default_settings, checkpoint_dir, device, dtype):
         super().__init__(model_key, default_settings)
         checkpoint_path = os.path.join(checkpoint_dir, default_settings.checkpoint)
+        # 配置中使用 tokenizer 字段（可以是 tokenizer 或 processor 路径）
         tokenizer_path = os.path.join(checkpoint_dir, default_settings.tokenizer)
 
         dtype = dtype or default_settings.dtype
@@ -42,17 +45,25 @@ class KsanaTextEncoderModel(KsanaModel):
         if text_class is None:
             raise ValueError(f"text_encoder {self.model_key} loader not supported yet")
 
+        extra_kwargs = {}
+        if hasattr(self.default_settings, "prompt_template_drop_idx"):
+            extra_kwargs["prompt_template_drop_idx"] = self.default_settings.prompt_template_drop_idx
+
         self.model = text_class(
             checkpoint_path=checkpoint_path,
             tokenizer_path=tokenizer_path,
             text_len=self.default_settings.text_len,
             dtype=dtype,
             device=device,
+            **extra_kwargs,
         )
         self.device = device
         self.dtype = dtype
 
-    def forward(self, text, device=torch.device("cpu")):
+    def forward(self, text, images=None, device=torch.device("cpu")):
+        # Note: 多模态编码器需要传入 images
+        if self.model_key == KsanaModelKey.Qwen2VLTextEncoderMultimodal:
+            return self.model(text, images=images, device=device)
         return self.model(text, device=device)
 
     def to(self, device):

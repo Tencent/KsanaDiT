@@ -160,11 +160,29 @@ class KsanaBasePipeline(ABC):
         if img_path is None:
             return None
         img_path = str_to_list(img_path)
+
         if len(img_path) != 1 and len(img_path) != prompts_list_len:
             raise ValueError(
                 f"img_path length ({len(img_path)}) must match prompt list length ({prompts_list_len}) "
                 "or only one image"
             )
+        return img_path
+
+    def _valid_ref_images(self, img_path, prompts_list_len: int):
+        """Validate reference images (list[list[str]])."""
+        if img_path is None:
+            return None
+        img_path = str_to_list(img_path)
+        if img_path and isinstance(img_path[0], str):
+            img_path = [img_path]
+        if len(img_path) != prompts_list_len:
+            raise ValueError(
+                f"Edit mode: img_path outer length ({len(img_path)}) must be 1 or match "
+                f"prompts length ({prompts_list_len})"
+            )
+        ref_counts = [len(refs) for refs in img_path]
+        if len(set(ref_counts)) > 1:
+            raise ValueError(f"Edit mode: all prompts must have same number of reference images, " f"got {ref_counts}")
         return img_path
 
     def _save_one_video(self, video, save_path, is_s2v=False):
@@ -222,6 +240,7 @@ class KsanaBasePipeline(ABC):
             KsanaModelKey.Wan2_2_T2V_14B: KsanaModelKey.T5TextEncoder,
             KsanaModelKey.Wan2_1_VACE_14B: KsanaModelKey.T5TextEncoder,
             KsanaModelKey.QwenImage_T2I: KsanaModelKey.Qwen2VLTextEncoder,
+            KsanaModelKey.QwenImage_Edit: KsanaModelKey.Qwen2VLTextEncoderMultimodal,
         }
         text_encoder_key = pipeline_key_to_text_encoder_key.get(pipeline_key, None)
         if text_encoder_key is None:
@@ -235,6 +254,7 @@ class KsanaBasePipeline(ABC):
             KsanaModelKey.Wan2_1_VACE_14B: KsanaModelKey.VAE_WAN2_1,
             KsanaModelKey.Wan2_2_TI2V_5B: KsanaModelKey.VAE_WAN2_2,
             KsanaModelKey.QwenImage_T2I: KsanaModelKey.QwenImageVAE,
+            KsanaModelKey.QwenImage_Edit: KsanaModelKey.QwenImageVAE,
         }
         vae_model_key = pipeline_key_to_vae_model_key.get(pipeline_key, None)
         if vae_model_key is None:
@@ -336,8 +356,16 @@ class KsanaBasePipeline(ABC):
         else:
             return torch.cat(imgs, dim=0)
 
-    def _load_input_images(self, img_path: str | list[str], end_img_path: str | list[str], device):
-        img_tensor = self._load_image(img_path, device=device)
+    def _load_input_images(self, img_path: str | list[str] | list[list[str]], end_img_path: str | list[str], device):
+        # 检查是否是二维列表（Edit 模式）
+        if img_path and isinstance(img_path[0], list):
+            # 二维列表：[[ref1, ref2, ...], [ref3, ...], ...]
+            # 返回 list[Tensor]，每个 Tensor 是一个 prompt 的参考图 [num_refs, C, H, W]
+            img_tensor = [self._load_image(paths, device=device) for paths in img_path]
+        else:
+            # 一维列表或 None：I2V/T2I 模式
+            img_tensor = self._load_image(img_path, device=device)
+
         end_img_tensor = self._load_image(end_img_path, device=device)
         if end_img_path is not None and img_path is None:
             raise ValueError(f"img_path must be not None when end_img_path {end_img_path} is not None")

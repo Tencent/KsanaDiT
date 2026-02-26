@@ -102,7 +102,7 @@ class KsanaEngine(ABC):
         return isinstance(map, dict) and map is not None and key in map and map[key] is not None
 
     def _check_callable_key_in_map(self, key: str, map: dict):
-        return self._check_key_in_map(map, key) and callable(map[key])
+        return self._check_key_in_map(key, map) and callable(map[key])
 
     def _get_rank_0_result(self, func_res: list, *args, **kwargs):
         RANK_0_ID = 0  # pylint: disable=invalid-name

@@ -36,6 +36,7 @@ from ..utils.profile import time_range
         KsanaModelKey.Wan2_2_T2V_14B,
         KsanaModelKey.Wan2_1_VACE_14B,
         KsanaModelKey.QwenImage_T2I,
+        KsanaModelKey.QwenImage_Edit,
     ],
 )
 class KsanaDiffusionLoaderUnit(KsanaLoaderUnit):
@@ -44,6 +45,7 @@ class KsanaDiffusionLoaderUnit(KsanaLoaderUnit):
         KsanaModelKey.Wan2_2_T2V_14B: KsanaWanModel,
         KsanaModelKey.Wan2_1_VACE_14B: KsanaWanVaceModel,
         KsanaModelKey.QwenImage_T2I: KsanaQwenImageModel,
+        KsanaModelKey.QwenImage_Edit: KsanaQwenImageModel,
     }
 
     _pinned_memory_manager: PinnedMemoryManager = None
@@ -115,14 +117,16 @@ class KsanaDiffusionLoaderUnit(KsanaLoaderUnit):
         lora_config: None | list[KsanaLoraConfig] = None,
         vace_model: str = None,
     ):
-        if self.model_key == KsanaModelKey.QwenImage_T2I and os.path.isdir(model_path):
+        if self.model_key in [KsanaModelKey.QwenImage_T2I, KsanaModelKey.QwenImage_Edit] and os.path.isdir(model_path):
             if getattr(self.default_settings.diffusion, "transformer_subdir", None) is None:
                 raise ValueError(
                     f"transformer_subdir must be set in diffusion section of default_settings for"
                     f" {self.model_key}, but got {self.default_settings.diffusion}"
                 )
             transformer_dir = os.path.join(model_path, self.default_settings.diffusion.transformer_subdir)
-            return load_state_dict_and_merge_lora(transformer_dir, device=device, vace_model=vace_model)
+            return load_state_dict_and_merge_lora(
+                transformer_dir, lora_config, run_dtype, device=device, vace_model=vace_model
+            )
         else:
             return load_state_dict_and_merge_lora(
                 model_path, lora_config, run_dtype, device=device, vace_model=vace_model

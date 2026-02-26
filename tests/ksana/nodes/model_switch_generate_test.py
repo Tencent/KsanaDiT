@@ -16,6 +16,9 @@ import os
 import unittest
 from dataclasses import dataclass
 
+from ksana.config import KsanaAttentionBackend, KsanaLinearBackend
+from ksana.models.model_key import KsanaModelKey
+from ksana.utils.distribute import get_gpu_count, get_rank_id
 from nodes_test_helper import (
     COMFY_MODEL_DIFFUSION_ROOT,
     IMG_SHAPE_I2V,
@@ -28,10 +31,6 @@ from nodes_test_helper import (
     get_platform_config_or_skip,
     run_load_and_generate,
 )
-
-from ksana.config import KsanaAttentionBackend, KsanaLinearBackend
-from ksana.models.model_key import KsanaModelKey
-from ksana.utils.distribute import get_gpu_count, get_rank_id
 
 TEST_STEPS = 1
 

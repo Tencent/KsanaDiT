@@ -15,14 +15,6 @@
 import unittest
 
 import torch
-from pipeline_test_helper import (
-    PROMPTS,
-    SEED,
-    TEST_PORT,
-    TEST_STEPS,
-    get_platform_config_or_skip,
-)
-
 from ksana import KsanaPipeline
 from ksana.config import (
     KsanaAttentionConfig,
@@ -30,6 +22,13 @@ from ksana.config import (
     KsanaModelConfig,
     KsanaRuntimeConfig,
     KsanaSampleConfig,
+)
+from pipeline_test_helper import (
+    PROMPTS,
+    SEED,
+    TEST_PORT,
+    TEST_STEPS,
+    get_platform_config_or_skip,
 )
 
 TEST_DTYPE = torch.bfloat16
@@ -46,9 +45,10 @@ class TestKsanaQwenImageT2I(unittest.TestCase):
 
     def test_batch_prompts(self):
         print("-----------------qwen_image test_batch_prompts-----------------")
+        # Note: generate() returns raw VAE decode output in [-1, 1] range
         config = {
-            "GPU": {"mean0": 0.3167570531368255, "mean1": 0.6125394105911255, "mean2": 0.5676110982894897},
-            "NPU": {"mean0": 0.304778993, "mean1": 0.6123599410057068, "mean2": 0.598247766494751},
+            "GPU": {"mean0": 0.5635481476783752, "mean1": 0.5278018712997437, "mean2": 0.5239981412887573},
+            "NPU": {"mean0": 0.5845838785171509, "mean1": 0.4992269277572632, "mean2": 0.5440176725387573},
         }
         expected = get_platform_config_or_skip(config, test_name="qwen_image.test_batch_prompts")
         generator = KsanaPipeline.from_models(
@@ -74,9 +74,9 @@ class TestKsanaQwenImageT2I(unittest.TestCase):
         )
 
         self.assertEqual(len(images), 3)
-        mean0 = images[0].detach().float().mean().item()
-        mean1 = images[1].detach().float().mean().item()
-        mean2 = images[2].detach().float().mean().item()
+        mean0 = images[0].detach().float().abs().mean().item()
+        mean1 = images[1].detach().float().abs().mean().item()
+        mean2 = images[2].detach().float().abs().mean().item()
         with self.subTest(msg="Mean 0 Check"):
             self.assertAlmostEqual(mean0, expected["mean0"], places=TEST_EPS_PLACE)
         with self.subTest(msg="Mean 1 Check"):

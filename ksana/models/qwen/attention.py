@@ -22,7 +22,6 @@ import functools
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-
 from ksana.accelerator import platform
 from ksana.operations.fuse_qkv import QKVProjectionMixin
 from ksana.utils import all_to_all, get_rank_id, get_world_size

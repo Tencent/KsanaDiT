@@ -38,19 +38,18 @@ class KsanaVaeDecoder(KsanaRunnerUnit):
         if vae_model.device != device:
             vae_model.to(device)
 
-        if self.model_key == KsanaModelKey.QwenImageVAE:
-            # TODO(qian): maybe cloud not need if else, make it common and simpler
-            latents = latents.to(vae_model.dtype)
-            outputs = vae_model.decode(latents)
-            # [B, C, T, H, W] -> [B, C, H, W]
-            if outputs.dim() == 5:
-                outputs = outputs[:, :, 0]
-            outputs = (outputs + 1) / 2
-            outputs = outputs.clamp(0, 1)
-        else:
-            outputs = vae_model.forward_decode(
-                latents=latents, local_rank=local_rank, device=device, with_end_image=with_end_image
-            )
+        # TODO(qiannan): 位置: vae_encode_image() 中 image.sub(0.5).div(0.5)
+        # 和 _comfy_process_output() 中 (image + 1.0) / 2.0
+        # ●原因: 归一化（[0,1] → [-1,1]）放在节点层而非模型层，需要与 encode 端保持同步。如果改动 encode 的归一化位置，
+        # decode 的反归一化也必须同步修改。
+
+        # TODO(qiannan): save_image() 的 [-1,1] → [0,1] 归一化
+        # ●原因: 与 save_video() 保持一致的语义——都假设输入在 [-1,1] 范围，内部做 (x + 1) / 2 转换到 [0,1]。
+        # 建议： image.sub(0.5).div(0.5) 这种处理 似乎不应该放在vae.py 节点层或者save image里面，
+        # 后续统一重构时，将归一化逻辑下沉到 VAE 模型内部。
+        outputs = vae_model.forward_decode(
+            latents=latents, local_rank=local_rank, device=device, with_end_image=with_end_image
+        )
 
         if offload_model and offload_device is not None:
             vae_model.to(offload_device)

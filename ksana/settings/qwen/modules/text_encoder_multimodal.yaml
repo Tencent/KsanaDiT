@@ -1,0 +1,8 @@
+
+text_encoder:
+  dtype: ${torch_dtype:bfloat16}
+  text_len: 1024
+  prompt_template_drop_idx: 64  # Edit 模式的截断点
+  checkpoint : "text_encoder"
+  tokenizer : "processor"  # 实际是 processor 路径
+  neg_prompt: " "

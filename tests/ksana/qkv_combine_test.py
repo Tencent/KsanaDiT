@@ -19,7 +19,6 @@ from pathlib import Path
 
 import torch
 import torch.nn as nn
-
 from ksana.accelerator import platform
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))

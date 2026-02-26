@@ -58,6 +58,7 @@ ln -sf /dockerdata/ci-models/single/Wan2.2-I2V-A14B .
 ln -sf /dockerdata/ci-models/single/Qwen-Image .
 ln -sf /dockerdata/ci-models/single/Wan2.1-VACE-14B .
 ln -sf /dockerdata/ci-models/single/TurboWan2.2-I2V-A14B-720P .
+ln -sf /dockerdata/ci-models/single/Qwen-Image-Edit-2511 .
 
 
 mkdir -p /data/stable-diffusion-webui

@@ -6,7 +6,6 @@ import math
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-
 from ksana.accelerator import platform
 from ksana.utils import load_file_to_state_dict
 from ksana.utils.load import load_state_dict

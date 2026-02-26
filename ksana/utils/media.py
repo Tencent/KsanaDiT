@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import binascii
+import math
 import os
 import shutil
 import subprocess
@@ -23,6 +24,16 @@ import torchvision
 from PIL import Image
 
 from .logger import log
+
+
+def calculate_aligned_dimensions(target_area: int, ratio: float, alignment: int = 32) -> tuple[int, int]:
+    width = math.sqrt(target_area * ratio)
+    height = width / ratio
+
+    width = round(width / alignment) * alignment
+    height = round(height / alignment) * alignment
+
+    return int(width), int(height)
 
 
 def merge_video_audio(video_path: str, audio_path: str):
@@ -152,11 +163,23 @@ def load_video_frames(video_path: str, max_frames: int = 81) -> torch.Tensor:
 
 
 def save_image(tensor: torch.Tensor, path: str):
-    """Save tensor as image file."""
-    img = tensor.squeeze(0).permute(1, 2, 0).detach().cpu().float().numpy()
+    """Save tensor as image file.
+    Supports 3D [C, H, W], 4D [C, F, H, W], and 5D [B, C, F, H, W] tensors.
+    For tensors with a frame dimension (F), selects the first frame.
+    Normalizes from [-1,1] to [0,1].
+    """
+    if tensor.dim() == 5:
+        # [B, C, F, H, W] -> select first batch and first frame -> [C, H, W]
+        tensor = tensor[0, :, 0, :, :]
+    elif tensor.dim() == 4:
+        # [C, F, H, W] -> select first frame -> [C, H, W]
+        tensor = tensor[:, 0, :, :]
+    # tensor is now [C, H, W]
+    tensor = (tensor + 1) / 2
+    tensor = tensor.clamp(0, 1)
+    img = tensor.permute(1, 2, 0).detach().cpu().float().numpy()
     img = (img * 255).clip(0, 255).astype("uint8")
     Image.fromarray(img).save(path)
-    print(f"Saved image to {path}")
 
 
 def save_images(images: torch.Tensor, save_paths: list[str]):

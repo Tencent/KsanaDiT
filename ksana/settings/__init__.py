@@ -40,8 +40,10 @@ _MODEL_KEY_TO_CONF_PATH_MAP = {
     KsanaModelKey.VAE_WAN2_2: "wan/modules/vae_2_2.yaml",
     KsanaModelKey.T5TextEncoder: "wan/modules/t5_encoder.yaml",
     KsanaModelKey.QwenImage_T2I: "qwen/t2i_20b.yaml",
+    KsanaModelKey.QwenImage_Edit: "qwen/edit_20b.yaml",
     KsanaModelKey.QwenImageVAE: "qwen/modules/vae.yaml",
     KsanaModelKey.Qwen2VLTextEncoder: "qwen/modules/text_encoder.yaml",
+    KsanaModelKey.Qwen2VLTextEncoderMultimodal: "qwen/modules/text_encoder_multimodal.yaml",
 }
 
 _MODEL_LORA_PATH_MAP = {
@@ -49,6 +51,7 @@ _MODEL_LORA_PATH_MAP = {
     KsanaModelKey.Wan2_2_T2V_14B: "wan/modules/lora.yaml",
     KsanaModelKey.Wan2_1_VACE_14B: "wan/modules/lora.yaml",
     KsanaModelKey.QwenImage_T2I: "qwen/modules/lora.yaml",
+    KsanaModelKey.QwenImage_Edit: "qwen/modules/lora.yaml",
 }
 
 

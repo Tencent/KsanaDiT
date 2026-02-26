@@ -133,7 +133,8 @@ class KsanaPipeline(KsanaBasePipeline):
         prompt: str | list[str],
         *,
         prompt_negative: str | list[str] = None,
-        img_path: str | list[str] = None,
+        img_path: str | list[str] | list[list[str]] = None,  # 参考图路径（Edit 模式）
+        start_img_path: str | list[str] = None,  # 起始图路径（I2V 模式）
         end_img_path: str | list[str] = None,
         sample_config: KsanaSampleConfig = None,
         runtime_config: KsanaRuntimeConfig = None,
@@ -141,7 +142,6 @@ class KsanaPipeline(KsanaBasePipeline):
         input_latent: torch.Tensor = None,
         video_control_config: KsanaVaceContext = None,
     ):
-        """local use for generate"""
         num_prompts = self._get_num_prompts(prompt)
         if num_prompts == 0:
             raise ValueError("prompt must be str or list of str")
@@ -154,7 +154,8 @@ class KsanaPipeline(KsanaBasePipeline):
         log.info(f"sample_config : {sample_config}")
         log.info(f"runtime_config : {runtime_config}")
         log.info(f"cache_config : {cache_config}")
-        img_path = self._valid_images(img_path, num_prompts)
+        img_path = self._valid_ref_images(img_path, num_prompts)
+        start_img_path = self._valid_images(start_img_path, num_prompts)
         end_img_path = self._valid_images(end_img_path, num_prompts)
         with_end_image = end_img_path is not None
 
@@ -162,6 +163,8 @@ class KsanaPipeline(KsanaBasePipeline):
 
         text_run_device = torch.device("cpu")  # TODO: maybe run text on cuda self.device
         text_encoder = KsanaUnitFactory.create(KsanaUnitType.ENCODER, self.text_encoder_model.model_key)
+
+        condition_images = img_path if self.model_key == KsanaModelKey.QwenImage_Edit else None
         positive, negative = text_encoder.run(
             self.text_encoder_model,
             prompts_positive=prompt,
@@ -169,34 +172,53 @@ class KsanaPipeline(KsanaBasePipeline):
             device=text_run_device,
             offload_device=self.offload_device,
             offload_model=runtime_config.offload_model,
+            images=condition_images,
         )
 
-        img_tensor, end_img_tensor = self._load_input_images(img_path, end_img_path, device=self.offload_device)
         target_frame_num = (
             vace_video_control_config.adjusted_frame_num
             if vace_video_control_config and vace_video_control_config.adjusted_frame_num
             else runtime_config.frame_num
         )
 
-        img_latents = self.engine.forward_vae_encode(
-            model_key=self.vae_model_key,
-            target_f=target_frame_num,
-            target_h=runtime_config.size[1],
-            target_w=runtime_config.size[0],
-            start_img=img_tensor,
-            end_img=end_img_tensor,
-        )
+        if img_path is not None:
+            # Edit 模式：参考图走 forward_vae_encode_image
+            img_tensor = self._load_input_images(img_path, None, device=self.offload_device)[0]
+            img_latents = self.engine.forward_vae_encode_image(
+                model_key=self.vae_model_key,
+                image=img_tensor,
+            )
+        else:
+            # I2V / T2V 模式：起始图走 forward_vae_encode
+            img_tensor, end_img_tensor = self._load_input_images(
+                start_img_path, end_img_path, device=self.offload_device
+            )
+            img_latents = self.engine.forward_vae_encode(
+                model_key=self.vae_model_key,
+                target_f=target_frame_num,
+                target_h=runtime_config.size[1],
+                target_w=runtime_config.size[0],
+                start_img=img_tensor,
+                end_img=end_img_tensor,
+            )
+
+        generator_kwargs = {}
+        if img_path is not None or start_img_path is not None:
+            generator_kwargs["img_latents"] = img_latents
+        if img_latents is not None:
+            first_latent = img_latents[0] if isinstance(img_latents, list) else img_latents
+            generator_kwargs["noise_shape"] = list(first_latent.shape[1:])
 
         latents = self.engine.forward_generator(
             model_key=self.model_key,
             positive=positive,
             negative=negative,
-            img_latents=img_latents,
             sample_config=sample_config,
             runtime_config=runtime_config,
             cache_config=cache_config,
             input_latent=input_latent,
             control_video_config=vace_video_control_config,
+            **generator_kwargs,
         )
         del positive, negative, img_latents
 
@@ -213,9 +235,9 @@ class KsanaPipeline(KsanaBasePipeline):
             torch.cuda.synchronize()
 
         if runtime_config.save_output:
-            if len(outputs.shape) > 4:  # [B,C,F,H,W]
-                self._save_outputs(outputs, prompt, self.has_lora, runtime_config, self._save_one_video, ".mp4")
-            else:  # [B,C,H,W]
+            if self.pipeline_key.is_image_type():
                 self._save_outputs(outputs, prompt, self.has_lora, runtime_config, save_image, ".png")
+            else:
+                self._save_outputs(outputs, prompt, self.has_lora, runtime_config, self._save_one_video, ".mp4")
 
         return outputs if runtime_config.return_frames else None

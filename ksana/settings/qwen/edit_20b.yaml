@@ -1,0 +1,9 @@
+_base_modules :
+  - "common.yaml"
+  - "qwen/modules/common.yaml"
+  - "qwen/modules/text_encoder_multimodal.yaml"  # 使用多模态文本编码器配置
+  - "qwen/modules/20b.yaml"
+  - "qwen/modules/vae.yaml"
+
+diffusion:
+  zero_cond_t: True  # Required for Qwen-Image-Edit-2511

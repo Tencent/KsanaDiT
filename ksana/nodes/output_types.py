@@ -15,7 +15,6 @@
 from dataclasses import dataclass, field
 
 import torch
-
 from ksana.models.model_key import KsanaModelKey
 
 
@@ -34,6 +33,6 @@ class KsanaNodeGeneratorOutput:
 
 @dataclass
 class KsanaNodeVAEEncodeOutput:
-    samples: torch.Tensor = field(default=None)
+    samples: torch.Tensor | list[torch.Tensor] = field(default=None)
     with_end_image: bool = field(default=False)
     batch_size_per_prompts: int = field(default=1)

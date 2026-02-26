@@ -20,6 +20,7 @@ import torch
 from ..accelerator.platform import empty_cache
 from ..models.model_key import KsanaModelKey
 from ..utils.logger import log
+from ..utils.media import calculate_aligned_dimensions
 from ..utils.profile import time_range
 from ..utils.vace import init_latent_stats
 from .base_model import KsanaModel
@@ -317,6 +318,53 @@ class KsanaQwenVAEModel(KsanaVAEModel):
             f"vae_patch_size {self.vae_patch_size}, vae_scale_factor {self.vae_scale_factor}"
         )
 
+    VAE_IMAGE_SIZE = 1024 * 1024
+
+    def forward_encode_image(
+        self,
+        *,
+        image: torch.Tensor | list[torch.Tensor] = None,
+        device,
+        target_batch_size: int = 1,
+    ):
+        if image is None:
+            return None
+        if target_batch_size > 1:
+            raise ValueError(f"target_batch_size > 1 is not supported yet, got {target_batch_size}")
+
+        # Normalize to list[Tensor], each [N, C, H, W] per prompt
+        if isinstance(image, torch.Tensor):
+            # single tensor: (N, H, W, C) or (N, C, H, W)
+            if image.ndim == 4 and image.shape[-1] == 3:
+                image = image.permute(0, 3, 1, 2)
+            image = [image]
+
+        current_device = self.device
+        if device is not None and current_device != device:
+            self.to(device)
+
+        results = []
+        for batch_imgs in image:
+            # batch_imgs: [num_refs, C, H, W] for one prompt
+            if batch_imgs.ndim == 4 and batch_imgs.shape[-1] == 3:
+                batch_imgs = batch_imgs.permute(0, 3, 1, 2)
+            _, _, h, w = batch_imgs.shape
+            ratio = w / h
+            img_w, img_h = calculate_aligned_dimensions(self.VAE_IMAGE_SIZE, ratio)
+
+            resized = torch.nn.functional.interpolate(
+                batch_imgs.float(), size=(img_h, img_w), mode="bicubic", align_corners=False
+            )
+            # [N, C, H, W] -> [N, C, 1, H, W]
+            resized_5d = resized.unsqueeze(2)
+            y = self.model.encode(resized_5d.to(self.device))  # [N, z_dim, 1, lat_h, lat_w]
+            results.append(y)
+
+        self.to(current_device)
+
+        log.info(f"image_latents: {len(results)} prompts, shapes {[r.shape for r in results]}")
+        return results
+
     def create_latent_shape(
         self,
         *,
@@ -327,8 +375,7 @@ class KsanaQwenVAEModel(KsanaVAEModel):
         vae_stride=None,
         vae_patch=None,
     ):
-        if img_shape is not None:
-            raise ValueError("qwen image not support edit yet")
-        latent_h = target_h // self.vae_scale_factor // self.vae_patch_size * self.vae_patch_size
-        latent_w = target_w // self.vae_scale_factor // self.vae_patch_size * self.vae_patch_size
+        multiple_of = self.vae_scale_factor * self.vae_patch_size
+        latent_h = target_h // multiple_of * self.vae_patch_size
+        latent_w = target_w // multiple_of * self.vae_patch_size
         return self.z_dim, 1, latent_h, latent_w

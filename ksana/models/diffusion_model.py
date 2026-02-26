@@ -17,7 +17,6 @@ import time
 from abc import abstractmethod
 
 import torch
-
 from ksana.operations.fuse_qkv import remap_state_dict_for_model
 
 from ..accelerator import platform
@@ -564,6 +563,7 @@ class KsanaQwenImageModel(KsanaDiffusionModel):
             num_attention_heads=default_diffusion_settings.num_attention_heads,
             joint_attention_dim=default_diffusion_settings.joint_attention_dim,
             axes_dims_rope=tuple(default_diffusion_settings.axes_dims_rope),
+            zero_cond_t=getattr(default_diffusion_settings, "zero_cond_t", False),
             operations=operations,
             device=offload_device,
             dtype=self.run_dtype,
@@ -593,6 +593,7 @@ class KsanaQwenImageModel(KsanaDiffusionModel):
         **kwargs,
     ) -> torch.Tensor:
         timestep = t / 1000.0
+        ref_latents = kwargs.pop("ref_latents", None)
 
         out = self.model(
             hidden_states=x,
@@ -601,6 +602,7 @@ class KsanaQwenImageModel(KsanaDiffusionModel):
             timestep=timestep,
             img_shapes=img_shapes,
             txt_seq_lens=txt_seq_lens,
+            ref_latents=ref_latents,
             return_dict=False,
         )
 

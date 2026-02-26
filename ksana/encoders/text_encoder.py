@@ -34,7 +34,7 @@ class KsanaBaseTextEncoder(KsanaRunnerUnit):
         return prompts
 
     @abstractmethod
-    def do_run(self, model, prompts_positive_list, prompts_negative_list):
+    def do_run(self, model, prompts_positive_list, prompts_negative_list, device=None, images=None):
         pass
 
     @time_range
@@ -46,6 +46,7 @@ class KsanaBaseTextEncoder(KsanaRunnerUnit):
         device=None,
         offload_device=None,
         offload_model=False,
+        images=None,
     ):
         prompts_positive_list = self._valid_input_prompt_to_list(prompts_positive)
         prompts_negative_list = prompts_negative or getattr(model.default_settings, "neg_prompt", None)
@@ -59,7 +60,9 @@ class KsanaBaseTextEncoder(KsanaRunnerUnit):
         if model.device != device:
             model.to(device)
 
-        positive, negative = self.do_run(model, prompts_positive_list, prompts_negative_list, device=device)
+        positive, negative = self.do_run(
+            model, prompts_positive_list, prompts_negative_list, device=device, images=images
+        )
 
         if offload_model and offload_device is not None and offload_device != device:
             model.to(offload_device)
@@ -71,7 +74,12 @@ class KsanaBaseTextEncoder(KsanaRunnerUnit):
 @KsanaUnitFactory.register(KsanaUnitType.ENCODER, KsanaModelKey.T5TextEncoder)
 class KsanaTextEncoder(KsanaBaseTextEncoder):
     def do_run(
-        self, model, prompts_positive_list: list[str], prompts_negative_list: list[str] | None = None, device=None
+        self,
+        model,
+        prompts_positive_list: list[str],
+        prompts_negative_list: list[str] | None = None,
+        device=None,
+        images=None,
     ):
         all_prompts = prompts_positive_list + prompts_negative_list
         all_embeddings_list = model.forward(all_prompts)
@@ -87,7 +95,9 @@ class KsanaTextEncoder(KsanaBaseTextEncoder):
         return positive, negative
 
 
-@KsanaUnitFactory.register(KsanaUnitType.ENCODER, KsanaModelKey.Qwen2VLTextEncoder)
+@KsanaUnitFactory.register(
+    KsanaUnitType.ENCODER, [KsanaModelKey.Qwen2VLTextEncoder, KsanaModelKey.Qwen2VLTextEncoderMultimodal]
+)
 class KsanaQwenVLTextEncoderUnit(KsanaBaseTextEncoder):
 
     def do_run(
@@ -96,9 +106,10 @@ class KsanaQwenVLTextEncoderUnit(KsanaBaseTextEncoder):
         prompts_positive_list: list[str],
         prompts_negative_list: list[str] | None = None,
         device=None,
+        images=None,
     ):
         # TODO(qiannan): support batch inference
-        positive_embeds, positive_mask = model.forward(prompts_positive_list, device=device)
-        negative_embeds, negative_mask = model.forward(prompts_negative_list, device=device)
+        positive_embeds, positive_mask = model.forward(prompts_positive_list, images=images, device=device)
+        negative_embeds, negative_mask = model.forward(prompts_negative_list, images=images, device=device)
 
         return (positive_embeds, positive_mask), (negative_embeds, negative_mask)
