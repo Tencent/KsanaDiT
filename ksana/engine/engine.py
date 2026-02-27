@@ -14,7 +14,7 @@
 
 import atexit
 import functools
-from abc import ABC
+import threading
 
 import ray
 import torch.distributed as dist
@@ -22,15 +22,16 @@ import torch.distributed as dist
 from ..accelerator import platform
 from ..config import KsanaDistributedConfig
 from ..executor import KsanaExecutor, RayKsanaExecutor
-from ..utils import log, singleton
+from ..utils import log
 from ..utils.distribute import get_gpu_count, get_torchrun_env, is_launched_by_torchrun
 
 
 def get_engine(*args, **kwargs):
     """
-    Get the engine instance.
+    Get the default engine instance (backward compatible).
+    Delegates to KsanaEngine.get_default().
     """
-    return KsanaEngine(*args, **kwargs)
+    return KsanaEngine.get_default(*args, **kwargs)
 
 
 def pop_keys_in_kwargs(to_be_removed_keys, kwargs):
@@ -41,11 +42,16 @@ def pop_keys_in_kwargs(to_be_removed_keys, kwargs):
     return kwargs
 
 
-@singleton
-class KsanaEngine(ABC):
+class KsanaEngine:
     """
-    Base class for all Ksana engines.
+    Ksana engine that manages executors for model loading and inference.
+
+    Supports both singleton (via get_default()) and multi-instance (via direct __init__) usage.
+    The get_engine() function delegates to get_default() for backward compatibility.
     """
+
+    _default_instance = None  # class-level singleton cache
+    _lock = threading.Lock()  # class-level lock for thread safety
 
     FUNC_KEY_PRE_ALL = "func_key_pre_all"
     FUNC_KEY_PRE_RAY = "func_key_pre_ray"
@@ -55,15 +61,59 @@ class KsanaEngine(ABC):
 
     executors = None
 
-    def __init__(self, dist_config: KsanaDistributedConfig = KsanaDistributedConfig(), offload_device="cpu"):
+    def __init__(
+        self,
+        dist_config: KsanaDistributedConfig = KsanaDistributedConfig(),
+        offload_device="cpu",
+        _register_atexit=False,
+    ):
         """
         Initialize the KsanaEngine.
+
+        Args:
+            dist_config: Distributed configuration.
+            offload_device: Device for offloading (default: "cpu").
+            _register_atexit: Internal flag. When True, registers atexit cleanup.
+                Only the default instance (created via get_default) should set this.
         """
         log.info(f"Initializing KsanaEngine with dist_config: {dist_config}, offload_device: {offload_device}")
         self.num_gpus = dist_config.num_gpus
         self._is_ray = False
+        self._cleaned_up = False
         self.init_executors(dist_config=dist_config, offload_device=offload_device)
-        atexit.register(self.cleanup)
+        if _register_atexit:
+            atexit.register(self.cleanup_distributed)
+
+    @classmethod
+    def get_default(cls, *args, **kwargs) -> "KsanaEngine":
+        """
+        Get the default singleton instance (thread-safe).
+
+        If the instance already exists and arguments are passed, a warning is logged
+        and the arguments are ignored (existing instance is returned).
+        """
+        with cls._lock:
+            if cls._default_instance is None:
+                cls._default_instance = cls(*args, _register_atexit=True, **kwargs)
+            elif args or kwargs:
+                log.warning(
+                    "KsanaEngine.get_default() called with arguments but instance already exists. "
+                    "Arguments are ignored. Use KsanaEngine() to create a new instance."
+                )
+            return cls._default_instance
+
+    @classmethod
+    def reset_default(cls):
+        """
+        Reset the default instance (for testing / hot-reload).
+
+        WARNING: Only call when no active inference is running.
+        Code holding references to the old engine will break after reset.
+        """
+        with cls._lock:
+            if cls._default_instance is not None:
+                cls._default_instance.cleanup_distributed()
+            cls._default_instance = None
 
     def init_executors(self, dist_config: KsanaDistributedConfig = None, offload_device=None):
         if dist_config.num_gpus == 1:
@@ -210,7 +260,12 @@ class KsanaEngine(ABC):
 
         return {self.FUNC_KEY_PRE_ALL: pre_func_all, self.FUNC_KEY_POST_RAY_OUTPUTS: self._get_rank_0_result}
 
-    def cleanup(self):
+    def cleanup_distributed(self):
+        """Tear down dist process-group and Ray runtime. Idempotent — safe to call multiple times."""
+        if self._cleaned_up:
+            return
+        self._cleaned_up = True
+
         if dist.is_initialized():
             dist.barrier()
             dist.destroy_process_group()

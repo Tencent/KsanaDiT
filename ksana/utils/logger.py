@@ -24,7 +24,7 @@ KSANA_LOGGER_LEVEL_DICT = {
     "error": logging.ERROR,
 }
 
-log = logging.getLogger(__name__)
+log = logging.getLogger("ksana")
 log.setLevel(logging.INFO)
 log.propagate = False
 

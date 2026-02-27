@@ -13,10 +13,24 @@
 # limitations under the License.
 
 import threading
+import warnings
 
 
 def singleton(cls):
-    """线程安全的单例装饰器"""
+    """线程安全的单例装饰器
+
+    .. deprecated::
+        Use ``ClassVar + classmethod get_default()`` pattern instead.
+        This decorator replaces the class with a function, which breaks
+        ``isinstance()`` checks and prevents multi-instance creation.
+        See ``KsanaEngine`` for the recommended pattern.
+    """
+    warnings.warn(
+        f"@singleton is deprecated. Use 'get_default() classmethod' pattern instead. "
+        f"Decorated class: {cls.__qualname__}",
+        DeprecationWarning,
+        stacklevel=2,
+    )
     instances = {}
     lock = threading.Lock()
 
