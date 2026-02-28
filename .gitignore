@@ -3,3 +3,5 @@ refer/
 .roo
 .gitconfig
 AGENTS.md
+*.png
+plans/

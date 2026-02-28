@@ -15,13 +15,18 @@
 
 # Common CI test environment setup
 # Usage: source test_env.sh [GPU_CARDS]
+#
+# Supports both CI (Docker) and local development environments.
+# Override defaults via environment variables:
+#   CONDA_SH_PATH    - path to conda.sh (default: /data/miniconda3/etc/profile.d/conda.sh)
+#   CONDA_ENV_NAME   - conda environment name (default: env-novelai)
+#   KSANA_CPU_MEM_LIMIT_GB - CPU memory limit in GB (default: 160, set 0 to disable)
 
-# CPU memory limit (160 GB), override via KSANA_CPU_MEM_LIMIT_GB env var.
-# Uses cgroup to limit physical (RSS) memory only, so GPU virtual address
-# space mappings are not affected.
+# --- CPU memory limit (Linux/Docker only) ---
 KSANA_CPU_MEM_LIMIT_GB=${KSANA_CPU_MEM_LIMIT_GB:-160}
 export KSANA_CPU_MEM_LIMIT_GB
-if [ "${KSANA_CPU_MEM_LIMIT_GB}" -gt 0 ] 2>/dev/null; then
+
+if [ "$(uname -s)" = "Linux" ] && [ "${KSANA_CPU_MEM_LIMIT_GB}" -gt 0 ] 2>/dev/null; then
     MEM_LIMIT_BYTES=$((KSANA_CPU_MEM_LIMIT_GB * 1024 * 1024 * 1024))
     if [ -f /sys/fs/cgroup/memory.max ]; then
         # cgroup v2
@@ -36,13 +41,27 @@ if [ "${KSANA_CPU_MEM_LIMIT_GB}" -gt 0 ] 2>/dev/null; then
     else
         echo "WARNING: cgroup memory interface not found, CPU memory limit not applied"
     fi
+else
+    if [ "$(uname -s)" != "Linux" ]; then
+        echo "INFO: non-Linux platform ($(uname -s)), skipping cgroup memory limit"
+    fi
 fi
 
 GPU_CARDS_ARG=$1
 
-# Conda setup
-source /data/miniconda3/etc/profile.d/conda.sh
-conda activate env-novelai
+# --- Conda setup (skip if already in the target environment) ---
+CONDA_SH_PATH="${CONDA_SH_PATH:-/data/miniconda3/etc/profile.d/conda.sh}"
+CONDA_ENV_NAME="${CONDA_ENV_NAME:-env-novelai}"
+
+if [ -n "${CONDA_DEFAULT_ENV}" ] && [ "${CONDA_DEFAULT_ENV}" = "${CONDA_ENV_NAME}" ]; then
+    echo "INFO: already in conda environment '${CONDA_ENV_NAME}', skipping activation"
+elif [ -f "${CONDA_SH_PATH}" ]; then
+    source "${CONDA_SH_PATH}"
+    conda activate "${CONDA_ENV_NAME}"
+else
+    echo "WARNING: conda.sh not found at '${CONDA_SH_PATH}', skipping conda activation"
+    echo "  Set CONDA_SH_PATH to your conda.sh path, or activate your environment manually before running"
+fi
 
 # Unset proxy
 unset http_proxy https_proxy HTTP_PROXY HTTPS_PROXY
