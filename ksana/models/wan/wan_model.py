@@ -973,7 +973,11 @@ class WanModel(ModelMixin, ConfigMixin):
 
     def _forward_with_cache(self, x, cache, phase, timestep, *, step_iter, **kwargs):
         step_cache, block_cache = cache.step_cache, cache.block_cache
-        if step_cache is not None and step_cache.valid_for(phase=phase, x=x, step_iter=step_iter, timestep=timestep):
+        e = kwargs.get("e")
+        # EasyCache and TeaCache need e for cache hit validation
+        if step_cache is not None and step_cache.valid_for(
+            phase=phase, x=x, step_iter=step_iter, timestep=timestep, e=e
+        ):
             x = step_cache(phase=phase, x=x, step_iter=step_iter, timestep=timestep)
             return x  # step cache hit, skip block cache and return
 

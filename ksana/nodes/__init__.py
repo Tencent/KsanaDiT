@@ -79,6 +79,7 @@ __all__ = [
     "KsanaNodeModelLoader",
     "KsanaNodeVAELoader",
     "KsanaNodeDBCache",
+    "KsanaNodeTeaCache",
     "hybrid_cache",
     "dcache",
     "custom_step_cache",

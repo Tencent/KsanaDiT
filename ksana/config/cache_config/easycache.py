@@ -23,4 +23,6 @@ class EasyCacheConfig(KsanaStepCacheConfig):
     reuse_thresh: float | None = field(default=None)
     start_percent: float | None = field(default=None)
     end_percent: float | None = field(default=None)
+    mode: str | None = field(default=None)
+    cache_device: str | None = field(default=None)
     verbose: bool | None = field(default=None)

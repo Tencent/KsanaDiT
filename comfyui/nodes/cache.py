@@ -120,13 +120,32 @@ class KsanaTeaCacheNode:
     def INPUT_TYPES(cls):  # pylint: disable=invalid-name
         return {
             "optional": {
-                "rel_l1_thresh": (
-                    "FLOAT",
-                    {"default": 1.000, "min": 0.0001, "max": 1, "step": 0.001},
+                "preset": (
+                    [
+                        "custom",
+                        "wan21_t2v",
+                        "wan21_i2v_720P",
+                        "wan21_i2v_480P",
+                        "wan22_t2v",
+                        "wan22_i2v",
+                        "fast",
+                        "balanced",
+                        "quality",
+                    ],
+                    {"default": "balanced"},
                 ),
-                "cache_device": (
-                    ["offload_device", "main_device"],
-                    {"default": "offload_device"},
+                "threshold": (
+                    "FLOAT",
+                    {
+                        "default": 0.2,
+                        "min": 0.05,
+                        "max": 0.5,
+                        "step": 0.01,
+                    },
+                ),
+                "mode": (
+                    ["t2v_14B", "t2v_1.3B", "i2v_720P", "i2v_480P"],
+                    {"default": "t2v_14B"},
                 ),
                 "start_step": (
                     "INT",
@@ -136,9 +155,14 @@ class KsanaTeaCacheNode:
                     "INT",
                     {"default": -1, "min": -1, "max": 10000, "step": 1},
                 ),
-                "use_coeffecients": ("BOOLEAN", {"default": False}),
-                "mode": (["e", "e0"], {"default": "e"}),
-                "name": ("STRING", {"default": ""}),
+                "cache_device": (
+                    ["main_device", "offload_device"],
+                    {"default": "main_device"},
+                ),
+                "verbose": (
+                    "BOOLEAN",
+                    {"default": False},
+                ),
             }
         }
 
@@ -160,19 +184,56 @@ class KsanaEasyCacheNode:
     def INPUT_TYPES(cls):  # pylint: disable=invalid-name
         return {
             "optional": {
+                "preset": (
+                    [
+                        "custom",
+                        "wan21_t2v",
+                        "wan21_i2v",
+                        "wan22_t2v",
+                        "wan22_i2v",
+                        "conservative",
+                        "balanced",
+                        "aggressive",
+                    ],
+                    {"default": "balanced"},
+                ),
                 "reuse_thresh": (
                     "FLOAT",
-                    {"default": 0.2, "min": 0.0001, "max": 1, "step": 0.01},
+                    {
+                        "default": 0.05,
+                        "min": 0.001,
+                        "max": 2.0,
+                        "step": 0.01,
+                    },
                 ),
                 "start_percent": (
                     "FLOAT",
-                    {"default": 0.15, "min": 0.0, "max": 1.0, "step": 0.01},
+                    {
+                        "default": 0.2,
+                        "min": 0.0,
+                        "max": 1.0,
+                        "step": 0.01,
+                    },
                 ),
                 "end_percent": (
                     "FLOAT",
-                    {"default": 0.95, "min": 0.0, "max": 1.0, "step": 0.01},
+                    {
+                        "default": 0.98,
+                        "min": 0.0,
+                        "max": 1.0,
+                        "step": 0.01,
+                    },
+                ),
+                "mode": (
+                    ["t2v", "i2v"],
+                    {"default": "t2v"},
+                ),
+                "cache_device": (
+                    ["main_device", "offload_device"],
+                    {"default": "main_device"},
                 ),
                 "verbose": ("BOOLEAN", {"default": False}),
+                "name": ("STRING", {"default": ""}),
             }
         }
 
@@ -194,11 +255,43 @@ class KsanaMagCacheNode:
     def INPUT_TYPES(cls):  # pylint: disable=invalid-name
         return {
             "optional": {
+                "preset": (
+                    [
+                        "custom",
+                        "conservative",
+                        "balanced",
+                        "aggressive",
+                        "wan22_t2v",
+                        "wan22_i2v",
+                    ],
+                    {"default": "balanced"},
+                ),
                 "threshold": (
                     "FLOAT",
-                    {"default": 0.020, "min": 0.0001, "max": 1, "step": 0.001},
+                    {
+                        "default": 0.04,
+                        "min": 0.001,
+                        "max": 0.5,
+                        "step": 0.001,
+                    },
                 ),
-                "k": ("INT", {"default": 4, "min": 0, "max": 100, "step": 1}),
+                "max_skip_steps": (
+                    "INT",
+                    {"default": 2, "min": 1, "max": 10, "step": 1},
+                ),
+                "retention_ratio": (
+                    "FLOAT",
+                    {
+                        "default": 0.2,
+                        "min": 0.0,
+                        "max": 1.0,
+                        "step": 0.05,
+                    },
+                ),
+                "mode": (
+                    ["t2v", "i2v"],
+                    {"default": "t2v"},
+                ),
                 "cache_device": (
                     ["offload_device", "main_device"],
                     {"default": "offload_device"},
@@ -211,8 +304,13 @@ class KsanaMagCacheNode:
                     "INT",
                     {"default": -1, "min": -1, "max": 10000, "step": 1},
                 ),
+                "verbose": ("BOOLEAN", {"default": False}),
             }
         }
+
+    @classmethod
+    def VALIDATE_INPUTS(cls):  # pylint: disable=invalid-name
+        return True
 
     RETURN_TYPES = (KSANA_CACHE_CONFIG,)
     RETURN_NAMES = ("cache_config",)
