@@ -21,6 +21,7 @@ from ksana.memory.estimator import (
 )
 from ksana.models.model_key import KsanaModelKey
 from ksana.utils import log
+from ksana.utils.monitor import report
 from ksana.utils.profile import MemoryProfiler
 from ksana.utils.vace import prepare_video_control_config
 
@@ -48,6 +49,7 @@ def _prepare_memory_for_ksana_models(model_key, latent_shape, run_dtype, comfy_d
         raise RuntimeError(f"Failed to prepare memory for KsanaDiT models: {e}")
 
 
+@report("comfyui_generate")
 def generate(
     model,
     positive,

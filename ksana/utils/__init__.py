@@ -31,6 +31,7 @@ from .load import load_file_to_state_dict, load_sharded_safetensors, remove_pref
 from .logger import log, reset_logging
 from .lora import load_state_dict_and_merge_lora, model_safe_downcast
 from .media import load_control_frames, load_video_frames, match_control_frames, merge_video_audio, save_video
+from .monitor import report, report_inner
 from .ops import cast_bias_weight, common_upscale, stochastic_rounding, supports_fp8_compute
 from .profile import KsanaProfiler, MemoryProfiler, nvtx_range, time_range
 from .sample_solver import apply_sigma_shift, get_sigmas_with_denoise
@@ -51,6 +52,8 @@ from .vace import (
 
 __all__ = [
     "Factory",
+    "report_inner",
+    "report",
     "KSANA_LOGGER_LEVEL",
     "KSANA_MEMORY_PROFILER",
     "KsanaProfiler",

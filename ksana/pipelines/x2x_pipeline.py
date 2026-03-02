@@ -30,6 +30,7 @@ from ..settings import load_default_settings
 from ..units import KsanaUnitFactory, KsanaUnitType
 from ..utils import log, time_range
 from ..utils.media import save_image
+from ..utils.monitor import report
 from ..utils.vace import KsanaVaceContext
 from .base_pipeline import KsanaBasePipeline
 
@@ -128,6 +129,7 @@ class KsanaPipeline(KsanaBasePipeline):
         self.patch_size = self.default_settings.diffusion.patch_size
 
     @time_range
+    @report("local_generate")
     def generate(
         self,
         prompt: str | list[str],
