@@ -6,9 +6,10 @@ import torch.cuda.amp as amp
 import torch.nn as nn
 import torch.nn.functional as F
 from einops import rearrange
-
 from ksana.accelerator import platform
 from ksana.utils.load import load_file_to_state_dict, load_state_dict, remove_prefix_from_state_dict
+
+from .vae_paralle import patch_vae_parallel
 
 if platform.is_npu():
     import torch_npu  # pylint: disable=unused-import # noqa: F401
@@ -747,8 +748,10 @@ class WanVAE(nn.Module):
         self.attn_scales = attn_scales
         self.temperal_downsample = temperal_downsample
         self.temperal_upsample = temperal_downsample[::-1]
+        self.spatial_compression_ratio = 2 ** len(self.temperal_downsample)
+        # TODO(qiannan): 如果是5b 这个模型，temperal_downsample 长度应该是4，
+        # 所以spatial_compression_ratio=16，需要确认一下。
 
-        # modules
         self.encoder = Encoder3d(
             dim,
             z_dim * 2,
@@ -1023,6 +1026,9 @@ class Wan2_2_VAE:  # pylint: disable=invalid-name
             .requires_grad_(False)
             .to(device)
         )
+
+        # patch 实例的 encode/decode 为并行版本
+        patch_vae_parallel(self.model)
 
     def encode(self, videos, with_end_image):
         """

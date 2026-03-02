@@ -222,9 +222,6 @@ class KsanaVAEModel(KsanaModel):
 
     @time_range
     def forward_decode(self, latents, local_rank, device=None, with_end_image: bool = False) -> torch.Tensor:
-        # TODO: support multi gpu
-        if local_rank != 0:
-            return
         log.info(f"vae_decode input latents shape: {latents.shape}, {latents.device}, {latents.dtype}")
         if latents.ndim != 5:
             raise RuntimeError(

@@ -129,15 +129,11 @@ class KsanaExecutor(ABC):
         return text_encoder.run(text_encoder_model, device=self.device, **kwargs)
 
     def forward_vae_encode(self, model_key, **kwargs):
-        if self.rank_id != 0:
-            return
         vae_model = self.model_pool.get_model(model_key)
         vae_encoder = KsanaUnitFactory.create(KsanaUnitType.ENCODER, model_key)
         return vae_encoder.run(vae_model, device=self.device, **kwargs)
 
     def forward_vae_encode_image(self, model_key, **kwargs):
-        if self.rank_id != 0:
-            return
         vae_model = self.model_pool.get_model(model_key)
         vae_encoder = KsanaUnitFactory.create(KsanaUnitType.ENCODER, model_key)
         return vae_encoder.run_encode_image(vae_model, device=self.device, **kwargs)

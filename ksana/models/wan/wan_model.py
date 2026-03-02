@@ -6,7 +6,6 @@ import torch.nn as nn
 from diffusers.configuration_utils import ConfigMixin, register_to_config
 from diffusers.models.modeling_utils import ModelMixin
 from einops import rearrange
-
 from ksana.accelerator import platform
 from ksana.cache import KsanaHybridCache
 from ksana.config import KsanaFETAConfig, KsanaSLGConfig
@@ -340,10 +339,10 @@ class WanAttentionBlock(nn.Module):
         num_frames: int = 1,
     ):
         r"""
-            seq_lens=seq_lens, #[7200]
+            seq_lens=seq_lens, # [7200]
             grid_sizes=grid_sizes, # [[ 2, 45, 80]]
-            freqs=self.freqs, #[1024, 64]
-            context=context, #[1, 512, 5120]
+            freqs=self.freqs, # [1024, 64]
+            context=context, # [1, 512, 5120]
 
         Args:
             x(Tensor): Shape [B, L, C] - Input hidden states

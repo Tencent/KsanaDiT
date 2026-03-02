@@ -5,10 +5,11 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from einops import rearrange
-
 from ksana.accelerator import platform
 from ksana.utils.load import load_state_dict
 from ksana.utils.lora import load_state_dict_and_merge_lora
+
+from .vae_paralle import patch_vae_parallel
 
 if platform.is_npu():
     import torch_npu  # pylint: disable=unused-import # noqa: F401
@@ -493,6 +494,7 @@ class WanVAE(nn.Module):
         self.attn_scales = attn_scales
         self.temperal_downsample = temperal_downsample
         self.temperal_upsample = temperal_downsample[::-1]
+        self.spatial_compression_ratio = 2 ** len(self.temperal_downsample)
 
         # modules
         self.encoder = Encoder3d(
@@ -508,7 +510,9 @@ class WanVAE(nn.Module):
         x_recon = self.decode(z)
         return x_recon, mu, log_var
 
-    def encode(self, x, scale):
+    def encode(self, x, scale, with_end_image=False):
+        if with_end_image:
+            return self.encode_with_end_image(x, scale)
         self.clear_cache()
         # cache
         t = x.shape[2]
@@ -567,7 +571,9 @@ class WanVAE(nn.Module):
 
         return mu
 
-    def decode(self, z, scale):
+    def decode(self, z, scale, with_end_image=False):
+        if with_end_image:
+            return self.decode_with_end_image(z, scale)
         self.clear_cache()
         # z: [b,c,t,h,w]
         if isinstance(scale[0], torch.Tensor):
@@ -692,19 +698,19 @@ class Wan2_1_VAE:  # pylint: disable=invalid-name
             .to(device)
         )
 
-    def encode(self, videos, with_end_image):
+        patch_vae_parallel(self.model)
+
+    def encode(self, videos, with_end_image=False):
         """
         videos:  videos each with shape [bs, C, T, H, W].
         """
-        encode_func = self.model.encode_with_end_image if with_end_image else self.model.encode
         with torch.cuda.amp.autocast(dtype=self.dtype):
-            return encode_func(videos, self.scale).float()
+            return self.model.encode(videos, self.scale, with_end_image).float()
 
     # @nvtx_range
-    def decode(self, zs, with_end_image):
-        decode_func = self.model.decode_with_end_image if with_end_image else self.model.decode
+    def decode(self, zs, with_end_image=False):
         with torch.cuda.amp.autocast(dtype=self.dtype):
-            return decode_func(zs, self.scale).float().clamp_(-1, 1)
+            return self.model.decode(zs, self.scale, with_end_image).float().clamp_(-1, 1)
 
     def to(self, device):
         self.model.to(device)

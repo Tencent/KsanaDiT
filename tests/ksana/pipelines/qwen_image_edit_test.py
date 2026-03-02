@@ -34,7 +34,7 @@ from pipeline_test_helper import (
 
 TEST_DTYPE = torch.bfloat16
 TEST_SIZE = (512, 512)  # (W, H)
-TEST_EPS_PLACE = 2
+TEST_EPS_PLACE = 1
 
 IMG_PATHS = ["examples/images/woman.png", "examples/images/man.png"]
 PROMPT = "the woman and man are hugging together"

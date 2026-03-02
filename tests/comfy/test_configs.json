@@ -99,7 +99,7 @@
             "eps_place": 3
           },
           "multi": {
-            "mean": 0.4718431,
+            "mean": 0.4686728,
             "eps_place": 3
           }
         }
@@ -117,7 +117,7 @@
             "eps_place": 4
           },
           "multi": {
-            "mean": 0.3075037,
+            "mean": 0.3065416,
             "eps_place": 4
           }
         }
@@ -161,7 +161,7 @@
             "eps_place": 3
           },
           "multi": {
-            "mean": 0.6765208,
+            "mean": 0.6777751,
             "eps_place": 3
           }
         }
@@ -183,7 +183,7 @@
             "eps_place": 2
           },
           "multi": {
-            "mean": 0.6744323,
+            "mean": 0.6729849,
             "eps_place": 4
           }
         }
@@ -227,7 +227,7 @@
             "eps_place": 4
           },
           "multi": {
-            "mean": 0.5728733,
+            "mean": 0.5725828,
             "eps_place": 4
           }
         }
@@ -268,7 +268,7 @@
             "eps_place": 4
           },
           "multi": {
-            "mean": 0.5202697,
+            "mean": 0.5199794,
             "eps_place": 4
           }
         }
@@ -288,7 +288,7 @@
             "eps_place": 4
           },
           "multi": {
-            "mean": 0.1352762,
+            "mean": 0.1354405,
             "eps_place": 4
           }
         }

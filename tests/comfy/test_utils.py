@@ -98,12 +98,6 @@ def start_server(comfyui_root: Path | None = None, host: str = "127.0.0.1", port
 
 
 def stop_server(process: subprocess.Popen, timeout: int = 5) -> None:
-    """停止 ComfyUI server
-
-    Args:
-        process: server 进程对象
-        timeout: 等待超时时间（秒）
-    """
     logger.info("关闭 server...")
     process.terminate()
     try:

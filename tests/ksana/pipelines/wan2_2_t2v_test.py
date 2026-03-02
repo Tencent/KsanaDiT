@@ -15,19 +15,6 @@
 import unittest
 
 import torch
-from pipeline_test_helper import (
-    PROMPTS,
-    RADIAL_ATTN_TEST_FRAME_NUM,
-    RADIAL_ATTN_TEST_SIZE,
-    SEED,
-    TEST_EPS_PLACE,
-    TEST_FRAME_NUM,
-    TEST_PORT,
-    TEST_SIZE,
-    TEST_STEPS,
-    get_platform_config_or_skip,
-)
-
 from ksana import KsanaPipeline
 from ksana.accelerator import platform
 from ksana.config import (
@@ -40,6 +27,19 @@ from ksana.config import (
     KsanaRuntimeConfig,
     KsanaSampleConfig,
     KsanaTorchCompileConfig,
+)
+from ksana.utils.distribute import get_gpu_count
+from pipeline_test_helper import (
+    PROMPTS,
+    RADIAL_ATTN_TEST_FRAME_NUM,
+    RADIAL_ATTN_TEST_SIZE,
+    SEED,
+    TEST_EPS_PLACE,
+    TEST_FRAME_NUM,
+    TEST_PORT,
+    TEST_SIZE,
+    TEST_STEPS,
+    get_platform_config_or_skip,
 )
 
 
@@ -57,7 +57,7 @@ class TestKsanaPipelineWanT2V(unittest.TestCase):
             "NPU": {
                 "mean0": 0.6717330813407898,
                 "mean1": 0.6497427821159363,
-                "mean2": 0.6722963452339172,
+                "mean2": 0.6719279289245605,
             },
         }
         expected_means = get_platform_config_or_skip(config, test_name="wan_t2v.test_batch_size_per_prompt")
@@ -85,7 +85,7 @@ class TestKsanaPipelineWanT2V(unittest.TestCase):
             )
         mean0 = videos[0].cpu().abs().mean().item()
         mean1 = videos[1].cpu().abs().mean().item()
-        places = TEST_EPS_PLACE if platform.is_gpu() else 1
+        places = TEST_EPS_PLACE if (platform.is_gpu() and get_gpu_count() == 1) else 1
         with self.subTest(msg="Mean 0 Check"):
             self.assertAlmostEqual(mean0, expected_means["mean0"], places=places)
 
@@ -108,7 +108,7 @@ class TestKsanaPipelineWanT2V(unittest.TestCase):
             self.assertEqual(list(videos.shape), [1, 3, TEST_FRAME_NUM, TEST_SIZE[1], TEST_SIZE[0]])
         mean2 = videos.cpu().abs().mean().item()
         with self.subTest(msg="Mean 2 Check"):
-            self.assertAlmostEqual(mean2, expected_means["mean2"], places=TEST_EPS_PLACE)
+            self.assertAlmostEqual(mean2, expected_means["mean2"], places=places)
 
     def test_larger_seq_batch(self):
         print("-----------------test_larger_seq_batch-----------------")

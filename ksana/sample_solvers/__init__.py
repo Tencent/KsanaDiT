@@ -54,19 +54,6 @@ def get_sample_scheduler(num_train_timesteps, *, sample_config: KsanaSampleConfi
             sample_scheduler.sigmas = torch.tensor(sigmas, device=device, dtype=torch.float32)
             sample_scheduler.timesteps = (sample_scheduler.sigmas[:-1] * num_train_timesteps).to(torch.int64)
             sample_scheduler.num_inference_steps = len(sample_scheduler.timesteps)
-    # elif sample_solver == KsanaSolverType.DPM_PLUS_PLUS:
-    #     raise RuntimeError("Double shift operation may have issues; please check.")
-    #     sample_scheduler = FlowDPMSolverMultistepScheduler(
-    #         num_train_timesteps=num_train_timesteps, shift=1, use_dynamic_shifting=False
-    #     )
-    #     if sigmas is None:
-    #         sampling_sigmas = get_sampling_sigmas(sampling_steps, shift, denoise)
-    #         retrieve_timesteps(sample_scheduler, device=device, sigmas=sampling_sigmas)
-    #     else:
-    #         sample_scheduler.sigmas = sigmas.to(device)
-    #         sample_scheduler.timesteps = (sample_scheduler.sigmas[:-1]
-    # * num_train_timesteps).to(torch.int64).to(device)
-    #         sample_scheduler.num_inference_steps = len(sample_scheduler.timesteps)
     elif sample_solver == KsanaSolverType.DPM_PLUS_PLUS_SDE:
         algorithm_type = "sde-dpmsolver++"
         sample_scheduler = FlowDPMSolverMultistepScheduler(

@@ -33,8 +33,6 @@ class KsanaVaeDecoder(KsanaRunnerUnit):
         offload_device=None,
         with_end_image: bool = False,
     ):
-        if local_rank != 0:
-            return None
         if vae_model.device != device:
             vae_model.to(device)
 

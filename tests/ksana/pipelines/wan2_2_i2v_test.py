@@ -98,7 +98,7 @@ class TestKsanaPipelineWanI2V(unittest.TestCase):
         mean2 = videos[1].cpu().abs().mean().item()
         with self.subTest(msg="bs 2 Shape Check"):
             self.assertEqual(list(videos.shape), [2, 3, TEST_FRAME_NUM, 576, 576])
-        places = TEST_EPS_PLACE if platform.is_gpu() else 1
+        places = TEST_EPS_PLACE if (platform.is_gpu() and get_gpu_count() == 1) else 1
         with self.subTest(msg="Mean 0 Check"):
             self.assertAlmostEqual(mean0, expected_means["mean0"], places=places)
 

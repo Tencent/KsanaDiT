@@ -15,9 +15,8 @@
 import unittest
 
 import torch
-from pipeline_test_helper import get_platform_config_or_skip
-
 from ksana import KsanaPipeline
+from ksana.accelerator import platform
 from ksana.config import (
     KsanaAttentionBackend,
     KsanaAttentionConfig,
@@ -26,6 +25,8 @@ from ksana.config import (
     KsanaSampleConfig,
     KsanaSolverType,
 )
+from ksana.utils.distribute import get_gpu_count
+from pipeline_test_helper import get_platform_config_or_skip
 
 prompts = [
     "a cute anime girl with massive fennec ears and a big fluffy tail "
@@ -66,12 +67,14 @@ class TestKsanaPipelineWanVace(unittest.TestCase):
         name = "wan2_1_vace.test_laser_attn"
         model_config = KsanaModelConfig(attention_config=KsanaAttentionConfig(KsanaAttentionBackend.LASER_ATTN))
         result_config = {
-            "NPU": {"mean0": 0.7870979},
+            "NPU": {"mean0": 0.7870979905128479},
         }
         self._run_test(model_config, result_config, name)
 
     def _run_test(self, model_config, config, test_name):
         print(f"-----------------wan2.1 vace {test_name}-----------------")
+        # NOTE: gpu多卡因为vae paralle导致和单卡输出有差异。
+        places = TEST_EPS_PLACE if (platform.is_gpu() and get_gpu_count() == 1) else 2
         expected = get_platform_config_or_skip(config, test_name=test_name)
         pipeline = KsanaPipeline.from_models("./Wan2.1-VACE-14B", model_config=model_config)
         video = pipeline.generate(
@@ -93,7 +96,7 @@ class TestKsanaPipelineWanVace(unittest.TestCase):
         )
         self._assert_video_tensor_ok(video)
         mean = video.detach().float().abs().mean().item()
-        self.assertAlmostEqual(mean, expected["mean0"], places=TEST_EPS_PLACE)
+        self.assertAlmostEqual(mean, expected["mean0"], places=places)
 
 
 if __name__ == "__main__":
