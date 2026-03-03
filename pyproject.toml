@@ -39,6 +39,7 @@ Icon = ""
 dev = ["pytest>=6.0", "black>=21.0", "pyinstrument>=5.1.1", "pre-commit>=4.0.0"]
 gpu = ["xformers >= 0.0.29", "flash_attn >=2.6.0", "triton >= 3.2.0"]
 npu = []
+xpu = []
 
 [project.scripts]  # 命令行工具
 mycli = "my_package.cli:main"

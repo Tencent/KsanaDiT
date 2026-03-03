@@ -133,6 +133,7 @@ class KsanaExecutor(ABC):
         vae_encoder = KsanaUnitFactory.create(KsanaUnitType.ENCODER, model_key)
         return vae_encoder.run(vae_model, device=self.device, **kwargs)
 
+    @time_range
     def forward_vae_encode_image(self, model_key, **kwargs):
         vae_model = self.model_pool.get_model(model_key)
         vae_encoder = KsanaUnitFactory.create(KsanaUnitType.ENCODER, model_key)

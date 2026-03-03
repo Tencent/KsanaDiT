@@ -36,6 +36,8 @@ WANVIDEO_SLG_ARGS = "SLGARGS"
 WANVIDEO_FETA_ARGS = "FETAARGS"
 WANVIDEO_EXPERIMENTAL_ARGS = "EXPERIMENTALARGS"
 
+KSANA_ANY_TYPE = type("_AnyType", (str,), {"__ne__": lambda self, _: False})("*")
+
 KSANA_CATEGORY_LORA = "ksana/lora"
 KSANA_CATEGORY_CACHE = "ksana/cache"
 KSANA_CATEGORY_VAE = "ksana/vae"

@@ -44,8 +44,8 @@ MEMORY_SAFETY_FACTOR = 0.9
 
 
 def get_available_memory(device: torch.device) -> int:
-    if device is None or device.type != "cuda":
-        return float("inf")
+    if device is None or device.type not in ("cuda", "npu"):
+        return 0.0
     dev = device.index if device.index is not None else torch.cuda.current_device()
 
     stats = torch.cuda.memory_stats(dev)

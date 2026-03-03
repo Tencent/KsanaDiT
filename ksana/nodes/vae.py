@@ -16,6 +16,7 @@ import torch
 from ksana import get_engine
 from ksana.config import KsanaDistributedConfig
 from ksana.utils import get_gpu_count, log
+from ksana.utils.profile import MemoryProfiler
 
 from .output_types import KsanaNodeVAEEncodeOutput
 
@@ -104,6 +105,7 @@ def vae_encode_image(
     image=None,
     batch_size=None,
 ):
+    MemoryProfiler.record_memory("before vae_encode_image")
     if isinstance(image, torch.Tensor):
         image = image.sub(0.5).div(0.5)
     ksana_engine = get_engine()
@@ -113,6 +115,7 @@ def vae_encode_image(
         image=image,
         batch_size=batch_size,
     )
+    MemoryProfiler.record_memory("after vae_encode_image")
     return KsanaNodeVAEEncodeOutput(
         samples=latents,
         with_end_image=False,
@@ -125,6 +128,7 @@ def _comfy_process_output(image):
 
 
 def vae_decode(vae, latent):
+    MemoryProfiler.record_memory("before vae_decode")
     latents = latent.samples
     with_end_image = latent.with_end_image
     ksana_engine = get_engine()
@@ -139,4 +143,5 @@ def vae_decode(vae, latent):
     images = images.cpu().permute(0, 2, 3, 4, 1)
     images = images.reshape(-1, images.shape[-3], images.shape[-2], images.shape[-1])
     log.info(f"images {images.shape}, {images.device}")
+    MemoryProfiler.record_memory("after vae_decode")
     return _comfy_process_output(images)

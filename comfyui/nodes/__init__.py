@@ -25,6 +25,7 @@ from .cache import (
 )
 from .converter import KsanaTextEmbConverterNode
 from .debug import KsanaDebugNode
+from .empty_torch_cache import KsanaEmptyTorchCacheNode
 from .generator import KsanaGeneratorNode
 from .lora import KsanaLoraCombineNode, KsanaLoraSelectMultiNode, KsanaLoraSelectNode
 from .model_loader import KsanaModelLoaderNode, KsanaVaceModelSelectNode
@@ -68,6 +69,7 @@ NODE_CLASS_MAPPINGS = {
     "KsanaExperimentalArgsNode": KsanaExperimentalArgsNode,
     "KsanaSageSLAConfigNode": KsanaSageSLAConfigNode,
     "KsanaTextEmbConverterNode": KsanaTextEmbConverterNode,
+    "KsanaEmptyTorchCacheNode": KsanaEmptyTorchCacheNode,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -100,6 +102,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "KsanaExperimentalArgsNode": "KsanaDit Experimental Args",
     "KsanaSageSLAConfigNode": "KsanaDit SageSLAttentionConfig",
     "KsanaTextEmbConverterNode": "KsanaDit TextEmbConverter",
+    "KsanaEmptyTorchCacheNode": "KsanaDit Empty Torch Cache",
 }
 
 # WEB_DIRECTORY = "./web"

@@ -28,9 +28,14 @@ def is_npu() -> bool:
     return shutil.which("npu-smi") is not None
 
 
+@cache
+def is_xpu() -> bool:
+    return shutil.which("xpu-smi") is not None
+
+
 def empty_cache() -> None:
-    """清空加速器显存缓存，自动适配 CUDA/NPU 平台。"""
-    if is_gpu():
+    """清空加速器显存缓存，自动适配 CUDA/NPU/XPU 平台。"""
+    if is_gpu() or is_xpu():
         torch.cuda.empty_cache()
         torch.cuda.ipc_collect()
     if is_npu():
