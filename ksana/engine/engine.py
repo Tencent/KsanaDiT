@@ -131,11 +131,45 @@ class KsanaEngine:
         else:
             # ray local device id always be 0
             local_rank_id = 0
-            resources = {"NPU": dist_config.num_gpus} if platform.is_npu() else None
-            ray.init(num_gpus=dist_config.num_gpus, resources=resources)
-            self.executors = [
-                RayKsanaExecutor.remote(local_rank_id, offload_device) for _ in range(dist_config.num_gpus)
-            ]
+
+            # TODO(rockcao): Refactor to unify NPU/GPU initialization logic (extract common code, use strategy pattern)
+            # TODO(rockcao): Add Ray executor tests for distributed ops (all_gather，all_to_all)
+            if platform.is_npu():
+                from ray.util.placement_group import PlacementGroupSchedulingStrategy
+
+                ray.init(resources={"NPU": dist_config.num_gpus})
+                pg = ray.util.placement_group(
+                    [{"NPU": 1.0} for _ in range(dist_config.num_gpus)],
+                    strategy="PACK",
+                )
+                log.info("wait placement group ready")
+                try:
+                    ray.get(pg.ready(), timeout=600)
+                except AttributeError:
+                    # Pre-populate bundle_cache to avoid a protobuf compatibility bug
+                    # in some Ray versions where _get_bundle_cache() fails with
+                    # "AttributeError: 'str' object has no attribute 'DESCRIPTOR'".
+                    # bundle_cache must be a list of resource dicts so that Ray's
+                    # _validate_resource_shape iterates over the dicts, not integer keys.
+                    if pg.bundle_cache is None:
+                        pg.bundle_cache = [{"NPU": 1.0} for _ in range(dist_config.num_gpus)]
+                log.info(f"placement group is ready: {pg}")
+
+                self.executors = []
+                for i in range(dist_config.num_gpus):
+                    strategy = PlacementGroupSchedulingStrategy(
+                        placement_group=pg,
+                        placement_group_bundle_index=i,
+                    )
+                    executor = RayKsanaExecutor.options(
+                        scheduling_strategy=strategy,
+                    ).remote(local_rank_id, offload_device)
+                    self.executors.append(executor)
+            else:
+                ray.init(num_gpus=dist_config.num_gpus)
+                self.executors = [
+                    RayKsanaExecutor.remote(local_rank_id, offload_device) for _ in range(dist_config.num_gpus)
+                ]
             init_futures = []
             # executors is sorted by rank_id
             for rank_id, executor in enumerate(self.executors):

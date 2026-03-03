@@ -23,6 +23,7 @@ dependencies = [
   "omegaconf >= 2.3.0",
   "einops >= 0.8.1",
   "strenum >= 0.4.15",
+  "ray >= 2.54.0"
 ]
 
 [project.urls]

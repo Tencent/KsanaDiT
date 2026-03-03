@@ -20,9 +20,10 @@ from ..accelerator import platform
 from ..config import KsanaDistributedConfig
 from .executor import KsanaExecutor
 
-_ray_options = {"num_gpus": 1}
 if platform.is_npu():
-    _ray_options = {"num_gpus": 1, "resources": {"NPU": 1}}
+    _ray_options = {"num_cpus": 0, "resources": {"NPU": 1}}
+else:
+    _ray_options = {"num_gpus": 1}
 
 
 @ray.remote(**_ray_options)
