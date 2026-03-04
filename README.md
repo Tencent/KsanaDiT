@@ -21,7 +21,7 @@ KsanaDiT is a high-performance inference framework specifically designed for Dif
 - 🚀 **High-Performance Inference**: FP8 quantization, QKV Fuse, Torch Compile, and various attention optimizations
 - 🎯 **Multiple Attention Backends**: SLA Attention, Flash Attention, Sage Attention, Radial Sage Attention, Torch SDPA
 - 🎬 **Multi-Modal Generation**: Text-to-Video (T2V), Image-to-Video (I2V), Video Controllable Editing (Vace), Text-to-Image (T2I)
-- 💾 **Smart Caching**: Built-in caching strategies (DBCache, EasyCache (WIP), MagCache (WIP), TeaCache (WIP), CustomStepCache, HybridCache)
+- 💾 **Smart Caching**: Built-in caching strategies (DBCache, EasyCache, MagCache, TeaCache, CustomStepCache, HybridCache)
 - 🔧 **Flexible Configuration**: LoRA support, multiple samplers (Euler, UniPC, DPM++), custom sigma scheduling
 - 🌐 **Distributed Support**: Single-GPU, multi-GPU (torchrun), Ray distributed inference, Model Pool management
 - 🔌 **ComfyUI Integration**: ComfyUI node support (standalone submodule) for visual workflow design
@@ -43,6 +43,7 @@ KsanaDiT is a high-performance inference framework specifically designed for Dif
 | Model | Type | Parameters | Tasks | Status |
 |-------|------|------------|-------|--------|
 | Qwen-Image | Text-to-Image | 20B | T2I | ✅ |
+| Qwen-Image Edit | Image Editing | 20B | Image Edit | ✅ |
 
 ## 🛠️ Installation
 
@@ -342,7 +343,13 @@ pipeline = KsanaPipeline.from_models(
 
 ### Caching Strategies
 
-EasyCache, MagCache, TeaCache - *Under active optimization*
+| Strategy | Description | Use Case |
+|----------|-------------|----------|
+| TeaCache | Temporal-aware step-level caching | Video generation optimization |
+| MagCache | Adaptive step-level caching | Balanced quality and speed |
+| EasyCache | Lightweight step-level caching without pre-prepared parameters | Fast inference with minimal overhead |
+| DBCache | Block-level caching | Image generation |
+| HybridCache | Step-level + block-level hybrid caching | Maximum acceleration |
 
 ### Samplers
 
@@ -361,13 +368,16 @@ EasyCache, MagCache, TeaCache - *Under active optimization*
 ```bash
 # Log level: debug/info/warn/error
 export KSANA_LOGGER_LEVEL=info
+
 ```
+
 
 ### Model Configuration
 
 The framework supports model parameter configuration via YAML files, located in the [`ksana/settings/`](ksana/settings/) directory:
 
 - [`qwen/t2i_20b.yaml`](ksana/settings/qwen/t2i_20b.yaml) - Qwen image generation model config
+- [`qwen/edit_20b.yaml`](ksana/settings/qwen/edit_20b.yaml) - Qwen image editing model config
 - [`wan/t2v_14b.yaml`](ksana/settings/wan/t2v_14b.yaml) - Wan2.2 T2V model config
 - [`wan/i2v_14b.yaml`](ksana/settings/wan/i2v_14b.yaml) - Wan2.2 I2V model config
 - [`wan/vace_14b.yaml`](ksana/settings/wan/vace_14b.yaml) - Wan2.1 Vace model config
@@ -380,6 +390,7 @@ Complete example code is available in the [`examples/`](examples/) directory:
 - [`examples/wan/wan2_2_i2v.py`](examples/wan/wan2_2_i2v.py) - Image-to-Video example
 - [`examples/wan/wan2_1_vace.py`](examples/wan/wan2_1_vace.py) - Video controllable editing example
 - [`examples/qwen/qwen_image_t2i.py`](examples/qwen/qwen_image_t2i.py) - Text-to-Image example
+- [`examples/qwen/qwen_image_edit.py`](examples/qwen/qwen_image_edit.py) - Image Editing example
 
 ## 🧪 Testing
 
@@ -416,6 +427,10 @@ pre-commit run --all-files
 pytest tests/
 ```
 
+## 📋 Changelog
+
+For a detailed list of changes in each version, see the [CHANGELOG](CHANGELOG.md).
+
 ## 📄 License
 
 This project is licensed under the Apache 2.0 License - see the [LICENSE](LICENSE) file for details.
@@ -439,20 +454,25 @@ This project benefits from the following excellent open-source projects:
 
 ### Completed ✅
 
-- [x] **Multi-Platform Support**: NPU backend support
+- [x] **Multi-Platform Support**: GPU, NPU, XPU backend support
 - [x] **Batch Inference**: Support for batch size > 1, merged cond/uncond
 - [x] **Video Editing**: Wan2.1 Vace video controllable editing
 - [x] **Advanced Samplers**: DPM++, Turbo Diffusion support
 - [x] **Performance Optimization**: QKV Fuse + Dynamic FP8 optimization
 - [x] **Memory Optimization**: Pin Manager to resolve OOM issues
+- [x] **Smart Caching**: MagCache, TeaCache, EasyCache strategies
+- [x] **Image Editing**: Qwen Image Edit model support
+- [x] **VAE Parallelism**: Multi-GPU VAE decoding
+- [x] **Monitoring**: Inference metrics reporting
 
 ### In Progress 🚧
 
-- [ ] Support for more generation models (Qwen Image Edit, Z-Image, Hunyuan, etc.)
+- [ ] Support for more generation models (Z-Image, Hunyuan, etc.)
 - [ ] Memory optimization for longer video generation
-- [ ] Additional caching strategies
+- [ ] Cache strategy performance tuning
 - [ ] Model quantization toolchain
-- [ ] Support for more hardware backends
+- [ ] XPU full feature support optimization
+
 
 ---
 
