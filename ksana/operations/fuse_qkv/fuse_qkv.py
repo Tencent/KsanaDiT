@@ -34,6 +34,8 @@ MODEL_QKV_PATTERNS = {
 
 
 def should_use_qkv_fusion(operations):
+    # TODO(jasonbsu): enable qkv fusion globally after solve OOM issues in an elegant way
+    return False  # FORCE DISABLE QKV FUSION GLOBALLY
     if operations is None:
         return True
     linear_backend = getattr(operations, "linear_backend", None)

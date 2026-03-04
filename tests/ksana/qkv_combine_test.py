@@ -19,12 +19,15 @@ from pathlib import Path
 
 import torch
 import torch.nn as nn
+
 from ksana.accelerator import platform
+from ksana.operations.fuse_qkv.fuse_qkv import should_use_qkv_fusion
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from ksana.operations.fuse_qkv import QKVProjectionMixin
 
 
+@unittest.skipIf(not should_use_qkv_fusion(None), "QKV fusion is globally disabled (should_use_qkv_fusion=False)")
 class TestQKVProjectionMixinPerformance(unittest.TestCase):
     def _run_mixin_performance_test(
         self,
