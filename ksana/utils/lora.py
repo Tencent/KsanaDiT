@@ -74,12 +74,28 @@ def model_safe_downcast(
     return model
 
 
-def build_lora_names(key, lora_down_key, lora_up_key, is_native_weight):
+_LORA_SUFFIX_PATTERNS = (
+    # Comfy/PEFT regular format
+    (".lora_down.weight", ".lora_up.weight"),
+    # Diffusers format used by many Qwen LoRAs
+    (".lora_A.weight", ".lora_B.weight"),
+)
+
+
+def _resolve_lora_pair(weight_key: str, lora_sd: dict, is_native_weight: bool):
     base = "diffusion_model." if is_native_weight else ""
-    lora_down = base + key.replace(".weight", lora_down_key)
-    lora_up = base + key.replace(".weight", lora_up_key)
-    lora_alpha = base + key.replace(".weight", ".alpha")
-    return lora_down, lora_up, lora_alpha
+    for down_suffix, up_suffix in _LORA_SUFFIX_PATTERNS:
+        down_key = base + weight_key.replace(".weight", down_suffix)
+        up_key = base + weight_key.replace(".weight", up_suffix)
+        if down_key in lora_sd and up_key in lora_sd:
+            alpha_key = None
+            for alpha_suffix in (".alpha", ".lora_alpha"):
+                candidate = base + weight_key.replace(".weight", alpha_suffix)
+                if candidate in lora_sd:
+                    alpha_key = candidate
+                    break
+            return down_key, up_key, alpha_key
+    return None
 
 
 def get_weight_scale(model_sd, weight_name: str, device=None):
@@ -109,41 +125,56 @@ def merge_lora_weight(
     model_sd: dict,
     lora_sd: dict,
     run_dtype: torch.dtype,
-    lora_down_key: str = ".lora_down.weight",
-    lora_up_key: str = ".lora_up.weight",
     strength: float = 1.0,
 ):
-    is_native_weight = any("diffusion_model." in key for key in lora_sd)
+    if strength == 0:
+        log.warning("lora strength is 0, skipping merge")
+        return model_sd
+
     merged_cnt = 0
+    is_native_weight = any("diffusion_model." in key for key in lora_sd)
     for key, value in model_sd.items():
-        lora_down_name, lora_up_name, lora_alpha_name = build_lora_names(
-            key, lora_down_key, lora_up_key, is_native_weight
-        )
-        if lora_down_name in lora_sd:
+        if not key.endswith(".weight"):
+            continue
+        resolved = _resolve_lora_pair(key, lora_sd, is_native_weight)
+        if resolved is not None:
+            lora_down_name, lora_up_name, lora_alpha_name = resolved
             lora_down = lora_sd[lora_down_name]
             lora_up = lora_sd[lora_up_name]
 
-            if lora_alpha_name in lora_sd:
+            if lora_alpha_name is not None:
                 rank = lora_down.shape[0]
                 lora_alpha = float(lora_sd[lora_alpha_name])
                 scaling_factor = lora_alpha / rank
             else:
                 scaling_factor = 1.0
 
-            delta_w_ = strength * scaling_factor * torch.matmul(lora_up, lora_down)
+            lora_down_f32 = lora_down.to(dtype=torch.float32)
+            lora_up_f32 = lora_up.to(dtype=torch.float32)
+            delta_w_ = strength * scaling_factor * torch.matmul(lora_up_f32, lora_down_f32)
 
             # Reuse tensor cache to reduce memory usage
             temp = torch.empty_like(value, dtype=torch.float32)
             if value.dtype in [torch.float8_e4m3fn, torch.float8_e5m2]:
-                # FP8 类型需要先转换为 float32 再计算
+                # FP8 权重：反量化→合并→按运行精度（如 bfloat16）存储
+                # 必须替换字典条目，而非拷贝回 FP8 存储
+                # 因 FP8 的 3 位尾数会在重量化时丢失微小的 LoRA 增量
                 scale = get_weight_scale(model_sd, key, device=value.device)
                 temp.copy_(value.data).mul_(scale.to(dtype=torch.float32)).add_(delta_w_)
-                value.data.copy_(temp.to(run_dtype))
+                model_sd[key] = temp.to(run_dtype)
             else:
                 temp.copy_(value.data).add_(delta_w_)
-                value.data.copy_(temp.to(run_dtype))
+                model_sd[key] = temp.to(run_dtype)
             merged_cnt += 1
-    log.info(f"merged {merged_cnt} lora weights")
+
+    if merged_cnt > 0:
+        log.info(f"merged {merged_cnt} lora weights")
+    else:
+        sample_keys = list(lora_sd.keys())[:5]
+        log.warning(
+            f"merged 0 lora weights. "
+            f"lora keys may be incompatible with model weights. sample_lora_keys={sample_keys}"
+        )
     return model_sd
 
 
