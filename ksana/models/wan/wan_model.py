@@ -6,6 +6,7 @@ import torch.nn as nn
 from diffusers.configuration_utils import ConfigMixin, register_to_config
 from diffusers.models.modeling_utils import ModelMixin
 from einops import rearrange
+
 from ksana.accelerator import platform
 from ksana.cache import KsanaHybridCache
 from ksana.config import KsanaFETAConfig, KsanaSLGConfig
@@ -537,6 +538,7 @@ class WanModel(ModelMixin, ConfigMixin):
         "window_size",
     ]
     _no_split_modules = ["WanAttentionBlock"]
+    _compilable_block_attrs = ["blocks"]
 
     @register_to_config
     def __init__(
@@ -1051,6 +1053,7 @@ class WanModel(ModelMixin, ConfigMixin):
 
 class VaceWanModel(WanModel):
     _no_split_modules = ["BaseWanVaceAttentionBlock", "VaceWanAttentionBlock"]
+    _compilable_block_attrs = ["blocks", "vace_blocks"]
 
     def __init__(self, **kwargs):
         vace_layers = kwargs.pop("vace_layers", None)

@@ -41,28 +41,39 @@ def apply_torch_compile(model, torch_compile_config=None):
     if torch_compile_config.compile_transformer_blocks_only:
         log.info("Compiling only transformer blocks")
 
-        blocks = getattr(model, "blocks", None)
-        if blocks is None:
-            blocks = getattr(model, "transformer_blocks", None)
+        block_attrs = getattr(model, "_compilable_block_attrs", None)
+        if block_attrs is None:
+            block_attrs = ["blocks", "transformer_blocks"]
+            log.info("Model does not declare _compilable_block_attrs, " f"falling back to default: {block_attrs}")
 
-        if blocks is None:
-            log.warning("No transformer blocks found to compile (checked .blocks and .transformer_blocks)")
+        compiled_total = 0
+        found_any = False
+        for attr_name in block_attrs:
+            blocks = getattr(model, attr_name, None)
+            if blocks is None:
+                continue
+            found_any = True
+            compiled_cnt = 0
+            for i, block in enumerate(blocks):
+                try:
+                    blocks[i] = torch.compile(
+                        block,
+                        backend=torch_compile_config.backend,
+                        mode=torch_compile_config.mode,
+                        fullgraph=torch_compile_config.fullgraph,
+                        dynamic=torch_compile_config.dynamic,
+                    )
+                    compiled_cnt += 1
+                except Exception as e:  # pylint: disable=broad-except
+                    log.warning(f"torch.compile {attr_name}[{i}] failed: {e}")
+            log.info(f"Applied torch.compile to {compiled_cnt}/{len(blocks)} blocks in '{attr_name}'.")
+            compiled_total += compiled_cnt
+
+        if not found_any:
+            log.warning(f"No compilable blocks found (checked attributes: {block_attrs})")
             return model
 
-        compiled_cnt = 0
-        for i, block in enumerate(blocks):
-            try:
-                blocks[i] = torch.compile(
-                    block,
-                    backend=torch_compile_config.backend,
-                    mode=torch_compile_config.mode,
-                    fullgraph=torch_compile_config.fullgraph,
-                    dynamic=torch_compile_config.dynamic,
-                )
-                compiled_cnt += 1
-            except Exception as e:  # pylint: disable=broad-except
-                log.warning(f"torch.compile block[{i}] failed: {e}")
-        log.info(f"Applied torch.compile to {compiled_cnt}/{len(blocks)} transformer blocks.")
+        log.info(f"Total compiled blocks: {compiled_total}.")
     else:
         log.info("Compiling entire model")
         model = torch.compile(

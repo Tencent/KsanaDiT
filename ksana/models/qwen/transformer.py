@@ -23,6 +23,7 @@ from math import prod
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+
 from ksana.utils import gather_forward, get_rank_id
 
 from .attention import (
@@ -242,6 +243,8 @@ class QwenImageTransformerBlock(nn.Module):
 
 
 class QwenImageTransformer2DModel(nn.Module):
+    _compilable_block_attrs = ["transformer_blocks"]
+
     def __init__(
         self,
         patch_size: int = 2,
