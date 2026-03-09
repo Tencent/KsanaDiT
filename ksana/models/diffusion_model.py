@@ -17,6 +17,7 @@ import time
 from abc import abstractmethod
 
 import torch
+
 from ksana.operations.fuse_qkv import remap_state_dict_for_model
 
 from ..accelerator import platform
@@ -36,6 +37,8 @@ if platform.is_npu():
 
 
 class KsanaDiffusionModel(KsanaModel):
+    _PINMEMORY_SUPPORT_DEVICES = ("cuda", "npu")
+
     def __init__(
         self,
         model_key: KsanaModelKey,
@@ -61,7 +64,8 @@ class KsanaDiffusionModel(KsanaModel):
 
         self._pinned_params = {}
         # NOTE: use more memory when using pinned memory.
-        self._use_pinned_memory = platform.is_gpu()
+        # TODO（rockcao): check xpu is supported or not
+        self._use_pinned_memory = platform.is_gpu() or platform.is_npu()
         self._applied_pinned_memory = False
         self._allocated_blocks = []  # 存储从 manager 分配的内存块
         self._pinned_memory_manager = pinned_memory_manager
@@ -254,12 +258,12 @@ class KsanaDiffusionModel(KsanaModel):
         current_device = self.device
 
         # GPU -> CPU: 保存到 pinned memory
-        if current_device.type == "cuda" and device.type == "cpu":
+        if current_device.type in self._PINMEMORY_SUPPORT_DEVICES and device.type == "cpu":
             self._offload_to_pinned_memory()
             if kwargs:
                 self.model.to(**kwargs)
         # CPU -> GPU: 从 pinned memory 加载
-        elif current_device.type == "cpu" and device.type == "cuda":
+        elif current_device.type == "cpu" and device.type in self._PINMEMORY_SUPPORT_DEVICES:
             self._load_from_pinned_memory(device)
             if kwargs:
                 self.model.to(**kwargs)

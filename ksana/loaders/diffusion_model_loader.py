@@ -16,7 +16,6 @@ import os
 
 import torch
 
-from ..accelerator import platform
 from ..config import KsanaLoraConfig, KsanaModelConfig
 from ..memory import PinnedMemoryManager
 from ..models import KsanaModel, KsanaQwenImageModel, KsanaWanModel, KsanaWanVaceModel
@@ -153,8 +152,7 @@ class KsanaDiffusionLoaderUnit(KsanaLoaderUnit):
         self.default_settings = load_default_settings(self.model_key, with_lora=list_of_loras_list is not None)
         device = device or torch.device("cuda")
 
-        # TODO(rockcao): 检查pinned_memory在npu是否可用
-        if KsanaDiffusionLoaderUnit._pinned_memory_manager is None and platform.is_gpu():
+        if KsanaDiffusionLoaderUnit._pinned_memory_manager is None:
             KsanaDiffusionLoaderUnit._pinned_memory_manager = PinnedMemoryManager()
             log.info("Initialized shared PinnedMemoryManager for KsanaDiffusionLoaderUnit")
 
