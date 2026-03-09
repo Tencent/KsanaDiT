@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import gc
 import os
 
 import torch
@@ -183,6 +184,8 @@ class KsanaDiffusionLoaderUnit(KsanaLoaderUnit):
                 linear_backend=model_config.linear_backend,
                 rms_dtype=model_config.rms_dtype,
             )
+            # qkv fusion is disabled when loading multiple diffusion models(like high + low) due to RAM OOM
+            operations.disable_qkv_fusion = len(load_model_path_or_files) > 1
             log.info(f"loading {self.model_key} to device:{device}, offload_device:{offload_device}")
 
             model.load(
@@ -200,6 +203,10 @@ class KsanaDiffusionLoaderUnit(KsanaLoaderUnit):
                 load_device=device,
                 model_state_dict=model_state_dict,
             )
+            # Free state_dict early to reduce peak memory when loading multiple models(high and low noise models)
+            del model_state_dict
+            gc.collect()
+
             model.apply_torch_compile(model_config.torch_compile_config)
             # Note: apply_pinned_memory must be called after apply_torch_compile
             model.apply_pinned_memory(offload_device)

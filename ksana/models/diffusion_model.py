@@ -22,12 +22,12 @@ from ksana.operations.fuse_qkv import remap_state_dict_for_model
 
 from ..accelerator import platform
 from ..config import KsanaDistributedConfig, KsanaLinearBackend, KsanaModelConfig
-from ..models.model_key import KsanaModelKey
 from ..utils import log, time_range
 from ..utils.load import load_state_dict, replace_key_in_state_dict
 from ..utils.quantize import apply_dynamic_fp8_quant, find_fp8_info_from_state_dict
 from ..utils.torch_compile import apply_torch_compile
 from .base_model import KsanaModel
+from .model_key import KsanaModelKey
 from .qwen import QwenImageTransformer2DModel
 from .wan import VaceWanModel, WanModel
 

@@ -6,7 +6,6 @@ import torch.nn as nn
 from diffusers.configuration_utils import ConfigMixin, register_to_config
 from diffusers.models.modeling_utils import ModelMixin
 from einops import rearrange
-
 from ksana.accelerator import platform
 from ksana.cache import KsanaHybridCache
 from ksana.config import KsanaFETAConfig, KsanaSLGConfig

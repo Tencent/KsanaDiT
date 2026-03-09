@@ -38,6 +38,8 @@ def should_use_qkv_fusion(operations):
     return False  # FORCE DISABLE QKV FUSION GLOBALLY
     if operations is None:
         return True
+    if getattr(operations, "disable_qkv_fusion", False):
+        return False
     linear_backend = getattr(operations, "linear_backend", None)
     if linear_backend is not None:
         from ksana.config import KsanaLinearBackend
@@ -65,24 +67,21 @@ def remap_qkv_weights(
     state_dict,
     patterns,
 ):
-    remapped = state_dict.copy()
-
     for q_suffix, k_suffix, v_suffix, qkv_suffix in patterns:
-        remapped = _apply_pattern(remapped, q_suffix, k_suffix, v_suffix, qkv_suffix)
+        _apply_pattern_inplace(state_dict, q_suffix, k_suffix, v_suffix, qkv_suffix)
 
-    return remapped
+    return state_dict
 
 
-def _apply_pattern(
+def _apply_pattern_inplace(
     state_dict,
     q_suffix,
     k_suffix,
     v_suffix,
     qkv_suffix,
 ):
-    remapped = state_dict.copy()
     q_weight_suffix = q_suffix + ".weight"
-    q_keys = [k for k in state_dict.keys() if k.endswith(q_weight_suffix)]
+    q_keys = [k for k in list(state_dict.keys()) if k.endswith(q_weight_suffix)]
     fused_count = 0
     for q_weight_key in q_keys:
         prefix = q_weight_key[: -len(q_weight_suffix)]
@@ -97,7 +96,7 @@ def _apply_pattern(
         if k_weight_key not in state_dict or v_weight_key not in state_dict:
             continue
 
-        remapped[qkv_weight_key] = torch.cat(
+        state_dict[qkv_weight_key] = torch.cat(
             [
                 state_dict[q_weight_key],
                 state_dict[k_weight_key],
@@ -105,6 +104,9 @@ def _apply_pattern(
             ],
             dim=0,
         )
+        del state_dict[q_weight_key]
+        del state_dict[k_weight_key]
+        del state_dict[v_weight_key]
 
         q_bias_key = prefix + q_suffix + ".bias"
         if q_bias_key in state_dict:
@@ -112,7 +114,7 @@ def _apply_pattern(
             v_bias_key = prefix + v_suffix + ".bias"
             qkv_bias_key = prefix + qkv_suffix + ".bias"
 
-            remapped[qkv_bias_key] = torch.cat(
+            state_dict[qkv_bias_key] = torch.cat(
                 [
                     state_dict[q_bias_key],
                     state_dict[k_bias_key],
@@ -120,12 +122,9 @@ def _apply_pattern(
                 ],
                 dim=0,
             )
-
-            for old_key in [q_bias_key, k_bias_key, v_bias_key]:
-                remapped.pop(old_key, None)
-
-        for old_key in [q_weight_key, k_weight_key, v_weight_key]:
-            remapped.pop(old_key, None)
+            del state_dict[q_bias_key]
+            del state_dict[k_bias_key]
+            del state_dict[v_bias_key]
 
         fused_count += 1
 
@@ -133,8 +132,6 @@ def _apply_pattern(
         log.debug(
             f"QKV fusion: fused {fused_count} layer(s) with pattern {q_suffix}/{k_suffix}/{v_suffix} -> {qkv_suffix}"
         )
-
-    return remapped
 
 
 def model_uses_qkv_fusion(model) -> bool:
