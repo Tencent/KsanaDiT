@@ -143,16 +143,10 @@ class KsanaEngine:
                     strategy="PACK",
                 )
                 log.info("wait placement group ready")
-                try:
-                    ray.get(pg.ready(), timeout=600)
-                except AttributeError:
-                    # Pre-populate bundle_cache to avoid a protobuf compatibility bug
-                    # in some Ray versions where _get_bundle_cache() fails with
-                    # "AttributeError: 'str' object has no attribute 'DESCRIPTOR'".
-                    # bundle_cache must be a list of resource dicts so that Ray's
-                    # _validate_resource_shape iterates over the dicts, not integer keys.
-                    if pg.bundle_cache is None:
-                        pg.bundle_cache = [{"NPU": 1.0} for _ in range(dist_config.num_gpus)]
+                # Pre-populate bundle_cache to avoid a protobuf compatibility bug
+                pg.bundle_cache = [{"NPU": 1.0} for _ in range(dist_config.num_gpus)]
+                ray.get(pg.ready(), timeout=600)
+
                 log.info(f"placement group is ready: {pg}")
 
                 self.executors = []
