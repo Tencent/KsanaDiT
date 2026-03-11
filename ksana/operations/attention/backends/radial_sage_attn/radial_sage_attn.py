@@ -62,7 +62,7 @@ class RadialSageAttentionImpl(KsanaAttentionBackendImpl):
         self.dense_blocks_num = attention_config.dense_blocks_num
         self.dense_attn_steps = attention_config.dense_attn_steps
         self.mask_map = None
-        from ...attention_op import KsanaAttentionOp  # lazy import
+        from ksana.operations.attention.attention_op import KsanaAttentionOp  # lazy import
 
         self.dense_attn = KsanaAttentionOp(
             num_heads,

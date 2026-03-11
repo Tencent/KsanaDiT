@@ -16,7 +16,7 @@ import comfy.model_management as mm
 import folder_paths
 from comfy.utils import ProgressBar
 
-import ksana.nodes as nodes
+import ksana.adapter.comfy as nodes
 from ksana.config import KsanaLinearBackend
 
 

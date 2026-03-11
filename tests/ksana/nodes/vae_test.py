@@ -16,16 +16,17 @@ import os
 import time
 import unittest
 
-import ksana.nodes as nodes
 import torch
 import torch.distributed as dist
-from ksana import get_engine
-from ksana.utils.distribute import get_rank_id
 from nodes_test_helper import (
     COMFY_MODEL_ROOT,
     CURRENT_PLATFORM,
     SEED,
 )
+
+from ksana import get_engine
+from ksana.adapter.comfy import KsanaNodeVAELoader
+from ksana.utils.distribute import get_rank_id
 
 VAE_MODEL_PATH = os.path.join(COMFY_MODEL_ROOT, "VAE", "Wan2.1_VAE.pth")
 
@@ -75,7 +76,7 @@ class TestWan21VAENodeParallel(unittest.TestCase):
         cls.dtype = torch.bfloat16
         # Note: 必须先调用 load()，其内部 get_engine() → KsanaExecutor(device_id=local_rank_id)
         # 会执行 torch.cuda.set_device()，之后 current_device() 才能返回正确的设备 ID
-        cls.vae_model_key = nodes.KsanaNodeVAELoader.load(vae_path=VAE_MODEL_PATH)
+        cls.vae_model_key = KsanaNodeVAELoader.load(vae_path=VAE_MODEL_PATH)
         cls.device = torch.cuda.current_device()
         cls.rank = get_rank_id()
         cls.world_size = dist.get_world_size() if dist.is_initialized() else 1

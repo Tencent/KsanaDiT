@@ -180,7 +180,7 @@ def merge_lora_weight(
 
 @time_range
 def load_state_dict_and_merge_lora(
-    model_path: str, loras_list: list = None, run_dtype: torch.dtype = None, device=None, vace_model: str = None
+    model_path: str, loras_list: list = None, run_dtype: torch.dtype = None, device=None, model_patch_path: str = None
 ):
     state_dict = {}
 
@@ -204,9 +204,9 @@ def load_state_dict_and_merge_lora(
 
     state_dict = load_files_to_state_dict(files, device=device)
 
-    if vace_model:
-        log.info(f"loading vace_model: {vace_model}")
-        state_dict.update(load_file_to_state_dict(vace_model, device=device))
+    if model_patch_path:
+        log.info(f"loading model_patch_path: {model_patch_path}")
+        state_dict.update(load_file_to_state_dict(model_patch_path, device=device))
 
     for lora in loras_list:
         log.info(f"starting to merge lora: {lora.path}")

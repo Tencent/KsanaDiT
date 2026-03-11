@@ -20,7 +20,6 @@ import os
 import time
 import urllib.error
 
-from ksana.accelerator import platform as runtime_platform
 from test_utils import (
     check_media_data,
     connect_websocket,
@@ -30,6 +29,8 @@ from test_utils import (
     submit_workflow,
     wait_for_completion,
 )
+
+from ksana.accelerator import platform as runtime_platform
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
 logger = logging.getLogger(__name__)

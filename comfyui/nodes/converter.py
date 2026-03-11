@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import ksana.nodes as nodes
-from ksana.nodes import (
+import ksana.adapter.comfy as nodes
+from ksana.adapter.comfy import (
     KSANA_CATEGORY_CONVERTER,
     KSANA_TEXT_ENCODE_OUTPUT,
 )

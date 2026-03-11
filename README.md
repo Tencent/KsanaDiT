@@ -136,7 +136,7 @@ git clone https://github.com/Tencent/KsanaDiT.git
 
 # 3. Enter the KsanaDiT directory and install dependencies
 cd KsanaDiT
-./scripts/install_dev.sh
+./scripts/install.sh
 ```
 
 After installation, restart ComfyUI and you will see KsanaDiT-related nodes in the node list. For more ComfyUI usage instructions, refer to [comfyui/README.md](./comfyui/README.md).

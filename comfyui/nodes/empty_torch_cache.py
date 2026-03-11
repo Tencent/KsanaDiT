@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import ksana.nodes as nodes
-from ksana.nodes.types import KSANA_ANY_TYPE
+from ksana.adapter.comfy import ksana_empty_torch_cache
+from ksana.adapter.comfy.types import KSANA_ANY_TYPE
 
 
 class KsanaEmptyTorchCacheNode:
@@ -37,5 +37,5 @@ class KsanaEmptyTorchCacheNode:
     )
 
     def run(self, any):  # pylint: disable=redefined-builtin
-        nodes.ksana_empty_torch_cache()
+        ksana_empty_torch_cache()
         return (any,)

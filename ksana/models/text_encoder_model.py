@@ -16,14 +16,14 @@ import os
 
 import torch
 
-from .base_model import KsanaModel
+from .model_base import ModelBase
 from .model_key import KsanaModelKey
 from .qwen import Qwen2VLTextEncoderModel
 from .qwen.multimodal_text_encoder import Qwen2VLMultimodalTextEncoderModel
 from .wan import T5EncoderModel
 
 
-class KsanaTextEncoderModel(KsanaModel):
+class KsanaTextEncoderModel(ModelBase):
 
     _MAP_KEY_TO_CLASS = {
         KsanaModelKey.T5TextEncoder: T5EncoderModel,

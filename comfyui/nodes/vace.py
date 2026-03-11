@@ -15,8 +15,7 @@
 import torch
 
 from ksana import get_engine
-from ksana.config import KsanaExperimentalConfig, KsanaFETAConfig, KsanaSLGConfig
-from ksana.nodes import (
+from ksana.adapter.comfy import (
     KSANA_EXPERIMENTAL_ARGS,
     KSANA_FETA_ARGS,
     KSANA_SLG_ARGS,
@@ -28,7 +27,8 @@ from ksana.nodes import (
     WANVIDEO_FETA_ARGS,
     WANVIDEO_SLG_ARGS,
 )
-from ksana.nodes.output_types import KsanaNodeVAEEncodeOutput
+from ksana.adapter.comfy.output_types import KsanaNodeVAEEncodeOutput
+from ksana.config import KsanaExperimentalConfig, KsanaFETAConfig, KsanaSLGConfig
 from ksana.utils import common_upscale, get_intermediate_device
 from ksana.utils.logger import log
 from ksana.utils.vace import VAE_STRIDE, latent_process_out
@@ -144,9 +144,14 @@ class KsanaWanVaceToVideoNode:
 
     def _vae_encode(self, vae_key, image):
         """Encode images using KsanaDiT VAE."""
+        from ksana.nodes.core.node_context import KsanaNodeContext
+        from ksana.nodes.core.node_types import KsanaInferNodeType
+
         ksana_engine = get_engine()
-        result = ksana_engine.forward_vae_encode_image(model_key=vae_key, image=image)
-        return result
+        context = KsanaNodeContext(metadata={"image": image})
+        with ksana_engine.tensor_scope():
+            ksana_engine.run_infer_node(KsanaInferNodeType.VAE_ENCODE_IMAGES, vae_key, context)
+            return ksana_engine._get_tensor_from_pool("image_embeds")  # noqa: SLF001
 
     def encode(
         self,

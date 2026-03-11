@@ -29,7 +29,6 @@ class KsanaUnit(ABC):
 
 
 class KsanaUnitType(Enum):
-    LOADER = "loader"
     ENCODER = "encoder"
     DECODER = "decoder"
     GENERATOR = "generator"

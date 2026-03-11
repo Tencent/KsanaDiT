@@ -56,8 +56,7 @@ class TestLinearForAllModels(unittest.TestCase):
                     print(f"-----------------skip test {model_name} {linear_backend} -----------------")
                     continue
                 print(f"-----------------test {model_name} {linear_backend} -----------------")
-                with self.subTest(msg=f"test {model_name} with {linear_backend}"):
-                    self.run_once(model_name, img_shape, text_shape, expected_model_key, linear_backend)
+                self.run_once(model_name, img_shape, text_shape, expected_model_key, linear_backend)
 
 
 if __name__ == "__main__":

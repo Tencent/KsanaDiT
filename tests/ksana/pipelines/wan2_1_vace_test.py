@@ -15,6 +15,8 @@
 import unittest
 
 import torch
+from pipeline_test_helper import get_platform_config_or_skip
+
 from ksana import KsanaPipeline
 from ksana.accelerator import platform
 from ksana.config import (
@@ -26,7 +28,6 @@ from ksana.config import (
     KsanaSolverType,
 )
 from ksana.utils.distribute import get_gpu_count
-from pipeline_test_helper import get_platform_config_or_skip
 
 prompts = [
     "a cute anime girl with massive fennec ears and a big fluffy tail "

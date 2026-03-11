@@ -26,7 +26,7 @@ from ..utils import log, time_range
 from ..utils.load import load_state_dict, replace_key_in_state_dict
 from ..utils.quantize import apply_dynamic_fp8_quant, find_fp8_info_from_state_dict
 from ..utils.torch_compile import apply_torch_compile
-from .base_model import KsanaModel
+from .model_base import ModelBase
 from .model_key import KsanaModelKey
 from .qwen import QwenImageTransformer2DModel
 from .wan import VaceWanModel, WanModel
@@ -36,7 +36,7 @@ if platform.is_npu():
     from torch_npu.contrib import transfer_to_npu  # pylint: disable=unused-import # noqa: F401
 
 
-class KsanaDiffusionModel(KsanaModel):
+class KsanaDiffusionModel(ModelBase):
     _PINMEMORY_SUPPORT_DEVICES = ("cuda", "npu")
 
     def __init__(
@@ -118,8 +118,6 @@ class KsanaDiffusionModel(KsanaModel):
         element_size = torch.tensor([], dtype=dtype).element_size()
         memory_bytes = total_elements * element_size
         memory_gb = memory_bytes / 1024**3
-
-        log.info(f"Allocating {dtype} pinned buffer: {total_elements} elements ({memory_gb:.2f} GB)")
 
         # 从 manager 分配初始内存块（不再传递 dtype）
         blocks = self._pinned_memory_manager.allocate_blocks(total_size_bytes=memory_bytes)
@@ -224,14 +222,10 @@ class KsanaDiffusionModel(KsanaModel):
 
         log.debug(f"{cnt} parameters migrated to pinned memory")
 
-    def __del__(self):
-        """析构函数：释放分配的内存块"""
-        self._release_pinned_memory()
-
-    def _release_pinned_memory(self):
+    def release_pinned_memory(self):
         """释放从 manager 分配的内存块"""
+        log.info(f"Releasing {len(self._allocated_blocks)} pinned memory blocks")
         if self._allocated_blocks:
-            log.info(f"Releasing {len(self._allocated_blocks)} pinned memory blocks")
             self._pinned_memory_manager.release_blocks(self._allocated_blocks)
             self._allocated_blocks.clear()
 
@@ -323,7 +317,6 @@ class KsanaDiffusionModel(KsanaModel):
     def forward(self, *args, **kwargs):
         return self.model(*args, **kwargs)
 
-    @time_range
     def load_state_dict(self, model_state_dict, strict=False):
         model_state_dict = remap_state_dict_for_model(self.model, model_state_dict, self.model_key.name)
         load_state_dict(self.model, model_state_dict, strict=strict)

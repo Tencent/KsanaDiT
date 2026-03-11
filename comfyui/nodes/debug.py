@@ -14,7 +14,7 @@
 
 from comfy.comfy_types.node_typing import IO
 
-from ksana.nodes import KSANA_CATEGORY_UTILS
+from ksana.adapter.comfy import KSANA_CATEGORY_UTILS
 from ksana.utils import print_recursive
 
 

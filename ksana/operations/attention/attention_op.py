@@ -16,8 +16,8 @@ import torch
 import torch.nn as nn
 
 from ksana.config import KsanaAttentionConfig
+from ksana.utils.logger import log
 
-from ...utils.logger import log
 from .backends import KsanaAttentionBackendImpl, get_attention_backend_impl
 
 

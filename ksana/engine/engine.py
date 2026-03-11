@@ -15,6 +15,7 @@
 import atexit
 import functools
 import threading
+from contextlib import contextmanager
 
 import ray
 import torch.distributed as dist
@@ -80,6 +81,7 @@ class KsanaEngine:
         self.num_gpus = dist_config.num_gpus
         self._is_ray = False
         self._cleaned_up = False
+        self._tensor_scope_depth = 0
         self.init_executors(dist_config=dist_config, offload_device=offload_device)
         if _register_atexit:
             atexit.register(self.cleanup_distributed)
@@ -186,6 +188,7 @@ class KsanaEngine:
         RANK_0_ID = 0  # pylint: disable=invalid-name
         return func_res[RANK_0_ID]
 
+    # TODO: need remove or modify auto_dispatch
     @staticmethod
     def auto_dispatch(func):
         """auto dispatch the function to ray executors or local executor"""
@@ -235,42 +238,13 @@ class KsanaEngine:
 
         return wrapper
 
-    @auto_dispatch
-    def load_models(self, *args, **kwargs):
-        pass
+    # ── @auto_dispatch 方法：通过 Executor 同名方法分发 ─────────────────────
 
     @auto_dispatch
     def clear_models(self, *args, **kwargs):
         pass
 
-    @auto_dispatch
-    def load_diffusion_model(self, *args, **kwargs):
-        return {self.RAY_KEY_REMOVE_KWARGS: "comfy_bar_callback"}
-
-    @auto_dispatch
-    def load_text_encoder(self, *args, **kwargs):
-        pass
-
-    @auto_dispatch
-    def load_vae_model(self, *args, **kwargs):
-        pass
-
-    @auto_dispatch
-    def forward_generator(self, *args, **kwargs):
-        return {self.RAY_KEY_REMOVE_KWARGS: "comfy_bar_callback"}
-
-    @auto_dispatch
-    def forward_vae_encode(self, *args, **kwargs):
-        pass
-
-    @auto_dispatch
-    def forward_vae_encode_image(self, *args, **kwargs):
-        pass
-
-    @auto_dispatch
-    def forward_vae_decode(self, *args, **kwargs):
-        pass
-
+    # TODO: To be remove
     def broadcast_input_args(self, prompts, *, seed, prompts_negative=None, **kwargs):
         if dist.is_initialized():
             dist.broadcast_object_list([prompts, seed], src=0)
@@ -288,11 +262,92 @@ class KsanaEngine:
 
         return {self.FUNC_KEY_PRE_ALL: pre_func_all, self.FUNC_KEY_POST_RAY_OUTPUTS: self._get_rank_0_result}
 
+    # TODO: remove above
+
+    # ── V5 Node 架构：统一入口 ──────────────────────────────────────────
+
+    def run_loader_node(self, model_key, **kwargs):
+        """统一的模型加载入口 — 分发到所有 Executor。"""
+        if self.is_ray:
+            ray.get([ex.run_loader_node.remote(model_key, **kwargs) for ex in self.executors])
+        else:
+            self.executors.run_loader_node(model_key, **kwargs)
+
+    def run_infer_node(self, infer_node_type, model_key, context):
+        """统一的前向推理入口 — 分发到所有 Executor，结果写入各自 tensor_pool。
+
+        必须在 tensor_scope() 内调用，否则抛出 RuntimeError。
+        """
+        if self._tensor_scope_depth <= 0:
+            raise RuntimeError(
+                "run_infer_node() must be called inside tensor_scope(). "
+                "Wrap the call with `with engine.tensor_scope(): ...` to ensure "
+                "tensors are auto-cleared and GPU memory is not leaked."
+            )
+        if self.is_ray:
+            futures = [ex.run_infer_node.remote(infer_node_type, model_key, context) for ex in self.executors]
+            ray.get(futures)
+        else:
+            self.executors.run_infer_node(infer_node_type, model_key, context)
+
+    @contextmanager
+    def tensor_scope(self):
+        """上下文管理器，标记 tensor 生命周期的作用域。
+
+        支持嵌套：只有最外层 scope 退出时才清理 tensor_pool。
+        """
+        self._tensor_scope_depth += 1
+        try:
+            yield
+        finally:
+            self._tensor_scope_depth -= 1
+            if self._tensor_scope_depth == 0:
+                self._clear_tensor_pools()
+
+    def _clear_tensor_pools(self):
+        """清理所有 Executor 的 tensor pool。"""
+        if self.is_ray:
+            ray.get([ex.clear_tensor_pool.remote() for ex in self.executors])
+        else:
+            self.executors.clear_tensor_pool()
+
+    def put_tensors(self, **tensors):
+        """将 tensor 写入所有 Executor 的 tensor_pool。
+
+        用于外部（如 ComfyUI adapter）向 Node 传递输入数据。
+        """
+        tensors = {k: v for k, v in tensors.items() if v is not None}
+        if not tensors:
+            return
+        if self.is_ray:
+            futures = [ex.put_tensors.remote(**tensors) for ex in self.executors]
+            ray.get(futures)
+        else:
+            for key, tensor in tensors.items():
+                self.executors.tensor_pool.put(key, tensor)
+
+    def get_tensor(self, key):
+        """从 rank 0 Executor 的 tensor_pool 读取 tensor。
+
+        所有最终输出都在 rank 0 上，自动从 rank 0 取，无需指定 rank。
+        """
+        if self.is_ray:
+            return ray.get(self.executors[0].get_tensor.remote(key))
+        return self.executors.tensor_pool.get(key)
+
+    # ── 清理 ───────────────────────────────────────────────────────────
+
     def cleanup_distributed(self):
         """Tear down dist process-group and Ray runtime. Idempotent — safe to call multiple times."""
         if self._cleaned_up:
             return
         self._cleaned_up = True
+
+        # 清理模型和显存（必须在 ray.shutdown 之前，否则 Ray actor 已销毁无法调用）
+        try:
+            self.clear_models()
+        except Exception:  # pylint: disable=broad-except
+            log.warning("clear_models failed during cleanup_distributed", exc_info=True)
 
         if dist.is_initialized():
             dist.barrier()

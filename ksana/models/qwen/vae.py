@@ -22,8 +22,8 @@ import torch.cuda.amp as amp
 import torch.nn as nn
 import torch.nn.functional as F
 
-from ...utils.load import load_state_dict
-from ...utils.lora import load_state_dict_and_merge_lora
+from ksana.utils.load import load_state_dict
+from ksana.utils.lora import load_state_dict_and_merge_lora
 
 CACHE_T = 2
 

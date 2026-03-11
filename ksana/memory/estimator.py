@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import torch
+
 from ksana.models.model_key import KsanaModelKey
 
 # TODO: memory management

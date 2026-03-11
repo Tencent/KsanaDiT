@@ -75,8 +75,7 @@ class TestLorasForModels(unittest.TestCase):
         for model_name, img_shape, text_shape, expected_model_key, loras in TEST_MODELS:
             for lora_config in loras:
                 print(f"-----------------test {model_name} {lora_config} -----------------")
-                with self.subTest(msg=f"test {model_name} with {lora_config}"):
-                    self.run_once(model_name, img_shape, text_shape, expected_model_key, lora_config)
+                self.run_once(model_name, img_shape, text_shape, expected_model_key, lora_config)
 
 
 if __name__ == "__main__":

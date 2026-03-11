@@ -12,7 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from .distributed_group import DistributedGroupManager
 from .executor import KsanaExecutor
 from .ray_executor import RayKsanaExecutor
 
-__all__ = ["KsanaExecutor", "RayKsanaExecutor"]
+__all__ = [
+    "DistributedGroupManager",
+    "KsanaExecutor",
+    "RayKsanaExecutor",
+]

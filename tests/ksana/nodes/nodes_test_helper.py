@@ -18,9 +18,14 @@ from unittest import SkipTest
 
 import torch
 
-import ksana.nodes as nodes
 from ksana import KsanaAttentionBackend, KsanaAttentionConfig, KsanaLinearBackend, KsanaRadialSageAttentionConfig
 from ksana.accelerator import platform
+from ksana.adapter.comfy import (
+    KsanaNodeModelLoader,
+    KsanaNodeVAEEncodeOutput,
+    build_list_of_lora_config,
+    generate,
+)
 from ksana.models.model_key import KsanaModelKey
 
 IMG_SHAPE_T2V = [1, 16, 16, 32, 32]
@@ -126,11 +131,11 @@ def run_load_and_generate(model_path, image_latent_shape, text_shape, steps, **k
         attention_config = KsanaAttentionConfig()
 
     if kwargs.get("lora_config", None) is not None:
-        lora = nodes.build_list_of_lora_config(kwargs["lora_config"])
+        lora = build_list_of_lora_config(kwargs["lora_config"])
     else:
         lora = None
 
-    load_output = nodes.KsanaNodeModelLoader.load(
+    load_output = KsanaNodeModelLoader.load(
         high_noise_model_path=model_path,
         low_noise_model_path=kwargs.get("low_noise_model_path", None),
         attention_config=attention_config,
@@ -140,15 +145,13 @@ def run_load_and_generate(model_path, image_latent_shape, text_shape, steps, **k
         torch_compile_args=kwargs.get("torch_compile_args", None),
     )
 
-    image_latent = torch.zeros(*image_latent_shape, dtype=RUN_DTYPE, device="cpu")
+    image_embeds = torch.zeros(*image_latent_shape, dtype=RUN_DTYPE, device="cpu")
     batch_size_per_prompts = kwargs.get("batch_size_per_prompts", 1)
-    generate_output = nodes.generate(
+    generate_output = generate(
         load_output,
         positive=[[positive_text_embeddings]],
         negative=[[negtive_text_embeddings]],
-        image_embeds=nodes.KsanaNodeVAEEncodeOutput(
-            samples=image_latent, batch_size_per_prompts=batch_size_per_prompts
-        ),
+        image_embeds=KsanaNodeVAEEncodeOutput(samples=image_embeds, batch_size_per_prompts=batch_size_per_prompts),
         steps=steps,
         seed=SEED,
         cache_config=kwargs.get("cache_config", None),

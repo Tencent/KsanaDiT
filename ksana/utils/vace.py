@@ -359,7 +359,6 @@ def extract_vace_from_conditioning(
 
 def build_vace_kwargs(
     control_video_config: KsanaVaceContext | None,
-    noise_shape: tuple,
     device,
     sample_config,
     video_control: KsanaVideoControlConfig | None = None,
@@ -653,7 +652,7 @@ def apply_bidirectional_sampling(
     combine_cond_uncond: bool,
     positive,
     negative,
-    img_latent,
+    image_embeds,
     step_vc: dict,
     exp_config,
     sample_scheduler_flipped,
@@ -675,7 +674,7 @@ def apply_bidirectional_sampling(
         cache=None,  # Don't use cache for flipped pass
         positive=positive,
         negative=negative,
-        img_latent=img_latent,
+        image_embeds=image_embeds,
         **step_vc,
     )
 

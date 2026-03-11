@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# from ..models.model_key import QWEN_IMAGE, WAN2_1, WAN2_2, X2I_TYPES, X2V_TYPES
+from .pipeline_key import KsanaPipelineKey
 from .x2x_pipeline import KsanaPipeline
 
-__all__ = ["KsanaPipeline"]
+__all__ = ["KsanaPipeline", "KsanaPipelineKey"]

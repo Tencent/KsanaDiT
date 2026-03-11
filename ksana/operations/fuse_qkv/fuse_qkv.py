@@ -21,6 +21,7 @@ combined into a single GEMM for better GPU utilization.
 import torch
 
 from ksana.utils.logger import log
+from ksana.utils.profile import time_range
 
 MODEL_QKV_PATTERNS = {
     "wan": [
@@ -147,6 +148,7 @@ def model_uses_qkv_fusion(model) -> bool:
     return False
 
 
+@time_range
 def remap_state_dict_for_model(
     model,
     state_dict,

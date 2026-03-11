@@ -7,7 +7,7 @@ import torch
 from PIL import Image
 from transformers import AutoProcessor, Qwen2_5_VLForConditionalGeneration
 
-from ...utils.media import calculate_aligned_dimensions
+from ksana.utils.media import calculate_aligned_dimensions
 
 
 class Qwen2VLMultimodalTextEncoderModel:

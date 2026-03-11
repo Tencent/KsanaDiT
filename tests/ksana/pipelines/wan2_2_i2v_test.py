@@ -15,6 +15,17 @@
 import unittest
 
 import torch
+from pipeline_test_helper import (
+    PROMPTS,
+    SEED,
+    TEST_EPS_PLACE,
+    TEST_FRAME_NUM,
+    TEST_PORT,
+    TEST_SIZE,
+    TEST_STEPS,
+    get_platform_config_or_skip,
+)
+
 from ksana import KsanaPipeline
 from ksana.accelerator import platform
 from ksana.config import (
@@ -28,16 +39,6 @@ from ksana.config import (
     KsanaSolverType,
 )
 from ksana.utils.distribute import get_gpu_count
-from pipeline_test_helper import (
-    PROMPTS,
-    SEED,
-    TEST_EPS_PLACE,
-    TEST_FRAME_NUM,
-    TEST_PORT,
-    TEST_SIZE,
-    TEST_STEPS,
-    get_platform_config_or_skip,
-)
 
 
 class TestKsanaPipelineWanI2V(unittest.TestCase):

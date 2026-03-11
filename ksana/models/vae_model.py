@@ -23,12 +23,53 @@ from ..utils.logger import log
 from ..utils.media import calculate_aligned_dimensions
 from ..utils.profile import time_range
 from ..utils.vace import init_latent_stats
-from .base_model import KsanaModel
+from .model_base import ModelBase
 from .qwen.vae import KsanaQwenImageVAE
 from .wan import Wan2_1_VAE, Wan2_2_VAE
 
 
-class KsanaVAEModel(KsanaModel):
+def compute_video_latent_shape(
+    z_dim: int,
+    target_f: int,
+    target_h: int,
+    target_w: int,
+    vae_stride: list[int],
+    vae_patch: list[int],
+    img_shape: list[int] | None = None,
+) -> tuple[int, int, int, int]:
+    """根据 VAE 配置计算视频 latent 形状 ``[z_dim, lat_f, lat_h, lat_w]``。
+
+    当提供 *img_shape* ``[bs, 3, ih, iw]`` 时，会按图片宽高比修正 latent 尺寸，
+    使 latent 面积 ≈ ``target_h * target_w / (stride * patch)^2`` 但宽高比与图片一致。
+    """
+    if img_shape is not None:
+        if len(img_shape) != 4 or img_shape[1] != 3:
+            raise ValueError(f"img_shape must be 4D [bs, 3, h, w], got {img_shape}")
+        img_h, img_w = img_shape[2], img_shape[3]
+    else:
+        img_h, img_w = target_h, target_w
+
+    lat_h = round(np.sqrt(target_w * target_h * (img_h / img_w)) // vae_stride[1] // vae_patch[1] * vae_patch[1])
+    lat_w = round(np.sqrt(target_w * target_h * (img_w / img_h)) // vae_stride[2] // vae_patch[2] * vae_patch[2])
+    lat_f = (target_f - 1) // vae_stride[0] + 1
+    return z_dim, lat_f, lat_h, lat_w
+
+
+def compute_image_latent_shape(
+    z_dim: int,
+    target_h: int,
+    target_w: int,
+    vae_scale_factor: int,
+    patch_size: int,
+) -> tuple[int, int, int, int]:
+    """根据 VAE 配置计算图像 latent 形状 ``[z_dim, 1, lat_h, lat_w]``。"""
+    multiple_of = vae_scale_factor * patch_size
+    lat_h = target_h // multiple_of * patch_size
+    lat_w = target_w // multiple_of * patch_size
+    return z_dim, 1, lat_h, lat_w
+
+
+class KsanaVAEModel(ModelBase):
     def __init__(self, model_key: KsanaModelKey, default_settings, device, dtype=torch.float32):
         super().__init__(model_key, default_settings)
         self.device = device
@@ -66,43 +107,15 @@ class KsanaVAEModel(KsanaModel):
     def create_video_latent_shape(
         self, target_f: int, target_h: int, target_w: int, img_shape: list[int] = None, vae_stride=None, vae_patch=None
     ):
-        vae_stride_size = vae_stride or self.vae_stride_size
-        vae_patch_size = vae_patch or self.vae_patch_size
-        if img_shape is not None and (len(img_shape) != 4 or img_shape[1] != 3):
-            raise ValueError(f"video img_shape must be 4D tensor[bs, 3, h, w], but got shape {img_shape}")
-
-        # img: [bs, 3, ih, iw]
-        img_h, img_w = img_shape[2:] if img_shape is not None else (target_h, target_w)
-        lat_h = round(
-            np.sqrt(target_w * target_h * (img_h / img_w))
-            // vae_stride_size[1]
-            // vae_patch_size[1]
-            * vae_patch_size[1]
+        return compute_video_latent_shape(
+            z_dim=self.z_dim,
+            target_f=target_f,
+            target_h=target_h,
+            target_w=target_w,
+            vae_stride=list(vae_stride or self.vae_stride_size),
+            vae_patch=list(vae_patch or self.vae_patch_size),
+            img_shape=img_shape,
         )
-        lat_w = round(
-            np.sqrt(target_w * target_h * (img_w / img_h))
-            // vae_stride_size[2]
-            // vae_patch_size[2]
-            * vae_patch_size[2]
-        )
-        lat_f = (target_f - 1) // vae_stride_size[0] + 1
-
-        if img_shape is not None:
-            if len(img_shape) != 4:
-                raise ValueError(f"img_shape must be 4D but got {img_shape}")
-            img_h, img_w = img_shape[2:]
-        else:
-            img_h, img_w = target_h, target_w
-
-        # img: [bs, 3, ih, iw]
-        lat_h = round(
-            np.sqrt(target_w * target_h * (img_h / img_w)) // vae_stride[1] // vae_patch_size[1] * vae_patch_size[1]
-        )
-        lat_w = round(
-            np.sqrt(target_w * target_h * (img_w / img_h)) // vae_stride[2] // vae_patch_size[2] * vae_patch_size[2]
-        )
-        lat_f = (target_f - 1) // vae_stride[0] + 1
-        return self.z_dim, lat_f, lat_h, lat_w
 
     def forward_encode_image(
         self,
@@ -118,7 +131,7 @@ class KsanaVAEModel(KsanaModel):
             # (N, H, W, C) -> (N, C, H, W)
             image = image.permute(0, 3, 1, 2)
         image = image.unsqueeze(0).permute(0, 2, 1, 3, 4).to(device)
-        image = image * 2.0 - 1.0  # bs, f, c, h, w -> bs, c, f, h, w
+        image = image * 2.0 - 1.0  # bs, f, c, h, w -> bs, c, f, h, w, TODO: magic number
         current_device = self.device
         if current_device != device:
             self.to(device)
@@ -372,7 +385,10 @@ class KsanaQwenVAEModel(KsanaVAEModel):
         vae_stride=None,
         vae_patch=None,
     ):
-        multiple_of = self.vae_scale_factor * self.vae_patch_size
-        latent_h = target_h // multiple_of * self.vae_patch_size
-        latent_w = target_w // multiple_of * self.vae_patch_size
-        return self.z_dim, 1, latent_h, latent_w
+        return compute_image_latent_shape(
+            z_dim=self.z_dim,
+            target_h=target_h,
+            target_w=target_w,
+            vae_scale_factor=self.vae_scale_factor,
+            patch_size=self.vae_patch_size,
+        )

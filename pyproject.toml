@@ -51,7 +51,7 @@ local_scheme = "node-and-date"
 [tool.setuptools.packages.find]  # 包发现规则
 where = ["."]
 exclude = [
-    "tests*", "assets*", "docker*", "docs", "scripts*", "comfyui*", "examples*",
+    "tests*", "assets*", "docker*", "docs", "scripts*", "examples*",
     "comfy_models*", "Wan2.2*", "ai*", "outputs*", "plans*", "prompts*",
 ]
 
@@ -62,3 +62,9 @@ ksana = ["data/*.json"]
 # 自定义构建选项
 [tool.setuptools]
 zip-safe = false  # 禁止以 zip 形式安装
+
+[tool.pytest.ini_options]
+# 根目录有 __init__.py（ComfyUI 入口），默认 prepend 模式会把根目录当作包，
+# 导致 ksana 变成子模块、相对导入全部失败。显式设置 pythonpath 确保 ksana 作为顶层包导入。
+pythonpath = ["."]
+asyncio_mode = "strict"

@@ -105,8 +105,7 @@ class TestCacheAllModels(unittest.TestCase):
                 continue
             for cache_config in CACHE_CONFIGS:
                 print(f"-----------------test {model_name} {cache_config} -----------------")
-                with self.subTest(msg=f"test {model_name} with {cache_config}"):
-                    self.run_once(model_name, img_shape, text_shape, expected_model_key, cache_config)
+                self.run_once(model_name, img_shape, text_shape, expected_model_key, cache_config)
 
 
 class TestWan22T2VCachesRegression(unittest.TestCase):
@@ -118,14 +117,14 @@ class TestWan22T2VCachesRegression(unittest.TestCase):
             if "fp8" in model_name:
                 continue
             for cache_name, cache_config in CACHE_TEST_CONFIGS.items():
+                load_output, gen_output = run_load_and_generate(
+                    os.path.join(COMFY_MODEL_DIFFUSION_ROOT, model_name),
+                    img_shape,
+                    text_shape,
+                    TEST_STEPS,
+                    cache_config=cache_config,
+                )
                 with self.subTest(model=model_name, cache=cache_name):
-                    load_output, gen_output = run_load_and_generate(
-                        os.path.join(COMFY_MODEL_DIFFUSION_ROOT, model_name),
-                        img_shape,
-                        text_shape,
-                        TEST_STEPS,
-                        cache_config=cache_config,
-                    )
                     self.assertEqual(load_output.model, KsanaModelKey.Wan2_2_T2V_14B)
                     samples = gen_output.samples
                     self.assertIsNotNone(samples)

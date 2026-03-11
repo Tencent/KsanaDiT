@@ -17,7 +17,7 @@ import unittest
 import numpy as np
 import torch
 
-from ksana.nodes.output_types import KsanaNodeVAEEncodeOutput
+from ksana.adapter.comfy.output_types import KsanaNodeVAEEncodeOutput
 from ksana.utils.debug import print_recursive
 from ksana.utils.logger import log
 

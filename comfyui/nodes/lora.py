@@ -14,7 +14,7 @@
 
 import folder_paths
 
-from ksana.nodes import KSANA_CATEGORY_LORA, KSANA_LORA, build_list_of_lora_config
+from ksana.adapter.comfy import KSANA_CATEGORY_LORA, KSANA_LORA, build_list_of_lora_config
 
 
 def _get_full_lora_path(lora):

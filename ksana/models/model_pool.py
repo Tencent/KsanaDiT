@@ -16,19 +16,19 @@ import gc
 
 from ..accelerator.platform import empty_cache
 from ..utils.logger import log
-from .base_model import KsanaModel
+from .model_base import ModelBase
 from .model_key import KsanaModelKey
 
 
 class KsanaModelPool:
     def __init__(self):
-        self.loaded_models: dict[KsanaModelKey, KsanaModel] = {}
+        self.loaded_models: dict[KsanaModelKey, ModelBase] = {}
 
-    def update_model(self, model: KsanaModel, allow_exist=False):
+    def update_model(self, model: ModelBase, allow_exist=False):
         model_key = model.model_key
         self.update_model_with_key(model_key=model_key, model=model, allow_exist=allow_exist)
 
-    def update_model_with_key(self, model_key: KsanaModelKey, model: KsanaModel | list[KsanaModel], allow_exist=False):
+    def update_model_with_key(self, model_key: KsanaModelKey, model: ModelBase | list[ModelBase], allow_exist=False):
         """update model with specific key"""
         if model_key in self.loaded_models:
             log.warning(f"model_key {model_key} has been loaded")
@@ -37,13 +37,13 @@ class KsanaModelPool:
         log.info(f"loaded model {model_key}")
         self.loaded_models[model_key] = model
 
-    def update_models(self, model_list: list[KsanaModel], allow_exist=False):
+    def update_models(self, model_list: list[ModelBase], allow_exist=False):
         if not isinstance(model_list, (tuple, list)):
             model_list = [model_list]
         for model in model_list:
             self.update_model(model, allow_exist)
 
-    def get_model(self, model_key: KsanaModelKey) -> KsanaModel:
+    def get_model(self, model_key: KsanaModelKey) -> ModelBase:
         if model_key is None:
             return None
         if model_key not in self.loaded_models:
@@ -51,16 +51,31 @@ class KsanaModelPool:
             raise RuntimeError(f"model_key {model_key} has not been loaded")
         return self.loaded_models.get(model_key)
 
-    def get_models(self, model_key_list: list[KsanaModelKey] | tuple[KsanaModelKey, ...]) -> list[KsanaModel]:
+    def get_models(self, model_key_list: list[KsanaModelKey] | tuple[KsanaModelKey, ...]) -> list[ModelBase]:
         if model_key_list is None:
             return []
         return [self.get_model(model_key) for model_key in model_key_list]
+
+    @staticmethod
+    def _release_model_resources(model):
+        """显式释放模型持有的资源（如 pinned memory），避免依赖 __del__ 析构。"""
+        if model is None:
+            return
+        if isinstance(model, (list, tuple)):
+            for m in model:
+                KsanaModelPool._release_model_resources(m)
+            return
+        log.info("releasing_model_resources")
+        if hasattr(model, "release_pinned_memory") and callable(model.release_pinned_memory):
+            model.release_pinned_memory()
 
     def clear_models(self, model_keys: list[KsanaModelKey] | KsanaModelKey = None):
         """clear models loaded by this executor
         clear all if model_keys is None
         """
         if model_keys is None:
+            for model in self.loaded_models.values():
+                self._release_model_resources(model)
             self.loaded_models.clear()
             self.loaded_models = {}
             gc.collect()
@@ -71,7 +86,13 @@ class KsanaModelPool:
         if not isinstance(model_keys, (list, tuple)):
             model_keys = [model_keys]
         for one_model_key in model_keys:
-            self.loaded_models.pop(one_model_key)
+            if one_model_key not in self.loaded_models:
+                raise KeyError(
+                    f"model_key {one_model_key} not found in loaded_models. "
+                    f"Available keys: {list(self.loaded_models.keys())}"
+                )
+            model = self.loaded_models.pop(one_model_key)
+            self._release_model_resources(model)
             log.info(f"clear {one_model_key}")
         gc.collect()
         empty_cache()

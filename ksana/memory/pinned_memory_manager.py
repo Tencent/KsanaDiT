@@ -19,11 +19,46 @@ Pinned Memory Manager - 管理固定大小的 pinned memory 块
 并在多个模型之间复用这些内存块。
 """
 
+import resource
 import threading
+from pathlib import Path
 
 import torch
 
 from ksana.utils.logger import log
+
+
+# TODO: move to common
+def _read_cgroup_memory():
+    """读取容器/cgroup 内存限制和当前使用量，支持 cgroup v1 和 v2。
+
+    Returns:
+        (limit_bytes, usage_bytes) 或 (None, None) 如果读取失败。
+    """
+    # cgroup v2
+    cg2_max = Path("/sys/fs/cgroup/memory.max")
+    cg2_current = Path("/sys/fs/cgroup/memory.current")
+    if cg2_max.exists() and cg2_current.exists():
+        try:
+            max_text = cg2_max.read_text().strip()
+            limit = None if max_text == "max" else int(max_text)
+            usage = int(cg2_current.read_text().strip())
+            return limit, usage
+        except (OSError, ValueError):
+            pass
+
+    # cgroup v1
+    cg1_limit = Path("/sys/fs/cgroup/memory/memory.limit_in_bytes")
+    cg1_usage = Path("/sys/fs/cgroup/memory/memory.usage_in_bytes")
+    if cg1_limit.exists() and cg1_usage.exists():
+        try:
+            limit = int(cg1_limit.read_text().strip())
+            usage = int(cg1_usage.read_text().strip())
+            return limit, usage
+        except (OSError, ValueError):
+            pass
+
+    return None, None
 
 
 class PinnedMemoryBlock:
@@ -43,17 +78,17 @@ class PinnedMemoryBlock:
         # 使用 uint8 作为底层存储，这样可以被任意 dtype 复用
         # 分配 pinned memory
         self.buffer = torch.empty(size_bytes, dtype=torch.uint8, pin_memory=True)
-        self.is_allocated = False  # 是否已被分配给某个模型
+        self.is_inuse = False  # 是否已被分配给某个模型
 
         log.debug(f"Created PinnedMemoryBlock {block_id}: " f"{size_bytes / 1024**3:.2f} GB (dtype-agnostic)")
 
-    def mark_allocated(self):
+    def mark_inuse(self):
         """标记该块已被分配"""
-        self.is_allocated = True
+        self.is_inuse = True
 
     def mark_free(self):
         """标记该块已被释放"""
-        self.is_allocated = False
+        self.is_inuse = False
 
 
 class PinnedMemoryManager:
@@ -94,31 +129,56 @@ class PinnedMemoryManager:
         log.debug(f"Allocating {num_blocks_needed} blocks for {total_size_bytes / 1024**3:.2f} GB")
 
         with self._allocation_lock:
-            allocated_blocks = []
+            needed_blocks = []
             num_reused = 0
             num_new = 0
 
             # 首先尝试复用已有的空闲块（只检查大小，不检查 dtype）
+            inused_blocks_num = 0
             for block in self._blocks:
-                if not block.is_allocated and block.size_bytes == block_size_bytes:
-                    block.mark_allocated()
-                    allocated_blocks.append(block)
+                if not block.is_inuse and block.size_bytes == block_size_bytes:
+                    block.mark_inuse()
+                    needed_blocks.append(block)
                     num_reused += 1
-                    if len(allocated_blocks) == num_blocks_needed:
+                    if len(needed_blocks) == num_blocks_needed:
                         break
+                else:
+                    inused_blocks_num += 1
 
+            # 打印容器/cgroup 内存使用情况 + 进程 RSS，帮助诊断 OOM
+            try:
+                cg_limit, cg_usage = _read_cgroup_memory()
+                rss_gb = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / (1024**2)  # KB -> GB
+
+                if cg_limit is not None and cg_usage is not None:
+                    cg_avail = cg_limit - cg_usage
+                log.info(
+                    f"cgroup memory: limit {cg_limit / 1024**3:.2f} GB, "
+                    f"used {cg_usage / 1024**3:.2f} GB, available {cg_avail / 1024**3:.2f} GB, "
+                    f"processing RSS(max): {rss_gb:.2f} GB"
+                )
+            except Exception:  # pylint: disable=broad-except
+                pass
+
+            already_has_blocks = len(self._blocks)
             # 如果空闲块不够，创建新的块
-            while len(allocated_blocks) < num_blocks_needed:
+            while len(needed_blocks) < num_blocks_needed:
                 new_block = PinnedMemoryBlock(block_id=self._block_counter, size_bytes=block_size_bytes)
                 self._block_counter += 1
-                new_block.mark_allocated()
+                new_block.mark_inuse()
                 self._blocks.append(new_block)
-                allocated_blocks.append(new_block)
+                needed_blocks.append(new_block)
                 num_new += 1
 
-            log.debug(f"Allocated {len(allocated_blocks)} blocks " f"(reused: {num_reused}, new: {num_new})")
+            log.info(
+                f"About to need {total_size_bytes/1024**3:.2f} GB memory, "
+                f"needs total {len(needed_blocks)} blocks (each block {block_size_bytes/1024**3:.2f} GB), "
+                f"already has allocated {already_has_blocks} blocks(in-used {inused_blocks_num}), "
+                f"reused: {num_reused} blocks, new allocate {num_new} blocks, "
+                f"new memory size {num_new*block_size_bytes/1024**3:.2f} GB"
+            )
 
-            return allocated_blocks
+            return needed_blocks
 
     def release_blocks(self, blocks: list[PinnedMemoryBlock]):
         """
@@ -154,7 +214,7 @@ class PinnedMemoryManager:
                 size_gb = block.size_bytes / 1024**3
                 stats["total_memory_gb"] += size_gb
 
-                if block.is_allocated:
+                if block.is_inuse:
                     stats["allocated_blocks"] += 1
                     stats["allocated_memory_gb"] += size_gb
                 else:

@@ -57,11 +57,7 @@ class TestBatchingForAllModels(unittest.TestCase):
                         f"-----------------test {model_name} prompt_size:{prompt_size} "
                         f"batch_size_per_prompt:{batch_size_per_prompt} -----------------"
                     )
-                    with self.subTest(
-                        msg=f"test {model_name} with prompt_size:{prompt_size} "
-                        f"batch_size_per_prompt:{batch_size_per_prompt}"
-                    ):
-                        self.run_once(model_name, img_shape, text_shape, expected_model_key, batch_size_per_prompt)
+                    self.run_once(model_name, img_shape, text_shape, expected_model_key, batch_size_per_prompt)
 
 
 if __name__ == "__main__":

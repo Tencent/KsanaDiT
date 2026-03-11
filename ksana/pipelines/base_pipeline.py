@@ -27,6 +27,9 @@ from ..config.cache_config import KsanaCacheConfig, KsanaHybridCacheConfig
 from ..config.lora_config import KsanaLoraConfig
 from ..engine import KsanaEngine
 from ..models.model_key import KsanaModelKey
+from ..nodes.core.node_context import KsanaNodeContext
+from ..nodes.core.node_types import KsanaInferNodeType
+from ..tensor import KsanaTensorKey
 from ..utils import log, merge_video_audio
 from ..utils.media import save_video
 from ..utils.types import evolve_with_recommend, str_to_list
@@ -34,8 +37,8 @@ from ..utils.vace import KsanaVaceContext, build_vace_video_control_config, late
 
 
 class KsanaBasePipeline(ABC):
-    def __init__(self, model_key: KsanaModelKey, engine: KsanaEngine, offload_device):
-        self.pipeline_key = model_key
+    def __init__(self, pipeline_key: KsanaModelKey, engine: KsanaEngine, offload_device):
+        self.pipeline_key = pipeline_key
         self.engine = engine
         self.offload_device = offload_device
         self.default_settings = None
@@ -43,11 +46,10 @@ class KsanaBasePipeline(ABC):
         # lora info for save name
         self.has_lora = False
 
-        # save model keys
+        # V5: 保存 model key（不再保存 model 实例）
         self.vae_model_key = None
         self.diffusion_model_key = None
-        # TODO(rock): use text_encoder key when support load_text_encoder node
-        self.text_encoder_model = None
+        self.text_encoder_key = None
 
     @property
     def model_key(self) -> KsanaModelKey:
@@ -62,7 +64,7 @@ class KsanaBasePipeline(ABC):
             self.engine.clear_models()
         self.vae_model_key = None
         self.diffusion_model_key = None
-        self.text_encoder_model = None
+        self.text_encoder_key = None
         self.has_lora = False
 
     def _valid_sample_config(self, sample_config: KsanaSampleConfig, default_configs):
@@ -136,8 +138,12 @@ class KsanaBasePipeline(ABC):
         num_frames = runtime_config.frame_num
 
         def vae_encode_fn(frame: torch.Tensor) -> torch.Tensor:
-            latents = self.engine.forward_vae_encode_image(model_key=self.vae_model_key, image=frame)
-            return latent_process_out(latents)
+            context = KsanaNodeContext()
+            with self.engine.tensor_scope():
+                self.engine.put_tensors(**{KsanaTensorKey.IMAGE: frame})
+                self.engine.run_infer_node(KsanaInferNodeType.VAE_ENCODE_IMAGES, self.vae_model_key, context)
+                latents_list = self.engine.get_tensor(KsanaTensorKey.IMAGE_EMBEDS)  # list[Tensor]
+            return latent_process_out(latents_list[0])
 
         vace_config = build_vace_video_control_config(
             video_control_config=video_control_config,

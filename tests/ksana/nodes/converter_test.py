@@ -16,7 +16,7 @@ import unittest
 
 import torch
 
-from ksana.nodes.convert import convert_text_embeds_to_ksana
+from ksana.adapter.comfy.convert import convert_text_embeds_to_ksana
 
 
 class TestConvertTextEmbedsToKsana(unittest.TestCase):

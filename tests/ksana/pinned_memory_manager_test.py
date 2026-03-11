@@ -34,7 +34,7 @@ class TestPinnedMemoryManager(unittest.TestCase):
 
         self.assertEqual(len(blocks), 2)
         for block in blocks:
-            self.assertTrue(block.is_allocated)
+            self.assertTrue(block.is_inuse)
             self.assertEqual(block.size_bytes, manager.default_block_size_bytes)
 
     def test_block_release(self):
@@ -49,7 +49,7 @@ class TestPinnedMemoryManager(unittest.TestCase):
         # 释放
         manager.release_blocks(blocks)
         for block in blocks:
-            self.assertFalse(block.is_allocated)
+            self.assertFalse(block.is_inuse)
 
     def test_block_reuse(self):
         """测试内存块复用"""
@@ -171,7 +171,7 @@ class TestPinnedMemoryManager(unittest.TestCase):
         self.assertIsInstance(block.buffer, torch.Tensor)
         self.assertEqual(block.buffer.dtype, torch.uint8)
         self.assertTrue(block.buffer.is_pinned())
-        self.assertTrue(block.is_allocated)
+        self.assertTrue(block.is_inuse)
 
     def test_dtype_agnostic_buffer(self):
         """测试 dtype 无关的 buffer"""

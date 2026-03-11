@@ -12,19 +12,26 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import annotations
+
 from abc import ABC
 from functools import partial
+from typing import TYPE_CHECKING
 
 import torch
 
 from ..accelerator import platform
 from ..config import KsanaDistributedConfig
 from ..distributed import shard_model
-from ..models.model_key import KsanaModelKey, get_model_key_from_path
+from ..models.model_key import KsanaModelKey
 from ..models.model_pool import KsanaModelPool
-from ..units import KsanaUnitFactory, KsanaUnitType
-from ..utils import log, time_range
+from ..tensor import KsanaTensorStorePool
+from ..utils import log
 from ..utils.logger import reset_logging
+from .distributed_group import DistributedGroupManager
+
+if TYPE_CHECKING:
+    from ..nodes.core.device_context import KsanaDeviceContext
 
 if platform.is_npu():
     import torch_npu  # pylint: disable=unused-import # noqa: F401
@@ -34,7 +41,7 @@ if platform.is_npu():
 class KsanaExecutor(ABC):
     """
     Base class for all Ksana executors.
-    和模型有关的配置信息不放在Executor中，而是放在KsanaModel中
+    和模型有关的配置信息不放在Executor中，而是放在ModelBase中
     这里只放和device，分布式相关的信息
     """
 
@@ -50,9 +57,14 @@ class KsanaExecutor(ABC):
         torch.cuda.set_device(self.device)
         # Note: each executor has its own model pool for nodes call, and pipeline own engine then can use executors
         self.model_pool = KsanaModelPool()
-        self.local_pipeline = None
         self.shard_fn = None
         self.dist_config = KsanaDistributedConfig(num_gpus=1, use_sp=False, dit_fsdp=False, ulysses_size=1)
+
+        # V5 Node 架构：三大管理器
+        self.tensor_pool = KsanaTensorStorePool()
+        self.dist_group = DistributedGroupManager()
+        self.device_ctx = self._build_device_ctx(self.device, self.offload_device, self.rank_id, self.world_size)
+
         log.info(f"create executor with device_id {self.device_id}, offload_device {self.offload_device}")
         reset_logging()
 
@@ -76,111 +88,104 @@ class KsanaExecutor(ABC):
         reset_logging(rank_id)
         self.shard_fn = partial(shard_model, device_id=self.device_id) if self.dist_config.dit_fsdp else None
 
-    def load_diffusion_model(
-        self,
-        model_path,
-        model_key: KsanaModelKey = None,
-        **kwargs,
-    ) -> KsanaModelKey:
-        model_key = get_model_key_from_path(model_path) if model_key is None else model_key
-        model_loader = KsanaUnitFactory.create(KsanaUnitType.LOADER, model_key)
-        loaded_model = model_loader.run(
-            model_path=model_path,
-            dist_config=self.dist_config,
-            device=self.offload_device,  # always load to cpu at first
-            offload_device=self.offload_device,
-            shard_fn=self.shard_fn,
-            **kwargs,
-        )
-        key_matched = True
-        if isinstance(loaded_model, (list, tuple)):
-            key_matched = all(model_key == model.model_key for model in loaded_model)
-        else:
-            key_matched = model_key == loaded_model.model_key
-        if not key_matched:
-            key = loaded_model[0].model_key if isinstance(loaded_model, (list, tuple)) else loaded_model.model_key
-            raise RuntimeError(f"model_key {model_key} not match with model {key}")
-        self.model_pool.update_model_with_key(model_key, loaded_model)
-        return model_key
-
-    def load_text_encoder(self, model_path, model_key: KsanaModelKey = None) -> KsanaModelKey:
-        model_key = get_model_key_from_path(model_path) if model_key is None else model_key
-        model_loader = KsanaUnitFactory.create(KsanaUnitType.LOADER, model_key)
-        loaded_text_encoder = model_loader.run(
-            model_path=model_path, device=self.offload_device, shard_fn=self.shard_fn
-        )
-        self.model_pool.update_model(loaded_text_encoder)
-        if loaded_text_encoder.model_key != model_key:
-            raise RuntimeError(f"model_key {model_key} should match with model {loaded_text_encoder.model_key}")
-        return loaded_text_encoder.model_key
-
-    def load_vae_model(self, model_path, model_key: KsanaModelKey = None) -> KsanaModelKey:
-        model_key = get_model_key_from_path(model_path) if model_key is None else model_key
-        model_loader = KsanaUnitFactory.create(KsanaUnitType.LOADER, model_key)
-        loaded_vae = model_loader.run(model_path=model_path, device=self.offload_device, shard_fn=self.shard_fn)
-        self.model_pool.update_model(loaded_vae)
-        if loaded_vae.model_key != model_key:
-            raise RuntimeError(f"model_key {model_key} should match with model {loaded_vae.model_key}")
-        return loaded_vae.model_key
-
-    def forward_text_encode(self, text_encoder_key, **kwargs):
-        text_encoder_model = self.model_pool.get_model(text_encoder_key)
-        text_encoder = KsanaUnitFactory.create(KsanaUnitType.ENCODER, text_encoder_key)
-        return text_encoder.run(text_encoder_model, device=self.device, **kwargs)
-
-    def forward_vae_encode(self, model_key, **kwargs):
-        vae_model = self.model_pool.get_model(model_key)
-        vae_encoder = KsanaUnitFactory.create(KsanaUnitType.ENCODER, model_key)
-        return vae_encoder.run(vae_model, device=self.device, **kwargs)
-
-    @time_range
-    def forward_vae_encode_image(self, model_key, **kwargs):
-        vae_model = self.model_pool.get_model(model_key)
-        vae_encoder = KsanaUnitFactory.create(KsanaUnitType.ENCODER, model_key)
-        return vae_encoder.run_encode_image(vae_model, device=self.device, **kwargs)
-
-    @time_range
-    def forward_vae_decode(self, model_key, **kwargs):
-        vae_model = self.model_pool.get_model(model_key)
-        vae_decoder = KsanaUnitFactory.create(KsanaUnitType.DECODER, model_key)
-        return vae_decoder.run(vae_model, local_rank=self.rank_id, device=self.device, **kwargs)
-
-    @time_range
-    def forward_generator(
-        self,
-        model_key,
-        *,
-        noise_shape: list[int] = None,
-        img_latents: torch.Tensor | list[torch.Tensor] = None,
-        **kwargs,
-    ):
-        diffusion_model = self.model_pool.get_model(model_key)
-        if noise_shape is None and img_latents is None:
-            raise ValueError("noise_shape or img_latents must be provided at least one")
-        if noise_shape is None:
-            # 支持 list[Tensor]（Edit 模式多 prompt）
-            first_latent = img_latents[0] if isinstance(img_latents, list) else img_latents
-            noise_shape = list(first_latent.shape[1:])
-        generator = KsanaUnitFactory.create(KsanaUnitType.GENERATOR, model_key)
-        latents = generator.run(
-            diffusion_model=diffusion_model,
-            noise_shape=noise_shape,
-            img_latents=img_latents,
-            device=self.device,
-            offload_device=self.offload_device,
-            **kwargs,
-        )
-        # only resturn latents on rank 0, since all rank have the same latents
-        return latents if self.rank_id == 0 else None
+        # V5: 同步 dist_group + 重建 device_ctx
+        self.dist_group.init(rank_id, self.world_size)
+        self.device_ctx = self._build_device_ctx(self.device, self.offload_device, rank_id, self.world_size)
 
     def clear_models(self, model_keys: list[KsanaModelKey] | KsanaModelKey = None):
         if self.model_pool is None:
             return
         self.model_pool.clear_models(model_keys)
+        # 全量清理时，tensor_pool 中的 tensor 也不再有意义，一并清理
+        if model_keys is None:
+            self.tensor_pool.clear()
 
-    def generate(self, *args, **kwargs):
-        if self.local_pipeline is None:
-            raise RuntimeError("local_pipeline is not loaded, call load_models firstly")
-        self.local_pipeline.generate(
-            *args, local_rank=self.rank_id, device=self.device, offload_device=self.offload_device, **kwargs
-        )
+    # ── V5 Node 架构：统一入口 ──────────────────────────────────────────
+
+    @staticmethod
+    def _build_device_ctx(device, offload_device, rank_id, world_size) -> KsanaDeviceContext:
+        """延迟导入 KsanaDeviceContext 以避免循环依赖。"""
+        from ..nodes.core.device_context import KsanaDeviceContext  # noqa: F811 — 延迟导入
+
+        return KsanaDeviceContext(device=device, offload_device=offload_device, rank_id=rank_id, world_size=world_size)
+
+    def run_loader_node(self, model_key, **kwargs):
+        """统一的模型加载入口 — 根据 KsanaDispatchPolicy 决定是否执行。
+
+        自动注入 Executor 级别的 dist_config 和 shard_fn（Node 无需关心来源）。
+        """
+        from ..nodes.core.node_factory import KsanaLoaderNodeFactory
+        from ..nodes.core.node_types import KsanaDispatchPolicy
+
+        kwargs.setdefault("dist_config", self.dist_config)
+        kwargs.setdefault("shard_fn", self.shard_fn)
+
+        node = KsanaLoaderNodeFactory.create(model_key)
+        policy = node.dispatch_policy
+
+        if policy == KsanaDispatchPolicy.ALL_ALL_ALL or self.device_ctx.rank_id == 0:
+            node.run(model_key, model_pool=self.model_pool, device_ctx=self.device_ctx, **kwargs)
+
+    def run_infer_node(self, infer_node_type, model_key, context):
+        """统一的前向推理入口 — 根据 KsanaDispatchPolicy 决定执行 + 同步。
+
+        结果写入 tensor_pool，不返回值。外部通过 engine.get_tensor() 获取输出。
+        """
+        from ..nodes.core.node_factory import KsanaInferNodeFactory
+        from ..nodes.core.node_types import KsanaDispatchPolicy
+
+        node = KsanaInferNodeFactory.create(infer_node_type, model_key)
+        policy = node.dispatch_policy
+
+        # TODO: 根据 policy 的输入维度，executor 在执行前自动管理输入 tensor 的同步
+        # 例如 R0 输入 → 自动 broadcast input_tensor_keys 到所有卡
+        # 这样 Node 内部不需要感知多卡，executor 负责 tensor 的 pre-sync 和 post-sync
+        self._pre_sync_tensors(node, policy)
+
+        is_active_rank = policy == KsanaDispatchPolicy.ALL_ALL_ALL or self.device_ctx.rank_id == 0
+        if is_active_rank:
+            node.run(
+                model_key,
+                context,
+                tensor_pool=self.tensor_pool,
+                model_pool=self.model_pool,
+                device_ctx=self.device_ctx,
+            )
+
+        self._post_sync_tensors(node, policy)
+
+    def _pre_sync_tensors(self, node, policy):
+        """执行前的 tensor 同步（预留接口）。
+
+        未来可根据 policy 的输入维度自动 broadcast/gather 输入 tensor。
+        """
+        pass
+
+    def _post_sync_tensors(self, node, policy):
+        """执行后的 tensor 同步。
+
+        当前实现：R0_R0_BCAST 时 broadcast output_tensor_keys 到所有卡。
+        """
+        from ..nodes.core.node_types import KsanaDispatchPolicy
+
+        if policy == KsanaDispatchPolicy.R0_R0_BCAST and self.device_ctx.world_size > 1:
+            self.dist_group.broadcast_tensors(
+                tensor_pool=self.tensor_pool,
+                keys=node.output_tensor_keys,
+                src_rank=0,
+                device=self.device_ctx.device,
+            )
+
+    def put_tensors(self, **tensors):
+        """将 tensor 写入 tensor_pool（由 Engine 桥接方法通过 Ray 调用）。"""
+        for key, tensor in tensors.items():
+            if tensor is not None:
+                self.tensor_pool.put(key, tensor)
+
+    def get_tensor(self, key):
+        """从 tensor_pool 读取 tensor（由 Engine 桥接方法通过 Ray 调用）。"""
+        return self.tensor_pool.get(key)
+
+    def clear_tensor_pool(self):
+        """清理 tensor pool（session 结束时由 Engine 调用）。"""
+        self.tensor_pool.clear()
