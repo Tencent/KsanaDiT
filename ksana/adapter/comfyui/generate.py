@@ -70,8 +70,8 @@ def _resolve_latent_shape(ksana_engine, image_embeds, latent, diffusion_model_ke
             f"generate: tensor key '{image_embeds_key}' not found in pool. "
             "Ensure vae_encode used tensor_scope(keep=...) correctly."
         )
-    tv = ksana_engine.get_tensor(image_embeds_key)
-    raw_data = tv.data if tv is not None else None
+    tensor_value = ksana_engine.get_tensor(image_embeds_key)
+    raw_data = tensor_value.data if tensor_value is not None else None
 
     if isinstance(raw_data, list):
         image_embeds_list = raw_data
@@ -80,13 +80,9 @@ def _resolve_latent_shape(ksana_engine, image_embeds, latent, diffusion_model_ke
 
     # latent shape 推导
     if latent is not None:
-        latent_samples = latent.samples
-        # latent.samples 也可能是 key
-        if isinstance(latent_samples, TensorKey):
-            ltv = ksana_engine.get_tensor(latent_samples)
-            latent_raw = ltv.data if ltv is not None else None
-        else:
-            latent_raw = latent_samples
+        latent_key = latent.samples  # TensorKey
+        tensor_value = ksana_engine.get_tensor(latent_key)
+        latent_raw = tensor_value.data if tensor_value is not None else None
         latent_shape = list(latent_raw.shape) if latent_raw is not None else None
     elif image_embeds_list is not None and len(image_embeds_list) > 0:
         latent_shape = list(image_embeds_list[0].shape)
@@ -95,11 +91,8 @@ def _resolve_latent_shape(ksana_engine, image_embeds, latent, diffusion_model_ke
 
     # Qwen Image Edit: latent 直接决定输出 shape
     if latent is not None and diffusion_model_key == KsanaModelKey.QwenImage_Edit:
-        if isinstance(latent.samples, TensorKey):
-            ltv = ksana_engine.get_tensor(latent.samples)
-            latent_raw = ltv.data if ltv is not None else None
-        else:
-            latent_raw = latent.samples
+        tensor_value = ksana_engine.get_tensor(latent.samples)
+        latent_raw = tensor_value.data if tensor_value is not None else None
         noise_shape = list(latent_raw.shape[1:]) if latent_raw is not None else None
     elif diffusion_model_key == KsanaModelKey.QwenImage_T2I:
         # T2I: image_embeds 仅用于提供输出 shape，不作为图像条件传入 generator
@@ -219,14 +212,9 @@ def generate(
         ksana_engine.put_tensors(**{TensorKey.POSITIVE: positive[0][0], TensorKey.NEGATIVE: negative[0][0]})
         if image_embeds_list is not None:
             ksana_engine.put_tensors(**{TensorKey.IMAGE_EMBEDS: image_embeds_list})
-        if latent is not None:
-            # latent.samples 是 key — 从 pool 取裸 tensor 写入 INPUT_LATENT
-            if isinstance(latent.samples, TensorKey):
-                ltv = ksana_engine.get_tensor(latent.samples)
-                latent_raw = ltv.data if ltv is not None else None
-            else:
-                latent_raw = latent.samples
-            ksana_engine.put_tensors(**{TensorKey.INPUT_LATENT: latent_raw})
+        if latent is not None and latent.samples is not None:
+            # latent.samples 是 TensorKey — 重命名为 GeneratorNode 期望的 INPUT_LATENT
+            ksana_engine.rename_tensor(latent.samples, TensorKey.INPUT_LATENT)
         ksana_engine.run_infer_node(KsanaInferNodeType.GENERATE, diffusion_model_key, context)
 
     MemoryProfiler.record_memory("after_ksana_engine_generate_with_tensors")

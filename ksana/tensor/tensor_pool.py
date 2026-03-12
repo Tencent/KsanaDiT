@@ -52,6 +52,19 @@ class TensorPool:
             self._stores[k].release()
             del self._stores[k]
 
+    def rename(self, old_key: TensorKey, new_key: TensorKey) -> None:
+        """将 old_key 重命名为 new_key，零拷贝。
+
+        old_key 的 TensorValue 移到 new_key 下，old_key 从 pool 中删除。
+        如果 new_key 已存在，直接覆盖（靠 Python 引用计数回收旧值）。
+
+        Raises:
+            KeyError: old_key 不存在于 pool 中。
+        """
+        if old_key not in self._stores:
+            raise KeyError(f"TensorPool.rename: old_key {old_key!r} not found. Available keys: {self.keys()}")
+        self._stores[new_key] = self._stores.pop(old_key)
+
     def keys(self) -> list[TensorKey]:
         return list(self._stores.keys())
 

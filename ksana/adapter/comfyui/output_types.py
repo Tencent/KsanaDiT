@@ -31,12 +31,12 @@ class KsanaNodeModelLoaderOutput:
 
 @dataclass
 class KsanaNodeGeneratorOutput:
-    samples: TensorKey | torch.Tensor | None = field(default=None)
+    samples: TensorKey | None = field(default=None)
     with_end_image: bool = field(default=False)
 
 
 @dataclass
 class KsanaNodeVAEEncodeOutput:
-    samples: TensorKey | torch.Tensor | None = field(default=None)
+    samples: TensorKey | None = field(default=None)
     with_end_image: bool = field(default=False)
     batch_size_per_prompts: int = field(default=1)

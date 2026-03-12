@@ -17,6 +17,7 @@ import unittest
 
 from nodes_test_helper import COMFY_MODEL_DIFFUSION_ROOT, TEST_STEPS, iter_test_models, run_load_and_generate
 
+from ksana import get_engine
 from ksana.accelerator import platform
 from ksana.config import KsanaLinearBackend
 from ksana.utils.distribute import get_rank_id
@@ -34,12 +35,14 @@ class TestLinearForAllModels(unittest.TestCase):
             linear_backend=linear_backend,
         )
         self.assertEqual(load_output.model, expected_model_key)
-        generate_output = generate_output.samples
+        latent_key = generate_output.samples
+        tensor_value = get_engine().get_tensor(latent_key)
+        latent_tensor = tensor_value.data if tensor_value is not None else None
         if get_rank_id() == 0:
             # only return tensor on rank 0
-            self.assertIsNotNone(generate_output)
+            self.assertIsNotNone(latent_tensor)
         else:
-            self.assertIsNone(generate_output)
+            self.assertIsNone(latent_tensor)
 
     def test_all_linear_backend(self):
         for model_name, img_shape, text_shape, expected_model_key in iter_test_models():

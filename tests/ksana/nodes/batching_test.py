@@ -21,6 +21,7 @@ from nodes_test_helper import (
     run_load_and_generate,
 )
 
+from ksana import get_engine
 from ksana.utils.distribute import get_rank_id
 
 TEST_STEPS = 2
@@ -40,12 +41,14 @@ class TestBatchingForAllModels(unittest.TestCase):
             batch_size_per_prompt=batch_size_per_prompt,
         )
         self.assertEqual(load_output.model, expected_model_key)
-        generate_output = generate_output.samples
+        latent_key = generate_output.samples
+        tensor_value = get_engine().get_tensor(latent_key)
+        latent_tensor = tensor_value.data if tensor_value is not None else None
         if get_rank_id() == 0:
             # only return tensor on rank 0
-            self.assertIsNotNone(generate_output)
+            self.assertIsNotNone(latent_tensor)
         else:
-            self.assertIsNone(generate_output)
+            self.assertIsNone(latent_tensor)
 
     def test_batching(self):
         for model_name, img_shape, text_shape, expected_model_key in iter_test_models():

@@ -190,6 +190,10 @@ class KsanaExecutor(ABC):
         """检查 tensor_pool 中是否存在指定 key（由 Engine 桥接方法通过 Ray 调用）。"""
         return self.tensor_pool.has(key)
 
+    def rename_tensor(self, old_key, new_key):
+        """重命名 tensor_pool 中的 key（由 Engine 桥接方法通过 Ray 调用）。"""
+        self.tensor_pool.rename(old_key, new_key)
+
     def clear_tensor_pool(self, exclude=None):
         """清理 tensor pool（session 结束时由 Engine 调用）。
 

@@ -18,6 +18,7 @@ import numpy as np
 import torch
 
 from ksana.adapter.comfyui.output_types import KsanaNodeVAEEncodeOutput
+from ksana.tensor import TensorKey
 from ksana.utils.debug import print_recursive
 from ksana.utils.logger import log
 
@@ -45,7 +46,7 @@ class TestPrint(unittest.TestCase):
 
     def test_print_recursive_obj_torch_float(self):
         obj = KsanaNodeVAEEncodeOutput(
-            samples=torch.tensor([1, 2, 3]).to(torch.float16),
+            samples=TensorKey.IMAGE_EMBEDS,
             with_end_image=True,
             batch_size_per_prompts=1,
         )

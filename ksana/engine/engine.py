@@ -348,6 +348,17 @@ class KsanaEngine:
             return ray.get(self.executors[0].has_tensor.remote(key))
         return self.executors.tensor_pool.has(key)
 
+    def rename_tensor(self, old_key, new_key):
+        """重命名所有 Executor 的 tensor_pool 中的 key。
+
+        用于 Pipeline 编排时在两个 run_infer_node 之间调整 key 名称，
+        使上游 Node 的输出 key 匹配下游 Node 的输入 key。
+        """
+        if self.is_ray:
+            ray.get([ex.rename_tensor.remote(old_key, new_key) for ex in self.executors])
+        else:
+            self.executors.rename_tensor(old_key, new_key)
+
     # ── 清理 ───────────────────────────────────────────────────────────
 
     def cleanup_distributed(self):

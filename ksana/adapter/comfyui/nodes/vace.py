@@ -16,6 +16,7 @@ import torch
 
 from ksana import get_engine
 from ksana.config import KsanaExperimentalConfig, KsanaFETAConfig, KsanaSLGConfig
+from ksana.tensor import TensorKey
 from ksana.utils import common_upscale, get_intermediate_device
 from ksana.utils.logger import log
 from ksana.utils.vace import VAE_STRIDE, latent_process_out
@@ -153,8 +154,8 @@ class KsanaWanVaceToVideoNode:
         context = KsanaNodeContext(metadata={"image": image})
         with ksana_engine.tensor_scope(keep=TensorKey.IMAGE_EMBEDS):
             ksana_engine.run_infer_node(KsanaInferNodeType.VAE_ENCODE_IMAGES, vae_key, context)
-        tv = ksana_engine.get_tensor(TensorKey.IMAGE_EMBEDS)
-        return tv.data if tv is not None else None
+        tensor_value = ksana_engine.get_tensor(TensorKey.IMAGE_EMBEDS)
+        return tensor_value.data if tensor_value is not None else None
 
     def encode(
         self,
@@ -286,8 +287,10 @@ class KsanaWanVaceToVideoNode:
             [batch_size, 16, latent_length, height // 8, width // 8],
             device=get_intermediate_device(),
         )
+        ksana_engine = get_engine()
+        ksana_engine.put_tensors(**{TensorKey.IMAGE_EMBEDS: latent})
         out_latent = KsanaNodeVAEEncodeOutput(
-            samples=latent,
+            samples=TensorKey.IMAGE_EMBEDS,
             with_end_image=False,
             batch_size_per_prompts=batch_size,
         )

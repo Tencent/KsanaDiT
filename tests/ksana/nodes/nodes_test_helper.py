@@ -18,7 +18,13 @@ from unittest import SkipTest
 
 import torch
 
-from ksana import KsanaAttentionBackend, KsanaAttentionConfig, KsanaLinearBackend, KsanaRadialSageAttentionConfig
+from ksana import (
+    KsanaAttentionBackend,
+    KsanaAttentionConfig,
+    KsanaLinearBackend,
+    KsanaRadialSageAttentionConfig,
+    get_engine,
+)
 from ksana.accelerator import platform
 
 # TODO: 这里的node测试其实comfyui的测试，应该改成adapter的测试，这个时候应该允许依赖comfy。另外需要node的单独测试。
@@ -29,6 +35,7 @@ from ksana.adapter.comfyui import (
     generate,
 )
 from ksana.models.model_key import KsanaModelKey
+from ksana.tensor import TensorKey
 
 IMG_SHAPE_T2V = [1, 16, 16, 32, 32]
 IMG_SHAPE_I2V = [1, 20, 16, 32, 32]
@@ -149,11 +156,15 @@ def run_load_and_generate(model_path, image_latent_shape, text_shape, steps, **k
 
     image_embeds = torch.zeros(*image_latent_shape, dtype=RUN_DTYPE, device="cpu")
     batch_size_per_prompts = kwargs.get("batch_size_per_prompts", 1)
+    ksana_engine = get_engine()
+    ksana_engine.put_tensors(**{TensorKey.IMAGE_EMBEDS: image_embeds})
     generate_output = generate(
         load_output,
         positive=[[positive_text_embeddings]],
         negative=[[negtive_text_embeddings]],
-        image_embeds=KsanaNodeVAEEncodeOutput(samples=image_embeds, batch_size_per_prompts=batch_size_per_prompts),
+        image_embeds=KsanaNodeVAEEncodeOutput(
+            samples=TensorKey.IMAGE_EMBEDS, batch_size_per_prompts=batch_size_per_prompts
+        ),
         steps=steps,
         seed=SEED,
         cache_config=kwargs.get("cache_config", None),

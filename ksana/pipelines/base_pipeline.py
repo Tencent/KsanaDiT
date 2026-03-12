@@ -142,8 +142,8 @@ class KsanaBasePipeline(ABC):
             with self.engine.tensor_scope(keep=[TensorKey.IMAGE_EMBEDS]):
                 self.engine.put_tensors(**{TensorKey.IMAGE: frame})
                 self.engine.run_infer_node(KsanaInferNodeType.VAE_ENCODE_IMAGES, self.vae_model_key, context)
-            tv = self.engine.get_tensor(TensorKey.IMAGE_EMBEDS)
-            latents_list = tv.data  # list[Tensor]
+            tensor_value = self.engine.get_tensor(TensorKey.IMAGE_EMBEDS)
+            latents_list = tensor_value.data  # list[Tensor]
             return latent_process_out(latents_list[0])
 
         vace_config = build_vace_video_control_config(

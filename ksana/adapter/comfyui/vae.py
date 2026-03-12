@@ -74,8 +74,10 @@ def vae_encode(
     log.info(f"encoder vae: {vae}")
     if isinstance(start_image, torch.Tensor) and start_image.ndim == 3:
         start_image = start_image.unsqueeze(0)
+        print(f"start_image{start_image.shape}, {start_image.device}")
     if isinstance(end_image, torch.Tensor) and end_image.ndim == 3:
         end_image = end_image.unsqueeze(0)
+        print(f"end_image{end_image.shape}, {end_image.device}")
     channels = 3
     if start_image is not None and start_image.shape[3] == channels:
         start_image = start_image.permute(0, 3, 1, 2)
@@ -156,8 +158,8 @@ def vae_decode(vae, latent):
     with ksana_engine.tensor_scope():
         # latents_key 可能是 LATENTS 或 IMAGE_EMBEDS，VAEDecodeNode 读 LATENTS
         if latents_key != TensorKey.LATENTS:
-            tv = ksana_engine.get_tensor(latents_key)
-            ksana_engine.put_tensors(**{TensorKey.LATENTS: tv.data})
+            tensor_value = ksana_engine.get_tensor(latents_key)
+            ksana_engine.put_tensors(**{TensorKey.LATENTS: tensor_value.data})
         ksana_engine.run_infer_node(KsanaInferNodeType.VAE_DECODE, vae, context)
         video_tv = ksana_engine.get_tensor(TensorKey.VIDEO)
         images = video_tv.data

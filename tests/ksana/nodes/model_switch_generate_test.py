@@ -29,6 +29,7 @@ from nodes_test_helper import (
     run_load_and_generate,
 )
 
+from ksana import get_engine
 from ksana.config import KsanaAttentionBackend, KsanaLinearBackend
 from ksana.models.model_key import KsanaModelKey
 from ksana.utils.distribute import get_gpu_count, get_rank_id
@@ -168,18 +169,20 @@ class TestModelSwitchAndGenerate(unittest.TestCase):
                 low_sample_guide_scale=3.0,
             )
             self.assertEqual(load_output.model, test_case.expect_model_key)
-            generate_output = generate_output.samples
+            latent_key = generate_output.samples
+            tensor_value = get_engine().get_tensor(latent_key)
+            latent_tensor = tensor_value.data if tensor_value is not None else None
             if get_rank_id() == 0:
                 # only return tensor on rank 0
-                self.assertIsNotNone(generate_output)
+                self.assertIsNotNone(latent_tensor)
             else:
-                self.assertIsNone(generate_output)
+                self.assertIsNone(latent_tensor)
                 continue
 
             target_latent_shape = test_case.image_latent_shape.copy()
             target_latent_shape[1] = 16  # always 16
-            self.assertEqual(list(generate_output.shape), target_latent_shape)
-            mean = generate_output.cpu().abs().mean().item()
+            self.assertEqual(list(latent_tensor.shape), target_latent_shape)
+            mean = latent_tensor.cpu().abs().mean().item()
             if get_gpu_count() == 1:
                 self.assertAlmostEqual(mean, case_config["single_mean"], places=TEST_ONE_GPU_EPS_PLACE)
             else:

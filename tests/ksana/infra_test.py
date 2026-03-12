@@ -30,55 +30,55 @@ from ksana.tensor import TensorKey, TensorPool, TensorValue
 class TestTensorValue:
     def test_single_tensor(self):
         t = torch.zeros(2, 3)
-        tv = TensorValue(t)
-        assert tv.data is t
-        assert not tv.is_released
+        tensor_value = TensorValue(t)
+        assert tensor_value.data is t
+        assert not tensor_value.is_released
 
     def test_release_single(self):
         t = torch.zeros(2, 3)
-        tv = TensorValue(t)
-        tv.release()
-        assert tv.is_released
-        assert tv.data is None
+        tensor_value = TensorValue(t)
+        tensor_value.release()
+        assert tensor_value.is_released
+        assert tensor_value.data is None
 
     def test_release_idempotent(self):
-        tv = TensorValue(torch.ones(4))
-        tv.release()
-        tv.release()  # 第二次不应抛异常
-        assert tv.is_released
+        tensor_value = TensorValue(torch.ones(4))
+        tensor_value.release()
+        tensor_value.release()  # 第二次不应抛异常
+        assert tensor_value.is_released
 
     def test_list_tensor(self):
         tensors = [torch.zeros(2, 3), torch.ones(4, 5)]
-        tv = TensorValue(tensors)
-        assert tv.data is tensors
-        assert not tv.is_released
+        tensor_value = TensorValue(tensors)
+        assert tensor_value.data is tensors
+        assert not tensor_value.is_released
 
     def test_release_list(self):
         t0, t1 = torch.zeros(2), torch.ones(3)
         tensors = [t0, t1]
-        tv = TensorValue(tensors)
-        tv.release()
-        assert tv.is_released
-        assert tv.data is None
+        tensor_value = TensorValue(tensors)
+        tensor_value.release()
+        assert tensor_value.is_released
+        assert tensor_value.data is None
 
     def test_repr_single(self):
-        tv = TensorValue(torch.ones(4))
-        r = repr(tv)
+        tensor_value = TensorValue(torch.ones(4))
+        r = repr(tensor_value)
         assert "torch.float32" in r
         assert "(4,)" in r
 
     def test_repr_list(self):
         tensors = [torch.zeros(2, 3), torch.ones(4, 5)]
-        tv = TensorValue(tensors)
-        r = repr(tv)
+        tensor_value = TensorValue(tensors)
+        r = repr(tensor_value)
         assert "list_len=2" in r
         assert "(2, 3)" in r
         assert "(4, 5)" in r
 
     def test_repr_released(self):
-        tv = TensorValue(torch.zeros(1))
-        tv.release()
-        assert "released" in repr(tv)
+        tensor_value = TensorValue(torch.zeros(1))
+        tensor_value.release()
+        assert "released" in repr(tensor_value)
 
 
 # ── TensorPool ─────────────────────────────────────────────────────────────
@@ -90,9 +90,9 @@ class TestTensorPool:
         t = torch.randn(3, 4)
         pool.put(TensorKey.LATENTS, t)
         assert pool.has(TensorKey.LATENTS)
-        tv = pool.get(TensorKey.LATENTS)
-        assert isinstance(tv, TensorValue)
-        assert tv.data is t
+        tensor_value = pool.get(TensorKey.LATENTS)
+        assert isinstance(tensor_value, TensorValue)
+        assert tensor_value.data is t
 
     def test_get_missing_returns_none(self):
         pool = TensorPool()
@@ -111,9 +111,9 @@ class TestTensorPool:
     def test_clear_releases_tensor_values(self):
         pool = TensorPool()
         pool.put(TensorKey.LATENTS, torch.zeros(4))
-        tv = pool.get(TensorKey.LATENTS)
+        tensor_value = pool.get(TensorKey.LATENTS)
         pool.clear()
-        assert tv.is_released
+        assert tensor_value.is_released
 
     def test_clear_with_exclude(self):
         pool = TensorPool()
@@ -154,27 +154,27 @@ class TestTensorPool:
         tensors = [torch.randn(2, 3), torch.randn(4, 5)]
         pool.put(TensorKey.IMAGE_EMBEDS, tensors)
         assert pool.has(TensorKey.IMAGE_EMBEDS)
-        tv = pool.get(TensorKey.IMAGE_EMBEDS)
-        assert isinstance(tv.data, list)
-        assert len(tv.data) == 2
-        assert tv.data[0] is tensors[0]
-        assert tv.data[1] is tensors[1]
+        tensor_value = pool.get(TensorKey.IMAGE_EMBEDS)
+        assert isinstance(tensor_value.data, list)
+        assert len(tensor_value.data) == 2
+        assert tensor_value.data[0] is tensors[0]
+        assert tensor_value.data[1] is tensors[1]
 
     def test_overwrite_tensor_with_list(self):
         pool = TensorPool()
         pool.put(TensorKey.LATENTS, torch.tensor(1.0))
         pool.put(TensorKey.LATENTS, [torch.tensor(2.0), torch.tensor(3.0)])
-        tv = pool.get(TensorKey.LATENTS)
-        assert isinstance(tv.data, list)
-        assert len(tv.data) == 2
+        tensor_value = pool.get(TensorKey.LATENTS)
+        assert isinstance(tensor_value.data, list)
+        assert len(tensor_value.data) == 2
 
     def test_overwrite_list_with_tensor(self):
         pool = TensorPool()
         pool.put(TensorKey.LATENTS, [torch.tensor(1.0), torch.tensor(2.0)])
         pool.put(TensorKey.LATENTS, torch.tensor(3.0))
-        tv = pool.get(TensorKey.LATENTS)
-        assert isinstance(tv.data, torch.Tensor)
-        assert tv.data.item() == 3.0
+        tensor_value = pool.get(TensorKey.LATENTS)
+        assert isinstance(tensor_value.data, torch.Tensor)
+        assert tensor_value.data.item() == 3.0
 
     def test_clear_with_list_tensors(self):
         pool = TensorPool()
@@ -187,9 +187,52 @@ class TestTensorPool:
     def test_empty_list_tensor(self):
         pool = TensorPool()
         pool.put(TensorKey.IMAGE_EMBEDS, [])
-        tv = pool.get(TensorKey.IMAGE_EMBEDS)
+        tensor_value = pool.get(TensorKey.IMAGE_EMBEDS)
+        assert isinstance(tensor_value.data, list)
+        assert len(tensor_value.data) == 0
+
+    def test_rename_basic(self):
+        pool = TensorPool()
+        t = torch.randn(3, 4)
+        pool.put(TensorKey.LATENTS, t)
+        pool.rename(TensorKey.LATENTS, TensorKey.INPUT_LATENT)
+        assert not pool.has(TensorKey.LATENTS)
+        assert pool.has(TensorKey.INPUT_LATENT)
+        assert torch.equal(pool.get(TensorKey.INPUT_LATENT).data, t)
+
+    def test_rename_overwrites_existing(self):
+        pool = TensorPool()
+        pool.put(TensorKey.LATENTS, torch.tensor(1.0))
+        pool.put(TensorKey.INPUT_LATENT, torch.tensor(2.0))
+        pool.rename(TensorKey.LATENTS, TensorKey.INPUT_LATENT)
+        assert not pool.has(TensorKey.LATENTS)
+        assert pool.get(TensorKey.INPUT_LATENT).data.item() == 1.0
+
+    def test_rename_missing_key_raises(self):
+        pool = TensorPool()
+        with pytest.raises(KeyError, match="old_key"):
+            pool.rename(TensorKey.LATENTS, TensorKey.VIDEO)
+
+    def test_rename_preserves_list_tensor(self):
+        pool = TensorPool()
+        tensors = [torch.randn(2, 3), torch.randn(4, 5)]
+        pool.put(TensorKey.IMAGE_EMBEDS, tensors)
+        pool.rename(TensorKey.IMAGE_EMBEDS, TensorKey.INPUT_LATENT)
+        assert not pool.has(TensorKey.IMAGE_EMBEDS)
+        tv = pool.get(TensorKey.INPUT_LATENT)
         assert isinstance(tv.data, list)
-        assert len(tv.data) == 0
+        assert len(tv.data) == 2
+        assert torch.equal(tv.data[0], tensors[0])
+
+    def test_rename_does_not_affect_other_keys(self):
+        pool = TensorPool()
+        pool.put(TensorKey.POSITIVE, torch.zeros(1))
+        pool.put(TensorKey.LATENTS, torch.ones(2))
+        pool.rename(TensorKey.LATENTS, TensorKey.VIDEO)
+        assert pool.has(TensorKey.POSITIVE)
+        assert pool.has(TensorKey.VIDEO)
+        assert not pool.has(TensorKey.LATENTS)
+        assert len(pool) == 2
 
 
 # ── DistributedGroupManager ───────────────────────────────────────────
@@ -222,9 +265,9 @@ class TestDistributedGroupManager:
         # list[Tensor] 也不应抛异常，直接跳过
         mgr.broadcast_tensors(tensor_pool=pool, keys=[TensorKey.IMAGE_EMBEDS], src_rank=0)
         # 验证 pool 中的值未被修改
-        tv = pool.get(TensorKey.IMAGE_EMBEDS)
-        assert isinstance(tv.data, list)
-        assert len(tv.data) == 2
+        tensor_value = pool.get(TensorKey.IMAGE_EMBEDS)
+        assert isinstance(tensor_value.data, list)
+        assert len(tensor_value.data) == 2
 
 
 # ── KsanaDispatchPolicy ────────────────────────────────────────────────────
