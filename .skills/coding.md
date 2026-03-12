@@ -48,7 +48,7 @@ from ksana.operations.attention.attention_op import KsanaAttentionBackendImpl
 本规则适用于 `ksana/` 包下所有 Python 模块，包括但不限于：
 - `ksana/nodes/` — loader / encoder / decoder / generator 节点
 - `ksana/operations/` — attention / linear / fuse_qkv 算子
-- `ksana/adapter/comfy/` — ComfyUI 适配层
+- `ksana/adapter/comfyui/` — ComfyUI 适配层
 - `ksana/models/` — 模型实现（wan / qwen）
 
 ### 自动检查
@@ -277,11 +277,10 @@ def __post_init__(self):
 
 | 方法 | 用途 | 说明 |
 |------|------|------|
-| `engine.get_tensor(key)` | 取回最终结果 | 自动从 rank 0 取，不传 rank 参数 |
-| `engine.put_tensors(**kw)` | 写入 tensor | 写入所有 Executor 的 tensor_pool |
-| `engine.tensor_scope()` | 生命周期管理 | context manager，scope 结束自动 clear tensor_pool |
-
-`inference_session()` 重命名为 `tensor_scope()`，精确描述功能：标记 tensor 生命周期的作用域。
+| `engine.get_tensor(key)` | 取回 TensorValue | 自动从 rank 0 取，返回 `TensorValue`（需 `.data` 取裸 tensor） |
+| `engine.put_tensors(**kw)` | 写入 tensor | 写入所有 Executor 的 tensor_pool，自动包装为 `TensorValue` |
+| `engine.tensor_scope(keep=[...])` | 生命周期管理 | context manager，scope 结束自动 clear（keep 列表中的 key 保留） |
+| `engine.has_tensor(key)` | 检查 key 存在性 | 检查 rank 0 的 tensor_pool 中是否存在指定 key |
 
 **保持 `with` 模式的理由**：
 1. **异常安全**：即使 Node 抛异常，tensor_pool 也会被清理
@@ -289,12 +288,91 @@ def __post_init__(self):
 3. **Node 不应自管理清理**：Node 不知道 pipeline 的全局编排，无法判断哪些 tensor 还被下游需要
 4. **tensor 数量少**：pool 中通常只有 5-6 个 tensor，全量清理开销可忽略
 
+### Tensor 生命周期与 TensorValue
+
+#### TensorValue 类
+
+`TensorValue` 是 tensor_pool 中值的包装类，持有单个 `torch.Tensor` 或 `list[torch.Tensor]`，负责释放：
+
+```python
+class TensorValue:
+    __slots__ = ['data']
+
+    def __init__(self, data: torch.Tensor | list[torch.Tensor]):
+        self.data = data
+
+    def release(self):
+        """释放持有的 tensor 引用。"""
+        if isinstance(self.data, list):
+            for i in range(len(self.data)):
+                self.data[i] = None
+            self.data.clear()
+        self.data = None
+```
+
+- Pool 的 `get(key)` 返回 `TensorValue`，Node 内部用 `.data` 取裸 tensor
+- Pool 的 `clear()` 遍历调用 `TensorValue.release()`
+- 只有最终边界（如 vae_decode 输出给用户）才允许 `.data` 取裸 tensor
+
+#### tensor_scope(keep=[...]) 声明式保留
+
+`tensor_scope` 支持 `keep` 参数，声明哪些 key 在 scope 退出时保留：
+
+```python
+# 分段调用：vae_encode 保留 IMAGE_EMBEDS
+with engine.tensor_scope(keep=[KsanaTensorKey.IMAGE_EMBEDS]):
+    engine.put_tensors(**{KsanaTensorKey.IMAGE: image})
+    engine.run_infer_node(KsanaInferNodeType.VAE_ENCODE_IMAGES, vae, context)
+# scope 退出：IMAGE 被 release，IMAGE_EMBEDS 保留在 pool 中
+
+# 最终步骤：vae_decode 不 keep，全部清理
+with engine.tensor_scope():
+    engine.run_infer_node(KsanaInferNodeType.VAE_DECODE, vae, context)
+    video = engine.get_tensor(KsanaTensorKey.VIDEO).data  # 取裸 tensor
+# scope 退出：全部 release
+```
+
+#### ComfyUI adapter 之间传递 key
+
+ComfyUI adapter 之间传递的是 `KsanaTensorKey`（而非裸 tensor），真正的 `TensorValue` 存在 Executor 的 pool 中：
+
+```python
+# vae_encode 返回 key
+def vae_encode_image(...):
+    with engine.tensor_scope(keep=[KsanaTensorKey.IMAGE_EMBEDS]):
+        engine.put_tensors(...)
+        engine.run_infer_node(...)
+    return KsanaNodeVAEEncodeOutput(samples=KsanaTensorKey.IMAGE_EMBEDS, ...)
+
+# generate 收到 key，先检查存在性
+def generate(...):
+    if not engine.has_tensor(image_embeds_key):
+        raise RuntimeError(f"Tensor {image_embeds_key} not found in pool")
+    with engine.tensor_scope(keep=[KsanaTensorKey.LATENTS]):
+        engine.run_infer_node(...)
+    return KsanaNodeGeneratorOutput(samples=KsanaTensorKey.LATENTS, ...)
+```
+
+#### Pool 的 clear(exclude=[...])
+
+`KsanaTensorStorePool.clear(exclude)` 释放除 exclude 列表外的所有 tensor：
+
+```python
+def clear(self, exclude: list[KsanaTensorKey] | None = None) -> None:
+    exclude_set = set(exclude) if exclude else set()
+    keys_to_remove = [k for k in self._tensors if k not in exclude_set]
+    for key in keys_to_remove:
+        self._tensors[key].release()
+        del self._tensors[key]
+```
+
 ### Node 间数据传递
 
 - Node 间通过 **同一个 Executor 内的 tensor_pool** 传递数据，不经过 Engine
 - 跨 rank 数据传递由 `DispatchPolicy.RANK_0_BROADCAST` 的 broadcast 机制自动处理
 - `engine.get_tensor()` 只用于 Pipeline/ComfyUI 取回最终结果，不用于 Node 间传递
 - Pipeline/ComfyUI 向 Node 传递 tensor 输入时，必须通过 `engine.put_tensors()` 写入 tensor_pool
+- **禁止**在 ComfyUI adapter 之间传递裸 `torch.Tensor`，必须传递 `KsanaTensorKey`
 
 ---
 
@@ -371,12 +449,13 @@ class KsanaDeviceContext:
 - **传入 Node.run()** 作为只读参数
 - **frozen=True** 保证 Node 无法修改设备配置
 
-#### KsanaTensorStorePool (`ksana/executor/tensor_store_pool.py`)
+#### KsanaTensorStorePool (`ksana/tensor/tensor_store_pool.py`)
 
 - **Owner**: Executor
-- **生命周期**: 每次 `engine.inference_session()` 结束时 `clear()`
-- **内容**: `dict[str, TensorStore]`，每个 TensorStore 持有一个 `torch.Tensor`
-- **用途**: Node 间通过 key 引用 tensor，避免 tensor 跨 Ray 边界序列化
+- **生命周期**: 每次 `engine.tensor_scope()` 退出（depth→0）时 `clear(exclude=keep)`
+- **内容**: `dict[KsanaTensorKey, TensorValue]`，每个 TensorValue 持有 `Tensor | list[Tensor]`
+- **用途**: Node 间通过 `KsanaTensorKey` 引用 tensor，避免 tensor 跨 Ray 边界序列化
+- **关键方法**: `put` / `get`（返回 TensorValue）/ `clear(exclude)` / `has` / `keys` / `__len__`
 
 #### KsanaModelPool (`ksana/models/model_pool.py`)
 
@@ -529,7 +608,44 @@ Node 内部不需要感知多卡逻辑，Executor 负责所有 tensor 的 pre/po
 
 ---
 
-## 7. 类命名规范：去除 `Ksana` 前缀
+## 7. Adapter 依赖方向规则
+
+### 规则
+
+第三方框架的适配代码**只能**放在 `ksana/adapter/` 目录下。依赖方向是**单向**的：
+
+```
+ksana/adapter/comfyui/  →  ksana/  (✅ adapter 可以 import ksana 核心代码)
+ksana/                  →  ksana/adapter/  (❌ 核心代码禁止 import adapter)
+```
+
+### 约束
+
+| 规则 | 说明 |
+|------|------|
+| adapter → ksana 核心 | ✅ 允许。adapter 代码可以自由使用 ksana 核心模块 |
+| ksana 核心 → adapter | ❌ **禁止**。`ksana/` 下除 `adapter/` 外的任何模块不得 import `ksana.adapter.*` |
+| adapter 间互相引用 | ⚠️ 谨慎。不同 adapter 之间尽量不互相依赖 |
+
+### 原因
+
+- **防止循环引用**：adapter 依赖核心，核心不依赖 adapter，保证依赖图是 DAG
+- **可选安装**：adapter 可以作为可选组件，核心包不因缺少第三方框架而报错
+- **解耦**：新增/删除 adapter 不影响核心代码
+
+### 自动检查
+
+```bash
+# 检查 ksana/ 核心代码（排除 adapter/）是否引用了 adapter
+grep -rn "from ksana.adapter" ksana/ --include="*.py" | grep -v __pycache__ | grep -v "ksana/adapter/"
+grep -rn "import ksana.adapter" ksana/ --include="*.py" | grep -v __pycache__ | grep -v "ksana/adapter/"
+```
+
+预期输出为空。
+
+---
+
+## 8. 类命名规范：去除 `Ksana` 前缀
 
 ### 规则
 
@@ -538,7 +654,7 @@ Node 内部不需要感知多卡逻辑，Executor 负责所有 tensor 的 pre/po
 | 场景 | 规则 | 示例 |
 |------|------|------|
 | `ksana/` 包内类定义 | **不加** `Ksana` 前缀 | `Engine`、`Executor`、`Pipeline`、`ModelKey` |
-| `comfyui/` 及 `ksana/adapter/comfy/` 中的类 | **可以保留** `Ksana` 前缀 | `KsanaNodeModelLoader`、`KsanaNodeGeneratorOutput` |
+| `comfyui/` 及 `ksana/adapter/comfyui/` 中的类 | **可以保留** `Ksana` 前缀 | `KsanaNodeModelLoader`、`KsanaNodeGeneratorOutput` |
 | `KSANA_` 开头的常量 | **保留** | `KSANA_LOGGER_LEVEL`、`KSANA_PREFETCH_WEIGHTS` |
 
 ### 重命名映射表（待逐个确认执行）
@@ -612,14 +728,14 @@ Node 内部不需要感知多卡逻辑，Executor 负责所有 tensor 的 pre/po
 | `KsanaUnitFactory` | `UnitFactory` | `ksana/units/base_unit.py` |
 | `KsanaVaeDecoder` | `VaeDecoder` | `ksana/units/decoder_unit.py` |
 | `KsanaExecutor` | `Executor` | `ksana/executor/executor.py` |
-| `KsanaTensorStore` | `TensorStore` | `ksana/tensor/tensor_store.py` |
+| ~~`KsanaTensorStore`~~ | `TensorValue` | `ksana/tensor/tensor_value.py` | ✅ 已完成 |
 | `KsanaTensorKey` | `TensorKey` | `ksana/tensor/tensor_key.py` |
 | `KsanaTensorStorePool` | `TensorStorePool` | `ksana/tensor/tensor_store_pool.py` |
 | `KsanaEngine` | `Engine` | `ksana/engine/engine.py` |
 
 ### 保留 `Ksana` 前缀的类（comfyui 适配层）
 
-以下类位于 `ksana/adapter/comfy/` 或 `comfyui/`，保留 `Ksana` 前缀：
+以下类位于 `ksana/adapter/comfyui/`，保留 `Ksana` 前缀：
 
 - `KsanaNodeTeaCache`、`KsanaNodeEasyCache`、`KsanaNodeMagCache`、`KsanaNodeDBCache`
 - `KsanaNodeModelLoaderOutput`、`KsanaNodeGeneratorOutput`、`KsanaNodeVAEEncodeOutput`
@@ -638,7 +754,7 @@ Node 内部不需要感知多卡逻辑，Executor 负责所有 tensor 的 pre/po
 
 ```bash
 # 检查 ksana/ 下（排除 adapter/comfy/）是否还有 Ksana 前缀的类
-grep -rn "class Ksana" ksana/ --include="*.py" | grep -v __pycache__ | grep -v "adapter/comfy/"
+grep -rn "class Ksana" ksana/ --include="*.py" | grep -v __pycache__ | grep -v "adapter/comfyui/"
 ```
 
 预期输出为空（重构完成后）。

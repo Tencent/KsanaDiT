@@ -25,7 +25,7 @@ from ..config import KsanaDistributedConfig
 from ..distributed import shard_model
 from ..models.model_key import KsanaModelKey
 from ..models.model_pool import KsanaModelPool
-from ..tensor import KsanaTensorStorePool
+from ..tensor import TensorPool
 from ..utils import log
 from ..utils.logger import reset_logging
 from .distributed_group import DistributedGroupManager
@@ -61,7 +61,7 @@ class KsanaExecutor(ABC):
         self.dist_config = KsanaDistributedConfig(num_gpus=1, use_sp=False, dit_fsdp=False, ulysses_size=1)
 
         # V5 Node 架构：三大管理器
-        self.tensor_pool = KsanaTensorStorePool()
+        self.tensor_pool = TensorPool()
         self.dist_group = DistributedGroupManager()
         self.device_ctx = self._build_device_ctx(self.device, self.offload_device, self.rank_id, self.world_size)
 
@@ -183,9 +183,17 @@ class KsanaExecutor(ABC):
                 self.tensor_pool.put(key, tensor)
 
     def get_tensor(self, key):
-        """从 tensor_pool 读取 tensor（由 Engine 桥接方法通过 Ray 调用）。"""
+        """从 tensor_pool 读取 TensorValue（由 Engine 桥接方法通过 Ray 调用）。"""
         return self.tensor_pool.get(key)
 
-    def clear_tensor_pool(self):
-        """清理 tensor pool（session 结束时由 Engine 调用）。"""
-        self.tensor_pool.clear()
+    def has_tensor(self, key):
+        """检查 tensor_pool 中是否存在指定 key（由 Engine 桥接方法通过 Ray 调用）。"""
+        return self.tensor_pool.has(key)
+
+    def clear_tensor_pool(self, exclude=None):
+        """清理 tensor pool（session 结束时由 Engine 调用）。
+
+        Args:
+            exclude: 需要保留的 ``TensorKey`` 列表，不会被 release。
+        """
+        self.tensor_pool.clear(exclude=exclude)

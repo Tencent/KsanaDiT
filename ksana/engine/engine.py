@@ -291,25 +291,31 @@ class KsanaEngine:
             self.executors.run_infer_node(infer_node_type, model_key, context)
 
     @contextmanager
-    def tensor_scope(self):
+    def tensor_scope(self, keep=None):
         """上下文管理器，标记 tensor 生命周期的作用域。
+
+        Args:
+            keep: 退出 scope 时需要保留的 ``TensorKey``，可以是单个 key 或列表。
+                  被保留的 key 不会被 release，可在后续 scope 中继续使用。
 
         支持嵌套：只有最外层 scope 退出时才清理 tensor_pool。
         """
+        if keep is not None and not isinstance(keep, list):
+            keep = [keep]
         self._tensor_scope_depth += 1
         try:
             yield
         finally:
             self._tensor_scope_depth -= 1
             if self._tensor_scope_depth == 0:
-                self._clear_tensor_pools()
+                self._clear_tensor_pools(exclude=keep)
 
-    def _clear_tensor_pools(self):
+    def _clear_tensor_pools(self, exclude=None):
         """清理所有 Executor 的 tensor pool。"""
         if self.is_ray:
-            ray.get([ex.clear_tensor_pool.remote() for ex in self.executors])
+            ray.get([ex.clear_tensor_pool.remote(exclude=exclude) for ex in self.executors])
         else:
-            self.executors.clear_tensor_pool()
+            self.executors.clear_tensor_pool(exclude=exclude)
 
     def put_tensors(self, **tensors):
         """将 tensor 写入所有 Executor 的 tensor_pool。
@@ -327,13 +333,20 @@ class KsanaEngine:
                 self.executors.tensor_pool.put(key, tensor)
 
     def get_tensor(self, key):
-        """从 rank 0 Executor 的 tensor_pool 读取 tensor。
+        """从 rank 0 Executor 的 tensor_pool 读取 TensorValue。
 
         所有最终输出都在 rank 0 上，自动从 rank 0 取，无需指定 rank。
+        返回 ``TensorValue``，调用方通过 ``.data`` 获取裸 tensor。
         """
         if self.is_ray:
             return ray.get(self.executors[0].get_tensor.remote(key))
         return self.executors.tensor_pool.get(key)
+
+    def has_tensor(self, key):
+        """检查 rank 0 Executor 的 tensor_pool 中是否存在指定 key。"""
+        if self.is_ray:
+            return ray.get(self.executors[0].has_tensor.remote(key))
+        return self.executors.tensor_pool.has(key)
 
     # ── 清理 ───────────────────────────────────────────────────────────
 

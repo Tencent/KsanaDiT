@@ -17,14 +17,14 @@ from __future__ import annotations
 import torch
 import torch.distributed as dist
 
-from ..tensor import KsanaTensorStorePool
+from ..tensor import TensorPool
 from ..utils.logger import log
 
 
 class DistributedGroupManager:
     """管理 torch.distributed 进程组，提供 tensor broadcast 能力。
 
-    与 KsanaTensorStorePool 配合：broadcast 时自动将 tensor 写入非 src_rank 的 pool。
+    与 TensorPool 配合：broadcast 时自动将 tensor 写入非 src_rank 的 pool。
     """
 
     def __init__(self):
@@ -46,7 +46,7 @@ class DistributedGroupManager:
 
     def broadcast_tensors(
         self,
-        tensor_pool: KsanaTensorStorePool,
+        tensor_pool: TensorPool,
         keys: list[str],
         src_rank: int = 0,
         device: torch.device | None = None,
@@ -63,13 +63,14 @@ class DistributedGroupManager:
 
         for key in keys:
             if self.rank_id == src_rank:
-                value = tensor_pool.get(key)
-                if value is None:
+                tensor_value = tensor_pool.get(key)
+                if tensor_value is None:
                     log.debug(f"broadcast_tensors: key '{key}' not found on src_rank={src_rank}, skipping")
                     dist.broadcast_object_list([True], src=src_rank)
                     continue
                 dist.broadcast_object_list([False], src=src_rank)
 
+                value = tensor_value.data  # 取裸 tensor / list[Tensor]
                 if isinstance(value, list):
                     self._broadcast_tensor_list(value, src_rank, device, is_src=True)
                     # src_rank 不需要重新写入 pool

@@ -19,7 +19,7 @@
 """
 
 from ksana.models.model_key import KsanaModelKey
-from ksana.tensor import KsanaTensorKey
+from ksana.tensor import TensorKey
 from ksana.units import KsanaUnitFactory, KsanaUnitType
 
 from ..core.base_node import KsanaInferNode
@@ -42,17 +42,17 @@ class GeneratorNode(KsanaInferNode):
 
     dispatch_policy = KsanaDispatchPolicy.ALL_ALL_ALL
     input_tensor_keys = [
-        KsanaTensorKey.POSITIVE,
-        KsanaTensorKey.NEGATIVE,
-        KsanaTensorKey.IMAGE_EMBEDS,
-        KsanaTensorKey.INPUT_LATENT,
+        TensorKey.POSITIVE,
+        TensorKey.NEGATIVE,
+        TensorKey.IMAGE_EMBEDS,
+        TensorKey.INPUT_LATENT,
     ]
-    output_tensor_keys = [KsanaTensorKey.LATENTS]
+    output_tensor_keys = [TensorKey.LATENTS]
 
     def run(self, model_key, context, *, tensor_pool, model_pool, device_ctx):
-        positive = tensor_pool.get(KsanaTensorKey.POSITIVE)
-        negative = tensor_pool.get(KsanaTensorKey.NEGATIVE)
-        image_embeds = tensor_pool.get(KsanaTensorKey.IMAGE_EMBEDS)  # list[Tensor] | None
+        positive = self._get_data(tensor_pool, TensorKey.POSITIVE)
+        negative = self._get_data(tensor_pool, TensorKey.NEGATIVE)
+        image_embeds = self._get_data(tensor_pool, TensorKey.IMAGE_EMBEDS)  # list[Tensor] | None
         meta = context.metadata
 
         diffusion_model = model_pool.get_model(model_key)
@@ -73,10 +73,10 @@ class GeneratorNode(KsanaInferNode):
             sample_config=context.sample_config,
             runtime_config=context.runtime_config,
             cache_config=context.cache_config,
-            input_latent=tensor_pool.get(KsanaTensorKey.INPUT_LATENT),
+            input_latent=self._get_data(tensor_pool, TensorKey.INPUT_LATENT),
             video_control=meta.get("video_control"),
             control_video_config=meta.get("control_video_config"),
             comfy_bar_callback=meta.get("comfy_bar_callback"),
         )
 
-        tensor_pool.put(KsanaTensorKey.LATENTS, latents)
+        tensor_pool.put(TensorKey.LATENTS, latents)

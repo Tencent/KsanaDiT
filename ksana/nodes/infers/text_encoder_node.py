@@ -19,7 +19,7 @@
 """
 
 from ksana.models.model_key import KsanaModelKey
-from ksana.tensor import KsanaTensorKey
+from ksana.tensor import TensorKey
 from ksana.units import KsanaUnitFactory, KsanaUnitType
 
 from ..core.base_node import KsanaInferNode
@@ -36,7 +36,7 @@ class TextEncodeNode(KsanaInferNode):
 
     dispatch_policy = KsanaDispatchPolicy.ALL_ALL_ALL
     input_tensor_keys = []
-    output_tensor_keys = [KsanaTensorKey.POSITIVE, KsanaTensorKey.NEGATIVE]
+    output_tensor_keys = [TensorKey.POSITIVE, TensorKey.NEGATIVE]
 
     def run(self, model_key, context, *, tensor_pool, model_pool, device_ctx):
         text_encoder_model = model_pool.get_model(model_key)
@@ -52,5 +52,5 @@ class TextEncodeNode(KsanaInferNode):
             images=context.metadata.get("condition_images"),
         )
 
-        tensor_pool.put(KsanaTensorKey.POSITIVE, positive)
-        tensor_pool.put(KsanaTensorKey.NEGATIVE, negative)
+        tensor_pool.put(TensorKey.POSITIVE, positive)
+        tensor_pool.put(TensorKey.NEGATIVE, negative)

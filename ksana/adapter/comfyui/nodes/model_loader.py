@@ -16,8 +16,10 @@ import comfy.model_management as mm
 import folder_paths
 from comfy.utils import ProgressBar
 
-import ksana.adapter.comfy as nodes
 from ksana.config import KsanaLinearBackend
+
+from .. import types
+from ..load import KsanaNodeModelLoader
 
 
 class KsanaVaceModelSelectNode:
@@ -35,7 +37,7 @@ class KsanaVaceModelSelectNode:
             },
         }
 
-    RETURN_TYPES = (nodes.KSANA_VACE_MODEL,)
+    RETURN_TYPES = (types.KSANA_VACE_MODEL,)
     RETURN_NAMES = ("vace_model",)
     FUNCTION = "set_models"
     CATEGORY = "ksana"
@@ -79,7 +81,7 @@ class KsanaModelLoaderNode:
                     {"tooltip": "linear_backend default use linear dtype from model"},
                 ),
                 "attention_config": (
-                    nodes.KSANA_ATTENTION_CONFIG,
+                    types.KSANA_ATTENTION_CONFIG,
                     {"default": None},
                     {"tooltip": "attention config"},
                 ),
@@ -98,13 +100,13 @@ class KsanaModelLoaderNode:
                         "tooltip": "The boundary value used for high and low timesteps.",
                     },
                 ),
-                "torch_compile_args": (nodes.KSANA_TORCH_COMPILE, {"default": None}),
-                "lora": (nodes.KSANA_LORA, {"default": None}),
-                "vace_model": (nodes.KSANA_VACE_MODEL, {"default": None}),
+                "torch_compile_args": (types.KSANA_TORCH_COMPILE, {"default": None}),
+                "lora": (types.KSANA_LORA, {"default": None}),
+                "vace_model": (types.KSANA_VACE_MODEL, {"default": None}),
             },
         }
 
-    RETURN_TYPES = (nodes.KSANA_DIFFUSION_MODEL,)
+    RETURN_TYPES = (types.KSANA_DIFFUSION_MODEL,)
     RETURN_NAMES = ("model",)
     FUNCTION = "load_model"
     CATEGORY = "ksana"
@@ -121,4 +123,4 @@ class KsanaModelLoaderNode:
         kwargs["high_noise_model_path"] = folder_paths.get_full_path("diffusion_models", model_name)
         if low_noise_model_name is not None and low_noise_model_name != "Empty":
             kwargs["low_noise_model_path"] = folder_paths.get_full_path("diffusion_models", low_noise_model_name)
-        return (nodes.KsanaNodeModelLoader.load(comfy_progress_bar_func=ProgressBar, **kwargs),)
+        return (KsanaNodeModelLoader.load(comfy_progress_bar_func=ProgressBar, **kwargs),)

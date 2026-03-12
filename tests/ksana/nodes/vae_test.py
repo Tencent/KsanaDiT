@@ -25,7 +25,7 @@ from nodes_test_helper import (
 )
 
 from ksana import get_engine
-from ksana.adapter.comfy import KsanaNodeVAELoader
+from ksana.adapter.comfyui import KsanaNodeVAELoader
 from ksana.utils.distribute import get_rank_id
 
 VAE_MODEL_PATH = os.path.join(COMFY_MODEL_ROOT, "VAE", "Wan2.1_VAE.pth")

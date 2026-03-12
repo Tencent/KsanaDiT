@@ -20,7 +20,9 @@ import torch
 
 from ksana import KsanaAttentionBackend, KsanaAttentionConfig, KsanaLinearBackend, KsanaRadialSageAttentionConfig
 from ksana.accelerator import platform
-from ksana.adapter.comfy import (
+
+# TODO: 这里的node测试其实comfyui的测试，应该改成adapter的测试，这个时候应该允许依赖comfy。另外需要node的单独测试。
+from ksana.adapter.comfyui import (
     KsanaNodeModelLoader,
     KsanaNodeVAEEncodeOutput,
     build_list_of_lora_config,

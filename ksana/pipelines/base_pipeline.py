@@ -29,7 +29,7 @@ from ..engine import KsanaEngine
 from ..models.model_key import KsanaModelKey
 from ..nodes.core.node_context import KsanaNodeContext
 from ..nodes.core.node_types import KsanaInferNodeType
-from ..tensor import KsanaTensorKey
+from ..tensor import TensorKey
 from ..utils import log, merge_video_audio
 from ..utils.media import save_video
 from ..utils.types import evolve_with_recommend, str_to_list
@@ -139,10 +139,11 @@ class KsanaBasePipeline(ABC):
 
         def vae_encode_fn(frame: torch.Tensor) -> torch.Tensor:
             context = KsanaNodeContext()
-            with self.engine.tensor_scope():
-                self.engine.put_tensors(**{KsanaTensorKey.IMAGE: frame})
+            with self.engine.tensor_scope(keep=[TensorKey.IMAGE_EMBEDS]):
+                self.engine.put_tensors(**{TensorKey.IMAGE: frame})
                 self.engine.run_infer_node(KsanaInferNodeType.VAE_ENCODE_IMAGES, self.vae_model_key, context)
-                latents_list = self.engine.get_tensor(KsanaTensorKey.IMAGE_EMBEDS)  # list[Tensor]
+            tv = self.engine.get_tensor(TensorKey.IMAGE_EMBEDS)
+            latents_list = tv.data  # list[Tensor]
             return latent_process_out(latents_list[0])
 
         vace_config = build_vace_video_control_config(

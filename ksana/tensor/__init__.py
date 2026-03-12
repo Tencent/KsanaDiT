@@ -12,13 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .tensor_key import KsanaTensorKey
-from .tensor_store import KsanaTensorStore, TensorValue
-from .tensor_store_pool import KsanaTensorStorePool
+from .tensor_key import TensorKey
+from .tensor_pool import TensorPool
+from .tensor_value import TensorData, TensorValue
 
 __all__ = [
-    "KsanaTensorKey",
-    "KsanaTensorStore",
-    "KsanaTensorStorePool",
+    "TensorKey",
+    "TensorPool",
+    "TensorData",
     "TensorValue",
 ]

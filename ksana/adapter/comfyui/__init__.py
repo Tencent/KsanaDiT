@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+
+# TODO: combine these into comfyui nodes, and fix test
 from .attn_config import attention_config, radial_sage_attention_config, sage_sla_config
 from .cache import (
     KsanaNodeDBCache,
@@ -58,7 +60,16 @@ from .types import (
 )
 from .vae import KsanaNodeVAELoader, vae_decode, vae_encode, vae_encode_image
 
+try:
+    from .nodes import NODE_CLASS_MAPPINGS, NODE_DISPLAY_NAME_MAPPINGS
+except Exception as e:  # pylint: disable=broad-except
+    print(f"[import error][ksana.adapter.comfyui.nodes]: {str(e)}")
+    NODE_CLASS_MAPPINGS = {}
+    NODE_DISPLAY_NAME_MAPPINGS = {}
+
 __all__ = [
+    "NODE_CLASS_MAPPINGS",
+    "NODE_DISPLAY_NAME_MAPPINGS",
     "KSANA_DIFFUSION_MODEL",
     "KSANA_CATEGORY_CACHE",
     "KSANA_CACHE_CONFIG",
@@ -100,11 +111,11 @@ __all__ = [
     "vae_encode",
     "vae_encode_image",
     "vae_decode",
-    "build_list_of_lora_config",
-    "torch_compile_config",
     "attention_config",
     "radial_sage_attention_config",
     "sage_sla_config",
+    "torch_compile_config",
+    "build_list_of_lora_config",
     "convert_text_embeds_to_ksana",
     "ksana_empty_torch_cache",
 ]

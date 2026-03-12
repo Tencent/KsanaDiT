@@ -13,6 +13,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# ============================================================
+# KsanaDiT 安装脚本
+#
+# 用法:  ./install.sh
+#
+# 脚本会自动检测硬件类型，并交互式询问安装方式。
+# ============================================================
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+# ---- 硬件检测 ----
 detect_device() {
     if command -v nvidia-smi &>/dev/null; then
         echo "gpu"
@@ -25,33 +39,53 @@ detect_device() {
     fi
 }
 
-# TODO(TJ): need add kdit whl, pip install whl的时候可以用这个脚本，这个脚本应该有一个dev模式就是按照本地代码。
-# 修改本地代码的comfyui使用方式，可以考虑挪到adapter/comfyui和comfy如何整合，脚本方式安装的时候自动写一个init到custom node/kdit 下
-
-
 INSTALL_TYPE=$(detect_device)
 if [[ -z "$INSTALL_TYPE" ]]; then
-    echo "错误: 无法自动检测硬件类型，请手动指定"
-    echo "用法: $0 [gpu|npu|xpu]"
+    echo "错误: 无法自动检测硬件类型 (gpu/npu/xpu)"
     exit 1
 fi
 echo "自动检测到硬件类型: $INSTALL_TYPE"
 
-if [[ ! "$INSTALL_TYPE" =~ ^(gpu|npu|xpu)$ ]]; then
-    echo "错误: 无效的安装类型 '$INSTALL_TYPE'"
-    echo "用法: $0 [gpu|npu|xpu]"
-    echo "  gpu - 安装 GPU 版本"
-    echo "  npu - 安装 NPU 版本"
-    echo "  xpu - 安装 XPU 版本"
-    echo "  不传参数则自动检测"
-    exit 1
+# ---- 判断当前目录是否为项目源码 ----
+INSTALL_MODE="whl"
+if [[ -d "$PROJECT_ROOT/ksana" && -f "$PROJECT_ROOT/pyproject.toml" ]]; then
+    echo "检测到当前目录下存在 ksana 项目源码和 pyproject.toml"
+    while true; do
+        read -rp "是否以 editable 的开发模式安装当前目录下的代码? (yes/no): " answer
+        case "$answer" in
+            yes) INSTALL_MODE="dev"; break ;;
+            no)  INSTALL_MODE="whl"; break ;;
+            *)   echo "请输入 yes 或 no" ;;
+        esac
+    done
 fi
 
-echo "正在卸载现有的 ksana-dit..."
-pip uninstall -y ksana-dit
+echo "=========================================="
+echo "  安装模式:      $INSTALL_MODE"
+echo "  硬件类型:      $INSTALL_TYPE"
+echo "=========================================="
 
-echo "当前目录: $(pwd)"
-echo "正在安装 ksana-dit[$INSTALL_TYPE]..."
-pip install -e ".[$INSTALL_TYPE]"
+# ---- 卸载旧版本 ----
+echo "正在卸载现有的 ksana-dit..."
+pip uninstall -y ksana-dit 2>/dev/null || true
+
+# ---- 安装 ----
+if [[ "$INSTALL_MODE" == "dev" ]]; then
+    echo "正在以开发模式安装 ${PROJECT_ROOT}[$INSTALL_TYPE] (当前代码)..."
+    pip install -e "${PROJECT_ROOT}[$INSTALL_TYPE]"
+else
+    echo "正在安装 ksana-dit[$INSTALL_TYPE] (发布版)..."
+    pip install "ksana-dit[$INSTALL_TYPE]"
+fi
 
 echo "安装完成: ksana-dit[$INSTALL_TYPE]"
+
+# ---- 询问是否安装 ComfyUI 适配器 ----
+while true; do
+    read -rp "是否安装 ComfyUI 节点适配器? (yes/no): " comfy_answer
+    case "$comfy_answer" in
+        yes) kdit_install_adapters; break ;;
+        no)  echo "跳过 ComfyUI 适配器安装"; break ;;
+        *)   echo "请输入 yes 或 no" ;;
+    esac
+done

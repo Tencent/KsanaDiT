@@ -19,7 +19,7 @@ from ksana.config import KsanaDistributedConfig
 from ksana.models.model_key import get_model_key_from_path
 from ksana.nodes.core.node_context import KsanaNodeContext
 from ksana.nodes.core.node_types import KsanaInferNodeType
-from ksana.tensor import KsanaTensorKey
+from ksana.tensor import TensorKey
 from ksana.utils import get_gpu_count, log
 from ksana.utils.profile import MemoryProfiler
 
@@ -27,6 +27,7 @@ from .output_types import KsanaNodeVAEEncodeOutput
 
 
 class KsanaNodeVAELoader:
+    # TODO： 这种方式不安全，如果一个画布有多个相同节点，就会出错，或者反复clear model了
     LOADED_MODEL = None
 
     @classmethod
@@ -60,8 +61,11 @@ def vae_encode(
             latent = torch.zeros(
                 [batch_size, 16, ((num_frames - 1) // 4) + 1, height // 8, width // 8], device=torch.device("cpu")
             )
+        # 无 VAE 时也写入 pool，保持 key 模式一致
+        ksana_engine = get_engine()
+        ksana_engine.put_tensors(**{TensorKey.IMAGE_EMBEDS: [latent]})
         return KsanaNodeVAEEncodeOutput(
-            samples=latent,
+            samples=TensorKey.IMAGE_EMBEDS,
             with_end_image=False,
             batch_size_per_prompts=batch_size,
         )
@@ -70,10 +74,8 @@ def vae_encode(
     log.info(f"encoder vae: {vae}")
     if isinstance(start_image, torch.Tensor) and start_image.ndim == 3:
         start_image = start_image.unsqueeze(0)
-        print(f"start_image{start_image.shape}, {start_image.device}")
     if isinstance(end_image, torch.Tensor) and end_image.ndim == 3:
         end_image = end_image.unsqueeze(0)
-        print(f"end_image{end_image.shape}, {end_image.device}")
     channels = 3
     if start_image is not None and start_image.shape[3] == channels:
         start_image = start_image.permute(0, 3, 1, 2)
@@ -99,13 +101,12 @@ def vae_encode(
             "batch_size": batch_size,
         }
     )
-    with ksana_engine.tensor_scope():
-        ksana_engine.put_tensors(**{KsanaTensorKey.START_IMG: start_image, KsanaTensorKey.END_IMG: end_image})
+    with ksana_engine.tensor_scope(keep=[TensorKey.IMAGE_EMBEDS]):
+        ksana_engine.put_tensors(**{TensorKey.START_IMG: start_image, TensorKey.END_IMG: end_image})
         ksana_engine.run_infer_node(KsanaInferNodeType.VAE_ENCODE_SPATIAL, vae, context)
-        latents = ksana_engine.get_tensor(KsanaTensorKey.IMAGE_EMBEDS)
 
     return KsanaNodeVAEEncodeOutput(
-        samples=latents,
+        samples=TensorKey.IMAGE_EMBEDS,
         with_end_image=with_end_image,
         batch_size_per_prompts=int(batch_size),
     )
@@ -123,15 +124,13 @@ def vae_encode_image(
     log.info(f"encoder vae: {vae}")
 
     context = KsanaNodeContext(metadata={"batch_size": batch_size})
-    with ksana_engine.tensor_scope():
-        ksana_engine.put_tensors(**{KsanaTensorKey.IMAGE: image})
+    with ksana_engine.tensor_scope(keep=[TensorKey.IMAGE_EMBEDS]):
+        ksana_engine.put_tensors(**{TensorKey.IMAGE: image})
         ksana_engine.run_infer_node(KsanaInferNodeType.VAE_ENCODE_IMAGES, vae, context)
-        latents = ksana_engine.get_tensor(KsanaTensorKey.IMAGE_EMBEDS)
 
-    print(f"-------------latents.shape:{latents.shape}")
     MemoryProfiler.record_memory("after vae_encode_image")
     return KsanaNodeVAEEncodeOutput(
-        samples=latents,
+        samples=TensorKey.IMAGE_EMBEDS,
         with_end_image=False,
         batch_size_per_prompts=int(batch_size),
     )
@@ -143,18 +142,25 @@ def _comfy_process_output(image):
 
 def vae_decode(vae, latent):
     MemoryProfiler.record_memory("before vae_decode")
-    latents = latent.samples
+    latents_key = latent.samples  # TensorKey — tensor 在 pool 中
     with_end_image = latent.with_end_image
     ksana_engine = get_engine()
-    log.info(f"latent{latents.shape}, {latents.device}")
-    if isinstance(latents, torch.Tensor) and latents.ndim == 4:
-        latents = latents.unsqueeze(0)
+
+    if not ksana_engine.has_tensor(latents_key):
+        raise RuntimeError(
+            f"vae_decode: tensor key '{latents_key}' not found in pool. "
+            "Ensure the upstream node (vae_encode/generate) used tensor_scope(keep=...) correctly."
+        )
 
     context = KsanaNodeContext(metadata={"with_end_image": with_end_image})
     with ksana_engine.tensor_scope():
-        ksana_engine.put_tensors(**{KsanaTensorKey.LATENTS: latents})
+        # latents_key 可能是 LATENTS 或 IMAGE_EMBEDS，VAEDecodeNode 读 LATENTS
+        if latents_key != TensorKey.LATENTS:
+            tv = ksana_engine.get_tensor(latents_key)
+            ksana_engine.put_tensors(**{TensorKey.LATENTS: tv.data})
         ksana_engine.run_infer_node(KsanaInferNodeType.VAE_DECODE, vae, context)
-        images = ksana_engine.get_tensor(KsanaTensorKey.VIDEO)
+        video_tv = ksana_engine.get_tensor(TensorKey.VIDEO)
+        images = video_tv.data
 
     images = images.cpu().permute(0, 2, 3, 4, 1)
     images = images.reshape(-1, images.shape[-3], images.shape[-2], images.shape[-1])

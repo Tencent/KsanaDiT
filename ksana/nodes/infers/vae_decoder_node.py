@@ -19,7 +19,7 @@
 """
 
 from ksana.models.model_key import KsanaModelKey
-from ksana.tensor import KsanaTensorKey
+from ksana.tensor import TensorKey
 from ksana.units import KsanaUnitFactory, KsanaUnitType
 
 from ..core.base_node import KsanaInferNode
@@ -35,11 +35,11 @@ class VAEDecodeNode(KsanaInferNode):
     """VAE 解码 — 只在 rank 0 执行，不广播。"""
 
     dispatch_policy = KsanaDispatchPolicy.ALL_R0_R0
-    input_tensor_keys = [KsanaTensorKey.LATENTS]
-    output_tensor_keys = [KsanaTensorKey.VIDEO]
+    input_tensor_keys = [TensorKey.LATENTS]
+    output_tensor_keys = [TensorKey.VIDEO]
 
     def run(self, model_key, context, *, tensor_pool, model_pool, device_ctx):
-        latents = tensor_pool.get(KsanaTensorKey.LATENTS)
+        latents = self._get_data(tensor_pool, TensorKey.LATENTS)
         vae_model = model_pool.get_model(model_key)
         vae_decoder = KsanaUnitFactory.create(KsanaUnitType.DECODER, model_key)
 
@@ -53,4 +53,4 @@ class VAEDecodeNode(KsanaInferNode):
             with_end_image=context.metadata.get("with_end_image", False),
         )
 
-        tensor_pool.put(KsanaTensorKey.VIDEO, video)
+        tensor_pool.put(TensorKey.VIDEO, video)

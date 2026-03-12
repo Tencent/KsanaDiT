@@ -1,0 +1,62 @@
+# Copyright 2025 Tencent
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+
+from .tensor_key import TensorKey
+from .tensor_value import TensorData, TensorValue
+
+
+class TensorPool:
+    """管理所有中间 tensor，与 ModelPool 同级。
+
+    Node 间通过 ``TensorKey`` 引用 tensor，避免 tensor 跨 Ray 边界序列化。
+    生命周期由 ``Engine.tensor_scope()`` 管理，scope 结束时 ``clear(exclude=keep)``。
+
+    公开方法: ``put`` / ``get`` / ``clear`` / ``has`` / ``keys`` / ``__len__`` / ``__repr__``
+    """
+
+    def __init__(self):
+        self._stores: dict[TensorKey, TensorValue] = {}
+
+    def put(self, key: TensorKey, data: TensorData) -> None:
+        """存入 tensor（或 list[Tensor]），覆盖同名 key。"""
+        self._stores[key] = TensorValue(data)
+
+    def get(self, key: TensorKey) -> TensorValue | None:
+        """读取 TensorValue，不存在返回 None。"""
+        return self._stores.get(key)
+
+    def has(self, key: TensorKey) -> bool:
+        """检查 key 是否存在于 pool 中。"""
+        return key in self._stores
+
+    def clear(self, exclude: list[TensorKey] | None = None) -> None:
+        """释放所有（或除 *exclude* 外的）tensor 引用并从池中移除。
+
+        被排除的 key 保留在池中不被 release。
+        """
+        exclude_set = set(exclude) if exclude else set()
+        keys_to_remove = [k for k in self._stores if k not in exclude_set]
+        for k in keys_to_remove:
+            self._stores[k].release()
+            del self._stores[k]
+
+    def keys(self) -> list[TensorKey]:
+        return list(self._stores.keys())
+
+    def __len__(self) -> int:
+        return len(self._stores)
+
+    def __repr__(self) -> str:
+        return f"TensorPool(keys={self.keys()})"

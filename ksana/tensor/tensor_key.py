@@ -15,7 +15,7 @@
 from enum import Enum
 
 
-class KsanaTensorKey(str, Enum):
+class TensorKey(str, Enum):
     """tensor_pool 中所有合法的 key。
 
     继承 str 使得枚举值可以直接用作 dict key / 字符串比较。

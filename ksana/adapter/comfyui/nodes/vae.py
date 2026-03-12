@@ -14,8 +14,9 @@
 
 import folder_paths
 
-import ksana.adapter.comfy as nodes
-from ksana.adapter.comfy import KSANA_CATEGORY_VAE, KSANA_GENERATE_OUTPUT, KSANA_VAE_ENCODE_OUTPUT, KSANA_VAE_MODEL
+import ksana.adapter.comfyui as nodes
+
+from .. import KSANA_CATEGORY_VAE, KSANA_GENERATE_OUTPUT, KSANA_VAE_ENCODE_OUTPUT, KSANA_VAE_MODEL
 
 
 class KsanaVAELoaderNode:

@@ -1,4 +1,4 @@
-# Copyright 2025 Tencent
+# Copyright 2026 Tencent
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,12 +12,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-try:
-    from .comfyui import NODE_CLASS_MAPPINGS, NODE_DISPLAY_NAME_MAPPINGS
+import sys
+from pathlib import Path
 
-    __all__ = ["NODE_CLASS_MAPPINGS", "NODE_DISPLAY_NAME_MAPPINGS"]
-except ImportError:
-    # ComfyUI environment not available, skip comfyui imports
+_COMFY_PROJECT_ROOT = str(Path(__file__).resolve().parent.parent.parent)
+if _COMFY_PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, _COMFY_PROJECT_ROOT)
+
+try:
+    from ksana.adapter.comfyui import NODE_CLASS_MAPPINGS, NODE_DISPLAY_NAME_MAPPINGS
+except Exception as e:  # pylint: disable=broad-except
+    print(f"[import error][ksana.adapter.comfyui]: {str(e)}")
     NODE_CLASS_MAPPINGS = {}
     NODE_DISPLAY_NAME_MAPPINGS = {}
-    __all__ = ["NODE_CLASS_MAPPINGS", "NODE_DISPLAY_NAME_MAPPINGS"]
+
+__all__ = [
+    "NODE_CLASS_MAPPINGS",
+    "NODE_DISPLAY_NAME_MAPPINGS",
+]

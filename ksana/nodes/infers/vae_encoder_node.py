@@ -20,7 +20,7 @@
 """
 
 from ksana.models.model_key import KsanaModelKey
-from ksana.tensor import KsanaTensorKey
+from ksana.tensor import TensorKey
 from ksana.units import KsanaUnitFactory, KsanaUnitType
 
 from ..core.base_node import KsanaInferNode
@@ -40,8 +40,8 @@ class VAEEncodeSpatialNode(KsanaInferNode):
     """
 
     dispatch_policy = KsanaDispatchPolicy.R0_R0_BCAST
-    input_tensor_keys = [KsanaTensorKey.START_IMG, KsanaTensorKey.END_IMG]
-    output_tensor_keys = [KsanaTensorKey.IMAGE_EMBEDS]
+    input_tensor_keys = [TensorKey.START_IMG, TensorKey.END_IMG]
+    output_tensor_keys = [TensorKey.IMAGE_EMBEDS]
 
     def run(self, model_key, context, *, tensor_pool, model_pool, device_ctx):
         vae_model = model_pool.get_model(model_key)
@@ -50,8 +50,8 @@ class VAEEncodeSpatialNode(KsanaInferNode):
 
         image_embeds = vae_encoder.run(
             vae_model,
-            start_img=tensor_pool.get(KsanaTensorKey.START_IMG),
-            end_img=tensor_pool.get(KsanaTensorKey.END_IMG),
+            start_img=self._get_data(tensor_pool, TensorKey.START_IMG),
+            end_img=self._get_data(tensor_pool, TensorKey.END_IMG),
             mask=meta.get("mask"),
             batch_size=meta.get("batch_size"),
             target_f=meta.get("target_f"),
@@ -64,7 +64,7 @@ class VAEEncodeSpatialNode(KsanaInferNode):
             # 统一为 list[Tensor]，I2V 场景包装为单元素 list
             if not isinstance(image_embeds, list):
                 image_embeds = [image_embeds]
-            tensor_pool.put(KsanaTensorKey.IMAGE_EMBEDS, image_embeds)
+            tensor_pool.put(TensorKey.IMAGE_EMBEDS, image_embeds)
 
 
 @KsanaInferNodeFactory.register(
@@ -79,8 +79,8 @@ class VAEEncodeImagesNode(KsanaInferNode):
     """
 
     dispatch_policy = KsanaDispatchPolicy.R0_R0_BCAST
-    input_tensor_keys = [KsanaTensorKey.IMAGE]
-    output_tensor_keys = [KsanaTensorKey.IMAGE_EMBEDS]
+    input_tensor_keys = [TensorKey.IMAGE]
+    output_tensor_keys = [TensorKey.IMAGE_EMBEDS]
 
     def run(self, model_key, context, *, tensor_pool, model_pool, device_ctx):
         vae_model = model_pool.get_model(model_key)
@@ -89,7 +89,7 @@ class VAEEncodeImagesNode(KsanaInferNode):
 
         image_embeds = vae_encoder.run_encode_image(
             vae_model,
-            image=tensor_pool.get(KsanaTensorKey.IMAGE),
+            image=self._get_data(tensor_pool, TensorKey.IMAGE),
             device=device_ctx.device,
             batch_size=meta.get("batch_size", 1),
         )
@@ -98,4 +98,4 @@ class VAEEncodeImagesNode(KsanaInferNode):
             # 统一为 list[Tensor]，单 tensor 包装为单元素 list
             if not isinstance(image_embeds, list):
                 image_embeds = [image_embeds]
-            tensor_pool.put(KsanaTensorKey.IMAGE_EMBEDS, image_embeds)
+            tensor_pool.put(TensorKey.IMAGE_EMBEDS, image_embeds)

@@ -16,8 +16,10 @@ import comfy
 import comfy.model_management as mm
 from comfy.utils import ProgressBar
 
-import ksana.adapter.comfy as nodes
-from ksana.adapter.comfy import (
+import ksana.adapter.comfyui as nodes
+from ksana.config.sample_config import KsanaSolverType
+
+from .. import (
     KSANA_CACHE_CONFIG,
     KSANA_DIFFUSION_MODEL,
     KSANA_GENERATE_OUTPUT,
@@ -26,7 +28,6 @@ from ksana.adapter.comfy import (
     KSANA_VAE_ENCODE_OUTPUT,
     KSANA_VIDEO_CONTROL_CONFIG,
 )
-from ksana.config.sample_config import KsanaSolverType
 
 
 class KsanaGeneratorNode:

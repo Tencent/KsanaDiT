@@ -39,9 +39,6 @@ class KsanaNodeContext:
     runtime_config: KsanaRuntimeConfig = None
     cache_config: list = None
 
-    # tensor key 引用（不是 tensor 本身，而是 KsanaTensorStorePool 中的 key）
-    tensor_refs: dict[str, str] = field(default_factory=dict)
-
     # 元数据（如 noise_shape、vace_config 等由上游 Node 或 Pipeline 写入）
     metadata: dict = field(default_factory=dict)
 
@@ -51,7 +48,7 @@ class KsanaNodeContext:
             if isinstance(value, torch.Tensor):
                 raise TypeError(
                     f"KsanaNodeContext.{field_name} is a Tensor! "
-                    f"Use engine.put_tensors() + KsanaTensorKey instead. "
+                    f"Use engine.put_tensors() + TensorKey instead. "
                     f"KsanaNodeContext must be serializable for Ray dispatch."
                 )
             if isinstance(value, dict):
@@ -59,6 +56,6 @@ class KsanaNodeContext:
                     if isinstance(v, torch.Tensor):
                         raise TypeError(
                             f"KsanaNodeContext.{field_name}[{k!r}] is a Tensor! "
-                            f"Use engine.put_tensors() + KsanaTensorKey instead. "
+                            f"Use engine.put_tensors() + TensorKey instead. "
                             f"KsanaNodeContext must be serializable for Ray dispatch."
                         )

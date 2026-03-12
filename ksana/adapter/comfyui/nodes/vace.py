@@ -15,7 +15,12 @@
 import torch
 
 from ksana import get_engine
-from ksana.adapter.comfy import (
+from ksana.config import KsanaExperimentalConfig, KsanaFETAConfig, KsanaSLGConfig
+from ksana.utils import common_upscale, get_intermediate_device
+from ksana.utils.logger import log
+from ksana.utils.vace import VAE_STRIDE, latent_process_out
+
+from .. import (
     KSANA_EXPERIMENTAL_ARGS,
     KSANA_FETA_ARGS,
     KSANA_SLG_ARGS,
@@ -27,11 +32,7 @@ from ksana.adapter.comfy import (
     WANVIDEO_FETA_ARGS,
     WANVIDEO_SLG_ARGS,
 )
-from ksana.adapter.comfy.output_types import KsanaNodeVAEEncodeOutput
-from ksana.config import KsanaExperimentalConfig, KsanaFETAConfig, KsanaSLGConfig
-from ksana.utils import common_upscale, get_intermediate_device
-from ksana.utils.logger import log
-from ksana.utils.vace import VAE_STRIDE, latent_process_out
+from ..output_types import KsanaNodeVAEEncodeOutput
 
 
 class KsanaWanVaceToVideoNode:
@@ -143,15 +144,17 @@ class KsanaWanVaceToVideoNode:
     DESCRIPTION = "Encodes control video and reference image for Wan VACE video generation using KsanaDiT VAE."
 
     def _vae_encode(self, vae_key, image):
-        """Encode images using KsanaDiT VAE."""
+        """Encode images using KsanaDiT VAE, returns raw tensor data."""
         from ksana.nodes.core.node_context import KsanaNodeContext
         from ksana.nodes.core.node_types import KsanaInferNodeType
+        from ksana.tensor import TensorKey
 
         ksana_engine = get_engine()
         context = KsanaNodeContext(metadata={"image": image})
-        with ksana_engine.tensor_scope():
+        with ksana_engine.tensor_scope(keep=TensorKey.IMAGE_EMBEDS):
             ksana_engine.run_infer_node(KsanaInferNodeType.VAE_ENCODE_IMAGES, vae_key, context)
-            return ksana_engine._get_tensor_from_pool("image_embeds")  # noqa: SLF001
+        tv = ksana_engine.get_tensor(TensorKey.IMAGE_EMBEDS)
+        return tv.data if tv is not None else None
 
     def encode(
         self,

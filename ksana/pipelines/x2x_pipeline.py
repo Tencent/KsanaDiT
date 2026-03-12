@@ -30,7 +30,7 @@ from ..models.vae_model import compute_image_latent_shape, compute_video_latent_
 from ..nodes.core.node_context import KsanaNodeContext
 from ..nodes.core.node_types import KsanaInferNodeType
 from ..settings import load_default_settings
-from ..tensor import KsanaTensorKey
+from ..tensor import TensorKey
 from ..utils import log, time_range
 from ..utils.media import save_image
 from ..utils.monitor import report
@@ -199,7 +199,7 @@ class KsanaPipeline(KsanaBasePipeline):
         )
 
         # ── V5: 使用 tensor_scope + run_infer_node 编排 ──────────────
-        with self.engine.tensor_scope():
+        with self.engine.tensor_scope(keep=[TensorKey.VIDEO]):
             # 1. Text Encode
             condition_images = img_path if self.model_key == KsanaModelKey.QwenImage_Edit else None
             text_ctx = KsanaNodeContext(
@@ -217,7 +217,7 @@ class KsanaPipeline(KsanaBasePipeline):
             if img_path is not None:
                 # Edit 模式：参考图走 VAE_ENCODE_IMAGES — tensor 通过 put_tensors 写入
                 img_tensor = self._load_input_images(img_path, None, device=self.offload_device)[0]
-                self.engine.put_tensors(**{KsanaTensorKey.IMAGE: img_tensor})
+                self.engine.put_tensors(**{TensorKey.IMAGE: img_tensor})
                 vae_ctx = KsanaNodeContext()
                 self.engine.run_infer_node(KsanaInferNodeType.VAE_ENCODE_IMAGES, self.vae_model_key, vae_ctx)
             elif start_img_path is not None:
@@ -225,9 +225,7 @@ class KsanaPipeline(KsanaBasePipeline):
                 img_tensor, end_img_tensor = self._load_input_images(
                     start_img_path, end_img_path, device=self.offload_device
                 )
-                self.engine.put_tensors(
-                    **{KsanaTensorKey.START_IMG: img_tensor, KsanaTensorKey.END_IMG: end_img_tensor}
-                )
+                self.engine.put_tensors(**{TensorKey.START_IMG: img_tensor, TensorKey.END_IMG: end_img_tensor})
                 vae_ctx = KsanaNodeContext(
                     metadata={
                         "target_f": target_frame_num,
@@ -250,7 +248,7 @@ class KsanaPipeline(KsanaBasePipeline):
 
             # input_latent 通过 put_tensors 写入 tensor_pool
             if input_latent is not None:
-                self.engine.put_tensors(**{KsanaTensorKey.INPUT_LATENT: input_latent})
+                self.engine.put_tensors(**{TensorKey.INPUT_LATENT: input_latent})
 
             gen_ctx = KsanaNodeContext(
                 sample_config=sample_config,
@@ -271,7 +269,8 @@ class KsanaPipeline(KsanaBasePipeline):
                 },
             )
             self.engine.run_infer_node(KsanaInferNodeType.VAE_DECODE, self.vae_model_key, decode_ctx)
-            outputs = self.engine.get_tensor(KsanaTensorKey.VIDEO)
+            video_tv = self.engine.get_tensor(TensorKey.VIDEO)
+            outputs = video_tv.data if video_tv is not None else None
 
         if runtime_config.offload_model:
             gc.collect()

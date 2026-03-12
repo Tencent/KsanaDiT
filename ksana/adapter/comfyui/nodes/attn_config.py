@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import ksana.adapter.comfy as nodes
+import ksana.adapter.comfyui as nodes
 from ksana.config import KsanaAttentionBackend
 
 

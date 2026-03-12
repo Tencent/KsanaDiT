@@ -15,7 +15,7 @@
 from abc import ABC, abstractmethod
 
 from ksana.models.model_pool import KsanaModelPool
-from ksana.tensor import KsanaTensorStorePool
+from ksana.tensor import TensorKey, TensorPool
 
 from .device_context import KsanaDeviceContext
 from .node_context import KsanaNodeContext
@@ -66,13 +66,19 @@ class KsanaInferNode(ABC):
     input_tensor_keys: list[str] = []
     output_tensor_keys: list[str] = []
 
+    @staticmethod
+    def _get_data(tensor_pool: TensorPool, key: TensorKey):
+        """从 pool 取 TensorValue 并返回 .data，不存在返回 None。"""
+        v = tensor_pool.get(key)
+        return v.data if v is not None else None
+
     @abstractmethod
     def run(
         self,
         model_key,
         context: KsanaNodeContext,
         *,
-        tensor_pool: KsanaTensorStorePool,
+        tensor_pool: TensorPool,
         model_pool: KsanaModelPool,
         device_ctx: KsanaDeviceContext,
     ) -> None:

@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from ksana.adapter.comfy import ksana_empty_torch_cache
-from ksana.adapter.comfy.types import KSANA_ANY_TYPE
+from .. import ksana_empty_torch_cache
+from ..types import KSANA_ANY_TYPE
 
 
 class KsanaEmptyTorchCacheNode:

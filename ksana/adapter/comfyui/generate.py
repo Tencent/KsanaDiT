@@ -22,7 +22,7 @@ from ksana.memory.estimator import (
 from ksana.models.model_key import KsanaModelKey
 from ksana.nodes.core.node_context import KsanaNodeContext
 from ksana.nodes.core.node_types import KsanaInferNodeType
-from ksana.tensor import KsanaTensorKey
+from ksana.tensor import TensorKey
 from ksana.utils import log
 from ksana.utils.monitor import report
 from ksana.utils.profile import MemoryProfiler
@@ -50,6 +50,64 @@ def _prepare_memory_for_ksana_models(model_key, latent_shape, run_dtype, comfy_d
         log.debug(f"Final free memory: {get_available_memory(comfy_device) / (1024*1024):.1f} MB")
     except Exception as e:  # pylint: disable=broad-except
         raise RuntimeError(f"Failed to prepare memory for KsanaDiT models: {e}")
+
+
+def _resolve_latent_shape(ksana_engine, image_embeds, latent, diffusion_model_key):
+    """从 image_embeds key 或 latent 推导 latent_shape 和 image_embeds_list。
+
+    Returns:
+        (latent_shape, image_embeds_list)
+        - latent_shape: list[int] | None
+        - image_embeds_list: list[Tensor] | None — 裸 tensor list，用于 put_tensors
+    """
+    noise_shape = None
+    image_embeds_list = None
+
+    # image_embeds.samples 是 TensorKey — 从 pool 取裸 tensor
+    image_embeds_key = image_embeds.samples
+    if not ksana_engine.has_tensor(image_embeds_key):
+        raise RuntimeError(
+            f"generate: tensor key '{image_embeds_key}' not found in pool. "
+            "Ensure vae_encode used tensor_scope(keep=...) correctly."
+        )
+    tv = ksana_engine.get_tensor(image_embeds_key)
+    raw_data = tv.data if tv is not None else None
+
+    if isinstance(raw_data, list):
+        image_embeds_list = raw_data
+    elif raw_data is not None:
+        image_embeds_list = [raw_data]
+
+    # latent shape 推导
+    if latent is not None:
+        latent_samples = latent.samples
+        # latent.samples 也可能是 key
+        if isinstance(latent_samples, TensorKey):
+            ltv = ksana_engine.get_tensor(latent_samples)
+            latent_raw = ltv.data if ltv is not None else None
+        else:
+            latent_raw = latent_samples
+        latent_shape = list(latent_raw.shape) if latent_raw is not None else None
+    elif image_embeds_list is not None and len(image_embeds_list) > 0:
+        latent_shape = list(image_embeds_list[0].shape)
+    else:
+        latent_shape = None
+
+    # Qwen Image Edit: latent 直接决定输出 shape
+    if latent is not None and diffusion_model_key == KsanaModelKey.QwenImage_Edit:
+        if isinstance(latent.samples, TensorKey):
+            ltv = ksana_engine.get_tensor(latent.samples)
+            latent_raw = ltv.data if ltv is not None else None
+        else:
+            latent_raw = latent.samples
+        noise_shape = list(latent_raw.shape[1:]) if latent_raw is not None else None
+    elif diffusion_model_key == KsanaModelKey.QwenImage_T2I:
+        # T2I: image_embeds 仅用于提供输出 shape，不作为图像条件传入 generator
+        if image_embeds_list is not None and len(image_embeds_list) > 0:
+            noise_shape = list(image_embeds_list[0].shape[1:])
+        image_embeds_list = None
+
+    return noise_shape, image_embeds_list, latent_shape
 
 
 @report("comfyui_generate")
@@ -98,13 +156,11 @@ def generate(
 
     MemoryProfiler.record_memory("before_ksana_engine_generate_with_tensors")
 
-    # For memory estimation, use latent shape if available, otherwise infer from image_embeds
-    if latent is not None:
-        latent_shape = latent.samples.shape
-    elif isinstance(image_embeds.samples, list):
-        latent_shape = image_embeds.samples[0].shape
-    else:
-        latent_shape = image_embeds.samples.shape
+    # 从 pool 中的 key 推导 shape 和裸 tensor
+    noise_shape, image_embeds_list, latent_shape = _resolve_latent_shape(
+        ksana_engine, image_embeds, latent, diffusion_model_key
+    )
+
     if comfy_free_mem_func is not None and comfy_device is not None:
         _prepare_memory_for_ksana_models(
             diffusion_model_key,
@@ -133,20 +189,6 @@ def generate(
         video_control_config=video_control_config,
         vace_embeds=vace_embeds,
     )
-    noise_shape = None
-    image_embeds_list = image_embeds.samples  # list[Tensor] — 统一为 list 格式
-    if not isinstance(image_embeds_list, list):
-        print(f"-------------image_embeds_list.shape:{image_embeds_list.shape}")
-        image_embeds_list = [image_embeds_list]
-
-    # Qwen Image Edit: latent 直接决定输出 shape，不需要修正
-    if latent is not None and diffusion_model_key == KsanaModelKey.QwenImage_Edit:
-        noise_shape = list(latent.samples.shape[1:])
-    elif diffusion_model_key == KsanaModelKey.QwenImage_T2I:
-        # TODO: ulgy noise shape? should use another node to get shape
-        # T2I: image_embeds 仅用于提供输出 shape，不作为图像条件传入 generator
-        noise_shape = list(image_embeds_list[0].shape[1:])
-        image_embeds_list = None
 
     # 构建 KsanaNodeContext — tensor 参数通过 tensor_pool 传递
     context = KsanaNodeContext(
@@ -173,22 +215,23 @@ def generate(
         },
     )
 
-    with ksana_engine.tensor_scope():
-        ksana_engine.put_tensors(**{KsanaTensorKey.POSITIVE: positive[0][0], KsanaTensorKey.NEGATIVE: negative[0][0]})
+    with ksana_engine.tensor_scope(keep=[TensorKey.LATENTS]):
+        ksana_engine.put_tensors(**{TensorKey.POSITIVE: positive[0][0], TensorKey.NEGATIVE: negative[0][0]})
         if image_embeds_list is not None:
-            ksana_engine.put_tensors(**{KsanaTensorKey.IMAGE_EMBEDS: image_embeds_list})
+            ksana_engine.put_tensors(**{TensorKey.IMAGE_EMBEDS: image_embeds_list})
         if latent is not None:
-            ksana_engine.put_tensors(**{KsanaTensorKey.INPUT_LATENT: latent.samples})
+            # latent.samples 是 key — 从 pool 取裸 tensor 写入 INPUT_LATENT
+            if isinstance(latent.samples, TensorKey):
+                ltv = ksana_engine.get_tensor(latent.samples)
+                latent_raw = ltv.data if ltv is not None else None
+            else:
+                latent_raw = latent.samples
+            ksana_engine.put_tensors(**{TensorKey.INPUT_LATENT: latent_raw})
         ksana_engine.run_infer_node(KsanaInferNodeType.GENERATE, diffusion_model_key, context)
-        samples = ksana_engine.get_tensor(KsanaTensorKey.LATENTS)
 
     MemoryProfiler.record_memory("after_ksana_engine_generate_with_tensors")
 
-    # Note: only rank 0 return tensor, so maybe None
-    if samples is not None and len(samples.shape) == 4:
-        samples = samples.unsqueeze(0)
-
     return KsanaNodeGeneratorOutput(
-        samples=samples,
+        samples=TensorKey.LATENTS,
         with_end_image=image_embeds.with_end_image,
     )

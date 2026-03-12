@@ -14,32 +14,21 @@
 
 # TODO(refactor): Remove "Ksana" prefix from all class names in ksana/ package (see .skills/coding.md §7)
 
-try:
-    from .config import (
-        KsanaAttentionBackend,
-        KsanaAttentionConfig,
-        KsanaLinearBackend,
-        KsanaRadialSageAttentionConfig,
-        KsanaRuntimeConfig,
-        KsanaSampleConfig,
-        KsanaTorchCompileConfig,
-    )
-    from .engine import KsanaEngine, get_engine
-    from .models import KsanaDiffusionModel
-    from .nodes.infers import *  # noqa: F403
-    from .nodes.loaders import *  # noqa: F403
-    from .pipelines import KsanaPipeline
-    from .utils import KSANA_LOGGER_LEVEL, KSANA_MEMORY_PROFILER  # noqa: F401
-except Exception as e:  # pylint: disable=broad-except
-    print(f"[import error][ksana]: {str(e)}")
-    import traceback
-
-    traceback.print_exc()
-    tb = traceback.extract_tb(e.__traceback__)
-    error_frame = tb[0]
-    print(f"error file: {error_frame.filename}")
-    print(f"error line number: {error_frame.lineno}")
-    print(f"error code: {error_frame.line}")
+from .config import (
+    KsanaAttentionBackend,
+    KsanaAttentionConfig,
+    KsanaLinearBackend,
+    KsanaRadialSageAttentionConfig,
+    KsanaRuntimeConfig,
+    KsanaSampleConfig,
+    KsanaTorchCompileConfig,
+)
+from .engine import KsanaEngine, get_engine
+from .models import KsanaDiffusionModel
+from .nodes.infers import *  # noqa: F403
+from .nodes.loaders import *  # noqa: F403
+from .pipelines import KsanaPipeline
+from .utils import KSANA_LOGGER_LEVEL, KSANA_MEMORY_PROFILER  # noqa: F401
 
 __all__ = [
     "get_engine",

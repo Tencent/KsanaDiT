@@ -12,11 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import annotations
+
 from dataclasses import dataclass, field
 
 import torch
 
 from ksana.models.model_key import KsanaModelKey
+from ksana.tensor import TensorKey
 
 
 @dataclass
@@ -28,12 +31,12 @@ class KsanaNodeModelLoaderOutput:
 
 @dataclass
 class KsanaNodeGeneratorOutput:
-    samples: torch.Tensor = field(default=None)
+    samples: TensorKey | torch.Tensor | None = field(default=None)
     with_end_image: bool = field(default=False)
 
 
 @dataclass
 class KsanaNodeVAEEncodeOutput:
-    samples: list[torch.Tensor] = field(default=None)
+    samples: TensorKey | torch.Tensor | None = field(default=None)
     with_end_image: bool = field(default=False)
     batch_size_per_prompts: int = field(default=1)

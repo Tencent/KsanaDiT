@@ -12,8 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import ksana.adapter.comfy as nodes
-from ksana.adapter.comfy import KSANA_CATEGORY_CONFIGS, KSANA_TORCH_COMPILE
+import ksana.adapter.comfyui as nodes
+
+from .. import KSANA_CATEGORY_CONFIGS, KSANA_TORCH_COMPILE
 
 
 class KsanaTorchCompileNode:
