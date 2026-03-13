@@ -18,9 +18,10 @@
 调用 Generator Unit 执行去噪，将 latents 无条件写入 tensor_pool。
 """
 
+from kdit.generators import GeneratorFactory
+from kdit.generators.generator_context import GeneratorInferContext
 from kdit.models.model_key import KsanaModelKey
 from kdit.tensor import TensorKey
-from kdit.units import KsanaUnitFactory, KsanaUnitType
 
 from ..core.base_node import KsanaInferNode
 from ..core.node_factory import KsanaInferNodeFactory
@@ -50,33 +51,30 @@ class GeneratorNode(KsanaInferNode):
     output_tensor_keys = [TensorKey.LATENTS]
 
     def run(self, model_key, context, *, tensor_pool, model_pool, device_ctx):
-        positive = self._get_data(tensor_pool, TensorKey.POSITIVE)
-        negative = self._get_data(tensor_pool, TensorKey.NEGATIVE)
         image_embeds = self._get_data(tensor_pool, TensorKey.IMAGE_EMBEDS)  # list[Tensor] | None
         meta = context.metadata
-
-        diffusion_model = model_pool.get_model(model_key)
-        generator = KsanaUnitFactory.create(KsanaUnitType.GENERATOR, model_key)
 
         noise_shape = meta.get("noise_shape")
         if noise_shape is None and image_embeds is not None and len(image_embeds) > 0:
             noise_shape = list(image_embeds[0].shape[1:])
 
-        latents = generator.run(
-            diffusion_model=diffusion_model,
-            noise_shape=noise_shape,
+        ctx = GeneratorInferContext(
+            diffusion_model=model_pool.get_model(model_key),
+            positive=self._get_data(tensor_pool, TensorKey.POSITIVE),
+            negative=self._get_data(tensor_pool, TensorKey.NEGATIVE),
             image_embeds=image_embeds,
-            positive=positive,
-            negative=negative,
+            input_latent=self._get_data(tensor_pool, TensorKey.INPUT_LATENT),
+            noise_shape=noise_shape,
             device=device_ctx.device,
             offload_device=device_ctx.offload_device,
             sample_config=context.sample_config,
             runtime_config=context.runtime_config,
             cache_config=context.cache_config,
-            input_latent=self._get_data(tensor_pool, TensorKey.INPUT_LATENT),
             video_control=meta.get("video_control"),
             control_video_config=meta.get("control_video_config"),
             comfy_bar_callback=meta.get("comfy_bar_callback"),
         )
 
+        generator = GeneratorFactory.create(model_key)
+        latents = generator.run(ctx)
         tensor_pool.put(TensorKey.LATENTS, latents)

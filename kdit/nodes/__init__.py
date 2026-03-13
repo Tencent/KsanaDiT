@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# 导入子包（触发 @KsanaUnitFactory.register + @KsanaLoaderNodeFactory/@KsanaInferNodeFactory.register 注册）
+# 导入子包（触发 @GeneratorFactory.register + @KsanaLoaderNodeFactory/@KsanaInferNodeFactory.register 注册）
 from . import (  # noqa: F401
     infers,
     loaders,

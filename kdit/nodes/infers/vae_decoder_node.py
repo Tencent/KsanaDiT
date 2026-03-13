@@ -12,15 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""VAEDecodeNode — 封装 KsanaVaeDecoder Unit 的解码推理。
+"""VAEDecodeNode — 直接调用 VAE Model 的解码推理。
 
-从 tensor_pool 读取 latents，调用 VAE Decoder 解码为视频/图像，
+从 tensor_pool 读取 latents，调用 vae_model.forward_decode() 解码为视频/图像，
 结果写入 tensor_pool。
 """
 
 from kdit.models.model_key import KsanaModelKey
 from kdit.tensor import TensorKey
-from kdit.units import KsanaUnitFactory, KsanaUnitType
+from kdit.utils import log
 
 from ..core.base_node import KsanaInferNode
 from ..core.node_factory import KsanaInferNodeFactory
@@ -41,16 +41,17 @@ class VAEDecodeNode(KsanaInferNode):
     def run(self, model_key, context, *, tensor_pool, model_pool, device_ctx):
         latents = self._get_data(tensor_pool, TensorKey.LATENTS)
         vae_model = model_pool.get_model(model_key)
-        vae_decoder = KsanaUnitFactory.create(KsanaUnitType.DECODER, model_key)
+        meta = context.metadata
 
-        video = vae_decoder.run(
-            vae_model,
+        video = vae_model.forward_decode(
             latents=latents,
             local_rank=0,
             device=device_ctx.device,
-            offload_device=device_ctx.offload_device,
-            offload_model=context.metadata.get("offload_model", False),
-            with_end_image=context.metadata.get("with_end_image", False),
+            with_end_image=meta.get("with_end_image", False),
         )
 
+        if meta.get("offload_model", False) and device_ctx.offload_device is not None:
+            vae_model.to(device_ctx.offload_device)
+
+        log.info(f"decoder output shape: {video.shape}")
         tensor_pool.put(TensorKey.VIDEO, video)

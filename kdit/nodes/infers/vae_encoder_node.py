@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""VAE Encode Nodes — 封装 KsanaVaeEncoder Unit 的前向推理。
+"""VAE Encode Nodes — 直接调用 VAE Model 的编码推理。
 
 拆分为两个独立 Node，各自拥有明确的 tensor 契约：
   - VAEEncodeSpatialNode: start_img + end_img → 视频 latent（含 mask，用于 I2V/VACE）
@@ -21,7 +21,7 @@
 
 from kdit.models.model_key import KsanaModelKey
 from kdit.tensor import TensorKey
-from kdit.units import KsanaUnitFactory, KsanaUnitType
+from kdit.utils import log
 
 from ..core.base_node import KsanaInferNode
 from ..core.node_factory import KsanaInferNodeFactory
@@ -45,19 +45,31 @@ class VAEEncodeSpatialNode(KsanaInferNode):
 
     def run(self, model_key, context, *, tensor_pool, model_pool, device_ctx):
         vae_model = model_pool.get_model(model_key)
-        vae_encoder = KsanaUnitFactory.create(KsanaUnitType.ENCODER, model_key)
         meta = context.metadata
 
-        image_embeds = vae_encoder.run(
-            vae_model,
-            start_img=self._get_data(tensor_pool, TensorKey.START_IMG),
-            end_img=self._get_data(tensor_pool, TensorKey.END_IMG),
-            mask=meta.get("mask"),
-            batch_size=meta.get("batch_size"),
-            target_f=meta.get("target_f"),
-            target_h=meta.get("target_h"),
-            target_w=meta.get("target_w"),
+        start_img = self._get_data(tensor_pool, TensorKey.START_IMG)
+        end_img = self._get_data(tensor_pool, TensorKey.END_IMG)
+        batch_size = meta.get("batch_size", 1 if start_img is None else start_img.shape[0])
+
+        if start_img is not None and batch_size % start_img.shape[0] != 0:
+            raise ValueError(f"start_img batch size {start_img.shape[0]} cannot be broadcast to {batch_size}")
+
+        log.info(
+            f"vae_encode with model_key: {vae_model.model_key}, target_batch_size: {batch_size}, "
+            f"start_image shape: {start_img.shape if start_img is not None else None}, "
+            f"end_image shape: {end_img.shape if end_img is not None else None}, "
+            f"mask shape: {meta.get('mask').shape if meta.get('mask') is not None else None}"
+        )
+
+        image_embeds = vae_model.forward_encode(
+            meta.get("target_f"),
+            meta.get("target_h"),
+            meta.get("target_w"),
             device=device_ctx.device,
+            target_batch_size=batch_size,
+            start_img=start_img,
+            end_img=end_img,
+            mask=meta.get("mask"),
         )
 
         if image_embeds is not None:
@@ -84,14 +96,20 @@ class VAEEncodeImagesNode(KsanaInferNode):
 
     def run(self, model_key, context, *, tensor_pool, model_pool, device_ctx):
         vae_model = model_pool.get_model(model_key)
-        vae_encoder = KsanaUnitFactory.create(KsanaUnitType.ENCODER, model_key)
         meta = context.metadata
 
-        image_embeds = vae_encoder.run_encode_image(
-            vae_model,
-            image=self._get_data(tensor_pool, TensorKey.IMAGE),
+        image = self._get_data(tensor_pool, TensorKey.IMAGE)
+        batch_size = meta.get("batch_size", 1)
+
+        log.info(
+            f"vae_encode_image with model_key: {vae_model.model_key}, "
+            f"image type: {type(image).__name__}, batch_size: {batch_size}"
+        )
+
+        image_embeds = vae_model.forward_encode_image(
+            image=image,
             device=device_ctx.device,
-            batch_size=meta.get("batch_size", 1),
+            target_batch_size=batch_size,
         )
 
         if image_embeds is not None:

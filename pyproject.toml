@@ -64,3 +64,6 @@ kdit = ["data/*.json"]
 # 自定义构建选项
 [tool.setuptools]
 zip-safe = false  # 禁止以 zip 形式安装
+
+[tool.pytest.ini_options]
+pythonpath = ["."]  # 确保 pytest 直接运行时也能 import kdit（等效于 python -m pytest）

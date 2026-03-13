@@ -124,7 +124,7 @@ class KsanaSampleConfig:
 
 | Key 类型 | 定义位置 | 语义 | 使用场景 |
 |----------|---------|------|---------|
-| `KsanaModelKey` | `kdit/models/model_key.py` | 标识一个具体的模型类别 | `KsanaModelPool` 存取、`KsanaModel.__init__`、Loader/Infer Node 注册与分发、`KsanaUnitFactory` 注册、`settings` 配置映射 |
+| `KsanaModelKey` | `kdit/models/model_key.py` | 标识一个具体的模型类别 | `KsanaModelPool` 存取、`KsanaModel.__init__`、Loader/Infer Node 注册与分发、`GeneratorFactory` 注册、`settings` 配置映射 |
 | `KsanaPipelineKey` | `kdit/pipelines/pipeline_key.py` | 标识一条完整的推理流水线 | `KsanaBasePipeline.__init__`、pipeline 创建与路由、`base_pipeline` 中 pipeline→model 映射表的 key 侧 |
 | `KsanaInferNodeType` | `kdit/nodes/core/node_types.py` | 标识推理节点类型 | `KsanaInferNodeFactory` 注册与分发、`executor.run_infer_node` |
 
@@ -714,19 +714,19 @@ grep -rn "import kdit.adapter" kdit/ --include="*.py" | grep -v __pycache__ | gr
 | `KsanaTextEncoderModel` | `TextEncoderModel` | `kdit/models/text_encoder_model.py` |
 | `KsanaAttentionOp` | `AttentionOp` | `kdit/operations/attention/attention_op.py` |
 | `KsanaAttentionBackendImpl` | `AttentionBackendImpl` | `kdit/operations/attention/backends/base.py` |
-| `KsanaRunnerUnit` | `RunnerUnit` | `kdit/units/runner_unit.py` |
-| `KsanaBaseTextEncoder` | `BaseTextEncoder` | `kdit/units/encoder_unit.py` |
-| `KsanaTextEncoder` | `TextEncoder` | `kdit/units/encoder_unit.py` |
-| `KsanaQwenVLTextEncoderUnit` | `QwenVLTextEncoderUnit` | `kdit/units/encoder_unit.py` |
-| `KsanaWanGenerator` | `WanGenerator` | `kdit/units/generator/wan_generator.py` |
-| `KsanaQwenGenerator` | `QwenGenerator` | `kdit/units/generator/qwen_generator.py` |
-| `KsanaBaseGenerator` | `BaseGenerator` | `kdit/units/generator/base.py` |
-| `KsanaVaceGenerator` | `VaceGenerator` | `kdit/units/generator/vace_generator.py` |
-| `KsanaVaeEncoder` | `VaeEncoder` | `kdit/units/vae_encoder_unit.py` |
-| `KsanaUnit` | `Unit` | `kdit/units/base_unit.py` |
-| `KsanaUnitType` | `UnitType` | `kdit/units/base_unit.py` |
-| `KsanaUnitFactory` | `UnitFactory` | `kdit/units/base_unit.py` |
-| `KsanaVaeDecoder` | `VaeDecoder` | `kdit/units/decoder_unit.py` |
+| ~~`KsanaRunnerUnit`~~ | ~~`RunnerUnit`~~ | ~~`kdit/units/runner_unit.py`~~ | ✅ 已删除（冗余） |
+| ~~`KsanaBaseTextEncoder`~~ | ~~`BaseTextEncoder`~~ | ~~`kdit/units/text_encoder.py`~~ | ✅ 已删除（融入 `text_encoder_node.py`） |
+| ~~`KsanaTextEncoder`~~ | ~~`T5TextEncoder`~~ | ~~`kdit/units/text_encoder.py`~~ | ✅ 已删除（融入 `T5TextEncodeNode`） |
+| ~~`KsanaQwenVLTextEncoderUnit`~~ | ~~`QwenVLTextEncoder`~~ | ~~`kdit/units/text_encoder.py`~~ | ✅ 已删除（融入 `QwenTextEncodeNode`） |
+| `KsanaWanGenerator` | `WanGenerator` | `kdit/generators/wan_generator.py` |
+| `KsanaQwenGenerator` | `QwenGenerator` | `kdit/generators/qwen_generator.py` |
+| `KsanaBaseGenerator` | `BaseGenerator` | `kdit/generators/base_generator.py` |
+| `KsanaVaceGenerator` | `VaceGenerator` | `kdit/generators/vace_generator.py` |
+| ~~`KsanaVaeEncoder`~~ | ~~`VaeEncoder`~~ | ~~`kdit/units/vae_encoder_unit.py`~~ | ✅ 已删除（VAE Unit 移除） |
+| ~~`KsanaUnit`~~ | ~~`Unit`~~ | ~~`kdit/units/base_unit.py`~~ | ✅ 已删除（units 包移除） |
+| ~~`KsanaUnitType`~~ | ~~`UnitType`~~ | ~~`kdit/units/base_unit.py`~~ | ✅ 已删除（units 包移除） |
+| ~~`KsanaUnitFactory`~~ | ~~`UnitFactory`~~ | ~~`kdit/units/base_unit.py`~~ | ✅ 已删除（替换为 `GeneratorFactory`） |
+| ~~`KsanaVaeDecoder`~~ | ~~`VaeDecoder`~~ | ~~`kdit/units/decoder_unit.py`~~ | ✅ 已删除（VAE Unit 移除） |
 | `KsanaExecutor` | `Executor` | `kdit/executor/executor.py` |
 | ~~`KsanaTensorStore`~~ | `TensorValue` | `kdit/tensor/tensor_value.py` | ✅ 已完成 |
 | `KsanaTensorKey` | `TensorKey` | `kdit/tensor/tensor_key.py` |

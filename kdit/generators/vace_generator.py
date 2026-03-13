@@ -27,12 +27,12 @@ from kdit.utils.vace import (
     parse_video_control_kwargs,
 )
 
-from ..base_unit import KsanaUnitFactory, KsanaUnitType
-from .wan_generator import KsanaWanGenerator
+from .generator_factory import GeneratorFactory
+from .wan_generator import WanGenerator
 
 
-@KsanaUnitFactory.register(KsanaUnitType.GENERATOR, KsanaModelKey.Wan2_1_VACE_14B)
-class KsanaVaceGenerator(KsanaWanGenerator):
+@GeneratorFactory.register(KsanaModelKey.Wan2_1_VACE_14B)
+class VaceGenerator(WanGenerator):
     def init_denoising_loop(self, video_control_kwargs, diffusion_model, sample_scheduler):
         return parse_video_control_kwargs(
             video_control_kwargs,

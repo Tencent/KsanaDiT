@@ -104,14 +104,8 @@ class TestWan21VAENodeParallel(unittest.TestCase):
         self.assertEqual(list(latents.shape[:2]), [1, LATENT_CHANNELS])
         self.assertEqual(list(frames.shape[:2]), [1, 3])
         if self.rank == 0:
-            with self.subTest("latents_mean"):
-                self.assertAlmostEqual(
-                    latents.float().abs().mean().item(), expected["latents_mean"], places=TEST_EPS_PLACE
-                )
-            with self.subTest("frames_mean"):
-                self.assertAlmostEqual(
-                    frames.float().abs().mean().item(), expected["frames_mean"], places=TEST_EPS_PLACE
-                )
+            self.assertAlmostEqual(latents.float().abs().mean().item(), expected["latents_mean"], places=TEST_EPS_PLACE)
+            self.assertAlmostEqual(frames.float().abs().mean().item(), expected["frames_mean"], places=TEST_EPS_PLACE)
 
     SPEED_TOLERANCE_PERCENT = 5
 

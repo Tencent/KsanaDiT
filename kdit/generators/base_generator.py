@@ -12,125 +12,33 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import random
-import sys
 from abc import abstractmethod
 
 import torch
 from tqdm import tqdm
 
-from kdit.cache import create_hybrid_cache
-from kdit.config import KsanaRuntimeConfig, KsanaSampleConfig, KsanaSolverType
-from kdit.config.cache_config import KsanaCacheConfig, KsanaHybridCacheConfig, warp_as_hybrid_cache
-from kdit.config.video_control_config import KsanaVideoControlConfig
-from kdit.models import KsanaDiffusionModel, KsanaModelKey
+from kdit.config import KsanaRuntimeConfig, KsanaSampleConfig
+from kdit.config.cache_config import KsanaCacheConfig, KsanaHybridCacheConfig
+from kdit.models import KsanaDiffusionModel
 from kdit.sample_solvers import get_sample_scheduler
 from kdit.scheduler import KsanaBatchScheduler
-from kdit.utils import evolve_with_recommend, log, time_range
-from kdit.utils.vace import KsanaVaceContext
+from kdit.utils import log, time_range
 
-from ..runner_unit import KsanaRunnerUnit
+from .generator_context import GeneratorInferContext
+from .steps import noise as noise_ops
+from .steps import tensor_ops, validation
 
 
-class KsanaBaseGenerator(KsanaRunnerUnit):
+class BaseGenerator:
     def __init__(self):
         super().__init__()
         self.batch_scheduler = KsanaBatchScheduler()
 
-    def _valid_diffusion_model(
-        self, diffusion_model: KsanaDiffusionModel | list[KsanaDiffusionModel]
-    ) -> list[KsanaDiffusionModel]:
-        if isinstance(diffusion_model, (tuple, list)):
-            diffusion_model = list(diffusion_model)
-        elif isinstance(diffusion_model, KsanaDiffusionModel):
-            diffusion_model = [diffusion_model]
-        else:
-            raise ValueError(
-                f"diffusion_model {diffusion_model} must be KsanaDiffusionModel or list of KsanaDiffusionModel"
-            )
-        if len(diffusion_model) != 1:
-            if self.model_key in [KsanaModelKey.Wan2_2_I2V_14B, KsanaModelKey.Wan2_2_T2V_14B]:
-                if len(diffusion_model) > 2 or len(diffusion_model) < 1:
-                    raise ValueError(
-                        f"{self.model_key} must have one or two model, but got {len(diffusion_model)} model"
-                    )
-                else:
-                    if self.model_key != diffusion_model[0].model_key or self.model_key != diffusion_model[1].model_key:
-                        raise ValueError(f"{self.model_key} must match but got {diffusion_model[0].model_key}")
-                    if diffusion_model[0].run_dtype != diffusion_model[1].run_dtype:
-                        raise ValueError(
-                            f"{self.model_key} must have same run_dtype, but got "
-                            f"{diffusion_model[0].run_dtype} and {diffusion_model[1].run_dtype}"
-                        )
-            else:
-                raise ValueError(f"{self.model_key} must have only one model, but got {len(diffusion_model)} model")
-        return diffusion_model
+    # ------------------------------------------------------------------
+    # 子类可覆写的 prompt / image 校验（QwenGenerator 覆写了这些）
+    # ------------------------------------------------------------------
 
-    def _valid_sample_config(self, sample_config: KsanaSampleConfig, model_len: int) -> KsanaSampleConfig:
-        log.info(f"sample_config: {sample_config}")
-        if isinstance(sample_config.cfg_scale, (float, int)):
-            evolve_with_recommend(
-                sample_config, {"cfg_scale": [sample_config.cfg_scale] * model_len}, force_update=True
-            )
-        elif isinstance(sample_config.cfg_scale, (list, tuple)):
-            if len(sample_config.cfg_scale) < model_len:
-                raise ValueError(f"cfg_scale length must be {model_len}, but got {len(sample_config.cfg_scale)}")
-            evolve_with_recommend(sample_config, {"cfg_scale": list(sample_config.cfg_scale)}, force_update=True)
-        else:
-            raise TypeError(f"sample_config.cfg_scale {sample_config.cfg_scale} type not supported")
-        if sample_config.solver is None or not KsanaSolverType.support(sample_config.solver):
-            raise ValueError(f"sample_config.solver must in support list {KsanaSolverType.get_supported_list()}")
-        if sample_config.denoise <= 0.0:
-            raise ValueError(f"denoise <= 0.0 is not supported, got {sample_config.denoise}")
-        return sample_config
-
-    def _valid_cache_config(
-        self, cache_config: KsanaCacheConfig | KsanaHybridCacheConfig, model_len: int
-    ) -> KsanaHybridCacheConfig:
-        log.info(f"cache_config: {cache_config}")
-        if cache_config is None:
-            return
-        if not (len(cache_config) == 1 or len(cache_config) == model_len):
-            raise ValueError(f"cache_config length must be {model_len} or 1, but got {len(cache_config)}")
-        hybrid_caches = []
-        for i in range(model_len):
-            cache_id = min(i, len(cache_config) - 1)  # allow two model use same cache config
-            one_config = cache_config[cache_id]
-            if one_config is None:
-                hybrid_caches.append(None)
-                continue
-            if not isinstance(one_config, (KsanaCacheConfig, KsanaHybridCacheConfig)):
-                raise ValueError(f"cache_config {one_config} must be KsanaCacheConfig or KsanaHybridCacheConfig")
-            as_hybrid_cache = warp_as_hybrid_cache(one_config)
-            hybrid_caches.append(as_hybrid_cache)
-        return hybrid_caches
-
-    def _valid_runtime_config(self, runtime_config: KsanaRuntimeConfig, num_prompts: int) -> KsanaRuntimeConfig:
-        log.info(f"runtime_config: {runtime_config}")
-        if runtime_config is None:
-            raise ValueError("runtime_config must be provided")
-        batch_size_per_prompts = runtime_config.batch_size_per_prompts
-        if batch_size_per_prompts is None:
-            batch_size_per_prompts = [1] * num_prompts
-        elif isinstance(batch_size_per_prompts, int):
-            batch_size_per_prompts = [batch_size_per_prompts] * num_prompts
-        elif isinstance(batch_size_per_prompts, (list, tuple)):
-            if len(batch_size_per_prompts) != num_prompts:
-                raise ValueError(
-                    f"batch_size_per_prompts({batch_size_per_prompts}) len " f"must match num_prompts ({num_prompts})"
-                )
-        else:
-            raise TypeError(
-                f"batch_size_per_prompts must be int/list[int]/None, but got {type(batch_size_per_prompts)}"
-            )
-        runtime_config = evolve_with_recommend(
-            runtime_config,
-            {"batch_size_per_prompts": batch_size_per_prompts},
-            force_update=True,
-        )
-        return runtime_config
-
-    def _valid_prompts(self, positive: torch.Tensor, negative: torch.Tensor) -> list[str]:
+    def _valid_prompts(self, positive: torch.Tensor, negative: torch.Tensor):
         log.info(
             f"positive shape:{positive.shape}, dtype:{positive.dtype}, device:{positive.device};"
             f" negtive shape:{negative.shape}, dtype:{negative.dtype}, device:{negative.device}"
@@ -176,7 +84,6 @@ class KsanaBaseGenerator(KsanaRunnerUnit):
 
     def _expand_single_latents(self, image_embeds: torch.Tensor, num_prompts: int, batch_size_per_prompts: list[int]):
         """处理单个tensor格式的latents"""
-        # 如果需要重复latents以匹配prompt数量
         if num_prompts > image_embeds.shape[0]:
             current_batch_size = image_embeds.shape[0]
             repeats_num = num_prompts // current_batch_size
@@ -197,77 +104,12 @@ class KsanaBaseGenerator(KsanaRunnerUnit):
         negative = self._expand_to_total_prompts_size(negative, batch_size_per_prompts)
         return positive, negative
 
-    def _valid_input_latent(self, input_latent: torch.Tensor, noise_shape: tuple[int]):
-        if input_latent is None:
-            return
-        if input_latent.dim() != len(noise_shape) or len(noise_shape) != 5:  # [bs, z_dim, f, h, w]
-            raise ValueError(
-                f"input_latent.dim() {input_latent.dim()} must be equal to noise_shape.len()"
-                f" {len(noise_shape)} and both must be 5"
-            )
-        input_bs, input_z_dim, _, input_h, input_w = input_latent.shape
-        noise_bs, noise_z_dim, _, noise_h, noise_w = noise_shape
-        if input_bs != noise_bs or input_z_dim != noise_z_dim or input_h != noise_h or input_w != noise_w:
-            raise ValueError(
-                f"input_latent shape {input_latent.shape} must match "
-                f" noise_shape {noise_shape} in all dimensions except frame dimension"
-            )
+    # ------------------------------------------------------------------
+    # 子类通过 self 调用的工具方法（保留在类上）
+    # ------------------------------------------------------------------
 
-    def _cast_to(self, src, *, dtype: torch.dtype, device: torch.device):
-        if src.dtype != dtype:
-            src = src.to(dtype)
-        if src.device != device:
-            src = src.to(device)
-        return src
-
-    def _create_random_noise_latents(
-        self,
-        total_samples_num: int,
-        noise_shape: tuple[int],
-        runtime_config: KsanaRuntimeConfig,
-        *,
-        device: torch.device,
-        dtype: torch.dtype,
-    ):
-        """
-        return tensor shape :[bs, z_dim, f, h, w] (5D tensor for batch)
-        """
-        seed = (
-            runtime_config.seed
-            if runtime_config.seed is not None and runtime_config.seed >= 0
-            else random.randint(0, sys.maxsize)
-        )
-        seed_g = torch.Generator(device=device)
-        seed_g.manual_seed(seed)
-        latents_list = []
-        for _ in range(total_samples_num):
-            single_noise = torch.randn(
-                *noise_shape,
-                dtype=torch.float32,
-                device=device,
-                generator=seed_g,
-            ).to(dtype)
-            latents_list.append(single_noise)
-        noise = torch.stack(latents_list, dim=0)
-        log.info(f"create random noise_latents shape {noise.shape}, dtype:{noise.dtype}, device:{noise.device}")
-        return noise, seed_g
-
-    def _create_cache(self, cache_config: list[KsanaCacheConfig | None], model_key: KsanaModelKey):
-        if cache_config is None:
-            return None
-        cache = []
-        for config in cache_config:
-            if config is None:
-                cache.append(None)
-                continue
-            cache.append(create_hybrid_cache(model_key, config))
-        return cache
-
-    def _apply_rope_function_to_models(self, diffusion_models: list[KsanaDiffusionModel], rope_function: str | None):
-        rope_value = rope_function or "default"
-        for model in diffusion_models:
-            if hasattr(model.model, "set_rope_function"):
-                model.model.set_rope_function(rope_value)
+    def _use_cfg(self, cfg_scale: float, eps: float = 1e-6):
+        return abs(cfg_scale - 1.0) > eps
 
     def _get_num_train_timesteps(self, default_settings):
         num_train_timesteps = getattr(default_settings.sample_config, "num_train_timesteps", None)
@@ -275,11 +117,39 @@ class KsanaBaseGenerator(KsanaRunnerUnit):
             raise RuntimeError("num_train_timesteps should be set in yaml sample_config settings")
         return num_train_timesteps
 
-    def _use_cfg(self, cfg_scale: float, eps: float = 1e-6):
-        return abs(cfg_scale - 1.0) > eps
-
     def _apply_input_latent(self, *args, **kwargs):
         raise NotImplementedError("subclass must implement _apply_input_latent method")
+
+    def _get_num_prompts(self, text_tensor: torch.Tensor | tuple):
+        if isinstance(text_tensor, tuple):
+            text_tensor = text_tensor[0]
+        if isinstance(text_tensor, torch.Tensor):
+            return text_tensor.shape[0]
+        else:
+            raise ValueError("text_tensor must be torch.Tensor or tuple of torch.Tensor")
+
+    def _get_patch_size(self, diffusion_model: list[KsanaDiffusionModel]):
+        model = diffusion_model[0] if isinstance(diffusion_model, (list, tuple)) else diffusion_model
+        default_settings = model.default_settings
+        patch_size = getattr(default_settings.diffusion, "patch_size", None)
+        patch_size = getattr(diffusion_model, "patch_size", None) or patch_size
+        if patch_size is None:
+            raise RuntimeError(
+                f"{self.model_key} can not get patch_size from diffusion_model or default_settings, "
+                "should patch_size add to default_settings.diffusion"
+            )
+        log.info(f"{self.model_key} patch_size: {patch_size}")
+        return patch_size
+
+    def _apply_rope_function_to_models(self, diffusion_models: list[KsanaDiffusionModel], rope_function: str | None):
+        rope_value = rope_function or "default"
+        for model in diffusion_models:
+            if hasattr(model.model, "set_rope_function"):
+                model.model.set_rope_function(rope_value)
+
+    # ------------------------------------------------------------------
+    # 去噪循环核心（有状态，保留在类上）
+    # ------------------------------------------------------------------
 
     def run_one_batch(
         self,
@@ -304,7 +174,7 @@ class KsanaBaseGenerator(KsanaRunnerUnit):
         video_control_kwargs: dict | None = None,
     ) -> torch.Tensor:
         log.info(f"timesteps:{timesteps}, combine_cond_uncond:{combine_cond_uncond}")
-        dit_cache = self._create_cache(cache_config, self.model_key)
+        dit_cache = noise_ops.create_cache(cache_config, self.model_key)
         denoise_video_control_args = self.init_denoising_loop(video_control_kwargs, diffusion_model, sample_scheduler)
 
         total_steps = len(timesteps)
@@ -422,11 +292,11 @@ class KsanaBaseGenerator(KsanaRunnerUnit):
                 f"strategy start={strategy_item.start}, end={strategy_item.end}, "
                 f"combine_cond_uncond={strategy_item.combine_cond_uncond}"
             )
-            batch_positive = self._split_tensors(positive, strategy_item.start, strategy_item.end)
-            batch_negative = self._split_tensors(negative, strategy_item.start, strategy_item.end)
-            batch_noise_latent = self._split_tensors(noise_latents, strategy_item.start, strategy_item.end)
-            batch_image_embeds = self._split_tensors(image_embeds, strategy_item.start, strategy_item.end)
-            batch_input_latent = self._split_tensors(input_latent, strategy_item.start, strategy_item.end)
+            batch_positive = tensor_ops.split_tensors(positive, strategy_item.start, strategy_item.end)
+            batch_negative = tensor_ops.split_tensors(negative, strategy_item.start, strategy_item.end)
+            batch_noise_latent = tensor_ops.split_tensors(noise_latents, strategy_item.start, strategy_item.end)
+            batch_image_embeds = tensor_ops.split_tensors(image_embeds, strategy_item.start, strategy_item.end)
+            batch_input_latent = tensor_ops.split_tensors(input_latent, strategy_item.start, strategy_item.end)
 
             device = run_steps_kwargs["device"]
             sample_scheduler, _, timesteps = get_sample_scheduler(
@@ -454,43 +324,44 @@ class KsanaBaseGenerator(KsanaRunnerUnit):
             noise_latents[strategy_item.start : strategy_item.end] = processed_latents
         return noise_latents
 
+    # ------------------------------------------------------------------
+    # run() — 主入口
+    # ------------------------------------------------------------------
+
     @time_range
-    def run(
-        self,
-        diffusion_model: KsanaDiffusionModel | list[KsanaDiffusionModel],
-        positive: torch.Tensor | tuple,  # [bs, text_len:512, 4096]
-        negative: torch.Tensor | tuple,  # [bs, text_len:512, 4096]
-        sample_config: KsanaSampleConfig,
-        runtime_config: KsanaRuntimeConfig,
-        noise_shape: list[
-            int
-        ],  # Note: noise shape do not include batch size :[vae_z_dim, lat_f, lat_h, lat_w] or [vae_z_dim, h, w]
-        image_embeds: list[torch.Tensor] | None = None,
-        input_latent: torch.Tensor = None,
-        cache_config: list[KsanaCacheConfig | KsanaHybridCacheConfig] = None,
-        device=None,
-        offload_device=None,
-        comfy_bar_callback=None,
-        video_control: KsanaVideoControlConfig | None = None,
-        control_video_config: KsanaVaceContext | None = None,
-    ) -> torch.Tensor:
-        """_summary_
+    def run(self, ctx: GeneratorInferContext) -> torch.Tensor:
+        """执行完整的去噪生成流程。
 
         Args:
-            positive (torch.Tensor): _description_
-            sample_config (KsanaSampleConfig): _description_
+            ctx: 结构化输入上下文，包含模型、tensor、设备、配置等全部参数。
         Returns:
             latents (torch.Tensor)
         """
-        diffusion_model = self._valid_diffusion_model(diffusion_model)
+        # 解包 ctx
+        diffusion_model = ctx.diffusion_model
+        positive = ctx.positive
+        negative = ctx.negative
+        image_embeds = ctx.image_embeds
+        input_latent = ctx.input_latent
+        noise_shape = ctx.noise_shape
+        device = ctx.device
+        offload_device = ctx.offload_device
+        sample_config = ctx.sample_config
+        runtime_config = ctx.runtime_config
+        cache_config = ctx.cache_config
+        video_control = ctx.video_control
+        control_video_config = ctx.control_video_config
+        comfy_bar_callback = ctx.comfy_bar_callback
+
+        diffusion_model = validation.valid_diffusion_model(diffusion_model, self.model_key)
         positive = self.preprocess_text_conditioning(positive)
         negative = self.preprocess_text_conditioning(negative)
         image_embeds = self.preprocess_image_embeds(image_embeds)
         num_prompts = self._get_num_prompts(positive)
 
-        sample_config = self._valid_sample_config(sample_config, len(diffusion_model))
-        cache_config = self._valid_cache_config(cache_config, len(diffusion_model))
-        runtime_config = self._valid_runtime_config(runtime_config, num_prompts)
+        sample_config = validation.valid_sample_config(sample_config, len(diffusion_model))
+        cache_config = validation.valid_cache_config(cache_config, len(diffusion_model))
+        runtime_config = validation.valid_runtime_config(runtime_config, num_prompts)
         positive, negative = self._valid_prompts(positive, negative)
 
         noise_shape = self.valid_noise_shape(noise_shape, diffusion_model)
@@ -510,13 +381,13 @@ class KsanaBaseGenerator(KsanaRunnerUnit):
 
         # create noise latents and batch strategy
         total_samples_num = sum(runtime_config.batch_size_per_prompts)
-        noise_latents, seed_g = self._create_random_noise_latents(
+        noise_latents, seed_g = noise_ops.create_random_noise_latents(
             total_samples_num, noise_shape, runtime_config, device=device, dtype=run_dtype
         )
         batch_strategy = self.batch_scheduler.build_batch_strategy(
             self.model_key, noise_latents.shape, total_samples_num, run_dtype, device
         )
-        self._valid_input_latent(input_latent, noise_latents.shape)
+        validation.valid_input_latent(input_latent, noise_latents.shape)
         # Note: pack need after build strategy since strategy use noise_latents shape as 5D tensor
         patch_size = self._get_patch_size(diffusion_model)
         noise_latents = self.pack_noise_latents(noise_latents, patch_size)
@@ -567,27 +438,10 @@ class KsanaBaseGenerator(KsanaRunnerUnit):
         # Note: [total_samples_num, vae_z_dim, f, h, w] or [total_samples_num, vae_z_dim, h, w]
         return noise_latents
 
-    def _split_tensors(self, tensor: torch.Tensor | tuple[torch.Tensor] | list[torch.Tensor], start: int, end: int):
-        # tensor: torch.Tensor or tuple/list of torch.Tensor
-        # return: sliced tensor with same type as input
-        if tensor is None:
-            return None
-        if isinstance(tensor, torch.Tensor):
-            return tensor[start:end]
-        elif isinstance(tensor, (tuple, list)):
-            return type(tensor)([t[start:end] for t in tensor])
-        else:
-            raise ValueError("tensor must be torch.Tensor or tuple/list of torch.Tensor")
+    # ------------------------------------------------------------------
+    # 子类可覆写的钩子方法
+    # ------------------------------------------------------------------
 
-    def _get_num_prompts(self, text_tensor: torch.Tensor | tuple):
-        if isinstance(text_tensor, tuple):
-            text_tensor = text_tensor[0]
-        if isinstance(text_tensor, torch.Tensor):
-            return text_tensor.shape[0]
-        else:
-            raise ValueError("text_tensor must be torch.Tensor or tuple of torch.Tensor")
-
-    # ########## below are helper functions for subclass override ##########
     def preprocess_image_embeds(self, image_embeds):
         return image_embeds
 
@@ -607,19 +461,6 @@ class KsanaBaseGenerator(KsanaRunnerUnit):
             )
         return noise_shape
 
-    def _get_patch_size(self, diffusion_model: list[KsanaDiffusionModel]):
-        model = diffusion_model[0] if isinstance(diffusion_model, (list, tuple)) else diffusion_model
-        default_settings = model.default_settings
-        patch_size = getattr(default_settings.diffusion, "patch_size", None)
-        patch_size = getattr(diffusion_model, "patch_size", None) or patch_size
-        if patch_size is None:
-            raise RuntimeError(
-                f"{self.model_key} can not get patch_size from diffusion_model or default_settings, "
-                "should patch_size add to default_settings.diffusion"
-            )
-        log.info(f"{self.model_key} patch_size: {patch_size}")
-        return patch_size
-
     def pack_noise_latents(self, noise_latents: torch.Tensor, patch_size) -> torch.Tensor:
         return noise_latents
 
@@ -633,8 +474,8 @@ class KsanaBaseGenerator(KsanaRunnerUnit):
         return sample_config
 
     def cast_text_tensors_to(self, positive, negative, *, dtype: torch.dtype, device: torch.device):
-        positive = self._cast_to(positive, dtype=dtype, device=device)
-        negative = self._cast_to(negative, dtype=dtype, device=device)
+        positive = tensor_ops.cast_to(positive, dtype=dtype, device=device)
+        negative = tensor_ops.cast_to(negative, dtype=dtype, device=device)
         return positive, negative
 
     def cast_image_tensor_to(
@@ -642,7 +483,7 @@ class KsanaBaseGenerator(KsanaRunnerUnit):
     ):
         if image_embeds is None:
             return None
-        return [self._cast_to(embed, dtype=dtype, device=device) for embed in image_embeds]
+        return [tensor_ops.cast_to(embed, dtype=dtype, device=device) for embed in image_embeds]
 
     def get_running_cfg_scale(self, cfg_scale: list[float], **kwargs):
         return cfg_scale[0] if isinstance(cfg_scale, (list, tuple)) else cfg_scale

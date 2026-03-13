@@ -50,7 +50,7 @@ class KsanaModelKey(Enum):
 
     KsanaModelPool 只接受此类型。用于：
       - KsanaLoaderNodeFactory / KsanaInferNodeFactory 按模型注册 Node
-      - KsanaUnitFactory 按模型注册 Unit
+      - GeneratorFactory 按模型注册 Generator
       - settings 配置映射
     """
 

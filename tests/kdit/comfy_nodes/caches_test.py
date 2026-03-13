@@ -127,20 +127,19 @@ class TestWan22T2VCachesRegression(unittest.TestCase):
                     TEST_STEPS,
                     cache_config=cache_config,
                 )
-                with self.subTest(model=model_name, cache=cache_name):
-                    self.assertEqual(load_output.model, KsanaModelKey.Wan2_2_T2V_14B)
-                    latent_key = gen_output.samples
-                    tensor_value = get_engine().get_tensor(latent_key)
-                    latent_tensor = tensor_value.data if tensor_value is not None else None
-                    self.assertIsNotNone(latent_tensor)
-                    mean_val = latent_tensor.cpu().abs().mean().item()
-                    expected = CACHE_TEST_EXPECTED_MEANS.get((model_name, cache_name))
-                    self.assertAlmostEqual(
-                        mean_val,
-                        expected,
-                        places=EPS_PLACES,
-                        msg=f"{model_name} + {cache_name} mean: got {mean_val}, expected {expected}",
-                    )
+                self.assertEqual(load_output.model, KsanaModelKey.Wan2_2_T2V_14B)
+                latent_key = gen_output.samples
+                tensor_value = get_engine().get_tensor(latent_key)
+                latent_tensor = tensor_value.data if tensor_value is not None else None
+                self.assertIsNotNone(latent_tensor)
+                mean_val = latent_tensor.cpu().abs().mean().item()
+                expected = CACHE_TEST_EXPECTED_MEANS.get((model_name, cache_name))
+                self.assertAlmostEqual(
+                    mean_val,
+                    expected,
+                    places=EPS_PLACES,
+                    msg=f"{model_name} + {cache_name} mean: got {mean_val}, expected {expected}",
+                )
 
 
 if __name__ == "__main__":

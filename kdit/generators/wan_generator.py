@@ -18,16 +18,13 @@ from kdit.config import KsanaSampleConfig
 from kdit.models import KsanaDiffusionModel, KsanaModelKey
 from kdit.utils import log
 
-from ..base_unit import KsanaUnitFactory, KsanaUnitType
-from .base_generator import KsanaBaseGenerator
+from .base_generator import BaseGenerator
+from .generator_factory import GeneratorFactory
 
 
 # TODO: need better abstract base implement for vace, vace can not invade base
-@KsanaUnitFactory.register(
-    KsanaUnitType.GENERATOR,
-    [KsanaModelKey.Wan2_2_T2V_14B, KsanaModelKey.Wan2_2_I2V_14B],
-)
-class KsanaWanGenerator(KsanaBaseGenerator):
+@GeneratorFactory.register([KsanaModelKey.Wan2_2_T2V_14B, KsanaModelKey.Wan2_2_I2V_14B])
+class WanGenerator(BaseGenerator):
     def __init__(self):
         super().__init__()
         # TODO: maybe could remove boundary, use allow each model input steps instead

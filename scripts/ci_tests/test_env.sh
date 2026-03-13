@@ -78,3 +78,5 @@ if command -v npu-smi > /dev/null 2>&1; then
     export XFORMERS_FORCE_DISABLE_TRITON=1
     [ -n "${GPU_CARDS_ARG}" ] && export ASCEND_RT_VISIBLE_DEVICES=${GPU_CARDS_ARG}
 fi
+
+ulimit -c 0

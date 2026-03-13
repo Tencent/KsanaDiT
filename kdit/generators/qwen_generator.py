@@ -20,12 +20,12 @@ from kdit.config.wan_experimental_config import KsanaExperimentalConfig
 from kdit.models import KsanaModelKey
 from kdit.utils import evolve_with_recommend, log
 
-from ..base_unit import KsanaUnitFactory, KsanaUnitType
-from .base_generator import KsanaBaseGenerator
+from .base_generator import BaseGenerator
+from .generator_factory import GeneratorFactory
 
 
-@KsanaUnitFactory.register(KsanaUnitType.GENERATOR, [KsanaModelKey.QwenImage_T2I, KsanaModelKey.QwenImage_Edit])
-class KsanaQwenGenerator(KsanaBaseGenerator):
+@GeneratorFactory.register([KsanaModelKey.QwenImage_T2I, KsanaModelKey.QwenImage_Edit])
+class QwenGenerator(BaseGenerator):
 
     def __init__(self):
         super().__init__()

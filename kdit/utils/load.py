@@ -230,6 +230,7 @@ def load_files_to_state_dict(file_list, device=None):
             log.info(f"Loaded {file_path}")
             shard_dict = future.result()
             state_dict.update(shard_dict)
+    return state_dict
 
 
 def get_safetensors_list(model_dir, max_batch_size_gb=32):
