@@ -22,12 +22,12 @@ from kdit.utils.logger import log
 from kdit.utils.vace import VAE_STRIDE, latent_process_out
 
 from .. import (
+    KDIT_VAE_MODEL,
     KSANA_EXPERIMENTAL_ARGS,
     KSANA_FETA_ARGS,
     KSANA_SLG_ARGS,
     KSANA_VACE_EMBEDS,
     KSANA_VAE_ENCODE_OUTPUT,
-    KSANA_VAE_MODEL,
     KSANA_VIDEO_CONTROL_CONFIG,
     WANVIDEO_EXPERIMENTAL_ARGS,
     WANVIDEO_FETA_ARGS,
@@ -112,7 +112,7 @@ class KsanaWanVaceToVideoNode:
                 ),
             },
             "optional": {
-                "vae": (KSANA_VAE_MODEL, {"tooltip": "kDiT VAE model for encoding."}),
+                "vae": (KDIT_VAE_MODEL, {"tooltip": "kDiT VAE model for encoding."}),
                 "control_video": (
                     "IMAGE",
                     {"tooltip": "Control video frames for VACE conditioning."},
@@ -183,7 +183,7 @@ class KsanaWanVaceToVideoNode:
         )
 
         if vae is None:
-            raise ValueError("'vae' (KSANA_VAE_MODEL) must be connected.")
+            raise ValueError("'vae' (KDIT_VAE_MODEL) must be connected.")
 
         fallback_device = get_intermediate_device()
         if isinstance(control_video, torch.Tensor):

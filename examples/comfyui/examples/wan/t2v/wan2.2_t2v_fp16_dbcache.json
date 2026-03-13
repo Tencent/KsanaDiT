@@ -276,7 +276,7 @@
       "inputs": [
         {
           "name": "vae",
-          "type": "KSANA_VAE_MODEL",
+          "type": "KDIT_VAE_MODEL",
           "link": 254
         },
         {
@@ -418,7 +418,7 @@
       "inputs": [
         {
           "name": "vae",
-          "type": "KSANA_VAE_MODEL",
+          "type": "KDIT_VAE_MODEL",
           "link": 258
         },
         {
@@ -464,7 +464,7 @@
       "outputs": [
         {
           "name": "vae",
-          "type": "KSANA_VAE_MODEL",
+          "type": "KDIT_VAE_MODEL",
           "links": [
             254,
             258
@@ -797,7 +797,7 @@
       0,
       142,
       0,
-      "KSANA_VAE_MODEL"
+      "KDIT_VAE_MODEL"
     ],
     [
       255,
@@ -829,7 +829,7 @@
       0,
       143,
       0,
-      "KSANA_VAE_MODEL"
+      "KDIT_VAE_MODEL"
     ],
     [
       259,

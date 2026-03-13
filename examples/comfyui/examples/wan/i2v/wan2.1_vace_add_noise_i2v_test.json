@@ -128,7 +128,7 @@
         {
           "localized_name": "vae",
           "name": "vae",
-          "type": "KSANA_VAE_MODEL",
+          "type": "KDIT_VAE_MODEL",
           "link": 250
         },
         {
@@ -660,7 +660,7 @@
           "localized_name": "vae",
           "name": "vae",
           "shape": 7,
-          "type": "KSANA_VAE_MODEL",
+          "type": "KDIT_VAE_MODEL",
           "link": 246
         },
         {
@@ -781,7 +781,7 @@
         {
           "localized_name": "vae",
           "name": "vae",
-          "type": "KSANA_VAE_MODEL",
+          "type": "KDIT_VAE_MODEL",
           "links": [
             246,
             250,
@@ -979,7 +979,7 @@
           "localized_name": "vae",
           "name": "vae",
           "shape": 7,
-          "type": "KSANA_VAE_MODEL",
+          "type": "KDIT_VAE_MODEL",
           "link": 268
         },
         {
@@ -1572,7 +1572,7 @@
       0,
       149,
       0,
-      "KSANA_VAE_MODEL"
+      "KDIT_VAE_MODEL"
     ],
     [
       269,

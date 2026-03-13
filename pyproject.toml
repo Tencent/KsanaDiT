@@ -3,7 +3,7 @@ requires = ["setuptools>=64", "setuptools_scm>=8"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "kDiT"
+name = "kdit"
 dynamic = ["version"]
 description = "kDiT"
 authors = [{ name = "kDiT", email = "kDiT@venus.com" }]

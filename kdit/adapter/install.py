@@ -16,7 +16,7 @@ import shutil
 from pathlib import Path
 
 _DEFAULT_COMFYUI_ROOT = "/data/ComfyUI"
-_TARGET_NODE_DIR = "custom_nodes/kdit"
+_TARGET_NODE_DIR = "custom_nodes/ComfyUI-kDiT"
 _TEMPLATE_NAME = "_init_comfyui_nodes.py.in"
 _TARGET_NAME = "__init__.py"
 
@@ -44,7 +44,7 @@ def main():
 
     target_file = target_dir / _TARGET_NAME
     shutil.copy2(template_src, target_file)
-    print(f"[ok] 已复制 {template_src.name} -> {target_file}")
+    print(f"[ok] 已完成 {target_dir}")
 
 
 if __name__ == "__main__":

@@ -75,7 +75,7 @@
         {
           "localized_name": "vae",
           "name": "vae",
-          "type": "KSANA_VAE_MODEL",
+          "type": "KDIT_VAE_MODEL",
           "link": 15
         },
         {
@@ -231,7 +231,7 @@
         {
           "localized_name": "vae",
           "name": "vae",
-          "type": "KSANA_VAE_MODEL",
+          "type": "KDIT_VAE_MODEL",
           "links": [
             15
           ]
@@ -267,7 +267,7 @@
         {
           "localized_name": "vae",
           "name": "vae",
-          "type": "KSANA_VAE_MODEL",
+          "type": "KDIT_VAE_MODEL",
           "link": null
         },
         {
@@ -776,7 +776,7 @@
       0,
       79,
       0,
-      "KSANA_VAE_MODEL"
+      "KDIT_VAE_MODEL"
     ],
     [
       16,

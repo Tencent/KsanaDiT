@@ -40,16 +40,15 @@ fi
 sudo chown mqq:mqq -R /ci_workspace/
 sudo chown mqq:mqq -R /data/ComfyUI/
 
+rm -rf /data/ComfyUI/custom_nodes/KsanaDiT
 rm -rf /data/ComfyUI/custom_nodes/ComfyUI_kDiT
 rm -rf /data/ComfyUI/custom_nodes/kDiT
 
 cd /ci_workspace/${BK_CI_GIT_REPO_HEAD_COMMIT_ID}/
-python -m build --wheel
-pip uninstall -y kDiT
-pip install dist/kdit*
+pip uninstall -y kdit
+pip uninstall -y ksana-dit
 
-mkdir -p /data/ComfyUI/custom_nodes/ComfyUI_kDiT
-cp -r /ci_workspace/${BK_CI_GIT_REPO_HEAD_COMMIT_ID}/comfyui/* /data/ComfyUI/custom_nodes/ComfyUI_kDiT/
+echo -e "yes\nyes\n" | ./scripts/install.sh
 
 ln -sf /dockerdata/ci-models/single/comfy_models .
 ln -sf /dockerdata/ci-models/single/Wan2.2-Lightning .

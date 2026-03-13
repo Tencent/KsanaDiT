@@ -83,7 +83,8 @@ def _resolve_latent_shape(kdit_engine, image_embeds, latent, diffusion_model_key
         latent_key = latent.samples  # TensorKey
         tensor_value = kdit_engine.get_tensor(latent_key)
         latent_raw = tensor_value.data if tensor_value is not None else None
-        latent_shape = list(latent_raw.shape) if latent_raw is not None else None
+        latent_shape = list(latent_raw[0].shape) if latent_raw is not None else None
+        image_embeds_list = image_embeds_list[0]
     elif image_embeds_list is not None and len(image_embeds_list) > 0:
         latent_shape = list(image_embeds_list[0].shape)
     else:
@@ -93,7 +94,8 @@ def _resolve_latent_shape(kdit_engine, image_embeds, latent, diffusion_model_key
     if latent is not None and diffusion_model_key == KsanaModelKey.QwenImage_Edit:
         tensor_value = kdit_engine.get_tensor(latent.samples)
         latent_raw = tensor_value.data if tensor_value is not None else None
-        noise_shape = list(latent_raw.shape[1:]) if latent_raw is not None else None
+        noise_shape = list(latent_raw[0].shape[1:]) if latent_raw is not None else None
+        image_embeds_list = image_embeds_list[0]
     elif diffusion_model_key == KsanaModelKey.QwenImage_T2I:
         # T2I: image_embeds 仅用于提供输出 shape，不作为图像条件传入 generator
         if image_embeds_list is not None and len(image_embeds_list) > 0:
@@ -150,6 +152,7 @@ def generate(
     MemoryProfiler.record_memory("before_kdit_engine_generate_with_tensors")
 
     # 从 pool 中的 key 推导 shape 和裸 tensor
+    # TODO: remove this way, add way empty noise latent or shape
     noise_shape, image_embeds_list, latent_shape = _resolve_latent_shape(
         kdit_engine, image_embeds, latent, diffusion_model_key
     )

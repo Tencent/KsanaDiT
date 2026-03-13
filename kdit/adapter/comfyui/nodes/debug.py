@@ -16,7 +16,7 @@ from comfy.comfy_types.node_typing import IO
 
 from kdit.utils import print_recursive
 
-from .. import KSANA_CATEGORY_UTILS
+from .. import KDIT_CATEGORY_UTILS
 
 
 class KsanaDebugNode:
@@ -36,7 +36,7 @@ class KsanaDebugNode:
     RETURN_TYPES = ()
     OUTPUT_NODE = True
     FUNCTION = "func"
-    CATEGORY = KSANA_CATEGORY_UTILS
+    CATEGORY = KDIT_CATEGORY_UTILS
 
     def func(self, source, name="", node_id=None):
         name = name if name else "source"

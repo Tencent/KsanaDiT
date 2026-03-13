@@ -19,7 +19,7 @@ from comfy.utils import ProgressBar
 import kdit.adapter.comfyui as nodes
 from kdit.config.sample_config import KsanaSolverType
 
-from .. import (
+from ..types import (
     KSANA_CACHE_CONFIG,
     KSANA_DIFFUSION_MODEL,
     KSANA_GENERATE_OUTPUT,
@@ -27,6 +27,7 @@ from .. import (
     KSANA_VACE_EMBEDS,
     KSANA_VAE_ENCODE_OUTPUT,
     KSANA_VIDEO_CONTROL_CONFIG,
+    LATENT_OUTPUT,
 )
 
 
@@ -119,6 +120,7 @@ class KsanaGeneratorNode:
                 ),
             },
             "optional": {
+                "latent": (LATENT_OUTPUT, {"tooltip": "init Latents to use for video2video process"}),
                 "rope_function": (
                     ["default", "comfy"],
                     {
@@ -144,7 +146,6 @@ class KsanaGeneratorNode:
                     {"tooltip": "The cache configs."},
                 ),
                 "sigmas": ("FLOAT", {"forceInput": True}),
-                "latent": (KSANA_VAE_ENCODE_OUTPUT, {"tooltip": "init Latents to use for video2video process"}),
                 "add_noise_to_latent": (
                     "BOOLEAN",
                     {

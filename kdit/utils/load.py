@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import os
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 import safetensors
@@ -209,13 +210,26 @@ def load_sharded_safetensors(model_dir, device=None):
 
 
 def load_files_to_state_dict(file_list, device=None):
-    state_dict = {}
-    for file_path in file_list:
-        log.info(f"Loading {file_path}...")
-        shard_dict = load_file_to_state_dict(str(file_path), device=device)
-        state_dict.update(shard_dict)
+    if len(file_list) <= 1:
+        state_dict = {}
+        for file_path in file_list:
+            log.info(f"Loading {file_path}...")
+            shard_dict = load_file_to_state_dict(str(file_path), device=device)
+            state_dict.update(shard_dict)
+        return state_dict
 
-    return state_dict
+    # 多文件时使用线程池并行读取（safetensors 的加载主要是 IO 密集型）
+    log.info(f"Loading {len(file_list)} files in parallel...")
+    state_dict = {}
+    with ThreadPoolExecutor(max_workers=min(len(file_list), 4)) as executor:
+        futures = {
+            executor.submit(load_file_to_state_dict, str(file_path), device): file_path for file_path in file_list
+        }
+        for future in as_completed(futures):
+            file_path = futures[future]
+            log.info(f"Loaded {file_path}")
+            shard_dict = future.result()
+            state_dict.update(shard_dict)
 
 
 def get_safetensors_list(model_dir, max_batch_size_gb=32):

@@ -15,8 +15,9 @@
 import sys
 from pathlib import Path
 
-_COMFY_PROJECT_ROOT = str(Path(__file__).resolve().parent.parent.parent)
+_COMFY_PROJECT_ROOT = str(Path(__file__).resolve().parent.parent.parent.resolve())
 if _COMFY_PROJECT_ROOT not in sys.path:
+    print(f"[kdit] inserting project root into sys.path: {_COMFY_PROJECT_ROOT}")
     sys.path.insert(0, _COMFY_PROJECT_ROOT)
 
 try:

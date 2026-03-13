@@ -53,6 +53,7 @@ def vae_encode(
     batch_size=None,
 ):
     if vae is None:
+        # TODO: remove me use empty latent
         if width is None or height is None:
             raise ValueError("width/height required if vae is None")
         if num_frames == 1:
@@ -63,6 +64,7 @@ def vae_encode(
             )
         # 无 VAE 时也写入 pool，保持 key 模式一致
         kdit_engine = get_engine()
+        # IMAGE_EMBEDS always list
         kdit_engine.put_tensors(**{TensorKey.IMAGE_EMBEDS: [latent]})
         return KsanaNodeVAEEncodeOutput(
             samples=TensorKey.IMAGE_EMBEDS,

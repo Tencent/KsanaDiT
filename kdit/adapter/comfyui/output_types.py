@@ -40,3 +40,8 @@ class KsanaNodeVAEEncodeOutput:
     samples: TensorKey | None = field(default=None)
     with_end_image: bool = field(default=False)
     batch_size_per_prompts: int = field(default=1)
+
+
+@dataclass
+class EmptyLatentOutput:
+    samples: TensorKey | None = field(default=None)

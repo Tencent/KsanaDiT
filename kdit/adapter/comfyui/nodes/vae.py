@@ -16,7 +16,7 @@ import folder_paths
 
 import kdit.adapter.comfyui as nodes
 
-from .. import KSANA_CATEGORY_VAE, KSANA_GENERATE_OUTPUT, KSANA_VAE_ENCODE_OUTPUT, KSANA_VAE_MODEL
+from .. import KDIT_VAE_MODEL, KSANA_CATEGORY_VAE, KSANA_GENERATE_OUTPUT, KSANA_VAE_ENCODE_OUTPUT
 
 
 class KsanaVAELoaderNode:
@@ -24,7 +24,7 @@ class KsanaVAELoaderNode:
     def INPUT_TYPES(s):  # pylint: disable=invalid-name
         return {"required": {"vae_name": (folder_paths.get_filename_list("vae"),)}}
 
-    RETURN_TYPES = (KSANA_VAE_MODEL,)
+    RETURN_TYPES = (KDIT_VAE_MODEL,)
     RETURN_NAMES = ("vae",)
     FUNCTION = "load_vae"
     CATEGORY = KSANA_CATEGORY_VAE
@@ -40,7 +40,7 @@ class KsanaVAEEncodeNode:
     def INPUT_TYPES(s):  # pylint: disable=invalid-name
         return {
             "optional": {
-                "vae": (KSANA_VAE_MODEL, {"tooltip": "The KsanaVAEModel used for encoding the input image."}),
+                "vae": (KDIT_VAE_MODEL, {"tooltip": "The KsanaVAEModel used for encoding the input image."}),
                 "start_image": ("IMAGE", {"tooltip": "The start image to encode."}),
                 "end_image": ("IMAGE", {"tooltip": "The end image to encode."}),
                 "mask": ("MASK", {"tooltip": "The mask to apply to the image."}),
@@ -65,7 +65,7 @@ class KsanaVAEImageEncodeNode:
     def INPUT_TYPES(s):  # pylint: disable=invalid-name
         return {
             "optional": {
-                "vae": (KSANA_VAE_MODEL, {"tooltip": "The KsanaVAEModel used for encoding the input image."}),
+                "vae": (KDIT_VAE_MODEL, {"tooltip": "The KsanaVAEModel used for encoding the input image."}),
                 "image": ("IMAGE", {"tooltip": "The image to encode."}),
                 "batch_size": ("INT", {"default": 1, "min": 1, "max": 32}),
             },
@@ -85,7 +85,7 @@ class KsanaVAEDecodeNode:
     def INPUT_TYPES(s):  # pylint: disable=invalid-name
         return {
             "required": {
-                "vae": (KSANA_VAE_MODEL, {"tooltip": "The KsanaVAEModel used for encoding the input image."}),
+                "vae": (KDIT_VAE_MODEL, {"tooltip": "The KsanaVAEModel used for encoding the input image."}),
                 "latent": (KSANA_GENERATE_OUTPUT, {"tooltip": "The latent tensor to decode."}),
             },
         }

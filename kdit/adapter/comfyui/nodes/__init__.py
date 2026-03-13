@@ -25,6 +25,7 @@ from .cache import (
 )
 from .converter import KsanaTextEmbConverterNode
 from .debug import KsanaDebugNode
+from .empty_latent import EmptyLatentNode
 from .empty_torch_cache import KsanaEmptyTorchCacheNode
 from .generator import KsanaGeneratorNode
 from .lora import KsanaLoraCombineNode, KsanaLoraSelectMultiNode, KsanaLoraSelectNode
@@ -40,6 +41,7 @@ from .vace import (
 from .vae import KsanaVAEDecodeNode, KsanaVAEEncodeNode, KsanaVAEImageEncodeNode, KsanaVAELoaderNode
 
 NODE_CLASS_MAPPINGS = {
+    "EmptyLatentNode": EmptyLatentNode,
     "KsanaAttentionConfigNode": KsanaAttentionConfigNode,
     "KsanaCustomStepCacheNode": KsanaCustomStepCacheNode,
     "KsanaHybridCacheNode": KsanaHybridCacheNode,
@@ -73,6 +75,7 @@ NODE_CLASS_MAPPINGS = {
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
+    "EmptyLatentNode": "kDiT EmptyLatent",
     "KsanaAttentionConfigNode": "kDiT AttentionConfig",
     "KsanaCustomStepCacheNode": "kDiT CustomStepCache",
     "KsanaHybridCacheNode": "kDiT HybridCache",
