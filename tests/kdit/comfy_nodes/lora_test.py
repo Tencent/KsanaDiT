@@ -15,7 +15,11 @@
 import os
 import unittest
 
-from nodes_test_helper import (
+from kdit import get_engine
+from kdit.models import KsanaModelKey
+from kdit.utils.distribute import get_rank_id
+
+from .nodes_test_helper import (
     COMFY_MODEL_DIFFUSION_ROOT,
     COMFY_MODEL_ROOT,
     IMG_SHAPE_I2V,
@@ -23,10 +27,6 @@ from nodes_test_helper import (
     WAN_TEXT_SHAPE,
     run_load_and_generate,
 )
-
-from kdit import get_engine
-from kdit.models import KsanaModelKey
-from kdit.utils.distribute import get_rank_id
 
 LORA_ROOT_PATH = os.path.join(COMFY_MODEL_ROOT, "loras")
 TEST_LORAS = [

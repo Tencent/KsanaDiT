@@ -16,12 +16,13 @@ import os
 import unittest
 
 import psutil
-from nodes_test_helper import COMFY_MODEL_DIFFUSION_ROOT, TEST_STEPS, iter_test_models, run_load_and_generate
 
 from kdit import KsanaAttentionBackend, get_engine
 from kdit.accelerator import platform
 from kdit.config import KsanaTorchCompileConfig
 from kdit.utils import get_rank_id, log
+
+from .nodes_test_helper import COMFY_MODEL_DIFFUSION_ROOT, TEST_STEPS, iter_test_models, run_load_and_generate
 
 
 class TestAttentionsForAllModels(unittest.TestCase):

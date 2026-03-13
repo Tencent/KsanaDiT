@@ -18,15 +18,16 @@ import unittest
 
 import torch
 import torch.distributed as dist
-from nodes_test_helper import (
-    COMFY_MODEL_ROOT,
-    CURRENT_PLATFORM,
-    SEED,
-)
 
 from kdit import get_engine
 from kdit.adapter.comfyui import KsanaNodeVAELoader
 from kdit.utils.distribute import get_rank_id
+
+from .nodes_test_helper import (
+    COMFY_MODEL_ROOT,
+    CURRENT_PLATFORM,
+    SEED,
+)
 
 VAE_MODEL_PATH = os.path.join(COMFY_MODEL_ROOT, "VAE", "Wan2.1_VAE.pth")
 

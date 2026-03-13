@@ -16,7 +16,12 @@ import os
 import unittest
 from dataclasses import dataclass
 
-from nodes_test_helper import (
+from kdit import get_engine
+from kdit.config import KsanaAttentionBackend, KsanaLinearBackend
+from kdit.models.model_key import KsanaModelKey
+from kdit.utils.distribute import get_gpu_count, get_rank_id
+
+from .nodes_test_helper import (
     COMFY_MODEL_DIFFUSION_ROOT,
     IMG_SHAPE_I2V,
     IMG_SHAPE_T2I,
@@ -28,11 +33,6 @@ from nodes_test_helper import (
     get_platform_config_or_skip,
     run_load_and_generate,
 )
-
-from kdit import get_engine
-from kdit.config import KsanaAttentionBackend, KsanaLinearBackend
-from kdit.models.model_key import KsanaModelKey
-from kdit.utils.distribute import get_gpu_count, get_rank_id
 
 TEST_STEPS = 1
 
