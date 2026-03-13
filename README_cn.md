@@ -1,4 +1,4 @@
-# KsanaDiT
+# kDiT
 
 <div align="center">
 
@@ -14,7 +14,7 @@
 
 ## 📖 简介
 
-KsanaDiT 是一个专为扩散模型（Diffusion Transformer）设计的高性能推理框架，支持视频生成（T2V/I2V）和图像生成（T2I）任务。框架提供了丰富的优化技术和灵活的配置选项，可在单卡或多卡环境下高效运行大规模 DiT 模型。
+kDiT 是一个专为扩散模型（Diffusion Transformer）设计的高性能推理框架，支持视频生成（T2V/I2V）和图像生成（T2I）任务。框架提供了丰富的优化技术和灵活的配置选项，可在单卡或多卡环境下高效运行大规模 DiT 模型。
 
 ### ✨ 核心特性
 
@@ -67,8 +67,8 @@ KsanaDiT 是一个专为扩散模型（Diffusion Transformer）设计的高性�
 
 ```bash
 # 克隆仓库
-git clone https://github.com/Tencent/KsanaDiT.git
-cd KsanaDiT
+git clone https://github.com/Tencent/kDiT.git
+cd kDiT
 
 # 默认安装基础依赖GPU版本
 pip install -e .
@@ -93,7 +93,7 @@ pip install xformers>=0.0.29 flash-attn>=2.6.0 triton>=3.2.0
 # 2. 安装 torch_npu
 pip install torch-npu
 
-# 3. 安装 KsanaDiT（NPU 版本）
+# 3. 安装 kDiT（NPU 版本）
 pip install -e ".[npu]"
 
 # 4. 验证 NPU 环境
@@ -106,14 +106,14 @@ python -c "import torch_npu; print(torch_npu.npu.is_available())"
 
 ## 🔌 接口支持
 
-KsanaDiT 提供多种使用方式，满足不同场景的需求：
+kDiT 提供多种使用方式，满足不同场景的需求：
 
 ### 本地 Pipeline 方式
 
 通过 Python Pipeline API 直接在本地运行，适合脚本化批量生成或集成到自有系统中：
 
 ```python
-from ksana import KsanaPipeline
+from kdit import KsanaPipeline
 
 # 创建推理管道
 pipeline = KsanaPipeline.from_models("path/to/model")
@@ -126,21 +126,21 @@ result = pipeline.generate(prompt, ...)
 
 ### ComfyUI 集成
 
-KsanaDiT 支持作为 ComfyUI 的自定义节点使用，提供可视化工作流体验：
+kDiT 支持作为 ComfyUI 的自定义节点使用，提供可视化工作流体验：
 
 ```bash
 # 1. 进入 ComfyUI 的 custom_nodes 目录
 cd /path/to/ComfyUI/custom_nodes
 
-# 2. 克隆 KsanaDiT 仓库
-git clone https://github.com/Tencent/KsanaDiT.git
+# 2. 克隆 kDiT 仓库
+git clone https://github.com/Tencent/kDiT.git
 
-# 3. 进入 KsanaDiT 目录并安装依赖
-cd KsanaDiT
+# 3. 进入 kDiT 目录并安装依赖
+cd kDiT
 ./scripts/install.sh
 ```
 
-安装完成后，重启 ComfyUI 即可在节点列表中看到 KsanaDiT 相关节点。更多 ComfyUI 使用说明请参考 [comfyui/README.md](./comfyui/README.md)。
+安装完成后，重启 ComfyUI 即可在节点列表中看到 kDiT 相关节点。更多 ComfyUI 使用说明请参考 [comfyui/README.md](./comfyui/README.md)。
 
 ## 🚀 快速开始
 详细的代码可以参考[examples](./examples/)
@@ -149,8 +149,8 @@ cd KsanaDiT
 
 ```python
 import torch
-from ksana import KsanaPipeline
-from ksana.config import (
+from kdit import KsanaPipeline
+from kdit.config import (
     KsanaDistributedConfig,
     KsanaRuntimeConfig,
     KsanaSampleConfig,
@@ -180,8 +180,8 @@ print(f"生成视频形状: {video.shape}")
 ### 图像生成视频 (I2V)
 
 ```python
-from ksana import KsanaPipeline
-from ksana.config import KsanaRuntimeConfig, KsanaSampleConfig
+from kdit import KsanaPipeline
+from kdit.config import KsanaRuntimeConfig, KsanaSampleConfig
 
 pipeline = KsanaPipeline.from_models("path/to/Wan2.2-I2V-A14B")
 
@@ -205,8 +205,8 @@ video = pipeline.generate(
 
 ```python
 import torch
-from ksana import KsanaPipeline
-from ksana.config import (
+from kdit import KsanaPipeline
+from kdit.config import (
     KsanaModelConfig,
     KsanaRuntimeConfig,
     KsanaSampleConfig,
@@ -238,8 +238,8 @@ image = pipeline.generate(
 
 ```python
 import torch
-from ksana import KsanaPipeline
-from ksana.config import (
+from kdit import KsanaPipeline
+from kdit.config import (
     KsanaModelConfig,
     KsanaAttentionConfig,
     KsanaAttentionBackend,
@@ -261,8 +261,8 @@ pipeline = KsanaPipeline.from_models(
 ### LoRA 加速推理
 
 ```python
-from ksana import KsanaPipeline
-from ksana.config import KsanaLoraConfig, KsanaSampleConfig
+from kdit import KsanaPipeline
+from kdit.config import KsanaLoraConfig, KsanaSampleConfig
 
 pipeline = KsanaPipeline.from_models(
     "path/to/Wan2.2-T2V-A14B",
@@ -283,7 +283,7 @@ video = pipeline.generate(
 ### 智能缓存优化 - *持续优化中*
 
 ```python
-from ksana.config.cache_config import (
+from kdit.config.cache_config import (
     DCacheConfig,
     DBCacheConfig,
     KsanaHybridCacheConfig,
@@ -312,8 +312,8 @@ CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 your_script.py
 ```
 
 ```python
-from ksana import KsanaPipeline
-from ksana.config import KsanaDistributedConfig
+from kdit import KsanaPipeline
+from kdit.config import KsanaDistributedConfig
 
 pipeline = KsanaPipeline.from_models(
     model_path,
@@ -375,13 +375,13 @@ export KSANA_LOGGER_LEVEL=info
 
 ### 模型配置
 
-框架支持通过 YAML 文件配置模型参数，配置文件位于 [`ksana/settings/`](ksana/settings/) 目录：
+框架支持通过 YAML 文件配置模型参数，配置文件位于 [`kdit/settings/`](kdit/settings/) 目录：
 
-- [`qwen/t2i_20b.yaml`](ksana/settings/qwen/t2i_20b.yaml) - Qwen 图像生成模型配置
-- [`qwen/edit_20b.yaml`](ksana/settings/qwen/edit_20b.yaml) - Qwen 图像编辑模型配置
-- [`wan/t2v_14b.yaml`](ksana/settings/wan/t2v_14b.yaml) - Wan2.2 T2V 模型配置
-- [`wan/i2v_14b.yaml`](ksana/settings/wan/i2v_14b.yaml) - Wan2.2 I2V 模型配置
-- [`wan/vace_14b.yaml`](ksana/settings/wan/vace_14b.yaml) - Wan2.1 Vace 模型配置
+- [`qwen/t2i_20b.yaml`](kdit/settings/qwen/t2i_20b.yaml) - Qwen 图像生成模型配置
+- [`qwen/edit_20b.yaml`](kdit/settings/qwen/edit_20b.yaml) - Qwen 图像编辑模型配置
+- [`wan/t2v_14b.yaml`](kdit/settings/wan/t2v_14b.yaml) - Wan2.2 T2V 模型配置
+- [`wan/i2v_14b.yaml`](kdit/settings/wan/i2v_14b.yaml) - Wan2.2 I2V 模型配置
+- [`wan/vace_14b.yaml`](kdit/settings/wan/vace_14b.yaml) - Wan2.1 Vace 模型配置
 
 ## 📚 示例代码
 
@@ -402,10 +402,10 @@ export KSANA_LOGGER_LEVEL=info
 pytest tests/
 
 # 运行特定测试
-pytest tests/ksana/pipelines/wan2_2_t2v_test.py
+pytest tests/kdit/pipelines/wan2_2_t2v_test.py
 
 # 运行 GPU 测试
-bash scripts/ci_tests/ci_ksana_gpus.sh
+bash scripts/ci_tests/ci_kdit_gpus.sh
 ```
 
 ## 🤝 贡献指南
@@ -448,8 +448,8 @@ pytest tests/
 
 ## 📮 联系方式
 
-- 问题反馈: [GitHub Issues](https://github.com/tencent/KsanaDiT/issues)
-- 功能建议: [GitHub Discussions](https://github.com/tencent/KsanaDiT/discussions)
+- 问题反馈: [GitHub Issues](https://github.com/tencent/kDiT/issues)
+- 功能建议: [GitHub Discussions](https://github.com/tencent/kDiT/discussions)
 
 ## 🗺️ 路线图
 
@@ -481,6 +481,6 @@ pytest tests/
 
 **如果这个项目对你有帮助，请给我们一个 ⭐️ Star！**
 
-Made with ❤️ by KsanaDiT Team
+Made with ❤️ by kDiT Team
 
 </div>

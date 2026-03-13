@@ -1,13 +1,13 @@
 # Changelog
 
-All notable changes to KsanaDiT will be documented in this file.
+All notable changes to kDiT will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
-## [v0.2.3](https://github.com/Tencent/KsanaDiT/compare/v0.2.2...v0.2.3) - 2026-03-04
+## [v0.2.3](https://github.com/Tencent/kDiT/compare/v0.2.2...v0.2.3) - 2026-03-04
 
 ### Added
 - Smart caching strategies: MagCache, TeaCache, EasyCache with YAML configuration support (!186)
@@ -35,11 +35,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [v0.2.2](https://github.com/Tencent/KsanaDiT/compare/v0.2.1...v0.2.2) - 2026-01-30
+## [v0.2.2](https://github.com/Tencent/kDiT/compare/v0.2.1...v0.2.2) - 2026-01-30
 
 ### Added
 - Turbo Diffusion inference acceleration with Sage-SLA backend (!153)
-- Integrated KsanaDiT Attention Op into Qwen-Image model (!169)
+- Integrated kDiT Attention Op into Qwen-Image model (!169)
 - Pinned Memory Manager to resolve OOM issues during large model inference (!166)
 - I2V (Image-to-Video) example and test cases (!153)
 - Multiple unit tests and integration tests (!167, !168)
@@ -55,14 +55,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [v0.2.1](https://github.com/Tencent/KsanaDiT/compare/v0.2.0...v0.2.1) - 2026-01-27
+## [v0.2.1](https://github.com/Tencent/kDiT/compare/v0.2.0...v0.2.1) - 2026-01-27
 
 ### Added
 - NPU multi-hardware platform support (!148)
 
 ---
 
-## [v0.2.0](https://github.com/Tencent/KsanaDiT/compare/v0.1.5...v0.2.0) - 2026-01-26
+## [v0.2.0](https://github.com/Tencent/kDiT/compare/v0.1.5...v0.2.0) - 2026-01-26
 
 ### Added
 - DPM++ sampling solver support (!162)
@@ -87,7 +87,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [v0.1.5](https://github.com/Tencent/KsanaDiT/compare/v0.1.4...v0.1.5) - 2026-01-08
+## [v0.1.5](https://github.com/Tencent/kDiT/compare/v0.1.4...v0.1.5) - 2026-01-08
 
 ### Added
 - Radial Sage Attention backend support (!107)
@@ -97,12 +97,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Renamed whl package (!127)
 - Restructured ComfyUI to not call pipeline directly, optimized Generator (!122)
 - Shortened daily CI run time (!124)
-- Fixed local ksana nodes for ComfyUI node tests, fixed config errors and single model run issues (!123)
+- Fixed local kdit nodes for ComfyUI node tests, fixed config errors and single model run issues (!123)
 - Fixed `__all__` exports (!125)
 
 ---
 
-## [v0.1.4](https://github.com/Tencent/KsanaDiT/compare/v0.1.3...v0.1.4) - 2026-01-07
+## [v0.1.4](https://github.com/Tencent/kDiT/compare/v0.1.3...v0.1.4) - 2026-01-07
 
 ### Added
 - Model switching node tests (!118)
@@ -115,7 +115,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [v0.1.3](https://github.com/Tencent/KsanaDiT/compare/v0.1.2...v0.1.3) - 2026-01-06
+## [v0.1.3](https://github.com/Tencent/kDiT/compare/v0.1.2...v0.1.3) - 2026-01-06
 
 ### Changed
 - Refactored Attention and Linear backend interfaces (!113)
@@ -134,7 +134,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [v0.1.2](https://github.com/Tencent/KsanaDiT/compare/v0.1.1...v0.1.2) - 2025-12-30
+## [v0.1.2](https://github.com/Tencent/kDiT/compare/v0.1.1...v0.1.2) - 2025-12-30
 
 ### Added
 - Hybrid cache and custom cache support (!97)
@@ -152,7 +152,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [v0.1.1](https://github.com/Tencent/KsanaDiT/compare/v0.1.0...v0.1.1) - 2025-12-25
+## [v0.1.1](https://github.com/Tencent/kDiT/compare/v0.1.0...v0.1.1) - 2025-12-25
 
 ### Added
 - Torchao FP8 dynamic quantization support (!71)
@@ -162,10 +162,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [v0.1.0](https://github.com/Tencent/KsanaDiT/releases/tag/v0.1.0) - 2025-12-24
+## [v0.1.0](https://github.com/Tencent/kDiT/releases/tag/v0.1.0) - 2025-12-24
 
 ### Added
-- **Initial release** of KsanaDiT inference framework
+- **Initial release** of kDiT inference framework
 - Wan2.2 T2V/I2V model support with torch.compile optimization
 - FP8 quantization: FP8 model loading, FP8 GEMM computation, FP8 scale support
 - Multiple Attention backends: Flash Attention, Sage Attention, Torch SDPA

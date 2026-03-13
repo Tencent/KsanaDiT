@@ -30,7 +30,7 @@ from test_utils import (
     wait_for_completion,
 )
 
-from ksana.accelerator import platform as runtime_platform
+from kdit.accelerator import platform as runtime_platform
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
 logger = logging.getLogger(__name__)

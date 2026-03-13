@@ -24,7 +24,7 @@ conda activate env-novelai
 echo "BK_CI_GIT_REPO_HEAD_COMMIT_ID: ${BK_CI_GIT_REPO_HEAD_COMMIT_ID} "
 
 sudo pkill -9 -f comfy 2>/dev/null || true
-sudo pkill -9 -f ksana 2>/dev/null || true
+sudo pkill -9 -f kdit 2>/dev/null || true
 sudo pkill -9 -f pytest 2>/dev/null || true
 sudo pkill -9 -f workflow_test 2>/dev/null || true
 ray stop --force 2>/dev/null || true
@@ -32,7 +32,7 @@ sudo pkill -9 -u mqq -f "ray::" 2>/dev/null || true
 sudo pkill -9 -u mqq -f raylet 2>/dev/null || true
 sudo pkill -9 -u mqq -f gcs_server 2>/dev/null || true
 sleep 5
-rm -rf /tmp/ray /tmp/ray_ksana /tmp/ray_comfy 2>/dev/null || true
+rm -rf /tmp/ray /tmp/ray_kdit /tmp/ray_comfy 2>/dev/null || true
 if command -v npu-smi > /dev/null 2>&1; then
     rm -rf /dev/shm/hccl_* 2>/dev/null || true
 fi
@@ -40,16 +40,16 @@ fi
 sudo chown mqq:mqq -R /ci_workspace/
 sudo chown mqq:mqq -R /data/ComfyUI/
 
-rm -rf /data/ComfyUI/custom_nodes/ComfyUI_KsanaDiT
-rm -rf /data/ComfyUI/custom_nodes/KsanaDiT
+rm -rf /data/ComfyUI/custom_nodes/ComfyUI_kDiT
+rm -rf /data/ComfyUI/custom_nodes/kDiT
 
 cd /ci_workspace/${BK_CI_GIT_REPO_HEAD_COMMIT_ID}/
 python -m build --wheel
-pip uninstall -y ksana-dit
-pip install dist/ksana*
+pip uninstall -y kDiT
+pip install dist/kdit*
 
-mkdir -p /data/ComfyUI/custom_nodes/ComfyUI_KsanaDiT
-cp -r /ci_workspace/${BK_CI_GIT_REPO_HEAD_COMMIT_ID}/comfyui/* /data/ComfyUI/custom_nodes/ComfyUI_KsanaDiT/
+mkdir -p /data/ComfyUI/custom_nodes/ComfyUI_kDiT
+cp -r /ci_workspace/${BK_CI_GIT_REPO_HEAD_COMMIT_ID}/comfyui/* /data/ComfyUI/custom_nodes/ComfyUI_kDiT/
 
 ln -sf /dockerdata/ci-models/single/comfy_models .
 ln -sf /dockerdata/ci-models/single/Wan2.2-Lightning .

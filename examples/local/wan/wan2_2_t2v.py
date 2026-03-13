@@ -19,8 +19,8 @@ import torch
 
 os.environ["KSANA_LOGGER_LEVEL"] = "INFO"
 
-from ksana import KsanaPipeline
-from ksana.config import (
+from kdit import KsanaPipeline
+from kdit.config import (
     KsanaAttentionBackend,
     KsanaAttentionConfig,
     KsanaDistributedConfig,
@@ -32,8 +32,8 @@ from ksana.config import (
     KsanaSolverType,
     KsanaTorchCompileConfig,
 )
-from ksana.config.cache_config import CustomStepCacheConfig, DBCacheConfig, DCacheConfig, KsanaHybridCacheConfig
-from ksana.utils.distribute import get_gpu_count
+from kdit.config.cache_config import CustomStepCacheConfig, DBCacheConfig, DCacheConfig, KsanaHybridCacheConfig
+from kdit.utils.distribute import get_gpu_count
 
 prompts = [
     "街头摄影，戴耳机的酷女孩滑板，纽约街头，涂鸦墙背景，动态姿势，风吹头发，黄金时刻光线，主体清晰背景虚化，街头潮牌。",

@@ -1,0 +1,85 @@
+# Copyright 2025 Tencent
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+import os
+import unittest
+
+from nodes_test_helper import (
+    COMFY_MODEL_DIFFUSION_ROOT,
+    COMFY_MODEL_ROOT,
+    IMG_SHAPE_I2V,
+    TEST_STEPS,
+    WAN_TEXT_SHAPE,
+    run_load_and_generate,
+)
+
+from kdit import get_engine
+from kdit.models import KsanaModelKey
+from kdit.utils.distribute import get_rank_id
+
+LORA_ROOT_PATH = os.path.join(COMFY_MODEL_ROOT, "loras")
+TEST_LORAS = [
+    (os.path.join(LORA_ROOT_PATH, "Wan2.2-I2V-A14B-4steps-lora-rank64-Seko-V1_high_noise.safetensors"), 1),
+    [
+        (
+            os.path.join(LORA_ROOT_PATH, "Wan2.2-I2V-A14B-4steps-lora-rank64-Seko-V1_high_noise.safetensors"),
+            0.3,
+        ),
+        (
+            os.path.join(LORA_ROOT_PATH, "Wan2.2-I2V-A14B-4steps-lora-rank64-Seko-V1_low_noise.safetensors"),
+            0.7,
+        ),
+    ],
+]
+
+TEST_MODELS = [
+    (
+        "wan2.2_i2v_high_noise_14B_fp16.safetensors",
+        IMG_SHAPE_I2V,
+        WAN_TEXT_SHAPE,
+        KsanaModelKey.Wan2_2_I2V_14B,
+        TEST_LORAS,
+    ),
+]
+
+
+class TestLorasForModels(unittest.TestCase):
+
+    def run_once(self, model_name, image_latent_shape, text_shape, expected_model_key, lora_config):
+        load_output, generate_output = run_load_and_generate(
+            os.path.join(COMFY_MODEL_DIFFUSION_ROOT, model_name),
+            image_latent_shape,
+            text_shape,
+            TEST_STEPS,
+            lora_config=lora_config,
+        )
+        self.assertEqual(load_output.model, expected_model_key)
+        latent_key = generate_output.samples
+        tensor_value = get_engine().get_tensor(latent_key)
+        latent_tensor = tensor_value.data if tensor_value is not None else None
+        if get_rank_id() == 0:
+            # only return tensor on rank 0
+            self.assertIsNotNone(latent_tensor)
+        else:
+            self.assertIsNone(latent_tensor)
+
+    def test_lora(self):
+        for model_name, img_shape, text_shape, expected_model_key, loras in TEST_MODELS:
+            for lora_config in loras:
+                print(f"-----------------test {model_name} {lora_config} -----------------")
+                self.run_once(model_name, img_shape, text_shape, expected_model_key, lora_config)
+
+
+if __name__ == "__main__":
+    unittest.main()

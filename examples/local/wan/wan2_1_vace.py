@@ -17,8 +17,8 @@ import os
 
 os.environ["KSANA_LOGGER_LEVEL"] = "INFO"
 
-from ksana import KsanaPipeline
-from ksana.config import (
+from kdit import KsanaPipeline
+from kdit.config import (
     DCacheConfig,
     KsanaDistributedConfig,
     KsanaExperimentalConfig,
@@ -29,8 +29,8 @@ from ksana.config import (
     KsanaSolverType,
     KsanaVideoControlConfig,
 )
-from ksana.utils import load_control_frames
-from ksana.utils.vace import KsanaVaceContext
+from kdit.utils import load_control_frames
+from kdit.utils.vace import KsanaVaceContext
 
 prompts = [
     "a cute anime girl with massive fennec ears and a big fluffy tail "

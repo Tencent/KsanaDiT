@@ -3,10 +3,10 @@ requires = ["setuptools>=64", "setuptools_scm>=8"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "ksana-dit"
+name = "kDiT"
 dynamic = ["version"]
-description = "KsanaDit"
-authors = [{ name = "KsanaDit", email = "KsanaDiT@venus.com" }]
+description = "kDiT"
+authors = [{ name = "kDiT", email = "kDiT@venus.com" }]
 readme = "README.md"
 requires-python = ">=3.10,<4.0"
 license = {file = "LICENSE"}
@@ -26,12 +26,12 @@ dependencies = [
 ]
 
 [project.urls]
-Repository = "https://git.woa.com/venus-aigc/KsanaDiT.git"
+Repository = "https://git.woa.com/venus-aigc/kDiT.git"
 
 #  Used by Comfy Registry https://comfyregistry.org
 [tool.comfy]
-PublisherId = "KsanaDit"
-DisplayName = "KsanaDit"
+PublisherId = "kDiT"
+DisplayName = "kDiT"
 Icon = ""
 
 [project.optional-dependencies]  # 可选依赖
@@ -42,16 +42,16 @@ xpu = []
 
 [project.scripts]  # 命令行工具
 # TODO: 优化脚本的import层次，较少多余的import耽误时间
-kdit_install_adapters = "ksana.adapter.install:main"
+kdit_install_adapters = "kdit.adapter.install:main"
 
 [tool.setuptools_scm]
 version_scheme = "post-release"
-write_to = "ksana/_version.py"
+write_to = "kdit/_version.py"
 local_scheme = "node-and-date"
 
 [tool.setuptools.packages.find]  # 包发现规则
 where = ["."]
-include = ["ksana*"]
+include = ["kdit*"]
 exclude = [
     "tests*", "assets*", "docker*", "docs", "scripts*", "examples*",
     "comfy_models*", "Wan2.2*", "ai*", "outputs*", "plans*", "prompts*",
@@ -59,7 +59,7 @@ exclude = [
 
 # 包含数据文件（如配置文件）
 [tool.setuptools.package-data]
-ksana = ["data/*.json"]
+kdit = ["data/*.json"]
 
 # 自定义构建选项
 [tool.setuptools]

@@ -19,14 +19,14 @@ import torch
 
 os.environ["KSANA_LOGGER_LEVEL"] = "INFO"
 
-from ksana import KsanaPipeline
-from ksana.config import (
+from kdit import KsanaPipeline
+from kdit.config import (
     KsanaModelConfig,
     KsanaRuntimeConfig,
     KsanaSampleConfig,
     KsanaSolverType,
 )
-from ksana.utils.media import save_image
+from kdit.utils.media import save_image
 
 prompts = [
     "一只可爱的橘猫坐在窗台上，阳光透过窗户洒在它的毛发上，背景是模糊的花园景色",

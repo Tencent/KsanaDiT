@@ -14,7 +14,7 @@
 # limitations under the License.
 
 # ============================================================
-# KsanaDiT 安装脚本
+# kDiT 安装脚本
 #
 # 用法:  ./install.sh
 #
@@ -48,8 +48,8 @@ echo "自动检测到硬件类型: $INSTALL_TYPE"
 
 # ---- 判断当前目录是否为项目源码 ----
 INSTALL_MODE="whl"
-if [[ -d "$PROJECT_ROOT/ksana" && -f "$PROJECT_ROOT/pyproject.toml" ]]; then
-    echo "检测到当前目录下存在 ksana 项目源码和 pyproject.toml"
+if [[ -d "$PROJECT_ROOT/kdit" && -f "$PROJECT_ROOT/pyproject.toml" ]]; then
+    echo "检测到当前目录下存在 kdit 项目源码和 pyproject.toml"
     while true; do
         read -rp "是否以 editable 的开发模式安装当前目录下的代码? (yes/no): " answer
         case "$answer" in
@@ -66,19 +66,19 @@ echo "  硬件类型:      $INSTALL_TYPE"
 echo "=========================================="
 
 # ---- 卸载旧版本 ----
-echo "正在卸载现有的 ksana-dit..."
-pip uninstall -y ksana-dit 2>/dev/null || true
+echo "正在卸载现有的 kDiT..."
+pip uninstall -y kDiT 2>/dev/null || true
 
 # ---- 安装 ----
 if [[ "$INSTALL_MODE" == "dev" ]]; then
     echo "正在以开发模式安装 ${PROJECT_ROOT}[$INSTALL_TYPE] (当前代码)..."
     pip install -e "${PROJECT_ROOT}[$INSTALL_TYPE]"
 else
-    echo "正在安装 ksana-dit[$INSTALL_TYPE] (发布版)..."
-    pip install "ksana-dit[$INSTALL_TYPE]"
+    echo "正在安装 kDiT[$INSTALL_TYPE] (发布版)..."
+    pip install "kDiT[$INSTALL_TYPE]"
 fi
 
-echo "安装完成: ksana-dit[$INSTALL_TYPE]"
+echo "安装完成: kDiT[$INSTALL_TYPE]"
 
 # ---- 询问是否安装 ComfyUI 适配器 ----
 while true; do

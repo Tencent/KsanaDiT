@@ -19,8 +19,8 @@ import torch
 
 os.environ["KSANA_LOGGER_LEVEL"] = "INFO"
 
-from ksana import KsanaPipeline
-from ksana.config import (
+from kdit import KsanaPipeline
+from kdit.config import (
     KsanaAttentionBackend,
     KsanaAttentionConfig,
     KsanaDistributedConfig,
@@ -31,7 +31,7 @@ from ksana.config import (
     KsanaSampleConfig,
     KsanaSolverType,
 )
-from ksana.utils.distribute import get_gpu_count
+from kdit.utils.distribute import get_gpu_count
 
 prompts = [
     "女孩扇子轻微挥动,吹口仙气后,手上的闪电飞到空中开始打雷",

@@ -1,4 +1,4 @@
-# KsanaDiT
+# kDiT
 
 <div align="center">
 
@@ -14,7 +14,7 @@
 
 ## 📖 Introduction
 
-KsanaDiT is a high-performance inference framework specifically designed for Diffusion Transformers (DiT), supporting video generation (T2V/I2V) and image generation (T2I) tasks. The framework provides a rich set of optimization techniques and flexible configuration options, enabling efficient execution of large-scale DiT models on single or multi-GPU environments.
+kDiT is a high-performance inference framework specifically designed for Diffusion Transformers (DiT), supporting video generation (T2V/I2V) and image generation (T2I) tasks. The framework provides a rich set of optimization techniques and flexible configuration options, enabling efficient execution of large-scale DiT models on single or multi-GPU environments.
 
 ### ✨ Key Features
 
@@ -66,8 +66,8 @@ We are actively working on Dockerfiles. Stay tuned!
 
 ```bash
 # Clone the repository
-git clone https://github.com/Tencent/KsanaDiT.git
-cd KsanaDiT
+git clone https://github.com/Tencent/kDiT.git
+cd kDiT
 
 # Install base dependencies (GPU version by default)
 pip install -e .
@@ -92,7 +92,7 @@ pip install xformers>=0.0.29 flash-attn>=2.6.0 triton>=3.2.0
 # 2. Install torch_npu
 pip install torch-npu
 
-# 3. Install KsanaDiT (NPU version)
+# 3. Install kDiT (NPU version)
 pip install -e ".[npu]"
 
 # 4. Verify NPU environment
@@ -105,14 +105,14 @@ Direct installation via wheel packages coming soon.
 
 ## 🔌 Interface Support
 
-KsanaDiT provides multiple usage methods to meet different scenario requirements:
+kDiT provides multiple usage methods to meet different scenario requirements:
 
 ### Local Pipeline Mode
 
 Run locally through the Python Pipeline API, suitable for scripted batch generation or integration into your own systems:
 
 ```python
-from ksana import KsanaPipeline
+from kdit import KsanaPipeline
 
 # Create inference pipeline
 pipeline = KsanaPipeline.from_models("path/to/model")
@@ -125,21 +125,21 @@ For detailed usage, refer to [Quick Start](#-quick-start) and the [examples](./e
 
 ### ComfyUI Integration
 
-KsanaDiT supports usage as ComfyUI custom nodes, providing a visual workflow experience:
+kDiT supports usage as ComfyUI custom nodes, providing a visual workflow experience:
 
 ```bash
 # 1. Navigate to ComfyUI's custom_nodes directory
 cd /path/to/ComfyUI/custom_nodes
 
-# 2. Clone the KsanaDiT repository
-git clone https://github.com/Tencent/KsanaDiT.git
+# 2. Clone the kDiT repository
+git clone https://github.com/Tencent/kDiT.git
 
-# 3. Enter the KsanaDiT directory and install dependencies
-cd KsanaDiT
+# 3. Enter the kDiT directory and install dependencies
+cd kDiT
 ./scripts/install.sh
 ```
 
-After installation, restart ComfyUI and you will see KsanaDiT-related nodes in the node list. For more ComfyUI usage instructions, refer to [comfyui/README.md](./comfyui/README.md).
+After installation, restart ComfyUI and you will see kDiT-related nodes in the node list. For more ComfyUI usage instructions, refer to [comfyui/README.md](./comfyui/README.md).
 
 ## 🚀 Quick Start
 
@@ -149,8 +149,8 @@ For detailed code examples, refer to [examples](./examples/).
 
 ```python
 import torch
-from ksana import KsanaPipeline
-from ksana.config import (
+from kdit import KsanaPipeline
+from kdit.config import (
     KsanaDistributedConfig,
     KsanaRuntimeConfig,
     KsanaSampleConfig,
@@ -180,8 +180,8 @@ print(f"Generated video shape: {video.shape}")
 ### Image-to-Video (I2V)
 
 ```python
-from ksana import KsanaPipeline
-from ksana.config import KsanaRuntimeConfig, KsanaSampleConfig
+from kdit import KsanaPipeline
+from kdit.config import KsanaRuntimeConfig, KsanaSampleConfig
 
 pipeline = KsanaPipeline.from_models("path/to/Wan2.2-I2V-A14B")
 
@@ -205,8 +205,8 @@ See [run_turbo_diffusion](./examples/wan/wan2_2_i2v.py#L115)
 
 ```python
 import torch
-from ksana import KsanaPipeline
-from ksana.config import (
+from kdit import KsanaPipeline
+from kdit.config import (
     KsanaModelConfig,
     KsanaRuntimeConfig,
     KsanaSampleConfig,
@@ -238,8 +238,8 @@ image = pipeline.generate(
 
 ```python
 import torch
-from ksana import KsanaPipeline
-from ksana.config import (
+from kdit import KsanaPipeline
+from kdit.config import (
     KsanaModelConfig,
     KsanaAttentionConfig,
     KsanaAttentionBackend,
@@ -261,8 +261,8 @@ pipeline = KsanaPipeline.from_models(
 ### LoRA Accelerated Inference
 
 ```python
-from ksana import KsanaPipeline
-from ksana.config import KsanaLoraConfig, KsanaSampleConfig
+from kdit import KsanaPipeline
+from kdit.config import KsanaLoraConfig, KsanaSampleConfig
 
 pipeline = KsanaPipeline.from_models(
     "path/to/Wan2.2-T2V-A14B",
@@ -283,7 +283,7 @@ video = pipeline.generate(
 ### Smart Cache Optimization - *Under Active Development*
 
 ```python
-from ksana.config.cache_config import (
+from kdit.config.cache_config import (
     DCacheConfig,
     DBCacheConfig,
     KsanaHybridCacheConfig,
@@ -312,8 +312,8 @@ CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 your_script.py
 ```
 
 ```python
-from ksana import KsanaPipeline
-from ksana.config import KsanaDistributedConfig
+from kdit import KsanaPipeline
+from kdit.config import KsanaDistributedConfig
 
 pipeline = KsanaPipeline.from_models(
     model_path,
@@ -374,13 +374,13 @@ export KSANA_LOGGER_LEVEL=info
 
 ### Model Configuration
 
-The framework supports model parameter configuration via YAML files, located in the [`ksana/settings/`](ksana/settings/) directory:
+The framework supports model parameter configuration via YAML files, located in the [`kdit/settings/`](kdit/settings/) directory:
 
-- [`qwen/t2i_20b.yaml`](ksana/settings/qwen/t2i_20b.yaml) - Qwen image generation model config
-- [`qwen/edit_20b.yaml`](ksana/settings/qwen/edit_20b.yaml) - Qwen image editing model config
-- [`wan/t2v_14b.yaml`](ksana/settings/wan/t2v_14b.yaml) - Wan2.2 T2V model config
-- [`wan/i2v_14b.yaml`](ksana/settings/wan/i2v_14b.yaml) - Wan2.2 I2V model config
-- [`wan/vace_14b.yaml`](ksana/settings/wan/vace_14b.yaml) - Wan2.1 Vace model config
+- [`qwen/t2i_20b.yaml`](kdit/settings/qwen/t2i_20b.yaml) - Qwen image generation model config
+- [`qwen/edit_20b.yaml`](kdit/settings/qwen/edit_20b.yaml) - Qwen image editing model config
+- [`wan/t2v_14b.yaml`](kdit/settings/wan/t2v_14b.yaml) - Wan2.2 T2V model config
+- [`wan/i2v_14b.yaml`](kdit/settings/wan/i2v_14b.yaml) - Wan2.2 I2V model config
+- [`wan/vace_14b.yaml`](kdit/settings/wan/vace_14b.yaml) - Wan2.1 Vace model config
 
 ## 📚 Code Examples
 
@@ -401,10 +401,10 @@ We have comprehensive test coverage. Tests are currently time-consuming; we will
 pytest tests/
 
 # Run specific tests
-pytest tests/ksana/pipelines/wan2_2_t2v_test.py
+pytest tests/kdit/pipelines/wan2_2_t2v_test.py
 
 # Run GPU tests
-bash scripts/ci_tests/ci_ksana_gpus.sh
+bash scripts/ci_tests/ci_kdit_gpus.sh
 ```
 
 ## 🤝 Contributing
@@ -447,8 +447,8 @@ This project benefits from the following excellent open-source projects:
 
 ## 📮 Contact
 
-- Bug Reports: [GitHub Issues](https://github.com/tencent/KsanaDiT/issues)
-- Feature Requests: [GitHub Discussions](https://github.com/tencent/KsanaDiT/discussions)
+- Bug Reports: [GitHub Issues](https://github.com/tencent/kDiT/issues)
+- Feature Requests: [GitHub Discussions](https://github.com/tencent/kDiT/discussions)
 
 ## 🗺️ Roadmap
 
@@ -480,6 +480,6 @@ This project benefits from the following excellent open-source projects:
 
 **If this project helps you, please give us a ⭐️ Star!**
 
-Made with ❤️ by the KsanaDiT Team
+Made with ❤️ by the kDiT Team
 
 </div>

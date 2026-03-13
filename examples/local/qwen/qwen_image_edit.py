@@ -16,16 +16,16 @@ import torch
 
 os.environ["KSANA_LOGGER_LEVEL"] = "INFO"
 
-from ksana import KsanaPipeline
-from ksana.config import (
+from kdit import KsanaPipeline
+from kdit.config import (
     KsanaLoraConfig,
     KsanaModelConfig,
     KsanaRuntimeConfig,
     KsanaSampleConfig,
     KsanaSolverType,
 )
-from ksana.models.model_key import KsanaModelKey
-from ksana.utils.media import save_image
+from kdit.models.model_key import KsanaModelKey
+from kdit.utils.media import save_image
 
 # 生成配置
 config = {

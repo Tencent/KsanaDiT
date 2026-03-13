@@ -1,4 +1,4 @@
-# KsanaDiT Coding Skills
+# kDiT Coding Skills
 
 ## 1. Import 风格规范（方案 B）
 
@@ -8,24 +8,24 @@
 |---------|------|------|
 | 同目录（`.`） | **相对导入** | `from .base import Foo` |
 | 同子包内（`..`） | **相对导入** | `from ..core.base_node import KsanaLoadNode` |
-| 跨子包（`...` 及以上） | **绝对导入** | `from ksana.utils.factory import Factory` |
+| 跨子包（`...` 及以上） | **绝对导入** | `from kdit.utils.factory import Factory` |
 
 ### 判定标准
 
-- **"同子包"** 定义：共享 `ksana/` 下同一个一级子目录。例如 `ksana/nodes/loaders/` 和 `ksana/nodes/core/` 同属 `nodes` 子包。
-- **三级及以上相对导入（`from ...xxx`）一律禁止**，必须改为绝对导入 `from ksana.xxx`。
-- `ksana/operations/` 内部的深层嵌套（如 `backends/radial_sage_attn/`）跨子目录时也使用绝对导入。
+- **"同子包"** 定义：共享 `kdit/` 下同一个一级子目录。例如 `kdit/nodes/loaders/` 和 `kdit/nodes/core/` 同属 `nodes` 子包。
+- **三级及以上相对导入（`from ...xxx`）一律禁止**，必须改为绝对导入 `from kdit.xxx`。
+- `kdit/operations/` 内部的深层嵌套（如 `backends/radial_sage_attn/`）跨子目录时也使用绝对导入。
 
 ### 示例
 
 ```python
-# ksana/nodes/loaders/diffusion_model_loader.py
+# kdit/nodes/loaders/diffusion_model_loader.py
 
 # ✅ 跨子包 → 绝对导入
-from ksana.config import KsanaLoraConfig, KsanaModelConfig
-from ksana.memory import PinnedMemoryManager
-from ksana.models import KsanaWanModel
-from ksana.utils import is_file_or_dir, log
+from kdit.config import KsanaLoraConfig, KsanaModelConfig
+from kdit.memory import PinnedMemoryManager
+from kdit.models import KsanaWanModel
+from kdit.utils import is_file_or_dir, log
 
 # ✅ 同子包 (nodes) → 相对导入
 from ..core.base_node import KsanaLoadNode
@@ -34,10 +34,10 @@ from ..core.node_types import KsanaDispatchPolicy
 ```
 
 ```python
-# ksana/operations/attention/backends/radial_sage_attn/radial_sage_attn.py
+# kdit/operations/attention/backends/radial_sage_attn/radial_sage_attn.py
 
 # ✅ 跨子目录 → 绝对导入
-from ksana.operations.attention.attention_op import KsanaAttentionBackendImpl
+from kdit.operations.attention.attention_op import KsanaAttentionBackendImpl
 
 # ❌ 禁止
 # from ...attention_op import KsanaAttentionBackendImpl
@@ -45,18 +45,18 @@ from ksana.operations.attention.attention_op import KsanaAttentionBackendImpl
 
 ### 适用范围
 
-本规则适用于 `ksana/` 包下所有 Python 模块，包括但不限于：
-- `ksana/nodes/` — loader / encoder / decoder / generator 节点
-- `ksana/operations/` — attention / linear / fuse_qkv 算子
-- `ksana/adapter/comfyui/` — ComfyUI 适配层
-- `ksana/models/` — 模型实现（wan / qwen）
+本规则适用于 `kdit/` 包下所有 Python 模块，包括但不限于：
+- `kdit/nodes/` — loader / encoder / decoder / generator 节点
+- `kdit/operations/` — attention / linear / fuse_qkv 算子
+- `kdit/adapter/comfyui/` — ComfyUI 适配层
+- `kdit/models/` — 模型实现（wan / qwen）
 
 ### 自动检查
 
 可通过以下命令验证是否存在违规的三级相对导入：
 
 ```bash
-grep -rn "from \.\.\." ksana/
+grep -rn "from \.\.\." kdit/
 ```
 
 预期输出为空。
@@ -124,9 +124,9 @@ class KsanaSampleConfig:
 
 | Key 类型 | 定义位置 | 语义 | 使用场景 |
 |----------|---------|------|---------|
-| `KsanaModelKey` | `ksana/models/model_key.py` | 标识一个具体的模型类别 | `KsanaModelPool` 存取、`KsanaModel.__init__`、Loader/Infer Node 注册与分发、`KsanaUnitFactory` 注册、`settings` 配置映射 |
-| `KsanaPipelineKey` | `ksana/pipelines/pipeline_key.py` | 标识一条完整的推理流水线 | `KsanaBasePipeline.__init__`、pipeline 创建与路由、`base_pipeline` 中 pipeline→model 映射表的 key 侧 |
-| `KsanaInferNodeType` | `ksana/nodes/core/node_types.py` | 标识推理节点类型 | `KsanaInferNodeFactory` 注册与分发、`executor.run_infer_node` |
+| `KsanaModelKey` | `kdit/models/model_key.py` | 标识一个具体的模型类别 | `KsanaModelPool` 存取、`KsanaModel.__init__`、Loader/Infer Node 注册与分发、`KsanaUnitFactory` 注册、`settings` 配置映射 |
+| `KsanaPipelineKey` | `kdit/pipelines/pipeline_key.py` | 标识一条完整的推理流水线 | `KsanaBasePipeline.__init__`、pipeline 创建与路由、`base_pipeline` 中 pipeline→model 映射表的 key 侧 |
+| `KsanaInferNodeType` | `kdit/nodes/core/node_types.py` | 标识推理节点类型 | `KsanaInferNodeFactory` 注册与分发、`executor.run_infer_node` |
 
 ### 核心约束
 
@@ -225,7 +225,7 @@ def run(self, model_key, context, *, tensor_pool, model_pool, device_ctx) -> Non
 tensor_pool 的 key **必须**使用 `TensorKey(str, Enum)` 枚举，全局统一，不使用裸字符串：
 
 ```python
-from ksana.nodes.core.tensor_keys import TensorKey
+from kdit.nodes.core.tensor_keys import TensorKey
 
 # ✅ 使用枚举
 tensor_pool.put(TensorKey.LATENTS, latents)
@@ -403,7 +403,7 @@ KsanaExecutor (每卡一个实例)
 
 ### 各组件详细 Ownership
 
-#### KsanaEngine (`ksana/engine/engine.py`)
+#### KsanaEngine (`kdit/engine/engine.py`)
 
 | 属性 | 类型 | 说明 |
 |------|------|------|
@@ -421,7 +421,7 @@ KsanaExecutor (每卡一个实例)
 - `get_tensor()` → 从 rank 0 Executor 的 tensor_pool 读取
 - `inference_session()` → 管理所有 Executor 的 tensor_pool 生命周期
 
-#### KsanaExecutor (`ksana/executor/executor.py`)
+#### KsanaExecutor (`kdit/executor/executor.py`)
 
 | 属性 | 类型 | 生命周期 | 说明 |
 |------|------|---------|------|
@@ -434,7 +434,7 @@ KsanaExecutor (每卡一个实例)
 | `dist_config` | `KsanaDistributedConfig` | `init_torch_dist_group()` 后更新 | 分布式配置 |
 | `shard_fn` | `partial` 或 `None` | `init_torch_dist_group()` 后设置 | FSDP 分片函数 |
 
-#### KsanaDeviceContext (`ksana/nodes/core/device_context.py`)
+#### KsanaDeviceContext (`kdit/nodes/core/device_context.py`)
 
 ```python
 @dataclass(frozen=True)  # ← frozen! Node 无法篡改
@@ -449,7 +449,7 @@ class KsanaDeviceContext:
 - **传入 Node.run()** 作为只读参数
 - **frozen=True** 保证 Node 无法修改设备配置
 
-#### KsanaTensorStorePool (`ksana/tensor/tensor_store_pool.py`)
+#### KsanaTensorStorePool (`kdit/tensor/tensor_store_pool.py`)
 
 - **Owner**: Executor
 - **生命周期**: 每次 `engine.tensor_scope()` 退出（depth→0）时 `clear(exclude=keep)`
@@ -457,14 +457,14 @@ class KsanaDeviceContext:
 - **用途**: Node 间通过 `KsanaTensorKey` 引用 tensor，避免 tensor 跨 Ray 边界序列化
 - **关键方法**: `put` / `get`（返回 TensorValue）/ `clear(exclude)` / `has` / `keys` / `__len__`
 
-#### KsanaModelPool (`ksana/models/model_pool.py`)
+#### KsanaModelPool (`kdit/models/model_pool.py`)
 
 - **Owner**: Executor
 - **生命周期**: 与 Executor 同生命周期，`clear_models()` 可手动清理
 - **内容**: `dict[KsanaModelKey, KsanaModel]`
 - **用途**: LoaderNode 写入模型，InferNode 读取模型
 
-#### DistributedGroupManager (`ksana/executor/distributed_group.py`)
+#### DistributedGroupManager (`kdit/executor/distributed_group.py`)
 
 - **Owner**: Executor
 - **状态**: `rank_id`, `world_size`, `_initialized`
@@ -612,19 +612,19 @@ Node 内部不需要感知多卡逻辑，Executor 负责所有 tensor 的 pre/po
 
 ### 规则
 
-第三方框架的适配代码**只能**放在 `ksana/adapter/` 目录下。依赖方向是**单向**的：
+第三方框架的适配代码**只能**放在 `kdit/adapter/` 目录下。依赖方向是**单向**的：
 
 ```
-ksana/adapter/comfyui/  →  ksana/  (✅ adapter 可以 import ksana 核心代码)
-ksana/                  →  ksana/adapter/  (❌ 核心代码禁止 import adapter)
+kdit/adapter/comfyui/  →  kdit/  (✅ adapter 可以 import kdit 核心代码)
+kdit/                  →  kdit/adapter/  (❌ 核心代码禁止 import adapter)
 ```
 
 ### 约束
 
 | 规则 | 说明 |
 |------|------|
-| adapter → ksana 核心 | ✅ 允许。adapter 代码可以自由使用 ksana 核心模块 |
-| ksana 核心 → adapter | ❌ **禁止**。`ksana/` 下除 `adapter/` 外的任何模块不得 import `ksana.adapter.*` |
+| adapter → kdit 核心 | ✅ 允许。adapter 代码可以自由使用 kdit 核心模块 |
+| kdit 核心 → adapter | ❌ **禁止**。`kdit/` 下除 `adapter/` 外的任何模块不得 import `kdit.adapter.*` |
 | adapter 间互相引用 | ⚠️ 谨慎。不同 adapter 之间尽量不互相依赖 |
 
 ### 原因
@@ -636,9 +636,9 @@ ksana/                  →  ksana/adapter/  (❌ 核心代码禁止 import adap
 ### 自动检查
 
 ```bash
-# 检查 ksana/ 核心代码（排除 adapter/）是否引用了 adapter
-grep -rn "from ksana.adapter" ksana/ --include="*.py" | grep -v __pycache__ | grep -v "ksana/adapter/"
-grep -rn "import ksana.adapter" ksana/ --include="*.py" | grep -v __pycache__ | grep -v "ksana/adapter/"
+# 检查 kdit/ 核心代码（排除 adapter/）是否引用了 adapter
+grep -rn "from kdit.adapter" kdit/ --include="*.py" | grep -v __pycache__ | grep -v "kdit/adapter/"
+grep -rn "import kdit.adapter" kdit/ --include="*.py" | grep -v __pycache__ | grep -v "kdit/adapter/"
 ```
 
 预期输出为空。
@@ -649,93 +649,93 @@ grep -rn "import ksana.adapter" ksana/ --include="*.py" | grep -v __pycache__ | 
 
 ### 规则
 
-`ksana/` 包内的自定义类名**不加** `Ksana` 前缀。因为已经在 `ksana` 命名空间下，前缀是冗余的。
+`kdit/` 包内的自定义类名**不加** `Ksana` 前缀。因为已经在 `kdit` 命名空间下，前缀是冗余的。
 
 | 场景 | 规则 | 示例 |
 |------|------|------|
-| `ksana/` 包内类定义 | **不加** `Ksana` 前缀 | `Engine`、`Executor`、`Pipeline`、`ModelKey` |
-| `comfyui/` 及 `ksana/adapter/comfyui/` 中的类 | **可以保留** `Ksana` 前缀 | `KsanaNodeModelLoader`、`KsanaNodeGeneratorOutput` |
+| `kdit/` 包内类定义 | **不加** `Ksana` 前缀 | `Engine`、`Executor`、`Pipeline`、`ModelKey` |
+| `comfyui/` 及 `kdit/adapter/comfyui/` 中的类 | **可以保留** `Ksana` 前缀 | `KsanaNodeModelLoader`、`KsanaNodeGeneratorOutput` |
 | `KSANA_` 开头的常量 | **保留** | `KSANA_LOGGER_LEVEL`、`KSANA_PREFETCH_WEIGHTS` |
 
 ### 重命名映射表（待逐个确认执行）
 
-以下类需要去除 `Ksana` 前缀，重命名时需同步修改所有引用（包括 `ksana/`、`tests/`、`examples/`、`.roo/rules-code/`、`.skills/` 中的引用）：
+以下类需要去除 `Ksana` 前缀，重命名时需同步修改所有引用（包括 `kdit/`、`tests/`、`examples/`、`.roo/rules-code/`、`.skills/` 中的引用）：
 
 | 当前名称 | 目标名称 | 定义文件 |
 |----------|---------|---------|
-| `KsanaCache` | `Cache` | `ksana/cache/base_cache.py` |
-| `KsanaStepCache` | `StepCache` | `ksana/cache/base_cache.py` |
-| `KsanaBlockCache` | `BlockCache` | `ksana/cache/base_cache.py` |
-| `KsanaHybridCache` | `HybridCache` | `ksana/cache/base_cache.py` |
-| `KsanaLinearBackend` | `LinearBackend` | `ksana/config/linear_config.py` |
-| `KsanaRuntimeConfig` | `RuntimeConfig` | `ksana/config/runtime_config.py` |
-| `KsanaSolverType` | `SolverType` | `ksana/config/sample_config.py` |
-| `KsanaSampleConfig` | `SampleConfig` | `ksana/config/sample_config.py` |
-| `KsanaModelConfig` | `ModelConfig` | `ksana/config/model_config.py` |
-| `KsanaCacheConfig` | `CacheConfig` | `ksana/config/cache_config/base.py` |
-| `KsanaBlockCacheConfig` | `BlockCacheConfig` | `ksana/config/cache_config/base.py` |
-| `KsanaStepCacheConfig` | `StepCacheConfig` | `ksana/config/cache_config/base.py` |
-| `KsanaHybridCacheConfig` | `HybridCacheConfig` | `ksana/config/cache_config/base.py` |
-| `KsanaVideoControlConfig` | `VideoControlConfig` | `ksana/config/video_control_config.py` |
-| `KsanaLoraConfig` | `LoraConfig` | `ksana/config/lora_config.py` |
-| `KsanaAttentionBackend` | `AttentionBackend` | `ksana/config/attention_config.py` |
-| `KsanaAttentionConfig` | `AttentionConfig` | `ksana/config/attention_config.py` |
-| `KsanaRadialSageAttentionConfig` | `RadialSageAttentionConfig` | `ksana/config/attention_config.py` |
-| `KsanaSageSLAConfig` | `SageSLAConfig` | `ksana/config/attention_config.py` |
-| `KsanaTorchCompileConfig` | `TorchCompileConfig` | `ksana/config/torch_compile_config.py` |
-| `KsanaSLGConfig` | `SLGConfig` | `ksana/config/wan_experimental_config.py` |
-| `KsanaFETAConfig` | `FETAConfig` | `ksana/config/wan_experimental_config.py` |
-| `KsanaExperimentalConfig` | `ExperimentalConfig` | `ksana/config/wan_experimental_config.py` |
-| `KsanaDistributedConfig` | `DistributedConfig` | `ksana/config/distributed_config.py` |
-| `KsanaLoaderNodeFactory` | `LoaderNodeFactory` | `ksana/nodes/core/node_factory.py` |
-| `KsanaInferNodeFactory` | `InferNodeFactory` | `ksana/nodes/core/node_factory.py` |
-| `KsanaNodeContext` | `NodeContext` | `ksana/nodes/core/node_context.py` |
-| `KsanaLoadNode` | `LoadNode` | `ksana/nodes/core/base_node.py` |
-| `KsanaInferNode` | `InferNode` | `ksana/nodes/core/base_node.py` |
-| `KsanaDispatchPolicy` | `DispatchPolicy` | `ksana/nodes/core/node_types.py` |
-| `KsanaInferNodeType` | `InferNodeType` | `ksana/nodes/core/node_types.py` |
-| `KsanaDeviceContext` | `DeviceContext` | `ksana/nodes/core/device_context.py` |
-| `KsanaBatchScheduler` | `BatchScheduler` | `ksana/scheduler/scheduler.py` |
-| `KsanaPipeline` | `Pipeline` | `ksana/pipelines/x2x_pipeline.py` |
-| `KsanaBasePipeline` | `BasePipeline` | `ksana/pipelines/base_pipeline.py` |
-| `KsanaPipelineKey` | `PipelineKey` | `ksana/pipelines/pipeline_key.py` |
-| `KsanaProfiler` | `Profiler` | `ksana/utils/profile.py` |
-| `KsanaVaceContext` | `VaceContext` | `ksana/utils/vace.py` |
-| `KsanaModelKey` | `ModelKey` | `ksana/models/model_key.py` |
-| `KsanaQwenImageVAE` | `QwenImageVAE` | `ksana/models/qwen/vae.py` |
-| `KsanaDiffusionModel` | `DiffusionModel` | `ksana/models/diffusion_model.py` |
-| `KsanaWanModel` | `WanModel` | `ksana/models/diffusion_model.py` |
-| `KsanaWanVaceModel` | `WanVaceModel` | `ksana/models/diffusion_model.py` |
-| `KsanaQwenImageModel` | `QwenImageModel` | `ksana/models/diffusion_model.py` |
-| `KsanaVAEModel` | `VAEModel` | `ksana/models/vae_model.py` |
-| `KsanaWanVAEModel` | `WanVAEModel` | `ksana/models/vae_model.py` |
-| `KsanaQwenVAEModel` | `QwenVAEModel` | `ksana/models/vae_model.py` |
-| `KsanaModelPool` | `ModelPool` | `ksana/models/model_pool.py` |
-| `KsanaTextEncoderModel` | `TextEncoderModel` | `ksana/models/text_encoder_model.py` |
-| `KsanaAttentionOp` | `AttentionOp` | `ksana/operations/attention/attention_op.py` |
-| `KsanaAttentionBackendImpl` | `AttentionBackendImpl` | `ksana/operations/attention/backends/base.py` |
-| `KsanaRunnerUnit` | `RunnerUnit` | `ksana/units/runner_unit.py` |
-| `KsanaBaseTextEncoder` | `BaseTextEncoder` | `ksana/units/encoder_unit.py` |
-| `KsanaTextEncoder` | `TextEncoder` | `ksana/units/encoder_unit.py` |
-| `KsanaQwenVLTextEncoderUnit` | `QwenVLTextEncoderUnit` | `ksana/units/encoder_unit.py` |
-| `KsanaWanGenerator` | `WanGenerator` | `ksana/units/generator/wan_generator.py` |
-| `KsanaQwenGenerator` | `QwenGenerator` | `ksana/units/generator/qwen_generator.py` |
-| `KsanaBaseGenerator` | `BaseGenerator` | `ksana/units/generator/base.py` |
-| `KsanaVaceGenerator` | `VaceGenerator` | `ksana/units/generator/vace_generator.py` |
-| `KsanaVaeEncoder` | `VaeEncoder` | `ksana/units/vae_encoder_unit.py` |
-| `KsanaUnit` | `Unit` | `ksana/units/base_unit.py` |
-| `KsanaUnitType` | `UnitType` | `ksana/units/base_unit.py` |
-| `KsanaUnitFactory` | `UnitFactory` | `ksana/units/base_unit.py` |
-| `KsanaVaeDecoder` | `VaeDecoder` | `ksana/units/decoder_unit.py` |
-| `KsanaExecutor` | `Executor` | `ksana/executor/executor.py` |
-| ~~`KsanaTensorStore`~~ | `TensorValue` | `ksana/tensor/tensor_value.py` | ✅ 已完成 |
-| `KsanaTensorKey` | `TensorKey` | `ksana/tensor/tensor_key.py` |
-| `KsanaTensorStorePool` | `TensorStorePool` | `ksana/tensor/tensor_store_pool.py` |
-| `KsanaEngine` | `Engine` | `ksana/engine/engine.py` |
+| `KsanaCache` | `Cache` | `kdit/cache/base_cache.py` |
+| `KsanaStepCache` | `StepCache` | `kdit/cache/base_cache.py` |
+| `KsanaBlockCache` | `BlockCache` | `kdit/cache/base_cache.py` |
+| `KsanaHybridCache` | `HybridCache` | `kdit/cache/base_cache.py` |
+| `KsanaLinearBackend` | `LinearBackend` | `kdit/config/linear_config.py` |
+| `KsanaRuntimeConfig` | `RuntimeConfig` | `kdit/config/runtime_config.py` |
+| `KsanaSolverType` | `SolverType` | `kdit/config/sample_config.py` |
+| `KsanaSampleConfig` | `SampleConfig` | `kdit/config/sample_config.py` |
+| `KsanaModelConfig` | `ModelConfig` | `kdit/config/model_config.py` |
+| `KsanaCacheConfig` | `CacheConfig` | `kdit/config/cache_config/base.py` |
+| `KsanaBlockCacheConfig` | `BlockCacheConfig` | `kdit/config/cache_config/base.py` |
+| `KsanaStepCacheConfig` | `StepCacheConfig` | `kdit/config/cache_config/base.py` |
+| `KsanaHybridCacheConfig` | `HybridCacheConfig` | `kdit/config/cache_config/base.py` |
+| `KsanaVideoControlConfig` | `VideoControlConfig` | `kdit/config/video_control_config.py` |
+| `KsanaLoraConfig` | `LoraConfig` | `kdit/config/lora_config.py` |
+| `KsanaAttentionBackend` | `AttentionBackend` | `kdit/config/attention_config.py` |
+| `KsanaAttentionConfig` | `AttentionConfig` | `kdit/config/attention_config.py` |
+| `KsanaRadialSageAttentionConfig` | `RadialSageAttentionConfig` | `kdit/config/attention_config.py` |
+| `KsanaSageSLAConfig` | `SageSLAConfig` | `kdit/config/attention_config.py` |
+| `KsanaTorchCompileConfig` | `TorchCompileConfig` | `kdit/config/torch_compile_config.py` |
+| `KsanaSLGConfig` | `SLGConfig` | `kdit/config/wan_experimental_config.py` |
+| `KsanaFETAConfig` | `FETAConfig` | `kdit/config/wan_experimental_config.py` |
+| `KsanaExperimentalConfig` | `ExperimentalConfig` | `kdit/config/wan_experimental_config.py` |
+| `KsanaDistributedConfig` | `DistributedConfig` | `kdit/config/distributed_config.py` |
+| `KsanaLoaderNodeFactory` | `LoaderNodeFactory` | `kdit/nodes/core/node_factory.py` |
+| `KsanaInferNodeFactory` | `InferNodeFactory` | `kdit/nodes/core/node_factory.py` |
+| `KsanaNodeContext` | `NodeContext` | `kdit/nodes/core/node_context.py` |
+| `KsanaLoadNode` | `LoadNode` | `kdit/nodes/core/base_node.py` |
+| `KsanaInferNode` | `InferNode` | `kdit/nodes/core/base_node.py` |
+| `KsanaDispatchPolicy` | `DispatchPolicy` | `kdit/nodes/core/node_types.py` |
+| `KsanaInferNodeType` | `InferNodeType` | `kdit/nodes/core/node_types.py` |
+| `KsanaDeviceContext` | `DeviceContext` | `kdit/nodes/core/device_context.py` |
+| `KsanaBatchScheduler` | `BatchScheduler` | `kdit/scheduler/scheduler.py` |
+| `KsanaPipeline` | `Pipeline` | `kdit/pipelines/x2x_pipeline.py` |
+| `KsanaBasePipeline` | `BasePipeline` | `kdit/pipelines/base_pipeline.py` |
+| `KsanaPipelineKey` | `PipelineKey` | `kdit/pipelines/pipeline_key.py` |
+| `KsanaProfiler` | `Profiler` | `kdit/utils/profile.py` |
+| `KsanaVaceContext` | `VaceContext` | `kdit/utils/vace.py` |
+| `KsanaModelKey` | `ModelKey` | `kdit/models/model_key.py` |
+| `KsanaQwenImageVAE` | `QwenImageVAE` | `kdit/models/qwen/vae.py` |
+| `KsanaDiffusionModel` | `DiffusionModel` | `kdit/models/diffusion_model.py` |
+| `KsanaWanModel` | `WanModel` | `kdit/models/diffusion_model.py` |
+| `KsanaWanVaceModel` | `WanVaceModel` | `kdit/models/diffusion_model.py` |
+| `KsanaQwenImageModel` | `QwenImageModel` | `kdit/models/diffusion_model.py` |
+| `KsanaVAEModel` | `VAEModel` | `kdit/models/vae_model.py` |
+| `KsanaWanVAEModel` | `WanVAEModel` | `kdit/models/vae_model.py` |
+| `KsanaQwenVAEModel` | `QwenVAEModel` | `kdit/models/vae_model.py` |
+| `KsanaModelPool` | `ModelPool` | `kdit/models/model_pool.py` |
+| `KsanaTextEncoderModel` | `TextEncoderModel` | `kdit/models/text_encoder_model.py` |
+| `KsanaAttentionOp` | `AttentionOp` | `kdit/operations/attention/attention_op.py` |
+| `KsanaAttentionBackendImpl` | `AttentionBackendImpl` | `kdit/operations/attention/backends/base.py` |
+| `KsanaRunnerUnit` | `RunnerUnit` | `kdit/units/runner_unit.py` |
+| `KsanaBaseTextEncoder` | `BaseTextEncoder` | `kdit/units/encoder_unit.py` |
+| `KsanaTextEncoder` | `TextEncoder` | `kdit/units/encoder_unit.py` |
+| `KsanaQwenVLTextEncoderUnit` | `QwenVLTextEncoderUnit` | `kdit/units/encoder_unit.py` |
+| `KsanaWanGenerator` | `WanGenerator` | `kdit/units/generator/wan_generator.py` |
+| `KsanaQwenGenerator` | `QwenGenerator` | `kdit/units/generator/qwen_generator.py` |
+| `KsanaBaseGenerator` | `BaseGenerator` | `kdit/units/generator/base.py` |
+| `KsanaVaceGenerator` | `VaceGenerator` | `kdit/units/generator/vace_generator.py` |
+| `KsanaVaeEncoder` | `VaeEncoder` | `kdit/units/vae_encoder_unit.py` |
+| `KsanaUnit` | `Unit` | `kdit/units/base_unit.py` |
+| `KsanaUnitType` | `UnitType` | `kdit/units/base_unit.py` |
+| `KsanaUnitFactory` | `UnitFactory` | `kdit/units/base_unit.py` |
+| `KsanaVaeDecoder` | `VaeDecoder` | `kdit/units/decoder_unit.py` |
+| `KsanaExecutor` | `Executor` | `kdit/executor/executor.py` |
+| ~~`KsanaTensorStore`~~ | `TensorValue` | `kdit/tensor/tensor_value.py` | ✅ 已完成 |
+| `KsanaTensorKey` | `TensorKey` | `kdit/tensor/tensor_key.py` |
+| `KsanaTensorStorePool` | `TensorStorePool` | `kdit/tensor/tensor_store_pool.py` |
+| `KsanaEngine` | `Engine` | `kdit/engine/engine.py` |
 
 ### 保留 `Ksana` 前缀的类（comfyui 适配层）
 
-以下类位于 `ksana/adapter/comfyui/`，保留 `Ksana` 前缀：
+以下类位于 `kdit/adapter/comfyui/`，保留 `Ksana` 前缀：
 
 - `KsanaNodeTeaCache`、`KsanaNodeEasyCache`、`KsanaNodeMagCache`、`KsanaNodeDBCache`
 - `KsanaNodeModelLoaderOutput`、`KsanaNodeGeneratorOutput`、`KsanaNodeVAEEncodeOutput`
@@ -745,7 +745,7 @@ grep -rn "import ksana.adapter" ksana/ --include="*.py" | grep -v __pycache__ | 
 
 每次重命名一个类时：
 1. 修改类定义
-2. `grep -rn "旧名称" ksana/ tests/ examples/ .roo/ .skills/` 找到所有引用
+2. `grep -rn "旧名称" kdit/ tests/ examples/ .roo/ .skills/` 找到所有引用
 3. 同步修改所有引用
 4. 运行 `python -c "import ast; ast.parse(open('文件').read())"` 验证语法
 5. 运行相关单测验证功能
@@ -753,8 +753,8 @@ grep -rn "import ksana.adapter" ksana/ --include="*.py" | grep -v __pycache__ | 
 ### 自动检查
 
 ```bash
-# 检查 ksana/ 下（排除 adapter/comfy/）是否还有 Ksana 前缀的类
-grep -rn "class Ksana" ksana/ --include="*.py" | grep -v __pycache__ | grep -v "adapter/comfyui/"
+# 检查 kdit/ 下（排除 adapter/comfy/）是否还有 Ksana 前缀的类
+grep -rn "class Ksana" kdit/ --include="*.py" | grep -v __pycache__ | grep -v "adapter/comfyui/"
 ```
 
 预期输出为空（重构完成后）。
