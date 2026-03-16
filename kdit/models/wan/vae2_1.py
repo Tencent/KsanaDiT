@@ -13,8 +13,8 @@ from kdit.utils.lora import load_state_dict_and_merge_lora
 from .vae_paralle import patch_vae_parallel
 
 if platform.is_npu():
-    import torch_npu  # pylint: disable=unused-import # noqa: F401
-    from torch_npu.contrib import transfer_to_npu  # pylint: disable=unused-import # noqa: F401
+    import torch_npu  # noqa: F401  # pylint: disable=unused-import
+    from torch_npu.contrib import transfer_to_npu  # noqa: F401  # pylint: disable=unused-import
 
 
 __all__ = ["Wan2_1_VAE"]
@@ -152,7 +152,7 @@ class Resample(nn.Module):
     def init_weight(self, conv):
         conv_weight = conv.weight
         nn.init.zeros_(conv_weight)
-        c1, c2, t, h, w = conv_weight.size()  # pylint: disable=unused-variable
+        c1, c2, t, h, w = conv_weight.size()  # noqa: F841  # pylint: disable=unused-variable
         one_matrix = torch.eye(c1, c2)
         init_matrix = one_matrix
         nn.init.zeros_(conv_weight)
@@ -164,7 +164,7 @@ class Resample(nn.Module):
     def init_weight2(self, conv):
         conv_weight = conv.weight.data
         nn.init.zeros_(conv_weight)
-        c1, c2, t, h, w = conv_weight.size()  # pylint: disable=unused-variable
+        c1, c2, t, h, w = conv_weight.size()  # noqa: F841  # pylint: disable=unused-variable
         init_matrix = torch.eye(c1 // 2, c2)
         # init_matrix = repeat(init_matrix, 'o ... -> (o 2) ...').permute(1,0,2).contiguous().reshape(c1,c2)
         conv_weight[: c1 // 2, :, -1, 0, 0] = init_matrix

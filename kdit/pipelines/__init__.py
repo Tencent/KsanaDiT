@@ -1,4 +1,4 @@
-# Copyright 2025 Tencent
+# Copyright 2026 Tencent
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,7 +12,28 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .pipeline_key import KsanaPipelineKey
-from .x2x_pipeline import KsanaPipeline
+from .context_builder import ContextBuilder
 
-__all__ = ["KsanaPipeline", "KsanaPipelineKey"]
+# 导入 defs 子包触发自动注册（import 即注册到全局注册表）
+from .defs import qwen_edit as _qwen_edit  # noqa: F401  # pylint: disable=unused-import
+from .defs import qwen_t2i as _qwen_t2i  # noqa: F401  # pylint: disable=unused-import
+from .defs import wan_i2v as _wan_i2v  # noqa: F401  # pylint: disable=unused-import
+from .defs import wan_t2v as _wan_t2v  # noqa: F401  # pylint: disable=unused-import
+from .defs import wan_vace as _wan_vace  # noqa: F401  # pylint: disable=unused-import
+from .generate_inputs import GenerateInputs
+from .pipeline import Pipeline, get_pipeline_def, register_pipeline_def
+from .pipeline_def import InferPhase, LoadPhase, PipelineDef, PipelineDefBuilder
+from .pipeline_key import PipelineKey
+
+__all__ = [
+    "Pipeline",
+    "PipelineDef",
+    "PipelineDefBuilder",
+    "PipelineKey",
+    "LoadPhase",
+    "InferPhase",
+    "ContextBuilder",
+    "GenerateInputs",
+    "register_pipeline_def",
+    "get_pipeline_def",
+]

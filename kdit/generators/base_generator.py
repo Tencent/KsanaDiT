@@ -22,7 +22,8 @@ from kdit.config.cache_config import KsanaCacheConfig, KsanaHybridCacheConfig
 from kdit.models import KsanaDiffusionModel
 from kdit.sample_solvers import get_sample_scheduler
 from kdit.scheduler import KsanaBatchScheduler
-from kdit.utils import log, time_range
+from kdit.utils import log
+from kdit.utils.profile import profile_range
 
 from .generator_context import GeneratorInferContext
 from .steps import noise as noise_ops
@@ -180,89 +181,95 @@ class BaseGenerator:
         total_steps = len(timesteps)
         cur_batch_size = self._get_num_prompts(positive)
         for iter_id, t in enumerate(tqdm(timesteps)):
-            current_step_percent = iter_id / max(total_steps - 1, 1)
-            noise_latent = noise_latent.to(run_dtype)
-            timestep = t.repeat(cur_batch_size)
-            timestep_id = t.item()
-            running_model = self.get_running_model(
-                diffusion_model, timestep_id=timestep_id, device=device, offload_device=offload_device
-            )
-            if running_model.device != device:
-                running_model.to(device)
-            running_cache = self.get_running_cache(dit_cache, timestep_id=timestep_id)
-            running_cfg_scale = self.get_running_cfg_scale(cfg_scale=sample_config.cfg_scale, timestep_id=timestep_id)
+            with profile_range(f"step_{iter_id}", annotation=f"t={t.item():.4f}"):
+                current_step_percent = iter_id / max(total_steps - 1, 1)
+                noise_latent = noise_latent.to(run_dtype)
+                timestep = t.repeat(cur_batch_size)
+                timestep_id = t.item()
+                running_model = self.get_running_model(
+                    diffusion_model, timestep_id=timestep_id, device=device, offload_device=offload_device
+                )
+                if running_model.device != device:
+                    running_model.to(device)
+                running_cache = self.get_running_cache(dit_cache, timestep_id=timestep_id)
+                running_cfg_scale = self.get_running_cfg_scale(
+                    cfg_scale=sample_config.cfg_scale, timestep_id=timestep_id
+                )
 
-            step_kwargs = self.get_step_kwargs(denoise_video_control_args, current_step_percent, iter_id, total_steps)
+                step_kwargs = self.get_step_kwargs(
+                    denoise_video_control_args, current_step_percent, iter_id, total_steps
+                )
 
-            forward_kargs = self.prepare_model_forward_kargs(
-                running_cfg_scale,
-                noise_latent=noise_latent,
-                timestep=timestep,
-                combine_cond_uncond=combine_cond_uncond,
-                step_iter=iter_id,
-                cache=running_cache,
-                positive=positive,
-                negative=negative,
-                image_embeds=image_embeds,
-                **step_kwargs,
-            )
-            if self._use_cfg(running_cfg_scale):
-                if combine_cond_uncond:
-                    noise_pred_batch = running_model.forward(**forward_kargs)
-                    noise_pred_cond, noise_pred_uncond = noise_pred_batch.chunk(2, dim=0)
-                else:
-                    if not isinstance(forward_kargs, (tuple, list)) or len(forward_kargs) != 2:
-                        raise ValueError(f"forward_kargs {forward_kargs} must be tuple of (arg_cond, arg_uncond)")
-                    arg_cond, arg_uncond = forward_kargs
-                    noise_pred_cond = running_model.forward(**arg_cond)
-                    noise_pred_uncond = running_model.forward(**arg_uncond)
-                noise_pred = self.apply_cfg(
+                forward_kargs = self.prepare_model_forward_kargs(
                     running_cfg_scale,
-                    noise_pred_cond,
-                    noise_pred_uncond,
-                    denoise_video_control_args=denoise_video_control_args,
-                    step_index=iter_id,
+                    noise_latent=noise_latent,
+                    timestep=timestep,
+                    combine_cond_uncond=combine_cond_uncond,
+                    step_iter=iter_id,
+                    cache=running_cache,
+                    positive=positive,
+                    negative=negative,
+                    image_embeds=image_embeds,
+                    **step_kwargs,
+                )
+                if self._use_cfg(running_cfg_scale):
+                    if combine_cond_uncond:
+                        noise_pred_batch = running_model.forward(**forward_kargs)
+                        noise_pred_cond, noise_pred_uncond = noise_pred_batch.chunk(2, dim=0)
+                    else:
+                        if not isinstance(forward_kargs, (tuple, list)) or len(forward_kargs) != 2:
+                            raise ValueError(f"forward_kargs {forward_kargs} must be tuple of (arg_cond, arg_uncond)")
+                        arg_cond, arg_uncond = forward_kargs
+                        noise_pred_cond = running_model.forward(**arg_cond)
+                        noise_pred_uncond = running_model.forward(**arg_uncond)
+                    noise_pred = self.apply_cfg(
+                        running_cfg_scale,
+                        noise_pred_cond,
+                        noise_pred_uncond,
+                        denoise_video_control_args=denoise_video_control_args,
+                        step_index=iter_id,
+                        total_steps=total_steps,
+                    )
+                else:
+                    noise_pred = running_model.forward(**forward_kargs)
+
+                noise_pred = self.post_noise_prediction(noise_pred, noise_latent, t, denoise_video_control_args)
+
+                noise_latent_shape = noise_latent.shape
+                step_out = sample_scheduler_step_func(noise_pred, t, noise_latent, return_dict=False, generator=seed_g)
+                noise_latent_forward = step_out[0] if isinstance(step_out, (tuple, list)) else step_out
+                if noise_latent_forward.numel() != int(torch.prod(torch.tensor(noise_latent_shape))):
+                    raise RuntimeError(
+                        f"can not reshape {noise_latent_forward.shape} to {noise_latent_shape}, "
+                        f" please debug sample solver"
+                    )
+                noise_latent_forward = noise_latent_forward.reshape(noise_latent_shape)
+
+                noise_latent = self.finalize_step(
+                    noise_latent,
+                    noise_latent_forward,
+                    denoise_video_control_args,
+                    running_model=running_model,
+                    running_cfg_scale=running_cfg_scale,
+                    timestep=timestep,
+                    t=t,
+                    iter_id=iter_id,
                     total_steps=total_steps,
+                    current_step_percent=current_step_percent,
+                    combine_cond_uncond=combine_cond_uncond,
+                    positive=positive,
+                    negative=negative,
+                    image_embeds=image_embeds,
+                    step_kwargs=step_kwargs,
+                    sample_config=sample_config,
+                    seed_g=seed_g,
                 )
-            else:
-                noise_pred = running_model.forward(**forward_kargs)
 
-            noise_pred = self.post_noise_prediction(noise_pred, noise_latent, t, denoise_video_control_args)
-
-            noise_latent_shape = noise_latent.shape
-            step_out = sample_scheduler_step_func(noise_pred, t, noise_latent, return_dict=False, generator=seed_g)
-            noise_latent_forward = step_out[0] if isinstance(step_out, (tuple, list)) else step_out
-            if noise_latent_forward.numel() != int(torch.prod(torch.tensor(noise_latent_shape))):
-                raise RuntimeError(
-                    f"can not reshape {noise_latent_forward.shape} to {noise_latent_shape}, please debug sample solver"
-                )
-            noise_latent_forward = noise_latent_forward.reshape(noise_latent_shape)
-
-            noise_latent = self.finalize_step(
-                noise_latent,
-                noise_latent_forward,
-                denoise_video_control_args,
-                running_model=running_model,
-                running_cfg_scale=running_cfg_scale,
-                timestep=timestep,
-                t=t,
-                iter_id=iter_id,
-                total_steps=total_steps,
-                current_step_percent=current_step_percent,
-                combine_cond_uncond=combine_cond_uncond,
-                positive=positive,
-                negative=negative,
-                image_embeds=image_embeds,
-                step_kwargs=step_kwargs,
-                sample_config=sample_config,
-                seed_g=seed_g,
-            )
-
-            if comfy_bar_callback is not None:
-                steps = sample_config.steps
-                batch_idx, num_batches = process_info
-                current_step_iter = batch_idx * steps + (iter_id + 1)
-                comfy_bar_callback(current_step_iter, num_batches * steps)
+                if comfy_bar_callback is not None:
+                    steps = sample_config.steps
+                    batch_idx, num_batches = process_info
+                    current_step_iter = batch_idx * steps + (iter_id + 1)
+                    comfy_bar_callback(current_step_iter, num_batches * steps)
         if dit_cache is not None:
             [cache.show_cache_rate() if cache is not None else None for cache in dit_cache]
         return noise_latent
@@ -328,7 +335,7 @@ class BaseGenerator:
     # run() — 主入口
     # ------------------------------------------------------------------
 
-    @time_range
+    @profile_range
     def run(self, ctx: GeneratorInferContext) -> torch.Tensor:
         """执行完整的去噪生成流程。
 

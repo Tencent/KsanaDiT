@@ -13,7 +13,7 @@
 # limitations under the License.
 
 """
-Tests for KsanaEngine singleton pattern (get_default / reset_default / multi-instance).
+Tests for Engine singleton pattern (get_default / reset_default / multi-instance).
 
 These tests mock init_executors to avoid CUDA/Ray dependencies.
 """
@@ -23,7 +23,7 @@ import threading
 import unittest
 from unittest.mock import patch
 
-from kdit.engine.engine import KsanaEngine, get_engine
+from kdit.engine.engine import Engine, get_engine
 
 
 def _noop_init_executors(self, dist_config=None, offload_device=None):
@@ -31,75 +31,75 @@ def _noop_init_executors(self, dist_config=None, offload_device=None):
     self.executors = "mock_executor"
 
 
-@patch.object(KsanaEngine, "init_executors", _noop_init_executors)
+@patch.object(Engine, "init_executors", _noop_init_executors)
 class TestKsanaEngineSingleton(unittest.TestCase):
     """Test the get_default / reset_default singleton lifecycle."""
 
     def setUp(self):
-        KsanaEngine.reset_default()
+        Engine.reset_default()
 
     def tearDown(self):
-        KsanaEngine.reset_default()
+        Engine.reset_default()
 
     def test_get_default_returns_same_instance(self):
         """get_default() should return the same instance on repeated calls."""
-        e1 = KsanaEngine.get_default()
-        e2 = KsanaEngine.get_default()
+        e1 = Engine.get_default()
+        e2 = Engine.get_default()
         self.assertIs(e1, e2)
 
     def test_get_engine_delegates_to_get_default(self):
         """get_engine() backward-compat wrapper should return the default instance."""
         e1 = get_engine()
-        e2 = KsanaEngine.get_default()
+        e2 = Engine.get_default()
         self.assertIs(e1, e2)
 
     def test_isinstance_works(self):
         """isinstance() should work correctly (was broken with @singleton)."""
-        engine = KsanaEngine.get_default()
-        self.assertIsInstance(engine, KsanaEngine)
+        engine = Engine.get_default()
+        self.assertIsInstance(engine, Engine)
 
     def test_reset_default_clears_instance(self):
         """reset_default() should clear the cached instance."""
-        e1 = KsanaEngine.get_default()
-        KsanaEngine.reset_default()
-        e2 = KsanaEngine.get_default()
+        e1 = Engine.get_default()
+        Engine.reset_default()
+        e2 = Engine.get_default()
         self.assertIsNot(e1, e2)
 
     def test_reset_default_calls_cleanup_distributed(self):
         """reset_default() should call cleanup_distributed() on the old instance."""
-        engine = KsanaEngine.get_default()
+        engine = Engine.get_default()
         self.assertFalse(engine._cleaned_up)
-        KsanaEngine.reset_default()
+        Engine.reset_default()
         self.assertTrue(engine._cleaned_up)
 
     def test_direct_init_creates_independent_instance(self):
-        """KsanaEngine() should create an independent instance, not the default."""
-        default = KsanaEngine.get_default()
-        independent = KsanaEngine()
+        """Engine() should create an independent instance, not the default."""
+        default = Engine.get_default()
+        independent = Engine()
         self.assertIsNot(default, independent)
-        self.assertIsInstance(independent, KsanaEngine)
+        self.assertIsInstance(independent, Engine)
 
     def test_duplicate_args_logs_warning(self):
         """get_default() with args on second call should log a warning."""
-        KsanaEngine.get_default()
+        Engine.get_default()
         with self.assertLogs("kdit", level=logging.WARNING) as cm:
-            KsanaEngine.get_default(offload_device="cuda:0")
+            Engine.get_default(offload_device="cuda:0")
         self.assertTrue(any("Arguments are ignored" in msg for msg in cm.output))
 
 
-@patch.object(KsanaEngine, "init_executors", _noop_init_executors)
+@patch.object(Engine, "init_executors", _noop_init_executors)
 class TestKsanaEngineCleanup(unittest.TestCase):
     """Test cleanup_distributed idempotency and atexit registration."""
 
     def setUp(self):
-        KsanaEngine.reset_default()
+        Engine.reset_default()
 
     def tearDown(self):
-        KsanaEngine.reset_default()
+        Engine.reset_default()
 
     def test_cleanup_distributed_is_idempotent(self):
         """Multiple cleanup_distributed() calls should not raise."""
-        engine = KsanaEngine()
+        engine = Engine()
         engine.cleanup_distributed()
         engine.cleanup_distributed()  # should not raise
         self.assertTrue(engine._cleaned_up)
@@ -107,31 +107,31 @@ class TestKsanaEngineCleanup(unittest.TestCase):
     def test_default_instance_registers_atexit(self):
         """get_default() registers atexit with cleanup_distributed."""
         with patch("kdit.engine.engine.atexit") as mock_atexit:
-            engine = KsanaEngine.get_default()
+            engine = Engine.get_default()
             mock_atexit.register.assert_called_once_with(engine.cleanup_distributed)
 
     def test_direct_instance_no_atexit(self):
-        """Direct KsanaEngine() should NOT register atexit (caller manages lifecycle)."""
+        """Direct Engine() should NOT register atexit (caller manages lifecycle)."""
         with patch("kdit.engine.engine.atexit") as mock_atexit:
-            KsanaEngine()
+            Engine()
             mock_atexit.register.assert_not_called()
 
     def test_explicit_register_atexit_true(self):
-        """KsanaEngine(_register_atexit=True) should register atexit."""
+        """Engine(_register_atexit=True) should register atexit."""
         with patch("kdit.engine.engine.atexit") as mock_atexit:
-            engine = KsanaEngine(_register_atexit=True)
+            engine = Engine(_register_atexit=True)
             mock_atexit.register.assert_called_once_with(engine.cleanup_distributed)
 
 
-@patch.object(KsanaEngine, "init_executors", _noop_init_executors)
+@patch.object(Engine, "init_executors", _noop_init_executors)
 class TestKsanaEngineThreadSafety(unittest.TestCase):
     """Test thread safety of get_default()."""
 
     def setUp(self):
-        KsanaEngine.reset_default()
+        Engine.reset_default()
 
     def tearDown(self):
-        KsanaEngine.reset_default()
+        Engine.reset_default()
 
     def test_concurrent_get_default_returns_same_instance(self):
         """Multiple threads calling get_default() should all get the same instance."""
@@ -140,7 +140,7 @@ class TestKsanaEngineThreadSafety(unittest.TestCase):
 
         def worker(idx):
             barrier.wait()
-            results[idx] = KsanaEngine.get_default()
+            results[idx] = Engine.get_default()
 
         threads = [threading.Thread(target=worker, args=(i,)) for i in range(10)]
         for t in threads:

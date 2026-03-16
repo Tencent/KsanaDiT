@@ -16,7 +16,7 @@ import torch
 
 os.environ["KSANA_LOGGER_LEVEL"] = "INFO"
 
-from kdit import KsanaPipeline
+from kdit import Pipeline
 from kdit.config import (
     KsanaLoraConfig,
     KsanaModelConfig,
@@ -50,7 +50,7 @@ def run_edit(model_dir: str, lora_dir: str = None):
     lora_config = KsanaLoraConfig(path=lora_dir, strength=1.0) if lora_dir else None
 
     # 加载模型
-    pipeline = KsanaPipeline.from_models(
+    pipeline = Pipeline.from_models(
         model_dir,
         model_config=KsanaModelConfig(run_dtype=torch.bfloat16),
         pipeline_key=KsanaModelKey.QwenImage_Edit,

@@ -102,7 +102,7 @@ class FlashAttentionImpl(KsanaAttentionBackendImpl):
                 torch.bfloat16 if torch.cuda.is_available() and torch.cuda.is_bf16_supported() else torch.float16
             )
 
-        batch, seqlen_q, num_heads, head_dim = query.shape  # pylint: disable=unused-variable
+        batch, seqlen_q, num_heads, head_dim = query.shape  # noqa: F841  # pylint: disable=unused-variable
         seqlen_k = key.shape[1]
         out_dtype = original_dtype
 

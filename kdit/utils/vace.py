@@ -43,8 +43,9 @@ def init_latent_stats(latents_mean, latents_std):
     _LATENTS_STD_5D = torch.tensor(list(latents_std)).view(1, LATENT_CHANNEL_CHUNK, 1, 1, 1)
 
 
+# TODO: move to better place
 @dataclass
-class KsanaVaceContext:
+class VaceConfig:
     control_video: torch.Tensor | None = field(
         default=None, metadata={"help": "Control video frames [N, H, W, C] in range [0, 1]"}
     )
@@ -148,13 +149,13 @@ def _build_vace_context_list(vace_frames, vace_mask=None):
 
 
 def build_vace_video_control_config(
-    video_control_config: KsanaVaceContext | None,
+    video_control_config: VaceConfig | None,
     width: int,
     height: int,
     num_frames: int,
     vae_encode_fn: Callable[[torch.Tensor], torch.Tensor],
     vae_stride: int = VAE_STRIDE,
-) -> KsanaVaceContext | None:
+) -> VaceConfig | None:
     if video_control_config is None or not video_control_config.has_control:
         return None
 
@@ -205,7 +206,7 @@ def build_vace_video_control_config(
         f"trim_latent={trim_latent}"
     )
 
-    return KsanaVaceContext(
+    return VaceConfig(
         vace_context=vace_context,
         vace_context_scale=vace_strength,
         trim_latent=trim_latent,
@@ -358,7 +359,7 @@ def extract_vace_from_conditioning(
 
 
 def build_vace_kwargs(
-    control_video_config: KsanaVaceContext | None,
+    control_video_config: VaceConfig | None,
     device,
     sample_config,
     video_control: KsanaVideoControlConfig | None = None,
@@ -748,7 +749,7 @@ def prepare_video_control_config(video_control_config=None, vace_embeds=None):
 
         vace_context_list = _build_vace_context_list(vace_frames, vace_mask)
 
-        control_video_config = KsanaVaceContext(
+        control_video_config = VaceConfig(
             vace_context=vace_context_list,
             vace_context_scale=vace_scale,
             trim_latent=trim_latent,

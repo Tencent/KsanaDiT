@@ -21,11 +21,11 @@ from kdit.settings import load_default_settings
 from kdit.utils import log, time_range
 
 from ..core.base_node import KsanaLoadNode
-from ..core.node_factory import KsanaLoaderNodeFactory
+from ..core.node_factory import LoaderNodeFactory
 from ..core.node_types import KsanaDispatchPolicy
 
 
-@KsanaLoaderNodeFactory.register(
+@LoaderNodeFactory.register(
     [KsanaModelKey.T5TextEncoder, KsanaModelKey.Qwen2VLTextEncoder, KsanaModelKey.Qwen2VLTextEncoderMultimodal]
 )
 class TextEncoderLoaderNode(KsanaLoadNode):

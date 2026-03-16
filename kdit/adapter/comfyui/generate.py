@@ -24,8 +24,9 @@ from kdit.nodes.core.node_context import KsanaNodeContext
 from kdit.nodes.core.node_types import KsanaInferNodeType
 from kdit.tensor import TensorKey
 from kdit.utils import log
+from kdit.utils.env import KSANA_PROFILE
 from kdit.utils.monitor import report
-from kdit.utils.profile import MemoryProfiler
+from kdit.utils.profile import HierarchicalProfiler, MemoryProfiler
 from kdit.utils.vace import prepare_video_control_config
 
 from .output_types import KsanaNodeGeneratorOutput
@@ -106,7 +107,7 @@ def _resolve_latent_shape(kdit_engine, image_embeds, latent, diffusion_model_key
 
 
 @report("comfyui_generate")
-def generate(
+def generate(  # noqa: C901
     model,
     positive,
     negative,
@@ -148,6 +149,9 @@ def generate(
         raise RuntimeError("Ksana diffusion model key can not be list or tuple.")
     run_dtype = model.run_dtype
     kdit_engine = get_engine()
+
+    # 启动层级 profiler session（仅在 KSANA_PROFILE=1 时生效）
+    _profiler = HierarchicalProfiler.start_session("comfyui_generate") if KSANA_PROFILE else None
 
     MemoryProfiler.record_memory("before_kdit_engine_generate_with_tensors")
 
@@ -221,6 +225,11 @@ def generate(
         kdit_engine.run_infer_node(KsanaInferNodeType.GENERATE, diffusion_model_key, context)
 
     MemoryProfiler.record_memory("after_kdit_engine_generate_with_tensors")
+
+    # 结束 profiler session 并打印摘要
+    if _profiler is not None:
+        _profiler.finish()
+        _profiler.print_summary()
 
     return KsanaNodeGeneratorOutput(
         samples=TensorKey.LATENTS,

@@ -8,7 +8,7 @@
 |---------|------|------|
 | 同目录（`.`） | **相对导入** | `from .base import Foo` |
 | 同子包内（`..`） | **相对导入** | `from ..core.base_node import KsanaLoadNode` |
-| 跨子包（`...` 及以上） | **绝对导入** | `from kdit.utils.factory import Factory` |
+| 跨子包（`...` 及以上） | **绝对导入** | `from kdit.utils.factory import AdvancedFactory` |
 
 ### 判定标准
 
@@ -29,7 +29,7 @@ from kdit.utils import is_file_or_dir, log
 
 # ✅ 同子包 (nodes) → 相对导入
 from ..core.base_node import KsanaLoadNode
-from ..core.node_factory import KsanaLoaderNodeFactory
+from ..core.node_factory import LoaderNodeFactory
 from ..core.node_types import KsanaDispatchPolicy
 ```
 
@@ -63,57 +63,54 @@ grep -rn "from \.\.\." kdit/
 
 ---
 
-## 2. `from __future__ import annotations` 使用规范
+## 2. 类型注解与导入规范
 
 ### 规则
 
-**按需添加，不要预防性添加。** 只在以下场景使用 `from __future__ import annotations`：
+项目要求 Python ≥3.10，PEP 604（`X | Y`）和 PEP 585（`list[str]`）均已原生支持，**一般不需要 `from __future__ import annotations`**。
 
-| 场景 | 示例 |
-|------|------|
-| `TYPE_CHECKING` 前向引用 | `if TYPE_CHECKING: from ..foo import Bar` 然后在注解中使用 `Bar` |
-| PEP 604 联合类型 `X \| Y` 用于运行时注解 | `def f(x: int \| None)` |
-| PEP 585 内置泛型用于运行时注解 | `def f() -> list[str]`、`dict[str, int]` |
-| 同文件内前向引用 | 类方法返回自身类型 `-> "MyClass"` |
+**唯一例外**：当类方法的返回类型引用自身类（前向引用）时，仍需 `from __future__ import annotations` 使注解延迟求值。例如 `-> Pipeline`（在 `Pipeline` 类内部）、`-> PipelineDefBuilder`（在 `PipelineDefBuilder` 类内部）。
 
-### 不需要的场景
+### 禁止事项
 
-- 文件中**没有任何类型注解**（纯运行时代码）
-- 只有基础类型注解（`-> bool`、`-> str`、`-> int`）
-- 纯枚举/常量定义文件
+- ❌ **禁止使用 `from __future__ import annotations`** — 除非文件中存在前向引用（类方法返回自身类型），否则不需要
+- ❌ **禁止使用 `typing.TYPE_CHECKING`** — 所有导入必须是普通导入，不使用 `if TYPE_CHECKING:` 保护
+- ❌ **尽量避免 `from typing import`** — 优先使用 `collections.abc`（如 `Callable`, `Sequence`, `Mapping`）和内置泛型（如 `list[str]`, `dict[str, int]`）。只有 `Any` 等无替代品的类型才从 `typing` 导入
+- ❌ **避免重复导入** — 同一个模块中不要出现多条导入同一来源的语句，应合并为一条
 
 ### 示例
 
 ```python
-# ❌ 不需要 — 无类型注解
-from __future__ import annotations  # 多余，删除
+# ❌ 禁止 — 无前向引用时不需要 future annotations
+from __future__ import annotations  # 删除
 
-class TextEncodeNode(KsanaInferNode):
-    def run(self, model_key, context, *, tensor_pool, model_pool, device_ctx):
+# ✅ 例外 — 类方法返回自身类型（前向引用）时需要保留
+from __future__ import annotations  # 保留
+
+class PipelineDefBuilder:
+    def load(self, ...) -> PipelineDefBuilder:  # 引用自身类
         ...
-```
 
-```python
-# ✅ 需要 — TYPE_CHECKING 前向引用
-from __future__ import annotations
-
+# ❌ 禁止 — 不使用 TYPE_CHECKING
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
-    from ..nodes.core.device_context import KsanaDeviceContext
-
-class KsanaExecutor(ABC):
-    def build_ctx(self) -> KsanaDeviceContext:  # 需要延迟求值
-        ...
+    from ..foo import Bar  # 改为普通导入
 ```
 
 ```python
-# ✅ 需要 — PEP 604 联合类型
-from __future__ import annotations
-
+# ✅ Python 3.10+ 原生支持联合类型和内置泛型
 @dataclass(frozen=True)
 class KsanaSampleConfig:
-    steps: int | None = None          # 需要延迟求值
+    steps: int | None = None
     cfg_scale: float | list[float, float] | None = None
+```
+
+```python
+# ✅ 优先使用 collections.abc 而非 typing
+from collections.abc import Callable, Sequence  # ✅
+# from typing import Callable, Sequence  # ❌ 避免
+
+from typing import Any  # ✅ Any 无替代品，可以从 typing 导入
 ```
 
 ---
@@ -125,15 +122,15 @@ class KsanaSampleConfig:
 | Key 类型 | 定义位置 | 语义 | 使用场景 |
 |----------|---------|------|---------|
 | `KsanaModelKey` | `kdit/models/model_key.py` | 标识一个具体的模型类别 | `KsanaModelPool` 存取、`KsanaModel.__init__`、Loader/Infer Node 注册与分发、`GeneratorFactory` 注册、`settings` 配置映射 |
-| `KsanaPipelineKey` | `kdit/pipelines/pipeline_key.py` | 标识一条完整的推理流水线 | `KsanaBasePipeline.__init__`、pipeline 创建与路由、`base_pipeline` 中 pipeline→model 映射表的 key 侧 |
-| `KsanaInferNodeType` | `kdit/nodes/core/node_types.py` | 标识推理节点类型 | `KsanaInferNodeFactory` 注册与分发、`executor.run_infer_node` |
+| `PipelineKey` | `kdit/pipelines/pipeline_key.py` | 标识一条完整的推理流水线 | `KsanaBasePipeline.__init__`、pipeline 创建与路由、`base_pipeline` 中 pipeline→model 映射表的 key 侧 |
+| `KsanaInferNodeType` | `kdit/nodes/core/node_types.py` | 标识推理节点类型 | `InferNodeFactory` 注册与分发、`executor.run_infer_node` |
 
 ### 核心约束
 
-1. **`KsanaModelPool` 只接受 `KsanaModelKey`** — 不允许传入 `KsanaPipelineKey` 或其他类型。
-2. **`KsanaModelKey` 和 `KsanaPipelineKey` 是独立枚举** — 不存在别名关系（如 `KsanaModelKey = KsanaPipelineKey`），即使部分成员同名。
-3. **DiffusionModel 的 `KsanaModelKey` 成员与 `KsanaPipelineKey` 同名** — 因为不同 pipeline 的 diffusion model 权重不同，需要独立的 key。
-4. **`get_model_key_from_path()` 统一返回 `KsanaModelKey`** — 调用方如需 `KsanaPipelineKey`，必须自行通过 `KsanaPipelineKey[model_key.name]` 转换。
+1. **`KsanaModelPool` 只接受 `KsanaModelKey`** — 不允许传入 `PipelineKey` 或其他类型。
+2. **`KsanaModelKey` 和 `PipelineKey` 是独立枚举** — 不存在别名关系（如 `KsanaModelKey = PipelineKey`），即使部分成员同名。
+3. **DiffusionModel 的 `KsanaModelKey` 成员与 `PipelineKey` 同名** — 因为不同 pipeline 的 diffusion model 权重不同，需要独立的 key。
+4. **`get_model_key_from_path()` 统一返回 `KsanaModelKey`** — 调用方如需 `PipelineKey`，必须自行通过 `PipelineKey[model_key.name]` 转换。
 
 ### 成员分类
 
@@ -149,7 +146,7 @@ class KsanaModelKey(Enum):
     VAE_WAN2_1 = auto()
     VAE_WAN2_2 = auto()
 
-    # Diffusion Models — 与 KsanaPipelineKey 同名
+    # Diffusion Models — 与 PipelineKey 同名
     Wan2_2_T2V_14B = auto()
     Wan2_2_I2V_14B = auto()
     Wan2_2_TI2V_5B = auto()
@@ -166,15 +163,15 @@ class KsanaModelKey(Enum):
 # key 侧: KsanaPipelineKey（输入）
 # value 侧: KsanaModelKey（输出）
 _TEXT_ENCODER_MAP = {
-    KsanaPipelineKey.Wan2_2_T2V_14B: KsanaModelKey.T5TextEncoder,
+    PipelineKey.Wan2_2_T2V_14B: KsanaModelKey.T5TextEncoder,
     ...
 }
 ```
 
 ### 禁止事项
 
-- ❌ 不要创建 `KsanaModelKey = KsanaPipelineKey` 这样的别名
-- ❌ 不要让 `KsanaModelPool` 接受 `KsanaPipelineKey`
+- ❌ 不要创建 `KsanaModelKey = PipelineKey` 这样的别名
+- ❌ 不要让 `KsanaModelPool` 接受 `PipelineKey`
 - ❌ 不要在 `KsanaModelKey` 中添加 pipeline 级别的概念
 - ❌ 不要创建未被任何代码使用的 Key 成员（如曾经的 `WanDiT_14B`）
 
@@ -381,13 +378,13 @@ def clear(self, exclude: list[KsanaTensorKey] | None = None) -> None:
 ### 整体 Ownership 层级
 
 ```
-KsanaEngine (singleton via get_default / 或多实例)
+Engine (singleton via get_default / 或多实例)
  ├── owns: executors
  │    ├── 单卡模式: 1 个 KsanaExecutor 实例
  │    └── 多卡模式: N 个 RayKsanaExecutor (Ray Actor)
  ├── owns: num_gpus, _is_ray, _cleaned_up (引擎级元数据)
  ├── NOT own: model_pool, tensor_pool, device 信息 (这些属于 Executor)
- └── NOT own: 任何 Node 实例 (Node 由 Factory 按需创建，用完即弃)
+ └── NOT own: 任何 Node 实例 (Node 由 AdvancedFactory 按需创建，用完即弃)
 
 KsanaExecutor (每卡一个实例)
  ├── owns: model_pool        — KsanaModelPool (存储已加载的模型)
@@ -403,7 +400,7 @@ KsanaExecutor (每卡一个实例)
 
 ### 各组件详细 Ownership
 
-#### KsanaEngine (`kdit/engine/engine.py`)
+#### Engine (`kdit/engine/engine.py`)
 
 | 属性 | 类型 | 说明 |
 |------|------|------|
@@ -501,16 +498,16 @@ class KsanaDeviceContext:
 
 ### Node 创建方式
 
-Node 由 Factory **按需创建**，每次 `run_loader_node()` / `run_infer_node()` 调用时创建新实例：
+Node 由 AdvancedFactory **按需创建**，每次 `run_loader_node()` / `run_infer_node()` 调用时创建新实例：
 
 ```python
 # executor.py
 def run_loader_node(self, model_key, **kwargs):
-    node = KsanaLoaderNodeFactory.create(model_key)  # ← 每次新建
+    node = LoaderNodeFactory.create(model_key)  # ← 每次新建
     node.run(model_key, model_pool=self.model_pool, device_ctx=self.device_ctx, **kwargs)
 
 def run_infer_node(self, infer_node_type, model_key, context):
-    node = KsanaInferNodeFactory.create(infer_node_type, model_key)  # ← 每次新建
+    node = InferNodeFactory.create(infer_node_type, model_key)  # ← 每次新建
     self._pre_sync_tensors(node, policy)
     is_active_rank = policy == KsanaDispatchPolicy.ALL_ALL_ALL or self.device_ctx.rank_id == 0
     if is_active_rank:
@@ -582,7 +579,7 @@ class MyNode(KsanaInferNode):
 
 ### Node 注册
 
-- 使用 `@KsanaInferNodeFactory.register()` 装饰器注册
+- 使用 `@InferNodeFactory.register()` 装饰器注册
 - 注册键为 `(KsanaInferNodeType, [KsanaModelKey, ...])`
 - `KsanaInferNodeType` 枚举值：`TEXT_ENCODE`, `VAE_ENCODE_SPATIAL`, `VAE_ENCODE_IMAGES`, `VAE_DECODE`, `GENERATE`
 
@@ -687,8 +684,8 @@ grep -rn "import kdit.adapter" kdit/ --include="*.py" | grep -v __pycache__ | gr
 | `KsanaFETAConfig` | `FETAConfig` | `kdit/config/wan_experimental_config.py` |
 | `KsanaExperimentalConfig` | `ExperimentalConfig` | `kdit/config/wan_experimental_config.py` |
 | `KsanaDistributedConfig` | `DistributedConfig` | `kdit/config/distributed_config.py` |
-| `KsanaLoaderNodeFactory` | `LoaderNodeFactory` | `kdit/nodes/core/node_factory.py` |
-| `KsanaInferNodeFactory` | `InferNodeFactory` | `kdit/nodes/core/node_factory.py` |
+| `LoaderNodeFactory` | `LoaderNodeFactory` | `kdit/nodes/core/node_factory.py` |
+| `InferNodeFactory` | `InferNodeFactory` | `kdit/nodes/core/node_factory.py` |
 | `KsanaNodeContext` | `NodeContext` | `kdit/nodes/core/node_context.py` |
 | `KsanaLoadNode` | `LoadNode` | `kdit/nodes/core/base_node.py` |
 | `KsanaInferNode` | `InferNode` | `kdit/nodes/core/base_node.py` |
@@ -696,11 +693,8 @@ grep -rn "import kdit.adapter" kdit/ --include="*.py" | grep -v __pycache__ | gr
 | `KsanaInferNodeType` | `InferNodeType` | `kdit/nodes/core/node_types.py` |
 | `KsanaDeviceContext` | `DeviceContext` | `kdit/nodes/core/device_context.py` |
 | `KsanaBatchScheduler` | `BatchScheduler` | `kdit/scheduler/scheduler.py` |
-| `KsanaPipeline` | `Pipeline` | `kdit/pipelines/x2x_pipeline.py` |
-| `KsanaBasePipeline` | `BasePipeline` | `kdit/pipelines/base_pipeline.py` |
-| `KsanaPipelineKey` | `PipelineKey` | `kdit/pipelines/pipeline_key.py` |
 | `KsanaProfiler` | `Profiler` | `kdit/utils/profile.py` |
-| `KsanaVaceContext` | `VaceContext` | `kdit/utils/vace.py` |
+| `VaceConfig` | `VaceContext` | `kdit/utils/vace.py` |
 | `KsanaModelKey` | `ModelKey` | `kdit/models/model_key.py` |
 | `KsanaQwenImageVAE` | `QwenImageVAE` | `kdit/models/qwen/vae.py` |
 | `KsanaDiffusionModel` | `DiffusionModel` | `kdit/models/diffusion_model.py` |
@@ -714,24 +708,13 @@ grep -rn "import kdit.adapter" kdit/ --include="*.py" | grep -v __pycache__ | gr
 | `KsanaTextEncoderModel` | `TextEncoderModel` | `kdit/models/text_encoder_model.py` |
 | `KsanaAttentionOp` | `AttentionOp` | `kdit/operations/attention/attention_op.py` |
 | `KsanaAttentionBackendImpl` | `AttentionBackendImpl` | `kdit/operations/attention/backends/base.py` |
-| ~~`KsanaRunnerUnit`~~ | ~~`RunnerUnit`~~ | ~~`kdit/units/runner_unit.py`~~ | ✅ 已删除（冗余） |
-| ~~`KsanaBaseTextEncoder`~~ | ~~`BaseTextEncoder`~~ | ~~`kdit/units/text_encoder.py`~~ | ✅ 已删除（融入 `text_encoder_node.py`） |
-| ~~`KsanaTextEncoder`~~ | ~~`T5TextEncoder`~~ | ~~`kdit/units/text_encoder.py`~~ | ✅ 已删除（融入 `T5TextEncodeNode`） |
-| ~~`KsanaQwenVLTextEncoderUnit`~~ | ~~`QwenVLTextEncoder`~~ | ~~`kdit/units/text_encoder.py`~~ | ✅ 已删除（融入 `QwenTextEncodeNode`） |
 | `KsanaWanGenerator` | `WanGenerator` | `kdit/generators/wan_generator.py` |
 | `KsanaQwenGenerator` | `QwenGenerator` | `kdit/generators/qwen_generator.py` |
 | `KsanaBaseGenerator` | `BaseGenerator` | `kdit/generators/base_generator.py` |
 | `KsanaVaceGenerator` | `VaceGenerator` | `kdit/generators/vace_generator.py` |
-| ~~`KsanaVaeEncoder`~~ | ~~`VaeEncoder`~~ | ~~`kdit/units/vae_encoder_unit.py`~~ | ✅ 已删除（VAE Unit 移除） |
-| ~~`KsanaUnit`~~ | ~~`Unit`~~ | ~~`kdit/units/base_unit.py`~~ | ✅ 已删除（units 包移除） |
-| ~~`KsanaUnitType`~~ | ~~`UnitType`~~ | ~~`kdit/units/base_unit.py`~~ | ✅ 已删除（units 包移除） |
-| ~~`KsanaUnitFactory`~~ | ~~`UnitFactory`~~ | ~~`kdit/units/base_unit.py`~~ | ✅ 已删除（替换为 `GeneratorFactory`） |
-| ~~`KsanaVaeDecoder`~~ | ~~`VaeDecoder`~~ | ~~`kdit/units/decoder_unit.py`~~ | ✅ 已删除（VAE Unit 移除） |
 | `KsanaExecutor` | `Executor` | `kdit/executor/executor.py` |
-| ~~`KsanaTensorStore`~~ | `TensorValue` | `kdit/tensor/tensor_value.py` | ✅ 已完成 |
 | `KsanaTensorKey` | `TensorKey` | `kdit/tensor/tensor_key.py` |
 | `KsanaTensorStorePool` | `TensorStorePool` | `kdit/tensor/tensor_store_pool.py` |
-| `KsanaEngine` | `Engine` | `kdit/engine/engine.py` |
 
 ### 保留 `Ksana` 前缀的类（comfyui 适配层）
 
@@ -758,3 +741,331 @@ grep -rn "class Ksana" kdit/ --include="*.py" | grep -v __pycache__ | grep -v "a
 ```
 
 预期输出为空（重构完成后）。
+
+---
+
+## 9. NodeContext metadata 重构（TODO）
+
+> **状态**: 待实施（Pipeline 重构完成后）
+> **关联设计**: [`plans/pipeline_refactor_design.md` §1.2](../plans/pipeline_refactor_design.md:62)
+
+### 现状问题
+
+[`KsanaNodeContext.metadata`](../kdit/nodes/core/node_context.py:37) 是一个无类型的 `dict`，当前承载了多种混合关注点：
+
+| metadata key | 使用方 | 类型 |
+|---|---|---|
+| `text_run_device` | [`T5TextEncodeNode`](../kdit/nodes/infers/text_encoder_node.py:80) | `str` |
+| `offload_model` | [`T5TextEncodeNode`](../kdit/nodes/infers/text_encoder_node.py:82), [`VAEDecodeNode`](../kdit/nodes/infers/vae_decoder_node.py:43) | `bool` |
+| `noise_shape` | [`GeneratorNode`](../kdit/nodes/infers/generator_node.py:55) | `list[int]` |
+| `control_video_config` | [`GeneratorNode`](../kdit/nodes/infers/generator_node.py:57) | `VideoControlConfig` |
+| `video_control` | [`GeneratorNode`](../kdit/nodes/infers/generator_node.py:56) | `dict` |
+| `with_end_image` | [`VAEDecodeNode`](../kdit/nodes/infers/vae_decoder_node.py:44) | `bool` |
+| `condition_image_path` | [`QwenTextEncodeNode`](../kdit/nodes/infers/text_encoder_node.py:126) | `str` |
+| `comfy_bar_callback` | [`GeneratorNode`](../kdit/nodes/infers/generator_node.py:58) | `callable` |
+
+### 重构方向
+
+1. **提升高频 key 为 `KsanaNodeContext` 的显式字段**：
+   - `offload_model: bool = False`
+   - `text_run_device: str | None = None`
+   - `noise_shape: list[int] | None = None`
+   - `target_size: tuple[int, int, int] | None = None` （合并 target_f/h/w）
+
+2. **保留 `metadata: dict` 用于扩展**：
+   - ComfyUI adapter 动态参数（如 `comfy_bar_callback`）
+   - 实验性功能参数
+
+3. **同步更新所有 InferNode 的 `run()` 方法**：
+   - 从 `context.metadata["key"]` 改为 `context.key`
+   - 保持向后兼容：优先读显式字段，fallback 到 metadata
+
+4. **同步更新 ComfyUI adapter**：
+   - [`generate.py`](../kdit/adapter/comfyui/generate.py) 中构建 context 的代码
+
+### 约束
+
+- `__post_init__` 中的 tensor 校验逻辑保留
+- 不改变 `KsanaNodeContext` 的可序列化约束（Ray 多卡广播）
+- `comfy_bar_callback` 等不可序列化对象**仍然放 metadata**，不提升为字段
+
+### 自动检查
+
+```bash
+# 检查 metadata 中还有哪些 key 在使用
+grep -rn 'metadata\[' kdit/nodes/ --include="*.py" | grep -v __pycache__
+grep -rn 'metadata\.get' kdit/nodes/ --include="*.py" | grep -v __pycache__
+```
+
+---
+
+## 10. Pipeline 声明式架构（V4 设计规范）
+
+> **设计文档**: [`plans/pipeline_refactor_design.md`](../plans/pipeline_refactor_design.md)
+> **核心理念**: Pipeline 是声明式的 Node 流程定义，不是命令式的代码流程
+
+### 架构总览
+
+```
+PipelineDefBuilder  ──build()──▶  PipelineDef (不可变)
+                                    ├── load_phases: list[LoadPhase]
+                                    ├── infer_phases: list[InferPhase]
+                                    └── context_builder_cls: type[ContextBuilder]
+
+Pipeline.from_models(pipeline_key)  ──▶  Pipeline 实例
+Pipeline.generate(prompt, ...)      ──▶  输出 tensor / 保存文件
+```
+
+### 核心数据类
+
+```python
+# kdit/pipelines/pipeline_def.py
+
+@dataclass(frozen=True)
+class LoadPhase:
+    model_role: str           # "text_encoder" / "diffusion" / "vae"
+    model_key: ModelKey       # 具体模型 key
+
+@dataclass(frozen=True)
+class InferPhase:
+    node_type: InferNodeType  # TEXT_ENCODE / GENERATE / VAE_DECODE / SAVE_VIDEO ...
+    model_role: str | None    # 关联的 model_role，SaveNode 为 None
+    condition: str | None     # ContextBuilder 上的条件方法名
+
+@dataclass(frozen=True)
+class PipelineDef:
+    pipeline_key: PipelineKey
+    load_phases: tuple[LoadPhase, ...]
+    infer_phases: tuple[InferPhase, ...]
+    context_builder_cls: type[ContextBuilder]
+    keep_tensors: tuple[TensorKey, ...] = ()  # tensor_scope keep 列表
+```
+
+### PipelineDefBuilder — 链式构建
+
+```python
+# 使用示例
+WAN_T2V_DEF = (
+    PipelineDefBuilder(PipelineKey.Wan2_2_T2V_14B)
+    .load("text_encoder", ModelKey.T5TextEncoder)
+    .load("diffusion", ModelKey.Wan2_2_T2V_14B)
+    .load("vae", ModelKey.Wan2_2_VAE)
+    .add_infer(NT.TEXT_ENCODE, model_role="text_encoder")
+    .add_infer(NT.GENERATE, model_role="diffusion")
+    .add_infer(NT.VAE_DECODE, model_role="vae")
+    .add_infer(NT.SAVE_VIDEO)                          # model_role=None
+    .keep_tensors(TensorKey.VIDEO)
+    .context_builder(WanT2VContextBuilder)
+    .build()
+)
+```
+
+**规则**:
+- `load()` 的 `model_role` 是自由字符串，在 `add_infer()` 中通过同名引用
+- `add_infer()` 不指定 `model_role` 时默认为 `None`（如 SaveNode）
+- `.when("condition_name")` 链在 `add_infer()` 后，设置条件执行
+- `build()` 返回 frozen `PipelineDef`，之后不可修改
+
+### ContextBuilder — 为每个 Phase 构建上下文
+
+```python
+# kdit/pipelines/context_builder.py
+
+class ContextBuilder(ABC):
+    """生命周期：
+    1. prepare_generate_inputs(base_inputs, **kwargs) — 一次性：提取 Pipeline 特有输入
+    2. 对每个 InferPhase:
+       a. check_condition(name, inputs) — 是否跳过
+       b. prepare_tensors(phase, inputs) — 准备 tensor → put 到 pool
+       c. build_context(phase, inputs) — 构建 KsanaNodeContext
+    3. post_process(output, inputs) — 输出后处理
+    """
+
+    def prepare_generate_inputs(self, base_inputs: GenerateInputs, **kwargs) -> None:
+        """从 kwargs 提取 Pipeline 特有输入，存入 self._extra。"""
+        pass
+
+    @abstractmethod
+    def build_context(self, phase: InferPhase, inputs: GenerateInputs) -> KsanaNodeContext:
+        """按 phase.node_type 分支，构建该 Node 的 context。"""
+        ...
+
+    def prepare_tensors(self, phase: InferPhase, inputs: GenerateInputs) -> dict | None:
+        """返回需要 put 到 tensor_pool 的 tensor dict。默认 None。"""
+        return None
+
+    def check_condition(self, condition_name: str, inputs: GenerateInputs) -> bool:
+        """查找 self 上的同名方法并调用。"""
+        checker = getattr(self, condition_name, None)
+        if checker is None:
+            raise ValueError(f"Condition '{condition_name}' not found")
+        return checker(inputs)
+
+    def post_process(self, output_tensor, inputs: GenerateInputs) -> any:
+        """输出后处理。默认直接返回。"""
+        return output_tensor
+```
+
+**方法命名约定**:
+- `prepare_generate_inputs` — 全局一次，"准备 generate 阶段的输入"
+- `build_context` — 每个 phase，"构建 NodeContext"
+- `prepare_tensors` — 每个 phase，"准备 tensor 到 pool"
+- 条件方法 — 在子类上定义，如 `has_start_image(self, inputs) -> bool`
+
+### GenerateInputs — 最小公共集
+
+```python
+# kdit/pipelines/generate_inputs.py
+
+@dataclass
+class GenerateInputs:
+    """所有 Pipeline 共有的输入。"""
+    prompt: str | list[str]
+    prompt_negative: str | list[str] | None
+    num_prompts: int
+    sample_config: SampleConfig
+    runtime_config: RuntimeConfig
+    cache_config: list | None
+    has_lora: bool
+```
+
+**规则**:
+- 只包含**所有** Pipeline 都需要的字段
+- Pipeline 特有字段由 `ContextBuilder.prepare_generate_inputs()` 从 `**kwargs` 提取，存入 `self._extra`
+- `self._extra` 类型由子类自定义（推荐用内部 `@dataclass class Extra`）
+
+### SaveNode — 输出保存作为 InferNode
+
+```python
+# kdit/nodes/infers/save_node.py
+
+@InferNodeFactory.register(NT.SAVE_VIDEO, None)
+class SaveVideoNode(KsanaInferNode):
+    input_tensor_keys = [TensorKey.VIDEO]
+    output_tensor_keys = []
+    dispatch_policy = KsanaDispatchPolicy.ALL_R0_R0  # 只在 rank 0 保存
+
+@InferNodeFactory.register(NT.SAVE_IMAGE, None)
+class SaveImageNode(KsanaInferNode):
+    input_tensor_keys = [TensorKey.VIDEO]  # 复用 VIDEO key
+    output_tensor_keys = []
+    dispatch_policy = KsanaDispatchPolicy.ALL_R0_R0
+```
+
+**规则**:
+- SaveNode 注册时 `model_key=None`（不需要模型）
+- SaveNode 在 `kdit/nodes/infers/` 中，**不在** `kdit/adapter/comfyui/` 中
+- ComfyUI 模式下不使用 SaveNode（ComfyUI 有自己的输出机制）
+- `InferPhase` 中 `model_role=None` 表示 SaveNode
+
+### Pipeline.generate() 核心循环
+
+```python
+# Pipeline.generate() 伪代码
+def generate(self, prompt, *, sample_config, runtime_config, **kwargs):
+    inputs = GenerateInputs(prompt=prompt, ...)
+    self._ctx_builder.prepare_generate_inputs(inputs, **kwargs)
+
+    with self._engine.tensor_scope(keep=list(self._def.keep_tensors)):
+        for phase in self._def.infer_phases:
+            # 1. 条件检查
+            if phase.condition and not self._ctx_builder.check_condition(phase.condition, inputs):
+                continue
+            # 2. 准备 tensor
+            tensors = self._ctx_builder.prepare_tensors(phase, inputs)
+            if tensors:
+                self._engine.put_tensors(**tensors)
+            # 3. 构建 context
+            node_ctx = self._ctx_builder.build_context(phase, inputs)
+            # 4. 执行
+            model_key = self._model_keys.get(phase.model_role) if phase.model_role else None
+            self._engine.run_infer_node(phase.node_type, model_key, node_ctx)
+
+    return self._ctx_builder.post_process(
+        self._engine.get_tensor(TensorKey.VIDEO), inputs
+    )
+```
+
+### 条件执行 — `.when()` 机制
+
+```python
+# PipelineDefBuilder 中
+.add_infer(NT.VAE_ENCODE_SPATIAL, model_role="vae").when("has_start_image")
+
+# ContextBuilder 子类中
+def has_start_image(self, inputs) -> bool:
+    return self._extra.start_img_path is not None
+```
+
+**规则**:
+- `.when("name")` 的 `name` 必须是 ContextBuilder 子类上的方法名
+- 方法签名固定：`(self, inputs: GenerateInputs) -> bool`
+- `check_condition()` 通过 `getattr` 查找，找不到则 raise
+
+### 文件结构
+
+```
+kdit/pipelines/
+├── __init__.py
+├── pipeline.py              # 统一的 Pipeline 类
+├── pipeline_def.py          # PipelineDef, LoadPhase, InferPhase, PipelineDefBuilder
+├── pipeline_key.py          # PipelineKey 枚举（已有）
+├── context_builder.py       # ContextBuilder 基类
+├── generate_inputs.py       # GenerateInputs 数据类
+├── context_builders/        # 各 Pipeline 的 ContextBuilder
+│   ├── __init__.py
+│   ├── wan.py               # WanContextBuilder, WanT2VContextBuilder, WanI2VContextBuilder
+│   └── qwen.py              # QwenContextBuilder, QwenT2IContextBuilder, QwenEditContextBuilder
+└── defs/                    # 各 Pipeline 的 PipelineDef 定义
+    ├── __init__.py
+    ├── wan_t2v.py
+    ├── wan_i2v.py
+    ├── qwen_t2i.py
+    └── qwen_edit.py
+```
+
+### 禁止事项
+
+- **禁止**在 `PipelineDef` 中放命令式逻辑（if/else/循环）
+- **禁止**在 `ContextBuilder.build_context()` 中直接操作 tensor_pool（通过 `prepare_tensors` 返回）
+- **禁止**在 `GenerateInputs` 中放 Pipeline 特有字段（用 `ContextBuilder._extra`）
+- **禁止** `kdit/` 核心代码依赖 `kdit/adapter/`（方向：adapter → kdit）
+- SaveNode 的 `model_key` 参数**必须为 None**
+
+---
+
+## 11. Lint 抑制注释规范
+
+### 规则
+
+对于**必要但未直接使用**的 import 和变量，必须添加对应的 lint 抑制注释，避免 CI 或 IDE 误报。
+
+| 场景 | 抑制注释 | 说明 |
+|------|---------|------|
+| 必要但未使用的 import | `# noqa: F401  # pylint: disable=unused-import` | 如 `__init__.py` 中的 re-export、side-effect import、`TYPE_CHECKING` 块外的前向引用等 |
+| 必要但未使用的变量 | `# noqa: F841  # pylint: disable=unused-variable` | 如从环境变量读取但仅用于触发副作用的变量、解构赋值中的占位变量等 |
+
+### 示例
+
+```python
+# ✅ __init__.py 中 re-export（import 了但本文件未直接使用）
+from .pipeline import Pipeline  # noqa: F401  # pylint: disable=unused-import
+from .pipeline_def import PipelineDef  # noqa: F401  # pylint: disable=unused-import
+
+# ✅ side-effect import（导入时触发注册逻辑，本文件不直接引用）
+import kdit.generators.wan_generator  # noqa: F401  # pylint: disable=unused-import
+
+# ✅ 必要但未使用的环境变量
+SOME_FLAG = os.environ.get("SOME_FLAG", "0")  # noqa: F841  # pylint: disable=unused-variable
+
+# ✅ 解构赋值中的占位变量
+c1, c2, t, h, w = conv_weight.size()  # noqa: F841  # pylint: disable=unused-variable
+```
+
+### 判定标准
+
+- **"必要的 import"** 指：删除后会导致功能异常的 import（如 re-export、side-effect 注册、`TYPE_CHECKING` 相关）
+- **"必要的变量"** 指：删除后会导致功能异常的变量赋值（如环境变量读取触发副作用、模块级配置）
+- 如果 import 或变量**确实不需要**，应该直接删除，而不是加抑制注释
+- 抑制注释同时覆盖 flake8（`noqa: F401` / `noqa: F841`）和 pylint（`pylint: disable=unused-import` / `pylint: disable=unused-variable`），确保两种 linter 都不报警
+- **注释顺序**：`# noqa` 在前，`# pylint` 在后，中间用两个空格分隔

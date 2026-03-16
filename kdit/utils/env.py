@@ -16,3 +16,5 @@ import os
 
 KSANA_LOGGER_LEVEL = os.getenv("KSANA_LOGGER_LEVEL", "info").lower()
 KSANA_MEMORY_PROFILER = os.getenv("KSANA_MEMORY_PROFILER", "").lower() in ("1", "true", "yes")
+KSANA_PROFILE = os.getenv("KSANA_PROFILE", "").lower() in ("1", "true", "yes")
+KSANA_PROFILE_CUDA_SYNC = os.getenv("KSANA_PROFILE_CUDA_SYNC", "1").lower() not in ("0", "false", "no")

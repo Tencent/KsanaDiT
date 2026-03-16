@@ -36,7 +36,7 @@ from kdit.models import KsanaModelKey
 
 
 def _make_qwen_generator(model_key=KsanaModelKey.QwenImage_T2I):
-    """构造 QwenGenerator 实例，绕过 Factory 注册。"""
+    """构造 QwenGenerator 实例，绕过 AdvancedFactory 注册。"""
     from kdit.generators.qwen_generator import QwenGenerator
 
     gen = QwenGenerator.__new__(QwenGenerator)

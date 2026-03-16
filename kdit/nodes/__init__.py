@@ -12,20 +12,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# 导入子包（触发 @GeneratorFactory.register + @KsanaLoaderNodeFactory/@KsanaInferNodeFactory.register 注册）
-from . import (  # noqa: F401
+# 导入子包（触发 @GeneratorFactory.register + @LoaderNodeFactory/@InferNodeFactory.register 注册）
+from . import (  # noqa: F401  # pylint: disable=unused-import
     infers,
     loaders,
 )
 from .core import (
+    InferNodeFactory,
     KsanaDeviceContext,
     KsanaDispatchPolicy,
     KsanaInferNode,
-    KsanaInferNodeFactory,
     KsanaInferNodeType,
-    KsanaLoaderNodeFactory,
     KsanaLoadNode,
     KsanaNodeContext,
+    LoaderNodeFactory,
 )
 
 __all__ = [
@@ -33,8 +33,8 @@ __all__ = [
     "KsanaInferNode",
     "KsanaDeviceContext",
     "KsanaNodeContext",
-    "KsanaLoaderNodeFactory",
-    "KsanaInferNodeFactory",
+    "LoaderNodeFactory",
+    "InferNodeFactory",
     "KsanaInferNodeType",
     "KsanaDispatchPolicy",
 ]

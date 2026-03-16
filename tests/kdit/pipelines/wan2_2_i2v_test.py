@@ -26,7 +26,7 @@ from pipeline_test_helper import (
     get_platform_config_or_skip,
 )
 
-from kdit import KsanaPipeline
+from kdit import Pipeline
 from kdit.accelerator import platform
 from kdit.config import (
     KsanaAttentionBackend,
@@ -59,7 +59,7 @@ class TestKsanaPipelineWanI2V(unittest.TestCase):
             },
         }
         expected_means = get_platform_config_or_skip(config, test_name="wan_i2v.test_simple_i2v")
-        pipeline = KsanaPipeline.from_models(
+        pipeline = Pipeline.from_models(
             "./Wan2.2-I2V-A14B",
             model_config=self.MODEL_CONFIG,
             dist_config=KsanaDistributedConfig(port=TEST_PORT),
@@ -132,7 +132,7 @@ class TestKsanaPipelineWanI2V(unittest.TestCase):
         text_dir = "./Wan2.2-I2V-A14B"
         vae_dir = "./Wan2.2-I2V-A14B"
 
-        pipeline = KsanaPipeline.from_models(
+        pipeline = Pipeline.from_models(
             (high, low),
             text_checkpoint_dir=text_dir,
             vae_checkpoint_dir=vae_dir,

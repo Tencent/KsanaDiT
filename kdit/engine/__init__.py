@@ -12,6 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .engine import KsanaEngine, get_engine
+from .engine import Engine, get_engine
 
-__all__ = ["KsanaEngine", "get_engine"]
+__all__ = ["Engine", "get_engine"]

@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from . import (  # noqa: F401 — 触发 @KsanaInferNodeFactory.register
+from . import (  # noqa: F401  # pylint: disable=unused-import — 触发 @InferNodeFactory.register
     generator_node,
     text_encoder_node,
     vae_decoder_node,

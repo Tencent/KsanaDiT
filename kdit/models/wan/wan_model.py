@@ -13,11 +13,12 @@ from kdit.config import KsanaFETAConfig, KsanaSLGConfig
 from kdit.operations.fuse_qkv import QKVProjectionMixin
 from kdit.utils import all_to_all, gather_forward, get_rank_id, get_world_size, time_range
 from kdit.utils.experimental_sampling import compute_feta_scores
+from kdit.utils.profile import profile_range
 from kdit.utils.rope import EmbedND, apply_comfyui_rope, apply_default_rope
 
 if platform.is_npu():
-    import torch_npu  # pylint: disable=unused-import # noqa: F401
-    from torch_npu.contrib import transfer_to_npu  # pylint: disable=unused-import # noqa: F401
+    import torch_npu  # noqa: F401  # pylint: disable=unused-import
+    from torch_npu.contrib import transfer_to_npu  # noqa: F401  # pylint: disable=unused-import
 
 
 __all__ = ["WanModel", "VaceWanModel"]
@@ -866,20 +867,21 @@ class WanModel(ModelMixin, ConfigMixin):
         grid_sizes = torch.tensor([t_in, h_in, w_in], dtype=torch.long, device=device).unsqueeze(0).expand(bs, -1)
 
         # embeddings
-        if self.is_turbo_diffusion_wan_model:
-            x = rearrange(
-                x,
-                "b c (t kt) (h kh) (w kw) -> b (t h w) (c kt kh kw)",
-                kt=kt,
-                kh=kh,
-                kw=kw,
-            ).contiguous()
-            x = self.patch_embedding(x.float()).to(x.dtype)
-        else:
-            # [bs, 16, fi, hi, wi] => [bs, 5120, f, h, w]
-            x = self.patch_embedding(x.float()).to(x.dtype)
-            # [bs, 5120, f*h*w] => [bs, f*h*w, 5120]
-            x = x.flatten(2).transpose(1, 2)
+        with profile_range("img_in"):
+            if self.is_turbo_diffusion_wan_model:
+                x = rearrange(
+                    x,
+                    "b c (t kt) (h kh) (w kw) -> b (t h w) (c kt kh kw)",
+                    kt=kt,
+                    kh=kh,
+                    kw=kw,
+                ).contiguous()
+                x = self.patch_embedding(x.float()).to(x.dtype)
+            else:
+                # [bs, 16, fi, hi, wi] => [bs, 5120, f, h, w]
+                x = self.patch_embedding(x.float()).to(x.dtype)
+                # [bs, 5120, f*h*w] => [bs, f*h*w, 5120]
+                x = x.flatten(2).transpose(1, 2)
 
         # seq_lens: 支持 batch
         seq_lens = torch.full((bs,), x.shape[1], dtype=torch.int32, device=x.device)
@@ -889,42 +891,45 @@ class WanModel(ModelMixin, ConfigMixin):
         )  # pad f*h*w to seqlen, => [bs, seqlen, 5120]
 
         # time embeddings
-        # 取第一个 timestep，因为一个batch里的timestamp都是一样的
-        timestep = t[0].item() if t.numel() > 1 else t.item()
+        with profile_range("time_embed"):
+            # 取第一个 timestep，因为一个batch里的timestamp都是一样的
+            timestep = t[0].item() if t.numel() > 1 else t.item()
 
-        if t.dim() == 1:
-            t = t.unsqueeze(1)
-        one = t.size(1)  # = 1
-        # t: [bs]
-        t = t.flatten()
-        # freq_dim : 256
-        # t: [bs] => [bs, freq_dim:256]
-        e = sinusoidal_embedding_1d(self.freq_dim, t)
-        # [bs, freq_dim] => [bs, one, freq_dim]
-        e = e.unflatten(0, (bs, one))
-        # [bs, one, freq_dim=>self.dim:5120]
-        e = self.time_embedding(e.to(x.dtype))
-        # [bs, one, 5120] => [bs, one, 6*5120]
-        e0 = self.time_projection(e)
-        # [bs, one, 6*5120] => [bs, one, 6, 5120]
-        e0 = e0.unflatten(2, (6, self.dim))
+            if t.dim() == 1:
+                t = t.unsqueeze(1)
+            one = t.size(1)  # = 1
+            # t: [bs]
+            t = t.flatten()
+            # freq_dim : 256
+            # t: [bs] => [bs, freq_dim:256]
+            e = sinusoidal_embedding_1d(self.freq_dim, t)
+            # [bs, freq_dim] => [bs, one, freq_dim]
+            e = e.unflatten(0, (bs, one))
+            # [bs, one, freq_dim=>self.dim:5120]
+            e = self.time_embedding(e.to(x.dtype))
+            # [bs, one, 5120] => [bs, one, 6*5120]
+            e0 = self.time_projection(e)
+            # [bs, one, 6*5120] => [bs, one, 6, 5120]
+            e0 = e0.unflatten(2, (6, self.dim))
 
         # context
-        context_lens = None
-        # [bs, 512, 4096] pad to => [bs, text_len:512, 4096]
-        padded_context = torch.cat(
-            [context, context.new_zeros(bs, self.text_len - context.size(1), context.size(2))], dim=1
-        )
-        # [bs, text_len, 4096] => [bs, text_len, 5120]
-        context = self.text_embedding(padded_context)
+        with profile_range("txt_in"):
+            context_lens = None
+            # [bs, 512, 4096] pad to => [bs, text_len:512, 4096]
+            padded_context = torch.cat(
+                [context, context.new_zeros(bs, self.text_len - context.size(1), context.size(2))], dim=1
+            )
+            # [bs, text_len, 4096] => [bs, text_len, 5120]
+            context = self.text_embedding(padded_context)
 
         if self.sp_size > 1:
             x = torch.chunk(x, self.sp_size, dim=1)[get_rank_id()]
 
         # RoPE frequencies
-        rope_freqs = self._get_rope_freqs(grid_sizes, device=x.device, dtype=x.dtype)
-        if rope_freqs.device != device:
-            rope_freqs = rope_freqs.to(device)
+        with profile_range("rope_compute"):
+            rope_freqs = self._get_rope_freqs(grid_sizes, device=x.device, dtype=x.dtype)
+            if rope_freqs.device != device:
+                rope_freqs = rope_freqs.to(device)
 
         num_frames = grid_sizes[0, 0].item() if grid_sizes.numel() > 0 else 1
 
@@ -960,16 +965,17 @@ class WanModel(ModelMixin, ConfigMixin):
         )
 
         # x: [bs, seqlen, 5120]
-        x = self._run_blocks(x, cache, phase, timestep, kwargs, slg_active, slg_blocks, seq_len, **extra_kwargs)
+        with profile_range("run_blocks"):
+            x = self._run_blocks(x, cache, phase, timestep, kwargs, slg_active, slg_blocks, seq_len, **extra_kwargs)
 
         # head
-        # [bs, seqlen, 5120] => [bs, seqlen, 64], e:[bs, seqlen, freq_dim=>self.dim:5120]
-        x = self.head(x, e)
-        if self.sp_size > 1:
-            x = gather_forward(x, dim=1)
-        # unpatchify
-        # [bs, seqlen, 64] => [bs, 16, fi, hi, wi]
-        x = self.unpatchify(x, grid_sizes)
+        with profile_range("head"):
+            x = self.head(x, e)
+            if self.sp_size > 1:
+                x = gather_forward(x, dim=1)
+            # unpatchify
+            # [bs, seqlen, 64] => [bs, 16, fi, hi, wi]
+            x = self.unpatchify(x, grid_sizes)
 
         return x
 

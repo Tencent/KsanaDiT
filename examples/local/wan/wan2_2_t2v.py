@@ -19,7 +19,7 @@ import torch
 
 os.environ["KSANA_LOGGER_LEVEL"] = "INFO"
 
-from kdit import KsanaPipeline
+from kdit import Pipeline
 from kdit.config import (
     KsanaAttentionBackend,
     KsanaAttentionConfig,
@@ -45,7 +45,7 @@ NUM_GPUS = get_gpu_count()
 
 
 def run_simple(args):
-    pipeline = KsanaPipeline.from_models(
+    pipeline = Pipeline.from_models(
         f"{args.model_dir}/Wan2.2-T2V-A14B", dist_config=KsanaDistributedConfig(num_gpus=NUM_GPUS)
     )
 
@@ -80,7 +80,7 @@ def run_fp8_models(args):
         torch_compile_config=KsanaTorchCompileConfig(),
     )
 
-    pipeline = KsanaPipeline.from_models(
+    pipeline = Pipeline.from_models(
         (high_noise_model_path, low_noise_model_path),  # high go first
         text_checkpoint_dir=text_dir,
         vae_checkpoint_dir=vae_dir,
@@ -110,7 +110,7 @@ def run_advanced(args):
         attention_config=KsanaAttentionConfig(backend=KsanaAttentionBackend.FLASH_ATTN),
         torch_compile_config=KsanaTorchCompileConfig(),
     )
-    pipeline = KsanaPipeline.from_models(
+    pipeline = Pipeline.from_models(
         f"{args.model_dir}/Wan2.2-T2V-A14B",
         model_config=model_config,
         dist_config=KsanaDistributedConfig(num_gpus=NUM_GPUS),
@@ -146,7 +146,7 @@ def run_fast(args):
         torch_compile_config=KsanaTorchCompileConfig(mode="max-autotune-no-cudagraphs"),
         boundary=0.9,
     )
-    pipeline = KsanaPipeline.from_models(
+    pipeline = Pipeline.from_models(
         f"{args.model_dir}/Wan2.2-T2V-A14B",
         model_config=model_config,
         lora_config=KsanaLoraConfig(f"{args.model_dir}/Wan2.2-Lightning/Wan2.2-T2V-A14B-4steps-lora-rank64-Seko-V1"),

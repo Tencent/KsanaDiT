@@ -15,7 +15,7 @@
 from .base_node import KsanaInferNode, KsanaLoadNode
 from .device_context import KsanaDeviceContext
 from .node_context import KsanaNodeContext
-from .node_factory import KsanaInferNodeFactory, KsanaLoaderNodeFactory
+from .node_factory import InferNodeFactory, LoaderNodeFactory
 from .node_types import KsanaDispatchPolicy, KsanaInferNodeType
 
 __all__ = [
@@ -23,8 +23,8 @@ __all__ = [
     "KsanaInferNode",
     "KsanaDeviceContext",
     "KsanaNodeContext",
-    "KsanaLoaderNodeFactory",
-    "KsanaInferNodeFactory",
+    "LoaderNodeFactory",
+    "InferNodeFactory",
     "KsanaInferNodeType",
     "KsanaDispatchPolicy",
 ]

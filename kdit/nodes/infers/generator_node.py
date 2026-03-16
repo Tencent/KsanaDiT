@@ -24,11 +24,11 @@ from kdit.models.model_key import KsanaModelKey
 from kdit.tensor import TensorKey
 
 from ..core.base_node import KsanaInferNode
-from ..core.node_factory import KsanaInferNodeFactory
+from ..core.node_factory import InferNodeFactory
 from ..core.node_types import KsanaDispatchPolicy, KsanaInferNodeType
 
 
-@KsanaInferNodeFactory.register(
+@InferNodeFactory.register(
     KsanaInferNodeType.GENERATE,
     [
         KsanaModelKey.Wan2_2_T2V_14B,

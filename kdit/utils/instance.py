@@ -23,7 +23,7 @@ def singleton(cls):
         Use ``ClassVar + classmethod get_default()`` pattern instead.
         This decorator replaces the class with a function, which breaks
         ``isinstance()`` checks and prevents multi-instance creation.
-        See ``KsanaEngine`` for the recommended pattern.
+        See ``Engine`` for the recommended pattern.
     """
     warnings.warn(
         f"@singleton is deprecated. Use 'get_default() classmethod' pattern instead. "

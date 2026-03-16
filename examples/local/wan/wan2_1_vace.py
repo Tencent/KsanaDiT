@@ -17,7 +17,7 @@ import os
 
 os.environ["KSANA_LOGGER_LEVEL"] = "INFO"
 
-from kdit import KsanaPipeline
+from kdit import Pipeline
 from kdit.config import (
     DCacheConfig,
     KsanaDistributedConfig,
@@ -30,7 +30,7 @@ from kdit.config import (
     KsanaVideoControlConfig,
 )
 from kdit.utils import load_control_frames
-from kdit.utils.vace import KsanaVaceContext
+from kdit.utils.vace import VaceConfig
 
 prompts = [
     "a cute anime girl with massive fennec ears and a big fluffy tail "
@@ -46,7 +46,7 @@ SEED = 620012503742781
 
 
 def run_simple(args):
-    engine = KsanaPipeline.from_models(
+    engine = Pipeline.from_models(
         f"{args.model_dir}",
         dist_config=KsanaDistributedConfig(num_gpus=args.num_gpus),
     )
@@ -76,7 +76,7 @@ def run_simple(args):
 
 
 def run_with_experimental_configs(args):
-    engine = KsanaPipeline.from_models(
+    engine = Pipeline.from_models(
         f"{args.model_dir}",
         dist_config=KsanaDistributedConfig(num_gpus=args.num_gpus),
     )
@@ -118,7 +118,7 @@ def run_with_experimental_configs(args):
 
     if args.control_video:
         reference_image = load_control_frames(args.control_video, max_frames=1, target_size=size)
-        video_control_config = KsanaVaceContext(
+        video_control_config = VaceConfig(
             reference_image=reference_image,
             strength=args.vace_strength,
         )
@@ -151,7 +151,7 @@ def run_with_experimental_configs(args):
 
 
 def run_with_control_video(args):
-    engine = KsanaPipeline.from_models(
+    engine = Pipeline.from_models(
         f"{args.model_dir}",
         dist_config=KsanaDistributedConfig(num_gpus=args.num_gpus),
     )
@@ -160,7 +160,7 @@ def run_with_control_video(args):
     target_frames = args.num_frames
 
     reference_image = load_control_frames(args.control_video, max_frames=1, target_size=target_size)
-    video_control_config = KsanaVaceContext(
+    video_control_config = VaceConfig(
         reference_image=reference_image,
         strength=args.vace_strength,
     )

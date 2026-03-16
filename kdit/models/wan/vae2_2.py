@@ -13,8 +13,8 @@ from kdit.utils.load import load_file_to_state_dict, load_state_dict, remove_pre
 from .vae_paralle import patch_vae_parallel
 
 if platform.is_npu():
-    import torch_npu  # pylint: disable=unused-import # noqa: F401
-    from torch_npu.contrib import transfer_to_npu  # pylint: disable=unused-import # noqa: F401
+    import torch_npu  # noqa: F401  # pylint: disable=unused-import
+    from torch_npu.contrib import transfer_to_npu  # noqa: F401  # pylint: disable=unused-import
 
 __all__ = ["Wan2_2_VAE"]
 
@@ -165,7 +165,7 @@ class Resample(nn.Module):
     def init_weight(self, conv):
         conv_weight = conv.weight.detach().clone()
         nn.init.zeros_(conv_weight)
-        c1, c2, t, h, w = conv_weight.size()  # pylint: disable=unused-variable
+        c1, c2, t, h, w = conv_weight.size()  # noqa: F841  # pylint: disable=unused-variable
         one_matrix = torch.eye(c1, c2)
         init_matrix = one_matrix
         nn.init.zeros_(conv_weight)
@@ -176,7 +176,7 @@ class Resample(nn.Module):
     def init_weight2(self, conv):
         conv_weight = conv.weight.data.detach().clone()
         nn.init.zeros_(conv_weight)
-        c1, c2, t, h, w = conv_weight.size()  # pylint: disable=unused-variable
+        c1, c2, t, h, w = conv_weight.size()  # noqa: F841  # pylint: disable=unused-variable
         init_matrix = torch.eye(c1 // 2, c2)
         conv_weight[: c1 // 2, :, -1, 0, 0] = init_matrix
         conv_weight[c1 // 2 :, :, -1, 0, 0] = init_matrix
@@ -626,7 +626,7 @@ class Decoder3d(nn.Module):
 
         # dimensions
         dims = [dim * u for u in [dim_mult[-1]] + dim_mult[::-1]]
-        scale = 1.0 / 2 ** (len(dim_mult) - 2)  # noqa:F841 # pylint: disable=unused-variable
+        scale = 1.0 / 2 ** (len(dim_mult) - 2)  # noqa: F841  # pylint: disable=unused-variable
         # init block
         self.conv1 = CausalConv3d(z_dim, dims[0], 3, padding=1)
 

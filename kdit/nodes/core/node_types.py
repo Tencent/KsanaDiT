@@ -36,10 +36,12 @@ class KsanaDispatchPolicy(Enum):
 
 
 class KsanaInferNodeType(Enum):
-    """Infer Node 类型枚举，用于 KsanaInferNodeFactory 的二级注册键。"""
+    """Infer Node 类型枚举，用于 InferNodeFactory 的二级注册键。"""
 
     TEXT_ENCODE = auto()
     VAE_ENCODE_SPATIAL = auto()
     VAE_ENCODE_IMAGES = auto()
     VAE_DECODE = auto()
     GENERATE = auto()
+    SAVE_VIDEO = auto()
+    SAVE_IMAGE = auto()

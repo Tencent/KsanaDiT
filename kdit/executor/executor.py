@@ -12,11 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from __future__ import annotations
-
 from abc import ABC
 from functools import partial
-from typing import TYPE_CHECKING
 
 import torch
 
@@ -25,17 +22,15 @@ from ..config import KsanaDistributedConfig
 from ..distributed import shard_model
 from ..models.model_key import KsanaModelKey
 from ..models.model_pool import KsanaModelPool
+from ..nodes.core.device_context import KsanaDeviceContext
 from ..tensor import TensorPool
 from ..utils import log
 from ..utils.logger import reset_logging
 from .distributed_group import DistributedGroupManager
 
-if TYPE_CHECKING:
-    from ..nodes.core.device_context import KsanaDeviceContext
-
 if platform.is_npu():
-    import torch_npu  # pylint: disable=unused-import # noqa: F401
-    from torch_npu.contrib import transfer_to_npu  # pylint: disable=unused-import # noqa: F401
+    import torch_npu  # noqa: F401  # pylint: disable=unused-import
+    from torch_npu.contrib import transfer_to_npu  # noqa: F401  # pylint: disable=unused-import
 
 
 class KsanaExecutor(ABC):
@@ -104,9 +99,7 @@ class KsanaExecutor(ABC):
 
     @staticmethod
     def _build_device_ctx(device, offload_device, rank_id, world_size) -> KsanaDeviceContext:
-        """延迟导入 KsanaDeviceContext 以避免循环依赖。"""
-        from ..nodes.core.device_context import KsanaDeviceContext  # noqa: F811 — 延迟导入
-
+        """构建 KsanaDeviceContext。"""
         return KsanaDeviceContext(device=device, offload_device=offload_device, rank_id=rank_id, world_size=world_size)
 
     def run_loader_node(self, model_key, **kwargs):
@@ -114,13 +107,13 @@ class KsanaExecutor(ABC):
 
         自动注入 Executor 级别的 dist_config 和 shard_fn（Node 无需关心来源）。
         """
-        from ..nodes.core.node_factory import KsanaLoaderNodeFactory
+        from ..nodes.core.node_factory import LoaderNodeFactory
         from ..nodes.core.node_types import KsanaDispatchPolicy
 
         kwargs.setdefault("dist_config", self.dist_config)
         kwargs.setdefault("shard_fn", self.shard_fn)
 
-        node = KsanaLoaderNodeFactory.create(model_key)
+        node = LoaderNodeFactory.create(model_key)
         policy = node.dispatch_policy
 
         if policy == KsanaDispatchPolicy.ALL_ALL_ALL or self.device_ctx.rank_id == 0:
@@ -131,10 +124,10 @@ class KsanaExecutor(ABC):
 
         结果写入 tensor_pool，不返回值。外部通过 engine.get_tensor() 获取输出。
         """
-        from ..nodes.core.node_factory import KsanaInferNodeFactory
+        from ..nodes.core.node_factory import InferNodeFactory
         from ..nodes.core.node_types import KsanaDispatchPolicy
 
-        node = KsanaInferNodeFactory.create(infer_node_type, model_key)
+        node = InferNodeFactory.create(infer_node_type, model_key)
         policy = node.dispatch_policy
 
         # TODO: 根据 policy 的输入维度，executor 在执行前自动管理输入 tensor 的同步

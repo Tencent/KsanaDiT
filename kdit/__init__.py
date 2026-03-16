@@ -23,18 +23,18 @@ from .config import (
     KsanaSampleConfig,
     KsanaTorchCompileConfig,
 )
-from .engine import KsanaEngine, get_engine
+from .engine import Engine, get_engine
 from .models import KsanaDiffusionModel
 from .nodes.infers import *  # noqa: F403
 from .nodes.loaders import *  # noqa: F403
-from .pipelines import KsanaPipeline
-from .utils import KSANA_LOGGER_LEVEL, KSANA_MEMORY_PROFILER  # noqa: F401
+from .pipelines import Pipeline
+from .utils import KSANA_LOGGER_LEVEL, KSANA_MEMORY_PROFILER  # noqa: F401  # pylint: disable=unused-import
 
 __all__ = [
     "get_engine",
-    "KsanaPipeline",
+    "Pipeline",
     "KsanaDiffusionModel",
-    "KsanaEngine",
+    "Engine",
     "KsanaTorchCompileConfig",
     "KsanaSampleConfig",
     "KsanaRuntimeConfig",

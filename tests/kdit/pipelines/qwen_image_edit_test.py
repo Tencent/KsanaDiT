@@ -22,7 +22,7 @@ from pipeline_test_helper import (
     get_platform_config_or_skip,
 )
 
-from kdit import KsanaPipeline
+from kdit import Pipeline
 from kdit.config import (
     KsanaAttentionConfig,
     KsanaDistributedConfig,
@@ -44,7 +44,7 @@ NEGATIVE_PROMPT = "blur, bad anatomy, deformed face"
 
 class TestKsanaQwenImageEdit(unittest.TestCase):
     def _create_pipeline(self):
-        return KsanaPipeline.from_models(
+        return Pipeline.from_models(
             "./Qwen-Image-Edit-2511",
             model_config=KsanaModelConfig(
                 run_dtype=TEST_DTYPE,

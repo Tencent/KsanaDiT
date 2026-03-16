@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # 导入子模块以触发 @KsanaNodeFactory.register 注册
-from . import diffusion_model_loader, text_encoder_loader, vae_loader  # noqa: F401
+from . import diffusion_model_loader, text_encoder_loader, vae_loader  # noqa: F401  # pylint: disable=unused-import
 from .diffusion_model_loader import DiffusionLoaderNode
 from .text_encoder_loader import TextEncoderLoaderNode
 from .vae_loader import VAELoaderNode

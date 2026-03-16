@@ -23,7 +23,7 @@ from .base import KsanaAttentionBackendImpl
 _MIND_IE_SD_AVAILABLE = False
 
 if platform.is_npu():
-    import torch_npu  # pylint: disable=unused-import # noqa: F401
+    import torch_npu  # noqa: F401  # pylint: disable=unused-import
 
     try:
         from mindiesd import attention_forward

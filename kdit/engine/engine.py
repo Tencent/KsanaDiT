@@ -25,14 +25,15 @@ from ..config import KsanaDistributedConfig
 from ..executor import KsanaExecutor, RayKsanaExecutor
 from ..utils import log
 from ..utils.distribute import get_gpu_count, get_torchrun_env, is_launched_by_torchrun
+from ..utils.profile import profile_range
 
 
 def get_engine(*args, **kwargs):
     """
     Get the default engine instance (backward compatible).
-    Delegates to KsanaEngine.get_default().
+    Delegates to Engine.get_default().
     """
-    return KsanaEngine.get_default(*args, **kwargs)
+    return Engine.get_default(*args, **kwargs)
 
 
 def pop_keys_in_kwargs(to_be_removed_keys, kwargs):
@@ -43,7 +44,7 @@ def pop_keys_in_kwargs(to_be_removed_keys, kwargs):
     return kwargs
 
 
-class KsanaEngine:
+class Engine:
     """
     Ksana engine that manages executors for model loading and inference.
 
@@ -69,7 +70,7 @@ class KsanaEngine:
         _register_atexit=False,
     ):
         """
-        Initialize the KsanaEngine.
+        Initialize the Engine.
 
         Args:
             dist_config: Distributed configuration.
@@ -77,7 +78,7 @@ class KsanaEngine:
             _register_atexit: Internal flag. When True, registers atexit cleanup.
                 Only the default instance (created via get_default) should set this.
         """
-        log.info(f"Initializing KsanaEngine with dist_config: {dist_config}, offload_device: {offload_device}")
+        log.info(f"Initializing Engine with dist_config: {dist_config}, offload_device: {offload_device}")
         self.num_gpus = dist_config.num_gpus
         self._is_ray = False
         self._cleaned_up = False
@@ -87,7 +88,7 @@ class KsanaEngine:
             atexit.register(self.cleanup_distributed)
 
     @classmethod
-    def get_default(cls, *args, **kwargs) -> "KsanaEngine":
+    def get_default(cls, *args, **kwargs) -> "Engine":
         """
         Get the default singleton instance (thread-safe).
 
@@ -99,8 +100,8 @@ class KsanaEngine:
                 cls._default_instance = cls(*args, _register_atexit=True, **kwargs)
             elif args or kwargs:
                 log.warning(
-                    "KsanaEngine.get_default() called with arguments but instance already exists. "
-                    "Arguments are ignored. Use KsanaEngine() to create a new instance."
+                    "Engine.get_default() called with arguments but instance already exists. "
+                    "Arguments are ignored. Use Engine() to create a new instance."
                 )
             return cls._default_instance
 
@@ -284,11 +285,18 @@ class KsanaEngine:
                 "Wrap the call with `with engine.tensor_scope(): ...` to ensure "
                 "tensors are auto-cleared and GPU memory is not leaked."
             )
-        if self.is_ray:
-            futures = [ex.run_infer_node.remote(infer_node_type, model_key, context) for ex in self.executors]
-            ray.get(futures)
-        else:
-            self.executors.run_infer_node(infer_node_type, model_key, context)
+        # 自动按 node_type + model_key 生成 profile label
+        node_label = infer_node_type.name if infer_node_type is not None else "UNKNOWN"
+        if model_key is not None:
+            model_name = model_key.name if hasattr(model_key, "name") else str(model_key)
+            node_label = f"{node_label}[{model_name}]"
+
+        with profile_range(node_label):
+            if self.is_ray:
+                futures = [ex.run_infer_node.remote(infer_node_type, model_key, context) for ex in self.executors]
+                ray.get(futures)
+            else:
+                self.executors.run_infer_node(infer_node_type, model_key, context)
 
     @contextmanager
     def tensor_scope(self, keep=None):

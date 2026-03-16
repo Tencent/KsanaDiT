@@ -305,7 +305,7 @@ class FlowUniPCMultistepScheduler(SchedulerMixin, ConfigMixin):
             )
 
         sigma = self.sigmas[self.step_index]
-        alpha_t, sigma_t = self._sigma_to_alpha_sigma_t(sigma)  # pylint: disable=unused-variable
+        alpha_t, sigma_t = self._sigma_to_alpha_sigma_t(sigma)  # noqa: F841  # pylint: disable=unused-variable
 
         if self.predict_x0:
             if self.config.prediction_type == "flow_prediction":

@@ -24,6 +24,7 @@ from ..accelerator import platform
 from ..config import KsanaDistributedConfig, KsanaLinearBackend, KsanaModelConfig
 from ..utils import log, time_range
 from ..utils.load import load_state_dict, replace_key_in_state_dict
+from ..utils.profile import profile_range
 from ..utils.quantize import apply_dynamic_fp8_quant, find_fp8_info_from_state_dict
 from ..utils.torch_compile import apply_torch_compile
 from .model_base import ModelBase
@@ -32,8 +33,8 @@ from .qwen import QwenImageTransformer2DModel
 from .wan import VaceWanModel, WanModel
 
 if platform.is_npu():
-    import torch_npu  # pylint: disable=unused-import # noqa: F401
-    from torch_npu.contrib import transfer_to_npu  # pylint: disable=unused-import # noqa: F401
+    import torch_npu  # noqa: F401  # pylint: disable=unused-import
+    from torch_npu.contrib import transfer_to_npu  # noqa: F401  # pylint: disable=unused-import
 
 
 class KsanaDiffusionModel(ModelBase):
@@ -315,7 +316,8 @@ class KsanaDiffusionModel(ModelBase):
         torch.cuda.synchronize(device)
 
     def forward(self, *args, **kwargs):
-        return self.model(*args, **kwargs)
+        with profile_range("model_forward"):
+            return self.model(*args, **kwargs)
 
     def load_state_dict(self, model_state_dict, strict=False):
         model_state_dict = remap_state_dict_for_model(self.model, model_state_dict, self.model_key.name)

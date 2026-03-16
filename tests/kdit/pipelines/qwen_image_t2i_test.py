@@ -23,7 +23,7 @@ from pipeline_test_helper import (
     get_platform_config_or_skip,
 )
 
-from kdit import KsanaPipeline
+from kdit import Pipeline
 from kdit.config import (
     KsanaAttentionConfig,
     KsanaDistributedConfig,
@@ -52,7 +52,7 @@ class TestKsanaQwenImageT2I(unittest.TestCase):
             "NPU": {"mean0": 0.5845838785171509, "mean1": 0.4992269277572632, "mean2": 0.5440176725387573},
         }
         expected = get_platform_config_or_skip(config, test_name="qwen_image.test_batch_prompts")
-        generator = KsanaPipeline.from_models(
+        generator = Pipeline.from_models(
             "./Qwen-Image",
             model_config=KsanaModelConfig(
                 run_dtype=TEST_DTYPE,

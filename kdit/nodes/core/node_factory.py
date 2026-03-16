@@ -12,43 +12,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from kdit.utils.factory import Factory
+from kdit.utils.factory import AdvancedFactory, SimpleFactory
 
 
-class KsanaLoaderNodeFactory:
+class LoaderNodeFactory(SimpleFactory):
     """Loader Node 工厂，按 model_key 一级注册。
 
     - register(model_key_list): 注册 LoaderNode 类
     - create(model_key): 创建 LoaderNode 实例
     """
 
-    _registry: dict = {}
 
-    @classmethod
-    def register(cls, model_key_list):
-        if not isinstance(model_key_list, (list, tuple)):
-            model_key_list = [model_key_list]
-
-        def wrapper(wrapped_class):
-            for model_key in model_key_list:
-                if model_key in cls._registry:
-                    print(f"{model_key} has already been registered in {cls.__name__}, please check!")
-                cls._registry[model_key] = wrapped_class
-            return wrapped_class
-
-        return wrapper
-
-    @classmethod
-    def create(cls, model_key):
-        if model_key not in cls._registry:
-            raise KeyError(f"{model_key} is not registered in {cls.__name__}")
-        return cls._registry[model_key]()
-
-
-class KsanaInferNodeFactory(Factory):
+class InferNodeFactory(AdvancedFactory):
     """Infer Node 工厂，按 (infer_node_type, model_key) 二级注册。
 
-    复用 Factory 的 register() / create() 机制：
+    复用 AdvancedFactory 的 register() / create() 机制：
     - register(infer_node_type, model_key_list): 注册 InferNode 类
     - create(infer_node_type, model_key): 创建 InferNode 实例
     """

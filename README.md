@@ -112,10 +112,10 @@ kDiT provides multiple usage methods to meet different scenario requirements:
 Run locally through the Python Pipeline API, suitable for scripted batch generation or integration into your own systems:
 
 ```python
-from kdit import KsanaPipeline
+from kdit import Pipeline
 
 # Create inference pipeline
-pipeline = KsanaPipeline.from_models("path/to/model")
+pipeline = Pipeline.from_models("path/to/model")
 
 # Generate video/image
 result = pipeline.generate(prompt, ...)
@@ -149,7 +149,7 @@ For detailed code examples, refer to [examples](./examples/).
 
 ```python
 import torch
-from kdit import KsanaPipeline
+from kdit import Pipeline
 from kdit.config import (
     KsanaDistributedConfig,
     KsanaRuntimeConfig,
@@ -157,7 +157,7 @@ from kdit.config import (
 )
 
 # Create inference pipeline
-pipeline = KsanaPipeline.from_models(
+pipeline = Pipeline.from_models(
     "path/to/Wan2.2-T2V-A14B",
     dist_config=KsanaDistributedConfig(num_gpus=1)
 )
@@ -180,10 +180,10 @@ print(f"Generated video shape: {video.shape}")
 ### Image-to-Video (I2V)
 
 ```python
-from kdit import KsanaPipeline
+from kdit import Pipeline
 from kdit.config import KsanaRuntimeConfig, KsanaSampleConfig
 
-pipeline = KsanaPipeline.from_models("path/to/Wan2.2-I2V-A14B")
+pipeline = Pipeline.from_models("path/to/Wan2.2-I2V-A14B")
 
 video = pipeline.generate(
     "Girl gently waves her fan, blows a breath of fairy air, lightning flies from her hand into the sky and thunder begins",
@@ -205,7 +205,7 @@ See [run_turbo_diffusion](./examples/wan/wan2_2_i2v.py#L115)
 
 ```python
 import torch
-from kdit import KsanaPipeline
+from kdit import Pipeline
 from kdit.config import (
     KsanaModelConfig,
     KsanaRuntimeConfig,
@@ -213,7 +213,7 @@ from kdit.config import (
     KsanaSolverType,
 )
 
-pipeline = KsanaPipeline.from_models(
+pipeline = Pipeline.from_models(
     "path/to/Qwen-Image",
     model_config=KsanaModelConfig(run_dtype=torch.bfloat16),
 )
@@ -238,7 +238,7 @@ image = pipeline.generate(
 
 ```python
 import torch
-from kdit import KsanaPipeline
+from kdit import Pipeline
 from kdit.config import (
     KsanaModelConfig,
     KsanaAttentionConfig,
@@ -252,7 +252,7 @@ model_config = KsanaModelConfig(
     linear_backend=KsanaLinearBackend.FP8_GEMM,
 )
 
-pipeline = KsanaPipeline.from_models(
+pipeline = Pipeline.from_models(
     ("high_noise_fp8.safetensors", "low_noise_fp8.safetensors"),
     model_config=model_config,
 )
@@ -261,10 +261,10 @@ pipeline = KsanaPipeline.from_models(
 ### LoRA Accelerated Inference
 
 ```python
-from kdit import KsanaPipeline
+from kdit import Pipeline
 from kdit.config import KsanaLoraConfig, KsanaSampleConfig
 
-pipeline = KsanaPipeline.from_models(
+pipeline = Pipeline.from_models(
     "path/to/Wan2.2-T2V-A14B",
     lora_config=KsanaLoraConfig("path/to/Wan2.2-Lightning-4steps-lora"),
 )
@@ -312,10 +312,10 @@ CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 your_script.py
 ```
 
 ```python
-from kdit import KsanaPipeline
+from kdit import Pipeline
 from kdit.config import KsanaDistributedConfig
 
-pipeline = KsanaPipeline.from_models(
+pipeline = Pipeline.from_models(
     model_path,
     dist_config=KsanaDistributedConfig(num_gpus=4),
 )

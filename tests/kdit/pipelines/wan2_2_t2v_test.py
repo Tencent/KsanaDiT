@@ -28,7 +28,7 @@ from pipeline_test_helper import (
     get_platform_config_or_skip,
 )
 
-from kdit import KsanaPipeline
+from kdit import Pipeline
 from kdit.accelerator import platform
 from kdit.config import (
     KsanaAttentionBackend,
@@ -62,7 +62,7 @@ class TestKsanaPipelineWanT2V(unittest.TestCase):
             },
         }
         expected_means = get_platform_config_or_skip(config, test_name="wan_t2v.test_batch_size_per_prompt")
-        pipeline = KsanaPipeline.from_models(
+        pipeline = Pipeline.from_models(
             "./Wan2.2-T2V-A14B",
             model_config=self.MODEL_CONFIG,
             dist_config=KsanaDistributedConfig(port=TEST_PORT),
@@ -124,7 +124,7 @@ class TestKsanaPipelineWanT2V(unittest.TestCase):
             },
         }
         expected_means = get_platform_config_or_skip(config, test_name="wan_t2v.test_larger_seq_batch")
-        pipeline = KsanaPipeline.from_models(
+        pipeline = Pipeline.from_models(
             "./Wan2.2-T2V-A14B",
             model_config=self.MODEL_CONFIG,
             dist_config=KsanaDistributedConfig(port=TEST_PORT),
@@ -167,7 +167,7 @@ class TestKsanaPipelineWanT2V(unittest.TestCase):
             torch_compile_config=KsanaTorchCompileConfig(),
         )
 
-        pipeline = KsanaPipeline.from_models(
+        pipeline = Pipeline.from_models(
             (high_noise_model_path, low_noise_model_path),  # high go first
             text_checkpoint_dir=text_dir,
             vae_checkpoint_dir=vae_dir,
@@ -194,7 +194,7 @@ class TestKsanaPipelineWanT2V(unittest.TestCase):
         print("-----------------test_lora-----------------")
         config = {"GPU": {"mean0": 0.24302400648593903}, "NPU": {"mean0": 0.2562920153141022}}
         expected = get_platform_config_or_skip(config, test_name="wan_t2v.test_lora")
-        pipeline = KsanaPipeline.from_models(
+        pipeline = Pipeline.from_models(
             "./Wan2.2-T2V-A14B",
             lora_config=KsanaLoraConfig("./Wan2.2-Lightning/Wan2.2-T2V-A14B-4steps-lora-rank64-Seko-V1"),
             model_config=self.MODEL_CONFIG,

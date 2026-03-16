@@ -24,11 +24,11 @@ from kdit.tensor import TensorKey
 from kdit.utils import log
 
 from ..core.base_node import KsanaInferNode
-from ..core.node_factory import KsanaInferNodeFactory
+from ..core.node_factory import InferNodeFactory
 from ..core.node_types import KsanaDispatchPolicy, KsanaInferNodeType
 
 
-@KsanaInferNodeFactory.register(
+@InferNodeFactory.register(
     KsanaInferNodeType.VAE_ENCODE_SPATIAL,
     [KsanaModelKey.VAE_WAN2_1, KsanaModelKey.VAE_WAN2_2, KsanaModelKey.QwenImageVAE],
 )
@@ -79,7 +79,7 @@ class VAEEncodeSpatialNode(KsanaInferNode):
             tensor_pool.put(TensorKey.IMAGE_EMBEDS, image_embeds)
 
 
-@KsanaInferNodeFactory.register(
+@InferNodeFactory.register(
     KsanaInferNodeType.VAE_ENCODE_IMAGES,
     [KsanaModelKey.VAE_WAN2_1, KsanaModelKey.VAE_WAN2_2, KsanaModelKey.QwenImageVAE],
 )

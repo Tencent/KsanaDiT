@@ -35,7 +35,7 @@ from kdit.models import KsanaModelKey
 
 
 def _make_wan_generator(model_key=KsanaModelKey.Wan2_2_T2V_14B):
-    """构造 WanGenerator 实例，绕过 Factory 注册。"""
+    """构造 WanGenerator 实例，绕过 AdvancedFactory 注册。"""
     from kdit.generators.wan_generator import WanGenerator
 
     gen = WanGenerator.__new__(WanGenerator)

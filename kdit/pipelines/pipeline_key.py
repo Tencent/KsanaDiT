@@ -17,7 +17,7 @@ from enum import Enum, auto, unique
 
 
 @unique
-class KsanaPipelineKey(Enum):
+class PipelineKey(Enum):
     """标识一条完整的推理流水线（Pipeline 级别语义）。
 
     零依赖枚举 — 可被任意子包安全导入，不会触发 kdit/__init__.py 的重量级导入链。
@@ -30,8 +30,9 @@ class KsanaPipelineKey(Enum):
     QwenImage_T2I = auto()
     QwenImage_Edit = auto()
 
+    # TODO: ToBe remove
     def is_i2v_type(self) -> bool:
-        return self in (KsanaPipelineKey.Wan2_2_I2V_14B,)
+        return self in (PipelineKey.Wan2_2_I2V_14B,)
 
     def is_image_type(self) -> bool:
-        return self in (KsanaPipelineKey.QwenImage_T2I, KsanaPipelineKey.QwenImage_Edit)
+        return self in (PipelineKey.QwenImage_T2I, PipelineKey.QwenImage_Edit)

@@ -49,7 +49,7 @@ class KsanaModelKey(Enum):
     零依赖枚举 — 可被任意子包安全导入，不会触发 kdit/__init__.py 的重量级导入链。
 
     KsanaModelPool 只接受此类型。用于：
-      - KsanaLoaderNodeFactory / KsanaInferNodeFactory 按模型注册 Node
+      - LoaderNodeFactory / InferNodeFactory 按模型注册 Node
       - GeneratorFactory 按模型注册 Generator
       - settings 配置映射
     """
@@ -64,7 +64,7 @@ class KsanaModelKey(Enum):
     VAE_WAN2_1 = auto()
     VAE_WAN2_2 = auto()
 
-    # Diffusion Models — 与 KsanaPipelineKey 同名，因为不同 pipeline 的权重不同
+    # Diffusion Models — 与 PipelineKey 同名，因为不同 pipeline 的权重不同
     Wan2_2_T2V_14B = auto()
     Wan2_2_I2V_14B = auto()
     Wan2_2_TI2V_5B = auto()
@@ -100,8 +100,8 @@ def _resolve_model_path(model_path: str | list[str]) -> str:
 def get_model_key_from_path(model_path: str | list[str]) -> KsanaModelKey:
     """从路径推导 KsanaModelKey。
 
-    统一返回 KsanaModelKey。调用方如需 KsanaPipelineKey，
-    需自行通过 KsanaPipelineKey[model_key.name] 转换。
+    统一返回 KsanaModelKey。调用方如需 PipelineKey，
+    需自行通过 PipelineKey[model_key.name] 转换。
     """
     model_path = _resolve_model_path(model_path)
     file_name = Path(model_path).name.lower()

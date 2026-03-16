@@ -14,22 +14,16 @@
 
 """GeneratorInferContext — Generator.run() 的结构化输入上下文。"""
 
-from __future__ import annotations
-
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
 
 import torch
 
 from kdit.config import KsanaRuntimeConfig, KsanaSampleConfig
 from kdit.config.cache_config import KsanaCacheConfig, KsanaHybridCacheConfig
 from kdit.config.video_control_config import KsanaVideoControlConfig
-from kdit.utils.vace import KsanaVaceContext
-
-if TYPE_CHECKING:
-    from collections.abc import Callable
-
-    from kdit.models import KsanaDiffusionModel
+from kdit.models import KsanaDiffusionModel
+from kdit.utils.vace import VaceConfig
 
 
 @dataclass
@@ -64,5 +58,5 @@ class GeneratorInferContext:
 
     # 可选控制
     video_control: KsanaVideoControlConfig | None = None
-    control_video_config: KsanaVaceContext | None = None
+    control_video_config: VaceConfig | None = None
     comfy_bar_callback: Callable | None = None

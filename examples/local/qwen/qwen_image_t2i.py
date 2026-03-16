@@ -19,7 +19,7 @@ import torch
 
 os.environ["KSANA_LOGGER_LEVEL"] = "INFO"
 
-from kdit import KsanaPipeline
+from kdit import Pipeline
 from kdit.config import (
     KsanaModelConfig,
     KsanaRuntimeConfig,
@@ -36,7 +36,7 @@ SEED = 42
 
 
 def run_simple(args):
-    generator = KsanaPipeline.from_models(
+    generator = Pipeline.from_models(
         args.model_dir,
         model_config=KsanaModelConfig(run_dtype=torch.bfloat16),
         offload_device="cpu",

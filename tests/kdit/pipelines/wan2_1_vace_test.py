@@ -17,7 +17,7 @@ import unittest
 import torch
 from pipeline_test_helper import get_platform_config_or_skip
 
-from kdit import KsanaPipeline
+from kdit import Pipeline
 from kdit.accelerator import platform
 from kdit.config import (
     KsanaAttentionBackend,
@@ -77,7 +77,7 @@ class TestKsanaPipelineWanVace(unittest.TestCase):
         # NOTE: gpu多卡因为vae paralle导致和单卡输出有差异。
         places = TEST_EPS_PLACE if (platform.is_gpu() and get_gpu_count() == 1) else 2
         expected = get_platform_config_or_skip(config, test_name=test_name)
-        pipeline = KsanaPipeline.from_models("./Wan2.1-VACE-14B", model_config=model_config)
+        pipeline = Pipeline.from_models("./Wan2.1-VACE-14B", model_config=model_config)
         video = pipeline.generate(
             prompts[0],
             prompt_negative=NEGATIVE_PROMPT,

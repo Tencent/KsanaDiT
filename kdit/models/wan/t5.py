@@ -12,8 +12,8 @@ from kdit.utils import load_file_to_state_dict
 from kdit.utils.load import load_state_dict
 
 if platform.is_npu():
-    import torch_npu  # pylint: disable=unused-import # noqa: F401
-    from torch_npu.contrib import transfer_to_npu  # pylint: disable=unused-import # noqa: F401
+    import torch_npu  # noqa: F401  # pylint: disable=unused-import
+    from torch_npu.contrib import transfer_to_npu  # noqa: F401  # pylint: disable=unused-import
 
 from .tokenizers import HuggingfaceTokenizer
 

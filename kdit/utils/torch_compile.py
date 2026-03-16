@@ -19,7 +19,7 @@ from . import log
 
 try:
     # Avoid Dynamo compiling cache helpers that use numpy/Python control flow
-    from torch._dynamo import disable as disable_dynamo  # pylint: disable=unused-import
+    from torch._dynamo import disable as disable_dynamo  # noqa: F401  # pylint: disable=unused-import
 except ImportError:
 
     def disable_dynamo(fn=None):

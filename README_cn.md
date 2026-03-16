@@ -113,10 +113,10 @@ kDiT 提供多种使用方式，满足不同场景的需求：
 通过 Python Pipeline API 直接在本地运行，适合脚本化批量生成或集成到自有系统中：
 
 ```python
-from kdit import KsanaPipeline
+from kdit import Pipeline
 
 # 创建推理管道
-pipeline = KsanaPipeline.from_models("path/to/model")
+pipeline = Pipeline.from_models("path/to/model")
 
 # 生成视频/图像
 result = pipeline.generate(prompt, ...)
@@ -149,7 +149,7 @@ cd kDiT
 
 ```python
 import torch
-from kdit import KsanaPipeline
+from kdit import Pipeline
 from kdit.config import (
     KsanaDistributedConfig,
     KsanaRuntimeConfig,
@@ -157,7 +157,7 @@ from kdit.config import (
 )
 
 # 创建推理管道
-pipeline = KsanaPipeline.from_models(
+pipeline = Pipeline.from_models(
     "path/to/Wan2.2-T2V-A14B",
     dist_config=KsanaDistributedConfig(num_gpus=1)
 )
@@ -180,10 +180,10 @@ print(f"生成视频形状: {video.shape}")
 ### 图像生成视频 (I2V)
 
 ```python
-from kdit import KsanaPipeline
+from kdit import Pipeline
 from kdit.config import KsanaRuntimeConfig, KsanaSampleConfig
 
-pipeline = KsanaPipeline.from_models("path/to/Wan2.2-I2V-A14B")
+pipeline = Pipeline.from_models("path/to/Wan2.2-I2V-A14B")
 
 video = pipeline.generate(
     "女孩扇子轻微挥动，吹口仙气后，手上的闪电飞到空中开始打雷",
@@ -205,7 +205,7 @@ video = pipeline.generate(
 
 ```python
 import torch
-from kdit import KsanaPipeline
+from kdit import Pipeline
 from kdit.config import (
     KsanaModelConfig,
     KsanaRuntimeConfig,
@@ -213,7 +213,7 @@ from kdit.config import (
     KsanaSolverType,
 )
 
-pipeline = KsanaPipeline.from_models(
+pipeline = Pipeline.from_models(
     "path/to/Qwen-Image",
     model_config=KsanaModelConfig(run_dtype=torch.bfloat16),
 )
@@ -238,7 +238,7 @@ image = pipeline.generate(
 
 ```python
 import torch
-from kdit import KsanaPipeline
+from kdit import Pipeline
 from kdit.config import (
     KsanaModelConfig,
     KsanaAttentionConfig,
@@ -252,7 +252,7 @@ model_config = KsanaModelConfig(
     linear_backend=KsanaLinearBackend.FP8_GEMM,
 )
 
-pipeline = KsanaPipeline.from_models(
+pipeline = Pipeline.from_models(
     ("high_noise_fp8.safetensors", "low_noise_fp8.safetensors"),
     model_config=model_config,
 )
@@ -261,10 +261,10 @@ pipeline = KsanaPipeline.from_models(
 ### LoRA 加速推理
 
 ```python
-from kdit import KsanaPipeline
+from kdit import Pipeline
 from kdit.config import KsanaLoraConfig, KsanaSampleConfig
 
-pipeline = KsanaPipeline.from_models(
+pipeline = Pipeline.from_models(
     "path/to/Wan2.2-T2V-A14B",
     lora_config=KsanaLoraConfig("path/to/Wan2.2-Lightning-4steps-lora"),
 )
@@ -312,10 +312,10 @@ CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 your_script.py
 ```
 
 ```python
-from kdit import KsanaPipeline
+from kdit import Pipeline
 from kdit.config import KsanaDistributedConfig
 
-pipeline = KsanaPipeline.from_models(
+pipeline = Pipeline.from_models(
     model_path,
     dist_config=KsanaDistributedConfig(num_gpus=4),
 )

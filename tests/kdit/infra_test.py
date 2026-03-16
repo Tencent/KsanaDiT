@@ -20,7 +20,7 @@ import torch
 from kdit.executor.distributed_group import DistributedGroupManager
 from kdit.nodes.core.device_context import KsanaDeviceContext
 from kdit.nodes.core.node_context import KsanaNodeContext
-from kdit.nodes.core.node_factory import KsanaInferNodeFactory, KsanaLoaderNodeFactory
+from kdit.nodes.core.node_factory import InferNodeFactory, LoaderNodeFactory
 from kdit.nodes.core.node_types import KsanaDispatchPolicy, KsanaInferNodeType
 from kdit.tensor import TensorKey, TensorPool, TensorValue
 
@@ -344,9 +344,9 @@ class TestNodeFactory:
         # 确保 import kdit.nodes 后注册了 loader
         import kdit.nodes  # pylint: disable=unused-import # noqa: F401
 
-        assert len(KsanaLoaderNodeFactory._registry) > 0
+        assert len(LoaderNodeFactory._registry) > 0
 
     def test_infer_factory_has_entries(self):
         import kdit.nodes  # pylint: disable=unused-import # noqa: F401
 
-        assert len(KsanaInferNodeFactory._registry) > 0
+        assert len(InferNodeFactory._registry) > 0

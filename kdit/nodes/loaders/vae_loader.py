@@ -20,11 +20,11 @@ from kdit.settings import load_default_settings
 from kdit.utils import is_file_or_dir, log, time_range
 
 from ..core.base_node import KsanaLoadNode
-from ..core.node_factory import KsanaLoaderNodeFactory
+from ..core.node_factory import LoaderNodeFactory
 from ..core.node_types import KsanaDispatchPolicy
 
 
-@KsanaLoaderNodeFactory.register([KsanaModelKey.VAE_WAN2_1, KsanaModelKey.VAE_WAN2_2, KsanaModelKey.QwenImageVAE])
+@LoaderNodeFactory.register([KsanaModelKey.VAE_WAN2_1, KsanaModelKey.VAE_WAN2_2, KsanaModelKey.QwenImageVAE])
 class VAELoaderNode(KsanaLoadNode):
     """加载 VAE 模型。"""
 

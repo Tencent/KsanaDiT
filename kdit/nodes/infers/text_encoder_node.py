@@ -26,7 +26,7 @@ from kdit.tensor import TensorKey
 from kdit.utils import str_to_list, time_range
 
 from ..core.base_node import KsanaInferNode
-from ..core.node_factory import KsanaInferNodeFactory
+from ..core.node_factory import InferNodeFactory
 from ..core.node_types import KsanaDispatchPolicy, KsanaInferNodeType
 
 
@@ -59,7 +59,7 @@ def _offload_model_if_needed(model, offload_model, offload_device, current_devic
         model.to(offload_device)
 
 
-@KsanaInferNodeFactory.register(KsanaInferNodeType.TEXT_ENCODE, KsanaModelKey.T5TextEncoder)
+@InferNodeFactory.register(KsanaInferNodeType.TEXT_ENCODE, KsanaModelKey.T5TextEncoder)
 class T5TextEncodeNode(KsanaInferNode):
     """T5 文本编码 — forward 后 pad + chunk 拆分 pos/neg。"""
 
@@ -101,7 +101,7 @@ class T5TextEncodeNode(KsanaInferNode):
         tensor_pool.put(TensorKey.NEGATIVE, negative)
 
 
-@KsanaInferNodeFactory.register(
+@InferNodeFactory.register(
     KsanaInferNodeType.TEXT_ENCODE,
     [KsanaModelKey.Qwen2VLTextEncoder, KsanaModelKey.Qwen2VLTextEncoderMultimodal],
 )
@@ -117,7 +117,7 @@ class QwenTextEncodeNode(KsanaInferNode):
         model = model_pool.get_model(model_key)
         device = context.metadata.get("text_run_device", device_ctx.device)
         meta = context.metadata
-        images = meta.get("condition_images")
+        images = meta.get("condition_image_path")
 
         prompts_positive_list, prompts_negative_list = _validate_prompts(
             context.prompt,

@@ -34,7 +34,7 @@ from kdit.models import KsanaModelKey
 
 
 def _make_vace_generator():
-    """构造 VaceGenerator 实例，绕过 Factory 注册。"""
+    """构造 VaceGenerator 实例，绕过 AdvancedFactory 注册。"""
     from kdit.generators.vace_generator import VaceGenerator
 
     gen = VaceGenerator.__new__(VaceGenerator)
