@@ -16,6 +16,6 @@ _base_modules :
   # Note: keep include in order
   - "common.yaml"
   - "qwen/modules/common.yaml"
-  - "qwen/modules/text_encoder.yaml"
-  - "qwen/modules/20b.yaml"
-  - "qwen/modules/vae.yaml"
+  - "qwen/modules/text_encoder/text_encoder.yaml"
+  - "qwen/modules/diffusion/20b.yaml"
+  - "qwen/modules/vae/vae.yaml"

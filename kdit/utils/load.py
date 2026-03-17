@@ -22,7 +22,7 @@ import torch
 from .distribute import get_rank_id, is_multi_process
 from .logger import log
 from .prefetch import maybe_prefetch_file
-from .profile import time_range
+from .profile import time_profile
 
 
 def _resolve_one_symlink_prefix(abs_path: str) -> str:
@@ -245,7 +245,7 @@ def get_safetensors_list(model_dir, max_batch_size_gb=32):
     return safetensors_files
 
 
-@time_range
+@time_profile
 def load_state_dict(model, state_dict, assign=False, strict=False):
     load_result = model.load_state_dict(state_dict, strict=strict, assign=assign)
     if load_result.missing_keys:

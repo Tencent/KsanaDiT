@@ -27,9 +27,9 @@ from kdit import Pipeline
 from kdit.config import (
     DistributedConfig,
     KsanaAttentionConfig,
-    KsanaSampleConfig,
     ModelConfig,
     RuntimeConfig,
+    SampleConfig,
 )
 
 TEST_DTYPE = torch.bfloat16
@@ -63,7 +63,7 @@ class TestKsanaQwenImageT2I(unittest.TestCase):
         )
         images = generator.generate(
             PROMPTS,
-            sample_config=KsanaSampleConfig(steps=TEST_STEPS),
+            sample_config=SampleConfig(steps=TEST_STEPS),
             runtime_config=RuntimeConfig(
                 seed=SEED,
                 size=TEST_SIZE,

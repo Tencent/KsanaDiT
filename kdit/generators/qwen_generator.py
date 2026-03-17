@@ -15,7 +15,7 @@
 import torch
 import torch.nn.functional as F
 
-from kdit.config import KsanaSampleConfig
+from kdit.config import SampleConfig
 from kdit.config.wan_experimental_config import KsanaExperimentalConfig
 from kdit.models import ModelKey
 from kdit.utils import evolve_with_recommend, log
@@ -205,7 +205,7 @@ class QwenGenerator(BaseGenerator):
         self,
         noise_latents: torch.Tensor,
         input_latent: torch.Tensor,
-        sample_config: KsanaSampleConfig,
+        sample_config: SampleConfig,
         timesteps: torch.Tensor,
         num_train_timesteps: int,
     ):
@@ -269,7 +269,7 @@ class QwenGenerator(BaseGenerator):
         log.info(f"{self.model_key} unpack noise latents shape from {(num, hw, z_dim)} to {latents.shape}")
         return latents
 
-    def maybe_update_sample_config(self, sample_config: KsanaSampleConfig, packed_noise_shape: list, default_settings):
+    def maybe_update_sample_config(self, sample_config: SampleConfig, packed_noise_shape: list, default_settings):
         if sample_config.shift is not None:
             return sample_config
 

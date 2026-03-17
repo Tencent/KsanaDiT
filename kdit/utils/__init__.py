@@ -33,7 +33,7 @@ from .lora import load_state_dict_and_merge_lora, model_safe_downcast
 from .media import load_control_frames, load_video_frames, match_control_frames, merge_video_audio, save_video
 from .monitor import report, report_inner
 from .ops import cast_bias_weight, common_upscale, stochastic_rounding, supports_fp8_compute
-from .profile import KsanaProfiler, MemoryProfiler, TimeProfiler, nvtx_range, profile_range, time_range
+from .profile import KsanaProfiler, MemoryProfiler, TimeProfiler, TimerProfiler, nvtx_range, time_profile
 from .sample_solver import apply_sigma_shift, get_sigmas_with_denoise
 from .types import any_key_in_str, evolve_with_recommend, is_file_or_dir, str_to_list
 from .vace import (
@@ -70,8 +70,8 @@ __all__ = [
     "is_file_or_dir",
     "any_key_in_str",
     "print_recursive",
-    "time_range",
-    "profile_range",
+    "time_profile",
+    "TimerProfiler",
     "TimeProfiler",
     "save_video",
     "merge_video_audio",

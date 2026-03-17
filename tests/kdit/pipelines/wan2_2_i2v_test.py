@@ -33,10 +33,10 @@ from kdit.config import (
     KsanaAttentionBackend,
     KsanaAttentionConfig,
     KsanaSageSLAConfig,
-    KsanaSampleConfig,
-    KsanaSolverType,
     ModelConfig,
     RuntimeConfig,
+    SampleConfig,
+    SolverType,
 )
 from kdit.utils.distribute import get_gpu_count
 
@@ -67,7 +67,7 @@ class TestKsanaPipelineWanI2V(unittest.TestCase):
         videos = pipeline.generate(
             PROMPTS[0],
             start_img_path="./examples/images/input.png",
-            sample_config=KsanaSampleConfig(steps=TEST_STEPS),
+            sample_config=SampleConfig(steps=TEST_STEPS),
             runtime_config=RuntimeConfig(
                 seed=SEED,
                 size=TEST_SIZE,
@@ -85,7 +85,7 @@ class TestKsanaPipelineWanI2V(unittest.TestCase):
             PROMPTS,
             start_img_path="./examples/images/start_image.png",
             end_img_path="./examples/images/end_image.png",
-            sample_config=KsanaSampleConfig(steps=TEST_STEPS, add_noise_to_latent=True),
+            sample_config=SampleConfig(steps=TEST_STEPS, add_noise_to_latent=True),
             runtime_config=RuntimeConfig(
                 seed=SEED,
                 size=TEST_SIZE,
@@ -125,7 +125,7 @@ class TestKsanaPipelineWanI2V(unittest.TestCase):
 
         model_config = ModelConfig(attention_config=sage_sla_config, run_dtype=torch.bfloat16)
 
-        sample_config = KsanaSampleConfig(steps=TEST_STEPS, cfg_scale=1.0, shift=5.0, solver=KsanaSolverType.EULER)
+        sample_config = SampleConfig(steps=TEST_STEPS, cfg_scale=1.0, shift=5.0, solver=SolverType.EULER)
 
         high = "./TurboWan2.2-I2V-A14B-720P/TurboWan2.2-I2V-A14B-high-720P.pth"
         low = "./TurboWan2.2-I2V-A14B-720P/TurboWan2.2-I2V-A14B-low-720P.pth"

@@ -16,7 +16,7 @@ from dataclasses import dataclass, field
 
 import torch
 
-from kdit.config import KsanaSampleConfig, RuntimeConfig
+from kdit.config import RuntimeConfig, SampleConfig
 
 
 @dataclass
@@ -35,7 +35,7 @@ class NodeContext:
     img_path: str | list[str] | list[list[str]] = None
 
     # 配置
-    sample_config: KsanaSampleConfig = None
+    sample_config: SampleConfig = None
     runtime_config: RuntimeConfig = None
     cache_config: list = None
 

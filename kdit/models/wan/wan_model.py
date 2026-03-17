@@ -11,9 +11,9 @@ from kdit.accelerator import platform
 from kdit.cache import KsanaHybridCache
 from kdit.config import KsanaFETAConfig, KsanaSLGConfig
 from kdit.operations.fuse_qkv import QKVProjectionMixin
-from kdit.utils import all_to_all, gather_forward, get_rank_id, get_world_size, time_range
+from kdit.utils import all_to_all, gather_forward, get_rank_id, get_world_size
 from kdit.utils.experimental_sampling import compute_feta_scores
-from kdit.utils.profile import profile_range
+from kdit.utils.profile import time_profile
 from kdit.utils.rope import EmbedND, apply_comfyui_rope, apply_default_rope
 
 if platform.is_npu():
@@ -867,7 +867,7 @@ class WanModel(ModelMixin, ConfigMixin):
         grid_sizes = torch.tensor([t_in, h_in, w_in], dtype=torch.long, device=device).unsqueeze(0).expand(bs, -1)
 
         # embeddings
-        with profile_range("img_in"):
+        with time_profile("img_in"):
             if self.is_turbo_diffusion_wan_model:
                 x = rearrange(
                     x,
@@ -891,7 +891,7 @@ class WanModel(ModelMixin, ConfigMixin):
         )  # pad f*h*w to seqlen, => [bs, seqlen, 5120]
 
         # time embeddings
-        with profile_range("time_embed"):
+        with time_profile("time_embed"):
             # 取第一个 timestep，因为一个batch里的timestamp都是一样的
             timestep = t[0].item() if t.numel() > 1 else t.item()
 
@@ -913,7 +913,7 @@ class WanModel(ModelMixin, ConfigMixin):
             e0 = e0.unflatten(2, (6, self.dim))
 
         # context
-        with profile_range("txt_in"):
+        with time_profile("txt_in"):
             context_lens = None
             # [bs, 512, 4096] pad to => [bs, text_len:512, 4096]
             padded_context = torch.cat(
@@ -926,7 +926,7 @@ class WanModel(ModelMixin, ConfigMixin):
             x = torch.chunk(x, self.sp_size, dim=1)[get_rank_id()]
 
         # RoPE frequencies
-        with profile_range("rope_compute"):
+        with time_profile("rope_compute"):
             rope_freqs = self._get_rope_freqs(grid_sizes, device=x.device, dtype=x.dtype)
             if rope_freqs.device != device:
                 rope_freqs = rope_freqs.to(device)
@@ -965,11 +965,11 @@ class WanModel(ModelMixin, ConfigMixin):
         )
 
         # x: [bs, seqlen, 5120]
-        with profile_range("run_blocks"):
+        with time_profile("run_blocks"):
             x = self._run_blocks(x, cache, phase, timestep, kwargs, slg_active, slg_blocks, seq_len, **extra_kwargs)
 
         # head
-        with profile_range("head"):
+        with time_profile("head"):
             x = self.head(x, e)
             if self.sp_size > 1:
                 x = gather_forward(x, dim=1)
@@ -1031,7 +1031,7 @@ class WanModel(ModelMixin, ConfigMixin):
         u = u.reshape(b, c, *[i * j for i, j in zip(grid_sizes, self.patch_size)])
         return u
 
-    @time_range
+    @time_profile
     def init_weights(self):
         r"""
         Initialize model parameters using Xavier initialization.
@@ -1235,7 +1235,7 @@ class VaceWanModel(WanModel):
             vace_context_scale=vace_context_scale,
         )
 
-    @time_range
+    @time_profile
     def init_weights(self):
         super().init_weights()
         nn.init.xavier_uniform_(self.vace_patch_embedding.weight.flatten(1))

@@ -18,7 +18,7 @@ from pathlib import Path
 from kdit.models import KsanaTextEncoderModel
 from kdit.models.model_key import ModelKey
 from kdit.settings import load_default_settings
-from kdit.utils import log, time_range
+from kdit.utils import log, time_profile
 
 from ..core.base_node import LoaderNode
 from ..core.node_factory import LoaderNodeFactory
@@ -33,7 +33,7 @@ class TextEncoderLoaderNode(LoaderNode):
 
     dispatch_policy = NodeDispatchPolicy.ALL_ALL_ALL
 
-    @time_range
+    @time_profile
     def run(self, model_key, *, model_pool, device_ctx, **kwargs):
         checkpoint_dir = kwargs["model_path"]
         log.info(f"{model_key} loading text model")

@@ -12,11 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""ContextBuilder — 为 Pipeline 的每个 InferPhase 构建 NodeContext 和准备 tensor。
+"""ContextBuilder — 为 Pipeline 的每个阶段构建配置和 NodeContext。
 
 每个 Pipeline 变体实现自己的 ContextBuilder 子类。
 
 生命周期：
+
+Load 阶段（新增）：
+1. resolve_model_paths(model_path, ...) — 解析模型路径
+2. resolve_lora_config(lora_config, ...) — 解析 LoRA 配置
+3. build_loader_kwargs(model_key, ...) — 为每个 LoadPhase 构建 kwargs
+
+Generate 阶段：
 1. prepare_generate_inputs(base_inputs, **kwargs) — 一次性：提取 Pipeline 特有输入
 2. 对每个 InferPhase:
    a. check_condition(name, inputs) — 是否跳过
@@ -25,11 +32,15 @@
 3. post_process(output, inputs) — 输出后处理
 """
 
+import os
 from abc import ABC, abstractmethod
+from pathlib import Path
 from typing import Any
 
 import torch
 
+from kdit.config.lora_config import LoraConfig
+from kdit.models.model_key import DIFFUSION_KEYS, TEXT_ENCODER_KEYS, VAE_KEYS, ModelKey
 from kdit.nodes.core.node_context import NodeContext
 from kdit.tensor import TensorKey
 
@@ -38,13 +49,101 @@ from .pipeline_phase import InferPhase
 
 
 class ContextBuilder(ABC):
-    """为 Pipeline 的每个 InferPhase 构建 NodeContext 和准备 tensor。
+    """为 Pipeline 的每个阶段构建配置和 NodeContext。
 
     每个 Pipeline 变体实现自己的 ContextBuilder 子类。
     """
 
     def __init__(self):
         self._extra: Any = None  # prepare_generate_inputs() 的结果，子类特有输入
+
+    # ── Load 阶段 ──
+
+    def resolve_model_paths(
+        self,
+        model_path: str | list[str],
+        text_checkpoint_dir: str | None,
+        vae_checkpoint_dir: str | None,
+        pipeline_settings: Any,
+    ) -> tuple[str | list[str], str, str]:
+        """解析模型路径 — 默认实现处理通用逻辑。
+
+        子类可覆盖以处理特例（如 Wan 的 high/low noise 拆分）。
+
+        Returns:
+            (load_model_path, text_checkpoint_dir, vae_checkpoint_dir)
+        """
+        if isinstance(model_path, (list, tuple)):
+            if not Path(text_checkpoint_dir).is_dir():
+                raise ValueError(
+                    f"text_checkpoint_dir must be provided when loading from local checkpoint "
+                    f"with diffusion model {model_path}"
+                )
+            if not Path(vae_checkpoint_dir).is_dir():
+                raise ValueError(
+                    f"vae_checkpoint_dir must be provided when loading from local checkpoint "
+                    f"with diffusion model {model_path}"
+                )
+            return list(model_path), text_checkpoint_dir, vae_checkpoint_dir
+
+        if Path(model_path).is_dir():
+            text_checkpoint_dir = text_checkpoint_dir or model_path
+            vae_checkpoint_dir = vae_checkpoint_dir or model_path
+            return model_path, text_checkpoint_dir, vae_checkpoint_dir
+
+        raise ValueError(f"model_path {model_path} should be a directory or list of diffusion model files")
+
+    def resolve_lora_config(
+        self,
+        lora_config: LoraConfig | list[LoraConfig],
+        pipeline_settings: Any,
+    ) -> list[list[LoraConfig]]:
+        """解析 LoRA 配置 — 默认实现。
+
+        子类可覆盖以处理特例（如 Wan 的 high/low noise LoRA 拆分）。
+
+        Returns:
+            list_of_loras_list: 外层列表对应多个 diffusion checkpoint，
+            内层列表对应每个 checkpoint 的多个 LoRA。
+        """
+        if isinstance(lora_config, LoraConfig):
+            lora_list = [lora_config]
+        elif isinstance(lora_config, (list, tuple)):
+            lora_list = list(lora_config)
+        else:
+            raise ValueError(f"lora_config {lora_config} must be a LoraConfig or a list of LoraConfig")
+        return [lora_list]
+
+    def build_loader_kwargs(
+        self,
+        model_key: ModelKey,
+        load_model_path: str | list[str],
+        text_dir: str,
+        vae_dir: str,
+        *,
+        model_config: Any,
+        lora_list: list[list[LoraConfig]] | None,
+        pipeline_settings: Any,
+    ) -> dict:
+        """构建 loader node 的 kwargs — 默认按 ModelKey 类别分发。
+
+        子类可覆盖以处理特殊的 loader 参数。
+        """
+        if model_key in TEXT_ENCODER_KEYS:
+            return {"model_path": text_dir}
+        if model_key in DIFFUSION_KEYS:
+            kwargs = {"model_path": load_model_path, "model_config": model_config}
+            if lora_list:
+                kwargs["lora_config"] = lora_list
+            return kwargs
+        if model_key in VAE_KEYS:
+            vae_ckpt = getattr(pipeline_settings, "vae", None)
+            vae_checkpoint = vae_ckpt.checkpoint if vae_ckpt else ""
+            return {"model_path": os.path.join(vae_dir, vae_checkpoint)}
+        # 未知类别 — 默认传 model_path
+        return {"model_path": load_model_path}
+
+    # ── Generate 阶段 ──
 
     def prepare_generate_inputs(self, base_inputs: GenerateInputs, **kwargs) -> None:
         """从 kwargs 中提取并校验 Pipeline 特有的输入。

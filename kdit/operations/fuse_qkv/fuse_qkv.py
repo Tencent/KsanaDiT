@@ -21,7 +21,7 @@ combined into a single GEMM for better GPU utilization.
 import torch
 
 from kdit.utils.logger import log
-from kdit.utils.profile import time_range
+from kdit.utils.profile import time_profile
 
 MODEL_QKV_PATTERNS = {
     "wan": [
@@ -148,7 +148,7 @@ def model_uses_qkv_fusion(model) -> bool:
     return False
 
 
-@time_range
+@time_profile
 def remap_state_dict_for_model(
     model,
     state_dict,

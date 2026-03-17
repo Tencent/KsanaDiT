@@ -14,7 +14,7 @@
 
 import torch
 
-from kdit.config import KsanaSampleConfig
+from kdit.config import SampleConfig
 from kdit.models import KsanaDiffusionModel, ModelKey
 from kdit.utils import log
 
@@ -71,7 +71,7 @@ class WanGenerator(BaseGenerator):
         self,
         noise_latents: torch.Tensor,
         input_latent: torch.Tensor,
-        sample_config: KsanaSampleConfig,
+        sample_config: SampleConfig,
         timesteps: torch.Tensor,
         num_train_timesteps: int,
     ):

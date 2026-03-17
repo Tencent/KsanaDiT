@@ -218,10 +218,10 @@ class TestMaybeUpdateSampleConfig(unittest.TestCase):
         self.assertIs(result, sc)
 
     def test_none_shift_computes(self):
-        from kdit.config import KsanaSampleConfig
+        from kdit.config import SampleConfig
 
         gen = _make_qwen_generator()
-        sc = KsanaSampleConfig(shift=None)
+        sc = SampleConfig(shift=None)
         default_settings = MagicMock()
         default_settings.sample_config.base_seq_len = 256
         default_settings.sample_config.max_seq_len = 4096
@@ -231,10 +231,10 @@ class TestMaybeUpdateSampleConfig(unittest.TestCase):
         self.assertIsNotNone(result.shift)
 
     def test_non_3d_shape_raises(self):
-        from kdit.config import KsanaSampleConfig
+        from kdit.config import SampleConfig
 
         gen = _make_qwen_generator()
-        sc = KsanaSampleConfig(shift=None)
+        sc = SampleConfig(shift=None)
         with self.assertRaises(RuntimeError, msg="should be 3D"):
             gen.maybe_update_sample_config(sc, [2, 256], MagicMock())
 

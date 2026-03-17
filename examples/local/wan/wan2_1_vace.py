@@ -23,11 +23,11 @@ from kdit.config import (
     DistributedConfig,
     KsanaExperimentalConfig,
     KsanaFETAConfig,
-    KsanaSampleConfig,
     KsanaSLGConfig,
-    KsanaSolverType,
     KsanaVideoControlConfig,
     RuntimeConfig,
+    SampleConfig,
+    SolverType,
 )
 from kdit.utils import load_control_frames
 from kdit.utils.vace import VaceConfig
@@ -57,11 +57,11 @@ def run_simple(args):
     video = engine.generate(
         prompts[0],
         prompt_negative=NEGATIVE_PROMPT,
-        sample_config=KsanaSampleConfig(
+        sample_config=SampleConfig(
             steps=args.steps,
             cfg_scale=6.0,
             shift=8.0,
-            solver=KsanaSolverType.UNI_PC,
+            solver=SolverType.UNI_PC,
         ),
         runtime_config=RuntimeConfig(
             seed=SEED,
@@ -126,11 +126,11 @@ def run_with_experimental_configs(args):
     video = engine.generate(
         prompts[0],
         prompt_negative=NEGATIVE_PROMPT,
-        sample_config=KsanaSampleConfig(
+        sample_config=SampleConfig(
             steps=args.steps,
             cfg_scale=6.0,
             shift=8.0,
-            solver=KsanaSolverType.UNI_PC,
+            solver=SolverType.UNI_PC,
             video_control=KsanaVideoControlConfig(
                 slg=slg_config,
                 feta=feta_config,
@@ -168,11 +168,11 @@ def run_with_control_video(args):
     video = engine.generate(
         prompts[0],
         prompt_negative=NEGATIVE_PROMPT,
-        sample_config=KsanaSampleConfig(
+        sample_config=SampleConfig(
             steps=args.steps,
             cfg_scale=6.0,
             shift=8.0,
-            solver=KsanaSolverType.UNI_PC,
+            solver=SolverType.UNI_PC,
         ),
         runtime_config=RuntimeConfig(
             seed=SEED,

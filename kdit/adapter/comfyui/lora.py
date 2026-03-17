@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from kdit.config.lora_config import KsanaLoraConfig
+from kdit.config.lora_config import LoraConfig
 
 
 def build_list_of_lora_config(lora_inputs: list[tuple[str, float]] | tuple[str, float]):
@@ -24,5 +24,5 @@ def build_list_of_lora_config(lora_inputs: list[tuple[str, float]] | tuple[str, 
             raise ValueError(f"lora strength must be a scalar, but got {strength}")
         if lora_path is None:
             continue
-        loras_list.append(KsanaLoraConfig(path=lora_path, strength=round(strength, 4)))
+        loras_list.append(LoraConfig(path=lora_path, strength=round(strength, 4)))
     return loras_list

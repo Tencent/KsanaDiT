@@ -25,12 +25,12 @@ from kdit.config import (
     KsanaAttentionBackend,
     KsanaAttentionConfig,
     KsanaLinearBackend,
-    KsanaLoraConfig,
-    KsanaSampleConfig,
-    KsanaSolverType,
     KsanaTorchCompileConfig,
+    LoraConfig,
     ModelConfig,
     RuntimeConfig,
+    SampleConfig,
+    SolverType,
 )
 from kdit.config.cache_config import CustomStepCacheConfig, DBCacheConfig, DCacheConfig, HybridCacheConfig
 from kdit.utils.distribute import get_gpu_count
@@ -51,7 +51,7 @@ def run_simple(args):
 
     video = pipeline.generate(
         prompts[0],
-        sample_config=KsanaSampleConfig(steps=40),
+        sample_config=SampleConfig(steps=40),
         runtime_config=RuntimeConfig(
             seed=SEED,
             size=(720, 480),
@@ -92,7 +92,7 @@ def run_fp8_models(args):
 
     video = pipeline.generate(
         prompts[0],
-        sample_config=KsanaSampleConfig(steps=40),
+        sample_config=SampleConfig(steps=40),
         runtime_config=RuntimeConfig(
             seed=SEED,
             size=(720, 480),
@@ -125,7 +125,7 @@ def run_advanced(args):
         save_output=True,
     )
 
-    sample_config = KsanaSampleConfig(steps=40, cfg_scale=3.0, shift=12.0, solver=KsanaSolverType.UNI_PC)
+    sample_config = SampleConfig(steps=40, cfg_scale=3.0, shift=12.0, solver=SolverType.UNI_PC)
 
     cache_config = HybridCacheConfig(
         step_cache=DCacheConfig(fast_degree=50),
@@ -149,7 +149,7 @@ def run_fast(args):
     pipeline = Pipeline.from_models(
         f"{args.model_dir}/Wan2.2-T2V-A14B",
         model_config=model_config,
-        lora_config=KsanaLoraConfig(f"{args.model_dir}/Wan2.2-Lightning/Wan2.2-T2V-A14B-4steps-lora-rank64-Seko-V1"),
+        lora_config=LoraConfig(f"{args.model_dir}/Wan2.2-Lightning/Wan2.2-T2V-A14B-4steps-lora-rank64-Seko-V1"),
         dist_config=DistributedConfig(num_gpus=NUM_GPUS),
     )
 
@@ -163,11 +163,11 @@ def run_fast(args):
         rope_function="comfy",
     )
 
-    sample_config = KsanaSampleConfig(
+    sample_config = SampleConfig(
         steps=4,
         cfg_scale=1.0,
         shift=5.0,
-        solver=KsanaSolverType.EULER,
+        solver=SolverType.EULER,
         sigmas=[1.0, 0.9375001, 0.6333333, 0.225, 0.0000],
     )
 

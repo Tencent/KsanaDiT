@@ -25,7 +25,7 @@ from ..config import DistributedConfig
 from ..executor import KsanaExecutor, RayKsanaExecutor
 from ..utils import log
 from ..utils.distribute import get_gpu_count, get_torchrun_env, is_launched_by_torchrun
-from ..utils.profile import profile_range
+from ..utils.profile import time_profile
 
 
 def get_engine(*args, **kwargs):
@@ -274,7 +274,7 @@ class Engine:
         if model_key is not None:
             model_name = model_key.name if hasattr(model_key, "name") else str(model_key)
             node_label = f"load_[{model_name}]"
-        with profile_range(node_label):
+        with time_profile(node_label):
             if self.is_ray:
                 ray.get([ex.run_loader_node.remote(model_key, **kwargs) for ex in self.executors])
             else:
@@ -297,7 +297,7 @@ class Engine:
             model_name = model_key.name if hasattr(model_key, "name") else str(model_key)
             node_label = f"{node_label}[{model_name}]"
 
-        with profile_range(node_label):
+        with time_profile(node_label):
             if self.is_ray:
                 futures = [ex.run_infer_node.remote(infer_node_type, model_key, context) for ex in self.executors]
                 ray.get(futures)

@@ -33,13 +33,13 @@ from kdit import (
     KsanaAttentionBackend,
     KsanaAttentionConfig,
     KsanaLinearBackend,
-    KsanaSampleConfig,
     KsanaTorchCompileConfig,
     Pipeline,
     RuntimeConfig,
+    SampleConfig,
 )
 from kdit.accelerator import platform
-from kdit.config import KsanaLoraConfig, ModelConfig
+from kdit.config import LoraConfig, ModelConfig
 from kdit.utils.distribute import get_gpu_count
 
 
@@ -69,7 +69,7 @@ class TestKsanaPipelineWanT2V(unittest.TestCase):
         batch_size_per_prompts = [2, 3]
         videos = pipeline.generate(
             PROMPTS,
-            sample_config=KsanaSampleConfig(steps=TEST_STEPS),
+            sample_config=SampleConfig(steps=TEST_STEPS),
             runtime_config=RuntimeConfig(
                 seed=SEED,
                 size=TEST_SIZE,
@@ -94,7 +94,7 @@ class TestKsanaPipelineWanT2V(unittest.TestCase):
 
         videos = pipeline.generate(
             PROMPTS[0],
-            sample_config=KsanaSampleConfig(steps=TEST_STEPS),
+            sample_config=SampleConfig(steps=TEST_STEPS),
             runtime_config=RuntimeConfig(
                 seed=SEED,
                 size=TEST_SIZE,
@@ -130,7 +130,7 @@ class TestKsanaPipelineWanT2V(unittest.TestCase):
         )
         videos = pipeline.generate(
             PROMPTS,
-            sample_config=KsanaSampleConfig(steps=TEST_STEPS),
+            sample_config=SampleConfig(steps=TEST_STEPS),
             runtime_config=RuntimeConfig(
                 seed=SEED,
                 size=(1280, 720),
@@ -175,7 +175,7 @@ class TestKsanaPipelineWanT2V(unittest.TestCase):
         )
         video = pipeline.generate(
             PROMPTS[0],
-            sample_config=KsanaSampleConfig(steps=TEST_STEPS),
+            sample_config=SampleConfig(steps=TEST_STEPS),
             runtime_config=RuntimeConfig(
                 seed=SEED,
                 size=TEST_SIZE,
@@ -195,14 +195,14 @@ class TestKsanaPipelineWanT2V(unittest.TestCase):
         expected = get_platform_expected_or_skip(expected_values)
         pipeline = Pipeline.from_models(
             "./Wan2.2-T2V-A14B",
-            lora_config=KsanaLoraConfig("./Wan2.2-Lightning/Wan2.2-T2V-A14B-4steps-lora-rank64-Seko-V1"),
+            lora_config=LoraConfig("./Wan2.2-Lightning/Wan2.2-T2V-A14B-4steps-lora-rank64-Seko-V1"),
             model_config=self.MODEL_CONFIG,
             dist_config=DistributedConfig(port=TEST_PORT),
         )
 
         video = pipeline.generate(
             PROMPTS[0],
-            sample_config=KsanaSampleConfig(steps=TEST_STEPS),
+            sample_config=SampleConfig(steps=TEST_STEPS),
             runtime_config=RuntimeConfig(
                 seed=SEED,
                 size=RADIAL_ATTN_TEST_SIZE,

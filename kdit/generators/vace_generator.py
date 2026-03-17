@@ -14,7 +14,7 @@
 
 import torch
 
-from kdit.config import KsanaSolverType
+from kdit.config import SolverType
 from kdit.config.wan_experimental_config import KsanaExperimentalConfig, KsanaFETAConfig, KsanaSLGConfig
 from kdit.models import ModelKey
 from kdit.utils.vace import (
@@ -100,7 +100,7 @@ class VaceGenerator(WanGenerator):
             prepare_model_forward_kargs_fn=self.prepare_model_forward_kargs,
             use_cfg_fn=self._use_cfg,
             apply_cfg_fn=self.apply_cfg,
-            solver_type_euler=KsanaSolverType.EULER,
+            solver_type_euler=SolverType.EULER,
         )
 
     def build_video_control_kwargs(self, **kwargs):

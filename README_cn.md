@@ -153,7 +153,7 @@ from kdit import Pipeline
 from kdit.config import (
     DistributedConfig,
     RuntimeConfig,
-    KsanaSampleConfig,
+    SampleConfig,
 )
 
 # 创建推理管道
@@ -165,7 +165,7 @@ pipeline = Pipeline.from_models(
 # 生成视频
 video = pipeline.generate(
     "街头摄影，戴耳机的酷女孩滑板，纽约街头，涂鸦墙背景",
-    sample_config=KsanaSampleConfig(steps=40),
+    sample_config=SampleConfig(steps=40),
     runtime_config=RuntimeConfig(
         seed=1234,
         size=(720, 480),
@@ -181,14 +181,14 @@ print(f"生成视频形状: {video.shape}")
 
 ```python
 from kdit import Pipeline
-from kdit.config import RuntimeConfig, KsanaSampleConfig
+from kdit.config import RuntimeConfig, SampleConfig
 
 pipeline = Pipeline.from_models("path/to/Wan2.2-I2V-A14B")
 
 video = pipeline.generate(
     "女孩扇子轻微挥动，吹口仙气后，手上的闪电飞到空中开始打雷",
     img_path="input.png",
-    sample_config=KsanaSampleConfig(steps=40),
+    sample_config=SampleConfig(steps=40),
     runtime_config=RuntimeConfig(
         seed=1234,
         size=(512, 512),
@@ -209,8 +209,8 @@ from kdit import Pipeline
 from kdit.config import (
     ModelConfig,
     RuntimeConfig,
-    KsanaSampleConfig,
-    KsanaSolverType,
+    SampleConfig,
+    SolverType,
 )
 
 pipeline = Pipeline.from_models(
@@ -220,10 +220,10 @@ pipeline = Pipeline.from_models(
 
 image = pipeline.generate(
     "一只可爱的橘猫坐在窗台上，阳光透过窗户洒在它的毛发上",
-    sample_config=KsanaSampleConfig(
+    sample_config=SampleConfig(
         steps=20,
         cfg_scale=4.0,
-        solver=KsanaSolverType.FLOWMATCH_EULER,
+        solver=SolverType.FLOWMATCH_EULER,
     ),
     runtime_config=RuntimeConfig(
         seed=42,
@@ -262,17 +262,17 @@ pipeline = Pipeline.from_models(
 
 ```python
 from kdit import Pipeline
-from kdit.config import KsanaLoraConfig, KsanaSampleConfig
+from kdit.config import LoraConfig, SampleConfig
 
 pipeline = Pipeline.from_models(
     "path/to/Wan2.2-T2V-A14B",
-    lora_config=KsanaLoraConfig("path/to/Wan2.2-Lightning-4steps-lora"),
+    lora_config=LoraConfig("path/to/Wan2.2-Lightning-4steps-lora"),
 )
 
 # 使用 4 步快速生成
 video = pipeline.generate(
     prompt,
-    sample_config=KsanaSampleConfig(
+    sample_config=SampleConfig(
         steps=4,
         cfg_scale=1.0,
         sigmas=[1.0, 0.9375, 0.6333, 0.225, 0.0],

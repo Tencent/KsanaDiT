@@ -17,13 +17,13 @@ from abc import abstractmethod
 import torch
 from tqdm import tqdm
 
-from kdit.config import KsanaSampleConfig, RuntimeConfig
-from kdit.config.cache_config import HybridCacheConfig, KsanaCacheConfig
+from kdit.config import RuntimeConfig, SampleConfig
+from kdit.config.cache_config import CacheConfig, HybridCacheConfig
 from kdit.models import KsanaDiffusionModel
 from kdit.sample_solvers import get_sample_scheduler
 from kdit.scheduler import KsanaBatchScheduler
 from kdit.utils import log
-from kdit.utils.profile import profile_range
+from kdit.utils.profile import time_profile
 
 from .generator_context import GeneratorInferContext
 from .steps import noise as noise_ops
@@ -160,9 +160,9 @@ class BaseGenerator:
         noise_latent: torch.Tensor,
         image_embeds: list[torch.Tensor] | None,
         process_info: list[int],
-        sample_config: KsanaSampleConfig,
+        sample_config: SampleConfig,
         runtime_config: RuntimeConfig,
-        cache_config: list[KsanaCacheConfig | HybridCacheConfig],
+        cache_config: list[CacheConfig | HybridCacheConfig],
         combine_cond_uncond: bool,
         timesteps: torch.Tensor,  # Tensor(list[int])
         run_dtype: torch.dtype,
@@ -181,7 +181,7 @@ class BaseGenerator:
         total_steps = len(timesteps)
         cur_batch_size = self._get_num_prompts(positive)
         for iter_id, t in enumerate(tqdm(timesteps)):
-            with profile_range(f"step_{iter_id}", annotation=f"t={t.item():.4f}"):
+            with time_profile(f"step_{iter_id}", note=f"t={t.item():.4f}"):
                 current_step_percent = iter_id / max(total_steps - 1, 1)
                 noise_latent = noise_latent.to(run_dtype)
                 timestep = t.repeat(cur_batch_size)
@@ -335,7 +335,7 @@ class BaseGenerator:
     # run() — 主入口
     # ------------------------------------------------------------------
 
-    @profile_range
+    @time_profile
     def run(self, ctx: GeneratorInferContext) -> torch.Tensor:
         """执行完整的去噪生成流程。
 

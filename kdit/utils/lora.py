@@ -23,7 +23,7 @@ import torch.nn as nn
 from .distribute import get_rank_id
 from .load import get_safetensors_list, load_file_to_state_dict, load_files_to_state_dict
 from .logger import log
-from .profile import time_range
+from .profile import time_profile
 
 
 def model_safe_downcast(
@@ -178,7 +178,7 @@ def merge_lora_weight(
     return model_sd
 
 
-@time_range
+@time_profile
 def load_state_dict_and_merge_lora(
     model_path: str, loras_list: list = None, run_dtype: torch.dtype = None, device=None, model_patch_path: str = None
 ):

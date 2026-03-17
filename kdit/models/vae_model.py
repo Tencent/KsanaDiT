@@ -21,7 +21,7 @@ from ..accelerator.platform import empty_cache
 from ..models.model_key import ModelKey
 from ..utils.logger import log
 from ..utils.media import calculate_aligned_dimensions
-from ..utils.profile import time_range
+from ..utils.profile import time_profile
 from ..utils.vace import init_latent_stats
 from .model_base import ModelBase
 from .qwen.vae import KsanaQwenImageVAE
@@ -75,11 +75,11 @@ class KsanaVAEModel(ModelBase):
         self.device = device
         self.dtype = dtype
 
-    @time_range("vae_decode")
+    @time_profile("vae_decode")
     def decode(self, latents, with_end_image: bool = False):
         return self.model.decode(latents, with_end_image)
 
-    @time_range("vae_encode")
+    @time_profile("vae_encode")
     def encode(self, latents, with_end_image: bool = False):
         return self.model.encode(latents, with_end_image)
 
@@ -233,7 +233,7 @@ class KsanaVAEModel(ModelBase):
         log.info(f"image_latents shape {y.shape}, {y.device}, {y.dtype}, mask shape {mask.shape}")
         return y
 
-    @time_range
+    @time_profile
     def forward_decode(self, latents, local_rank, device=None, with_end_image: bool = False) -> torch.Tensor:
         log.info(f"vae_decode input latents shape: {latents.shape}, {latents.device}, {latents.dtype}")
         if latents.ndim != 5:

@@ -21,12 +21,14 @@ WanContextBuilder 是公共基类，提供 Wan 系列共用的 context 构建方
 import os
 from dataclasses import dataclass
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 
 import torch
 import torchvision.transforms.functional as tvtf
 from PIL import Image
 
+from kdit.config.lora_config import LoraConfig
 from kdit.engine import Engine
 from kdit.models.model_key import ModelKey
 from kdit.models.vae_model import compute_video_latent_shape
@@ -48,7 +50,87 @@ class WanContextBuilder(ContextBuilder):
     """Wan 系列的公共基类 — 提供共用的 context 构建方法。
 
     子类只需实现 ``prepare_generate_inputs`` 和 ``build_context``。
+
+    覆盖 Load 阶段方法以处理 Wan 特有的 high/low noise 拆分逻辑。
     """
+
+    # ── Load 阶段覆盖 ──
+
+    def resolve_model_paths(
+        self,
+        model_path: str | list[str],
+        text_checkpoint_dir: str | None,
+        vae_checkpoint_dir: str | None,
+        pipeline_settings: Any,
+    ) -> tuple[str | list[str], str, str]:
+        """Wan 系列：目录模式下自动拆分 high/low noise checkpoint。
+
+        通过 settings 中是否有 ``high_noise_checkpoint`` / ``low_noise_checkpoint``
+        来判断是否需要拆分，不再硬编码 PipelineKey。
+        """
+        load_model_path, text_dir, vae_dir = super().resolve_model_paths(
+            model_path, text_checkpoint_dir, vae_checkpoint_dir, pipeline_settings
+        )
+
+        # Wan 特例：如果 settings 中有 high/low noise checkpoint 配置，自动拆分
+        diffusion = getattr(pipeline_settings, "diffusion", None)
+        high = getattr(diffusion, "high_noise_checkpoint", None) if diffusion else None
+        low = getattr(diffusion, "low_noise_checkpoint", None) if diffusion else None
+        if high and low and isinstance(load_model_path, str):
+            load_model_path = [
+                os.path.join(load_model_path, high),
+                os.path.join(load_model_path, low),
+            ]
+
+        return load_model_path, text_dir, vae_dir
+
+    def resolve_lora_config(
+        self,
+        lora_config: LoraConfig | list[LoraConfig],
+        pipeline_settings: Any,
+    ) -> list[list[LoraConfig]]:
+        """Wan 系列：自动拆分 high/low noise LoRA。
+
+        通过 settings 中是否有 ``high_noise_lora_checkpoint`` / ``low_noise_lora_checkpoint``
+        来判断是否需要拆分，不再硬编码 PipelineKey。
+        """
+        if isinstance(lora_config, LoraConfig):
+            lora_list = [lora_config]
+        elif isinstance(lora_config, (list, tuple)):
+            lora_list = list(lora_config)
+        else:
+            raise ValueError(f"lora_config {lora_config} must be a LoraConfig or a list of LoraConfig")
+
+        diffusion = getattr(pipeline_settings, "diffusion", None)
+        high_lora_ckpt = getattr(diffusion, "high_noise_lora_checkpoint", None) if diffusion else None
+        low_lora_ckpt = getattr(diffusion, "low_noise_lora_checkpoint", None) if diffusion else None
+
+        if high_lora_ckpt and low_lora_ckpt:
+            # 拆分为 high/low noise LoRA 列表
+            lora_list_high = []
+            lora_list_low = []
+            for one_lora in lora_list:
+                if not isinstance(one_lora, LoraConfig):
+                    raise ValueError(f"one_lora {one_lora} must be a LoraConfig")
+                if not Path(one_lora.path).is_dir():
+                    raise ValueError(f"one_lora.path {one_lora.path} must be a directory for high/low noise LoRA")
+                lora_list_high.append(
+                    LoraConfig(
+                        path=os.path.join(one_lora.path, high_lora_ckpt),
+                        strength=one_lora.strength,
+                    )
+                )
+                lora_list_low.append(
+                    LoraConfig(
+                        path=os.path.join(one_lora.path, low_lora_ckpt),
+                        strength=one_lora.strength,
+                    )
+                )
+            return [lora_list_high, lora_list_low]
+
+        return [lora_list]
+
+    # ── Generate 阶段 ──
 
     def _build_text_ctx(self, inputs: GenerateInputs) -> NodeContext:
         """构建 TextEncode 的 context。"""

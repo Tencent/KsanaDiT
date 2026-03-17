@@ -16,8 +16,8 @@
 
 import torch
 
-from kdit.config import KsanaSampleConfig, KsanaSolverType, RuntimeConfig
-from kdit.config.cache_config import HybridCacheConfig, KsanaCacheConfig, warp_as_hybrid_cache
+from kdit.config import RuntimeConfig, SampleConfig, SolverType
+from kdit.config.cache_config import CacheConfig, HybridCacheConfig, warp_as_hybrid_cache
 from kdit.models import KsanaDiffusionModel, ModelKey
 from kdit.utils import evolve_with_recommend, log
 
@@ -52,7 +52,7 @@ def valid_diffusion_model(
     return diffusion_model
 
 
-def valid_sample_config(sample_config: KsanaSampleConfig, model_len: int) -> KsanaSampleConfig:
+def valid_sample_config(sample_config: SampleConfig, model_len: int) -> SampleConfig:
     """校验并规范化 sample_config。"""
     log.info(f"sample_config: {sample_config}")
     if isinstance(sample_config.cfg_scale, (float, int)):
@@ -67,14 +67,14 @@ def valid_sample_config(sample_config: KsanaSampleConfig, model_len: int) -> Ksa
         )
     else:
         raise TypeError(f"sample_config.cfg_scale {sample_config.cfg_scale} type not supported")
-    if sample_config.solver is None or not KsanaSolverType.support(sample_config.solver):
-        raise ValueError(f"sample_config.solver must in support list {KsanaSolverType.get_supported_list()}")
+    if sample_config.solver is None or not SolverType.support(sample_config.solver):
+        raise ValueError(f"sample_config.solver must in support list {SolverType.get_supported_list()}")
     if sample_config.denoise <= 0.0:
         raise ValueError(f"denoise <= 0.0 is not supported, got {sample_config.denoise}")
     return sample_config
 
 
-def valid_cache_config(cache_config: KsanaCacheConfig | HybridCacheConfig, model_len: int) -> HybridCacheConfig:
+def valid_cache_config(cache_config: CacheConfig | HybridCacheConfig, model_len: int) -> HybridCacheConfig:
     """校验并规范化 cache_config 为 HybridCacheConfig list。"""
     log.info(f"cache_config: {cache_config}")
     if cache_config is None:
@@ -88,8 +88,8 @@ def valid_cache_config(cache_config: KsanaCacheConfig | HybridCacheConfig, model
         if one_config is None:
             hybrid_caches.append(None)
             continue
-        if not isinstance(one_config, (KsanaCacheConfig, HybridCacheConfig)):
-            raise ValueError(f"cache_config {one_config} must be KsanaCacheConfig or HybridCacheConfig")
+        if not isinstance(one_config, (CacheConfig, HybridCacheConfig)):
+            raise ValueError(f"cache_config {one_config} must be CacheConfig or HybridCacheConfig")
         as_hybrid_cache = warp_as_hybrid_cache(one_config)
         hybrid_caches.append(as_hybrid_cache)
     return hybrid_caches

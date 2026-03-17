@@ -34,8 +34,8 @@ from kdit.pipelines.context_builder import ContextBuilder
 from kdit.pipelines.generate_inputs import GenerateInputs
 from kdit.pipelines.pipeline import (
     _get_num_prompts,
-    _resolve_lora_config,
     _valid_cache_config,
+    _valid_lora_config,
     _valid_sample_config,
     get_pipeline_def,
 )
@@ -830,14 +830,14 @@ class TestHelperFunctions(unittest.TestCase):
         self.assertIs(result, config)
 
     def test_resolve_lora_config_none(self):
-        result = _resolve_lora_config(None, MagicMock())
+        result = _valid_lora_config(None, MagicMock())
         self.assertIsNone(result)
 
     def test_resolve_lora_config_single(self):
-        from kdit.config.lora_config import KsanaLoraConfig
+        from kdit.config.lora_config import LoraConfig
 
-        lora = KsanaLoraConfig("/path/to/lora")
-        result = _resolve_lora_config(lora, MagicMock())
+        lora = LoraConfig("/path/to/lora")
+        result = _valid_lora_config(lora, MagicMock())
         self.assertIsInstance(result, list)
         self.assertEqual(len(result), 1)
         self.assertIsInstance(result[0], list)

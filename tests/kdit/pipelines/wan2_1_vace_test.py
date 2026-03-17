@@ -22,10 +22,10 @@ from kdit.accelerator import platform
 from kdit.config import (
     KsanaAttentionBackend,
     KsanaAttentionConfig,
-    KsanaSampleConfig,
-    KsanaSolverType,
     ModelConfig,
     RuntimeConfig,
+    SampleConfig,
+    SolverType,
 )
 from kdit.utils.distribute import get_gpu_count
 
@@ -81,11 +81,11 @@ class TestKsanaPipelineWanVace(unittest.TestCase):
         video = pipeline.generate(
             prompts[0],
             prompt_negative=NEGATIVE_PROMPT,
-            sample_config=KsanaSampleConfig(
+            sample_config=SampleConfig(
                 steps=TEST_STEPS,
                 cfg_scale=5.0,
                 shift=5.0,
-                solver=KsanaSolverType.UNI_PC,
+                solver=SolverType.UNI_PC,
             ),
             runtime_config=RuntimeConfig(
                 seed=SEED,

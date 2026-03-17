@@ -18,11 +18,11 @@ os.environ["KSANA_LOGGER_LEVEL"] = "INFO"
 
 from kdit import Pipeline
 from kdit.config import (
-    KsanaLoraConfig,
-    KsanaSampleConfig,
-    KsanaSolverType,
+    LoraConfig,
     ModelConfig,
     RuntimeConfig,
+    SampleConfig,
+    SolverType,
 )
 from kdit.models.model_key import ModelKey
 from kdit.utils.media import save_image
@@ -47,7 +47,7 @@ def run_edit(model_dir: str, lora_dir: str = None):
     """运行 Qwen-Image-Edit 图像编辑"""
 
     # LoRA 配置
-    lora_config = KsanaLoraConfig(path=lora_dir, strength=1.0) if lora_dir else None
+    lora_config = LoraConfig(path=lora_dir, strength=1.0) if lora_dir else None
 
     # 加载模型
     pipeline = Pipeline.from_models(
@@ -72,10 +72,10 @@ def run_edit(model_dir: str, lora_dir: str = None):
         config["prompt"],
         prompt_negative=config["negative_prompt"],
         img_path=config["img_path"],
-        sample_config=KsanaSampleConfig(
+        sample_config=SampleConfig(
             steps=steps,
             cfg_scale=cfg_scale,
-            solver=KsanaSolverType.FLOWMATCH_EULER,
+            solver=SolverType.FLOWMATCH_EULER,
         ),
         runtime_config=RuntimeConfig(
             seed=config["seed"],

@@ -17,7 +17,7 @@ import os
 
 import torch
 
-from kdit.config import KsanaLoraConfig, ModelConfig
+from kdit.config import LoraConfig, ModelConfig
 from kdit.memory import PinnedMemoryManager
 from kdit.models import KsanaQwenImageModel, KsanaWanModel, KsanaWanVaceModel
 from kdit.models.model_key import ModelKey
@@ -25,7 +25,7 @@ from kdit.operations import build_ops
 from kdit.settings import load_default_settings
 from kdit.utils import is_file_or_dir, log
 from kdit.utils.lora import load_state_dict_and_merge_lora
-from kdit.utils.profile import time_range
+from kdit.utils.profile import time_profile
 
 from ..core.base_node import LoaderNode
 from ..core.node_factory import LoaderNodeFactory
@@ -101,26 +101,24 @@ class DiffusionLoaderNode(LoaderNode):
 
     @staticmethod
     def _valid_input_lora(
-        model_key, lora_config: None | list[list[KsanaLoraConfig]] | list[KsanaLoraConfig], model_count: int
+        model_key, lora_config: None | list[list[LoraConfig]] | list[LoraConfig], model_count: int
     ) -> list:
         if lora_config is None:
             return None
         if not isinstance(lora_config, list):
-            raise ValueError(f"lora_config must be list of list of KsanaLoraConfig, but got {lora_config}")
+            raise ValueError(f"lora_config must be list of list of LoraConfig, but got {lora_config}")
         if len(lora_config) == 0:
             return None
-        if all(isinstance(i, KsanaLoraConfig) for i in lora_config):
+        if all(isinstance(i, LoraConfig) for i in lora_config):
             lora_config = [lora_config]
 
         return_list = []
         if len(lora_config) != model_count:
             raise ValueError(f"len of lora_config list must be {model_count} for {model_key}, but got {lora_config}")
         for one_list in lora_config:
-            if not isinstance(one_list, (list, tuple)) and not isinstance(one_list, KsanaLoraConfig):
-                raise ValueError(
-                    f"lora_config[i] must be list of KsanaLoraConfig or KsanaLoraConfig, but got {one_list}"
-                )
-            if isinstance(one_list, KsanaLoraConfig):
+            if not isinstance(one_list, (list, tuple)) and not isinstance(one_list, LoraConfig):
+                raise ValueError(f"lora_config[i] must be list of LoraConfig or LoraConfig, but got {one_list}")
+            if isinstance(one_list, LoraConfig):
                 one_list = [one_list]
             return_list.append(one_list)
         return return_list
@@ -134,7 +132,7 @@ class DiffusionLoaderNode(LoaderNode):
         model_path: str,
         run_dtype,
         device,
-        lora_config: None | list[KsanaLoraConfig] = None,
+        lora_config: None | list[LoraConfig] = None,
         model_patch_path: str = None,
     ):
         if model_key in [ModelKey.QwenImage_T2I, ModelKey.QwenImage_Edit] and os.path.isdir(model_path):
@@ -154,7 +152,7 @@ class DiffusionLoaderNode(LoaderNode):
 
     # ── 主加载逻辑 ────────────────────────────────────────────────────────
 
-    @time_range
+    @time_profile
     # TODO(test): 需要添加一个本地测试用例来验证 model_patch_path 的加载功能
     def run(self, model_key, *, model_pool, device_ctx, **kwargs):
         model_path = kwargs.pop("model_path")

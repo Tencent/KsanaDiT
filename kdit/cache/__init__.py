@@ -13,12 +13,12 @@
 # limitations under the License.
 
 from ..config.cache_config import (
+    CacheConfig,
     CustomStepCacheConfig,
     DBCacheConfig,
     DCacheConfig,
     EasyCacheConfig,
     HybridCacheConfig,
-    KsanaCacheConfig,
     MagCacheConfig,
     TeaCacheConfig,
 )
@@ -32,7 +32,7 @@ from .magcache import MagCache
 from .teacache import TeaCache
 
 
-def _create_cache(model_key: ModelKey, config: KsanaCacheConfig):
+def _create_cache(model_key: ModelKey, config: CacheConfig):
     if config is None:
         return None
     if isinstance(config, DCacheConfig):

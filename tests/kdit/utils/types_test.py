@@ -14,14 +14,14 @@
 
 import unittest
 
-from kdit.config.sample_config import KsanaSampleConfig
+from kdit.config.sample_config import SampleConfig
 from kdit.utils import evolve_with_recommend
 
 
 class TestEvolve(unittest.TestCase):
     def test_dataclass(self):
-        input_config = KsanaSampleConfig(cfg_scale=4, shift=None, steps=1)
-        recommend_config = KsanaSampleConfig(shift=0.3, cfg_scale=8)
+        input_config = SampleConfig(cfg_scale=4, shift=None, steps=1)
+        recommend_config = SampleConfig(shift=0.3, cfg_scale=8)
         out_config = evolve_with_recommend(input_config, recommend_config)
         self.assertEqual(out_config.shift, 0.3)  # only update None
         self.assertEqual(out_config.steps, 1)

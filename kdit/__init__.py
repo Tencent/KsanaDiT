@@ -20,10 +20,10 @@ from .config import (
     KsanaAttentionConfig,
     KsanaLinearBackend,
     KsanaRadialSageAttentionConfig,
-    KsanaSampleConfig,
     KsanaTorchCompileConfig,
     ModelConfig,
     RuntimeConfig,
+    SampleConfig,
 )
 from .engine import Engine, get_engine
 from .models import KsanaDiffusionModel
@@ -40,7 +40,7 @@ __all__ = [
     "KsanaTorchCompileConfig",
     "DistributedConfig",
     "ModelConfig",
-    "KsanaSampleConfig",
+    "SampleConfig",
     "RuntimeConfig",
     "KsanaAttentionConfig",
     "KsanaLinearBackend",

@@ -12,11 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-_base_modules :
-  # Note: keep include in order
-  - "common.yaml"
-  - "wan/modules/common.yaml"
-  - "wan/modules/text_encoder/t5_encoder.yaml"
-  - "wan/modules/diffusion/14b.yaml"
-  - "wan/modules/config/i2v.yaml"
-  - "wan/modules/vae/vae_2_1.yaml"
+
+runtime_config:
+  boundary: 0.9
+
+sample_config:
+  shift: 5.0
+  steps: 50
+  cfg_scale: 5.0

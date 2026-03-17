@@ -18,7 +18,7 @@ from ..utils.const import DEFAULT_LORA_STRENGTH
 
 
 @dataclass(frozen=True)
-class KsanaLoraConfig:
+class LoraConfig:
     path: str | None = field(default=None)
     strength: float = field(default=DEFAULT_LORA_STRENGTH)
 

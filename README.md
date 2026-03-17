@@ -153,7 +153,7 @@ from kdit import Pipeline
 from kdit.config import (
     DistributedConfig,
     RuntimeConfig,
-    KsanaSampleConfig,
+    SampleConfig,
 )
 
 # Create inference pipeline
@@ -165,7 +165,7 @@ pipeline = Pipeline.from_models(
 # Generate video
 video = pipeline.generate(
     "Street photography, cool girl with headphones skateboarding, New York streets, graffiti wall background",
-    sample_config=KsanaSampleConfig(steps=40),
+    sample_config=SampleConfig(steps=40),
     runtime_config=RuntimeConfig(
         seed=1234,
         size=(720, 480),
@@ -181,14 +181,14 @@ print(f"Generated video shape: {video.shape}")
 
 ```python
 from kdit import Pipeline
-from kdit.config import RuntimeConfig, KsanaSampleConfig
+from kdit.config import RuntimeConfig, SampleConfig
 
 pipeline = Pipeline.from_models("path/to/Wan2.2-I2V-A14B")
 
 video = pipeline.generate(
     "Girl gently waves her fan, blows a breath of fairy air, lightning flies from her hand into the sky and thunder begins",
     start_img_path="input.png",
-    sample_config=KsanaSampleConfig(steps=40),
+    sample_config=SampleConfig(steps=40),
     runtime_config=RuntimeConfig(
         seed=1234,
         size=(512, 512),
@@ -209,8 +209,8 @@ from kdit import Pipeline
 from kdit.config import (
     ModelConfig,
     RuntimeConfig,
-    KsanaSampleConfig,
-    KsanaSolverType,
+    SampleConfig,
+    SolverType,
 )
 
 pipeline = Pipeline.from_models(
@@ -220,10 +220,10 @@ pipeline = Pipeline.from_models(
 
 image = pipeline.generate(
     "A cute orange cat sitting on a windowsill, sunlight streaming through the window onto its fur",
-    sample_config=KsanaSampleConfig(
+    sample_config=SampleConfig(
         steps=20,
         cfg_scale=4.0,
-        solver=KsanaSolverType.FLOWMATCH_EULER,
+        solver=SolverType.FLOWMATCH_EULER,
     ),
     runtime_config=RuntimeConfig(
         seed=42,
@@ -262,17 +262,17 @@ pipeline = Pipeline.from_models(
 
 ```python
 from kdit import Pipeline
-from kdit.config import KsanaLoraConfig, KsanaSampleConfig
+from kdit.config import LoraConfig, SampleConfig
 
 pipeline = Pipeline.from_models(
     "path/to/Wan2.2-T2V-A14B",
-    lora_config=KsanaLoraConfig("path/to/Wan2.2-Lightning-4steps-lora"),
+    lora_config=LoraConfig("path/to/Wan2.2-Lightning-4steps-lora"),
 )
 
 # Fast generation with 4 steps
 video = pipeline.generate(
     prompt,
-    sample_config=KsanaSampleConfig(
+    sample_config=SampleConfig(
         steps=4,
         cfg_scale=1.0,
         sigmas=[1.0, 0.9375, 0.6333, 0.225, 0.0],

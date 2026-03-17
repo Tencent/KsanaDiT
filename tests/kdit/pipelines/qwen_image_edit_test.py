@@ -26,10 +26,10 @@ from kdit import Pipeline
 from kdit.config import (
     DistributedConfig,
     KsanaAttentionConfig,
-    KsanaSampleConfig,
-    KsanaSolverType,
     ModelConfig,
     RuntimeConfig,
+    SampleConfig,
+    SolverType,
 )
 from kdit.pipelines.pipeline_key import PipelineKey
 
@@ -70,10 +70,10 @@ class TestKsanaQwenImageEdit(unittest.TestCase):
             PROMPT,
             prompt_negative=NEGATIVE_PROMPT,
             img_path=IMG_PATHS,
-            sample_config=KsanaSampleConfig(
+            sample_config=SampleConfig(
                 steps=TEST_STEPS,
                 cfg_scale=4.0,
-                solver=KsanaSolverType.FLOWMATCH_EULER,
+                solver=SolverType.FLOWMATCH_EULER,
             ),
             runtime_config=RuntimeConfig(
                 seed=SEED,
@@ -106,10 +106,10 @@ class TestKsanaQwenImageEdit(unittest.TestCase):
             PROMPT,
             prompt_negative=NEGATIVE_PROMPT,
             img_path=["examples/images/woman.png"],
-            sample_config=KsanaSampleConfig(
+            sample_config=SampleConfig(
                 steps=TEST_STEPS,
                 cfg_scale=4.0,
-                solver=KsanaSolverType.FLOWMATCH_EULER,
+                solver=SolverType.FLOWMATCH_EULER,
             ),
             runtime_config=RuntimeConfig(
                 seed=SEED,

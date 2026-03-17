@@ -22,9 +22,9 @@ from kdit.operations.fuse_qkv import remap_state_dict_for_model
 
 from ..accelerator import platform
 from ..config import DistributedConfig, KsanaLinearBackend, ModelConfig
-from ..utils import log, time_range
+from ..utils import log
 from ..utils.load import load_state_dict, replace_key_in_state_dict
-from ..utils.profile import profile_range
+from ..utils.profile import time_profile
 from ..utils.quantize import apply_dynamic_fp8_quant, find_fp8_info_from_state_dict
 from ..utils.torch_compile import apply_torch_compile
 from .model_base import ModelBase
@@ -170,7 +170,7 @@ class KsanaDiffusionModel(ModelBase):
 
         return memory_gb
 
-    @time_range
+    @time_profile
     def apply_pinned_memory(self, offload_device):
         """预分配 pinned memory，使用 PinnedMemoryManager 管理内存块"""
         if self._applied_pinned_memory or not self._use_pinned_memory or offload_device.type != "cpu":
@@ -316,7 +316,7 @@ class KsanaDiffusionModel(ModelBase):
         torch.cuda.synchronize(device)
 
     def forward(self, *args, **kwargs):
-        with profile_range("model_forward"):
+        with time_profile("model_forward"):
             return self.model(*args, **kwargs)
 
     def load_state_dict(self, model_state_dict, strict=False):
@@ -351,13 +351,13 @@ class KsanaDiffusionModel(ModelBase):
             return
         apply_dynamic_fp8_quant(self.model, load_device=load_device)
 
-    @time_range
+    @time_profile
     def apply_torch_compile(self, torch_compile_config=None):
         """Apply torch compile to the model using the standalone function."""
         self.model = apply_torch_compile(self.model, torch_compile_config)
 
     @abstractmethod
-    @time_range
+    @time_profile
     def load(
         self,
         *,
@@ -416,7 +416,7 @@ class KsanaWanModel(KsanaDiffusionModel):
     def device(self):
         return self.model.device
 
-    @time_range
+    @time_profile
     def load(
         self,
         *,
@@ -494,7 +494,7 @@ class KsanaWanVaceModel(KsanaDiffusionModel):
 
         return detected_vace_in_dim, detected_vace_layers
 
-    @time_range
+    @time_profile
     def load(
         self,
         *,
@@ -543,7 +543,7 @@ class KsanaWanVaceModel(KsanaDiffusionModel):
 
 
 class KsanaQwenImageModel(KsanaDiffusionModel):
-    @time_range
+    @time_profile
     def load(
         self,
         *,

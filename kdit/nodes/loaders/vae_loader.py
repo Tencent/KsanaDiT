@@ -17,7 +17,7 @@ import os
 from kdit.models import KsanaQwenVAEModel, KsanaWanVAEModel
 from kdit.models.model_key import ModelKey
 from kdit.settings import load_default_settings
-from kdit.utils import is_file_or_dir, log, time_range
+from kdit.utils import is_file_or_dir, log, time_profile
 
 from ..core.base_node import LoaderNode
 from ..core.node_factory import LoaderNodeFactory
@@ -36,7 +36,7 @@ class VAELoaderNode(LoaderNode):
         ModelKey.QwenImageVAE: KsanaQwenVAEModel,
     }
 
-    @time_range
+    @time_profile
     def run(self, model_key, *, model_pool, device_ctx, **kwargs):
         model_path = kwargs["model_path"]
         log.info(f"{model_key} loading vae model")

@@ -16,18 +16,18 @@ from dataclasses import dataclass, field
 
 
 @dataclass
-class KsanaCacheConfig:
+class CacheConfig:
     name: str = field(default="KsanaCache")
     offload: bool = field(default=False)
 
 
 @dataclass
-class KsanaBlockCacheConfig(KsanaCacheConfig):
+class KsanaBlockCacheConfig(CacheConfig):
     name: str = field(default="KsanaBlockCache")
 
 
 @dataclass
-class StepCacheConfig(KsanaCacheConfig):
+class StepCacheConfig(CacheConfig):
     name: str = field(default="KsanaStepCache")
 
 
@@ -43,11 +43,11 @@ class HybridCacheConfig:
 
 
 def warp_as_hybrid_cache(
-    cache_config: KsanaCacheConfig,
+    cache_config: CacheConfig,
 ) -> HybridCacheConfig:
     if isinstance(cache_config, HybridCacheConfig):
         return cache_config
-    if cache_config is None or not isinstance(cache_config, KsanaCacheConfig):
+    if cache_config is None or not isinstance(cache_config, CacheConfig):
         raise ValueError(f"cache_config must be provided, but got {cache_config}")
     if isinstance(cache_config, KsanaBlockCacheConfig):
         return HybridCacheConfig(name=cache_config.name, block_cache=cache_config)

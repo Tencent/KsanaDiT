@@ -36,22 +36,22 @@ _MODEL_KEY_TO_CONF_PATH_MAP: dict = {
     ModelKey.Wan2_2_I2V_14B: "wan/i2v_14b.yaml",
     ModelKey.Wan2_2_T2V_14B: "wan/t2v_14b.yaml",
     ModelKey.Wan2_1_VACE_14B: "wan/vace_14b.yaml",
-    ModelKey.VAE_WAN2_1: "wan/modules/vae_2_1.yaml",
-    ModelKey.VAE_WAN2_2: "wan/modules/vae_2_2.yaml",
-    ModelKey.T5TextEncoder: "wan/modules/t5_encoder.yaml",
+    ModelKey.VAE_WAN2_1: "wan/modules/vae/vae_2_1.yaml",
+    ModelKey.VAE_WAN2_2: "wan/modules/vae/vae_2_2.yaml",
+    ModelKey.T5TextEncoder: "wan/modules/text_encoder/t5_encoder.yaml",
     ModelKey.QwenImage_T2I: "qwen/t2i_20b.yaml",
     ModelKey.QwenImage_Edit: "qwen/edit_20b.yaml",
-    ModelKey.QwenImageVAE: "qwen/modules/vae.yaml",
-    ModelKey.Qwen2VLTextEncoder: "qwen/modules/text_encoder.yaml",
-    ModelKey.Qwen2VLTextEncoderMultimodal: "qwen/modules/text_encoder_multimodal.yaml",
+    ModelKey.QwenImageVAE: "qwen/modules/vae/vae.yaml",
+    ModelKey.Qwen2VLTextEncoder: "qwen/modules/text_encoder/text_encoder.yaml",
+    ModelKey.Qwen2VLTextEncoderMultimodal: "qwen/modules/text_encoder/text_encoder_multimodal.yaml",
 }
 
 _MODEL_LORA_PATH_MAP = {
-    ModelKey.Wan2_2_I2V_14B: "wan/modules/lora.yaml",
-    ModelKey.Wan2_2_T2V_14B: "wan/modules/lora.yaml",
-    ModelKey.Wan2_1_VACE_14B: "wan/modules/lora.yaml",
-    ModelKey.QwenImage_T2I: "qwen/modules/lora.yaml",
-    ModelKey.QwenImage_Edit: "qwen/modules/lora.yaml",
+    ModelKey.Wan2_2_I2V_14B: "wan/modules/config/lora.yaml",
+    ModelKey.Wan2_2_T2V_14B: "wan/modules/config/lora.yaml",
+    ModelKey.Wan2_1_VACE_14B: "wan/modules/config/lora.yaml",
+    ModelKey.QwenImage_T2I: "qwen/modules/config/lora.yaml",
+    ModelKey.QwenImage_Edit: "qwen/modules/config/lora.yaml",
 }
 
 _PIPELINE_KEY_REGISTERED = False

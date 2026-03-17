@@ -13,9 +13,9 @@
 # limitations under the License.
 
 from .base import (
+    CacheConfig,
     HybridCacheConfig,
     KsanaBlockCacheConfig,
-    KsanaCacheConfig,
     StepCacheConfig,
     warp_as_hybrid_cache,
 )
@@ -28,7 +28,7 @@ from .teacache import TeaCacheConfig
 
 __all__ = [
     "warp_as_hybrid_cache",
-    "KsanaCacheConfig",
+    "CacheConfig",
     "KsanaBlockCacheConfig",
     "StepCacheConfig",
     "HybridCacheConfig",

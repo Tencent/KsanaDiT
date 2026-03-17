@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from kdit import get_engine
-from kdit.config import KsanaSampleConfig, KsanaSolverType, RuntimeConfig
+from kdit.config import RuntimeConfig, SampleConfig, SolverType
 from kdit.memory.estimator import (
     MODEL_MEMORY_CONFIG,
     estimate_kdit_model_memory,
@@ -117,7 +117,7 @@ def generate(  # noqa: C901
     latent=None,
     add_noise_to_latent=False,
     scheduler="simple",
-    solver_name=KsanaSolverType.UNI_PC,
+    solver_name=SolverType.UNI_PC,
     sample_guide_scale=4.0,
     sample_shift=5.0,
     denoise=1.0,
@@ -133,7 +133,7 @@ def generate(  # noqa: C901
 ):
     # Convert string solver_name to enum
     if isinstance(solver_name, str):
-        solver_name = KsanaSolverType(solver_name)
+        solver_name = SolverType(solver_name)
     if sigmas is not None:
         expected_lengths = steps + 1
         if len(sigmas) != expected_lengths:
@@ -192,7 +192,7 @@ def generate(  # noqa: C901
 
     # 构建 NodeContext — tensor 参数通过 tensor_pool 传递
     context = NodeContext(
-        sample_config=KsanaSampleConfig(
+        sample_config=SampleConfig(
             steps=steps,
             cfg_scale=(sample_guide_scale, low_sample_guide_scale),
             shift=sample_shift,

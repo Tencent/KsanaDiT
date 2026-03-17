@@ -21,10 +21,10 @@ os.environ["KSANA_LOGGER_LEVEL"] = "INFO"
 
 from kdit import Pipeline
 from kdit.config import (
-    KsanaSampleConfig,
-    KsanaSolverType,
     ModelConfig,
     RuntimeConfig,
+    SampleConfig,
+    SolverType,
 )
 from kdit.utils.media import save_image
 
@@ -45,10 +45,10 @@ def run_simple(args):
     image = generator.generate(
         prompts[0] + ", Ultra HD, 4K, cinematic composition.",
         prompt_negative=" ",
-        sample_config=KsanaSampleConfig(
+        sample_config=SampleConfig(
             steps=20,
             cfg_scale=4.0,
-            solver=KsanaSolverType.FLOWMATCH_EULER,
+            solver=SolverType.FLOWMATCH_EULER,
         ),
         runtime_config=RuntimeConfig(
             seed=SEED,

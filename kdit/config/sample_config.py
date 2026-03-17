@@ -21,7 +21,7 @@ from ..utils.const import DEFAULT_DENOISE
 from .video_control_config import KsanaVideoControlConfig
 
 
-class KsanaSolverType(Enum):
+class SolverType(Enum):
     UNI_PC = "uni_pc"
     EULER = "euler"
     FLOWMATCH_EULER = "flowmatch_euler"
@@ -29,29 +29,29 @@ class KsanaSolverType(Enum):
 
     @staticmethod
     def get_supported_list() -> list[str]:
-        return [b.value for b in KsanaSolverType]
+        return [b.value for b in SolverType]
 
     @staticmethod
     def support(type: str) -> bool:
         if isinstance(type, str):
-            return type in KsanaSolverType.get_supported_list()
-        elif isinstance(type, KsanaSolverType):
+            return type in SolverType.get_supported_list()
+        elif isinstance(type, SolverType):
             return True
         else:
             return False
 
 
 @dataclass(frozen=True)
-class KsanaSampleConfig:
+class SampleConfig:
     steps: int | None = field(default=None)
     cfg_scale: float | list[float, float] | None = field(default=None)
     shift: float | None = field(default=None)
-    solver: KsanaSolverType | None = field(default=None)
+    solver: SolverType | None = field(default=None)
     denoise: float | None = field(default=DEFAULT_DENOISE)
     sigmas: list[float] | None = field(default=None)
     video_control: KsanaVideoControlConfig | None = field(default=None)
     add_noise_to_latent: bool = field(default=False)  # Whether to add noise to the input latent
 
     def __post_init__(self):
-        if self.solver is not None and not isinstance(self.solver, KsanaSolverType):
-            raise ValueError(f"solver must be a KsanaSolverType enum, got {type(self.solver)}")
+        if self.solver is not None and not isinstance(self.solver, SolverType):
+            raise ValueError(f"solver must be a SolverType enum, got {type(self.solver)}")

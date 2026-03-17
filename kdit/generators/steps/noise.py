@@ -21,7 +21,7 @@ import torch
 
 from kdit.cache import create_hybrid_cache
 from kdit.config import RuntimeConfig
-from kdit.config.cache_config import KsanaCacheConfig
+from kdit.config.cache_config import CacheConfig
 from kdit.models import ModelKey
 from kdit.utils import log
 
@@ -60,7 +60,7 @@ def create_random_noise_latents(
     return noise, seed_g
 
 
-def create_cache(cache_config: list[KsanaCacheConfig | None], model_key: ModelKey):
+def create_cache(cache_config: list[CacheConfig | None], model_key: ModelKey):
     """根据 cache_config 创建 hybrid cache 列表。"""
     if cache_config is None:
         return None

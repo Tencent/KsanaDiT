@@ -19,7 +19,7 @@ from unittest.mock import MagicMock
 
 import torch
 
-from kdit.config import KsanaSampleConfig, KsanaSolverType, RuntimeConfig
+from kdit.config import RuntimeConfig, SampleConfig, SolverType
 from kdit.config.cache_config import HybridCacheConfig, StepCacheConfig
 from kdit.generators.steps.validation import (
     valid_cache_config,
@@ -81,8 +81,8 @@ class TestValidDiffusionModel(unittest.TestCase):
 class TestValidSampleConfig(unittest.TestCase):
     """valid_sample_config 校验 cfg_scale / solver / denoise。"""
 
-    def _make_config(self, cfg_scale=5.0, solver=KsanaSolverType.EULER, denoise=1.0, steps=20):
-        return KsanaSampleConfig(steps=steps, cfg_scale=cfg_scale, solver=solver, denoise=denoise)
+    def _make_config(self, cfg_scale=5.0, solver=SolverType.EULER, denoise=1.0, steps=20):
+        return SampleConfig(steps=steps, cfg_scale=cfg_scale, solver=solver, denoise=denoise)
 
     def test_scalar_cfg_scale_expanded_to_list(self):
         cfg = self._make_config(cfg_scale=5.0)

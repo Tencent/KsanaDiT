@@ -23,7 +23,7 @@ from torch.nn.utils.rnn import pad_sequence
 
 from kdit.models.model_key import ModelKey
 from kdit.tensor import TensorKey
-from kdit.utils import str_to_list, time_range
+from kdit.utils import str_to_list, time_profile
 
 from ..core.base_node import InferNode
 from ..core.node_factory import InferNodeFactory
@@ -67,7 +67,7 @@ class T5TextEncodeNode(InferNode):
     input_tensor_keys = []
     output_tensor_keys = [TensorKey.POSITIVE, TensorKey.NEGATIVE]
 
-    @time_range
+    @time_profile
     def run(self, model_key, context, *, tensor_pool, model_pool, device_ctx):
         model = model_pool.get_model(model_key)
         device = context.metadata.get("text_run_device", device_ctx.device)
@@ -112,7 +112,7 @@ class QwenTextEncodeNode(InferNode):
     input_tensor_keys = []
     output_tensor_keys = [TensorKey.POSITIVE, TensorKey.NEGATIVE]
 
-    @time_range
+    @time_profile
     def run(self, model_key, context, *, tensor_pool, model_pool, device_ctx):
         model = model_pool.get_model(model_key)
         device = context.metadata.get("text_run_device", device_ctx.device)

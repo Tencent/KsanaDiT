@@ -22,7 +22,7 @@ from unittest.mock import MagicMock, patch
 
 import torch
 
-from kdit.config import KsanaSampleConfig, KsanaSolverType, RuntimeConfig
+from kdit.config import RuntimeConfig, SampleConfig, SolverType
 from kdit.generators.generator_context import GeneratorInferContext
 from kdit.models.model_key import ModelKey
 from kdit.nodes.core.device_context import NodeDeviceContext
@@ -74,7 +74,7 @@ class TestGeneratorNode(unittest.TestCase):
         )
 
         # mock context
-        self.sample_config = KsanaSampleConfig(steps=20, cfg_scale=5.0, solver=KsanaSolverType.EULER)
+        self.sample_config = SampleConfig(steps=20, cfg_scale=5.0, solver=SolverType.EULER)
         self.runtime_config = RuntimeConfig(size=(512, 512), frame_num=16, seed=42)
         self.context = NodeContext(
             sample_config=self.sample_config,

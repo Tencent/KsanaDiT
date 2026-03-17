@@ -82,10 +82,11 @@ class KsanaProfiler:
 
 
 class Timer:
+    """纯计时器 — 支持 with 语句和装饰器。"""
+
     default_name = "Task"
 
     def __init__(self, name: str = None, print_func: Callable[[str], None] = log.info):
-        """support with and call"""
         self.name = name if name else self.default_name
         self.print_func = print_func
         self.start_time = None
@@ -104,10 +105,6 @@ class Timer:
         self.print_func(f"[{self.name}] takes {elapsed:.6f} s")
 
     def __call__(self, func: Callable):
-        """
-        被装饰器调用入口
-        """
-
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
             with self:
@@ -116,33 +113,80 @@ class Timer:
         return wrapper
 
 
-def time_range(func_or_name: Callable | str | None = None, print_func: Callable[[str], None] = log.info):
-    """
-    support both no-args and args decorator, and with statement.
+class TimerProfiler(Timer):
+    """带层级 profile 能力的计时器。
 
-        usage1:
-            @time_range
-            def func(self, *args, **kwargs):
-                pass
-        usage2:
-            @time_range("new_time_func_name", log.info)
-            def func(self, *args, **kwargs):
-                pass
-        usage3:
-            with time_range():
-                some function call
-        usage4:
-            with time_range("new_time_func_name", print):
-                some function call
+    继承 Timer 的计时 + log 打印，额外在 ``KSANA_PROFILE=1`` 时
+    将计时节点挂到 :class:`TimeProfiler` 层级树上。
+
+    ``TimeProfiler`` 实例通过 ``threading.local`` 线程局部存储，
+    每次 ``__enter__`` 动态查询当前 session，无 session 时退化为纯 Timer。
+    """
+
+    def __init__(self, name: str = None, print_func: Callable[[str], None] = log.info, *, note: str | None = None):
+        super().__init__(name=name, print_func=print_func)
+        self.note = note
+        self._profiler: TimeProfiler | None = None
+
+    def __enter__(self):
+        if KSANA_PROFILE:
+            self._profiler = TimeProfiler.get_current()
+        if self._profiler is not None:
+            self._profiler.begin(self.name, self.note)
+        return super().__enter__()
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if self._profiler is not None:
+            self._profiler.end()
+            self._profiler = None
+        return super().__exit__(exc_type, exc_val, exc_tb)
+
+
+def time_profile(
+    func_or_name: Callable | str | None = None,
+    print_func: Callable[[str], None] = log.info,
+    *,
+    note: str | None = None,
+    profile: bool = True,
+):
+    """统一计时入口 — 支持装饰器和 with 语句。
+
+    Args:
+        func_or_name: 被装饰的函数（无参装饰器）或名称字符串。
+        print_func: 计时结果的打印函数。
+        note: 层级树节点的附加备注（仅 *profile=True* 且有活跃 session 时生效），
+              如 ``note="t=1.0"`` 会在树中显示为 ``step_0  0.5s  (t=1.0)``。
+        profile: 是否参与层级 profile 树（默认 True）。
+                 设为 False 则使用纯 Timer，不出现在 TimeProfiler 树中。
+
+    用法::
+
+        @time_profile
+        def func(): ...
+
+        @time_profile("custom_name")
+        def func(): ...
+
+        with time_profile("step_0", note="t=1.0"):
+            ...
+
+        @time_profile(profile=False)
+        def internal_helper(): ...
     """
     if func_or_name is None or isinstance(func_or_name, str):
         name = func_or_name if isinstance(func_or_name, str) else Timer.default_name
-        return Timer(name=name, print_func=print_func)
+        if profile:
+            return TimerProfiler(name=name, print_func=print_func, note=note)
+        else:
+            return Timer(name=name, print_func=print_func)
     elif callable(func_or_name):
-        timer = Timer(name=func_or_name.__name__, print_func=print_func)
+        if profile:
+            timer = TimerProfiler(name=func_or_name.__name__, print_func=print_func, note=note)
+        else:
+            timer = Timer(name=func_or_name.__name__, print_func=print_func)
         return timer(func_or_name)
     else:
-        raise TypeError("Invalid argument type for time_range")
+        raise TypeError("Invalid argument type for time_profile")
 
 
 class nvtx_range:  # pylint: disable=invalid-name
@@ -191,7 +235,7 @@ class nvtx_range:  # pylint: disable=invalid-name
         return wrapper
 
 
-# TODO(qian): MemoryProfiler cloud be memory_range, like time_range, nvtx_range
+# TODO(qian): MemoryProfiler could be memory_profile, like time_profile, nvtx_range
 class MemoryProfiler:
     enabled = KSANA_MEMORY_PROFILER
 
@@ -260,7 +304,7 @@ class ProfileNode:
 
     name: str
     elapsed: float = 0.0
-    annotation: str | None = None
+    note: str | None = None
     children: list[ProfileNode] = field(default_factory=list)
     parent: ProfileNode | None = field(default=None, repr=False)
     _start_time: float = field(default=0.0, repr=False)
@@ -272,8 +316,8 @@ class TimeProfiler:
     用法::
 
         profiler = TimeProfiler.start_session("pipeline_generate")
-        with profile_range("step_0", annotation="timestep=1.0"):
-            with profile_range("model_forward"):
+        with time_profile("step_0", note="timestep=1.0"):
+            with time_profile("model_forward"):
                 ...
         profiler.finish()
         profiler.print_summary()
@@ -300,11 +344,11 @@ class TimeProfiler:
         """获取当前线程的活跃 profiler，无则返回 None。"""
         return getattr(cls._local, "current_profiler", None)
 
-    def begin(self, name: str, annotation: str | None = None) -> None:
+    def begin(self, name: str, note: str | None = None) -> None:
         """压栈：开始一个新的计时区间。"""
         if self._finished:
             return
-        node = ProfileNode(name=name, annotation=annotation, parent=self._current)
+        node = ProfileNode(name=name, note=note, parent=self._current)
         self._current.children.append(node)
         self._stack.append(node)
         self._current = node
@@ -363,10 +407,10 @@ class TimeProfiler:
             name_part = prefix + connector + node.name
 
         time_str = f"{node.elapsed:.3f}s"
-        ann_str = f"  ({node.annotation})" if node.annotation else ""
+        note_str = f"  ({node.note})" if node.note else ""
 
         padding = max(1, COL_WIDTH - len(name_part))
-        line = f"{name_part}{' ' * padding}{time_str}{ann_str}"
+        line = f"{name_part}{' ' * padding}{time_str}{note_str}"
         lines.append(line)
 
         if is_root:
@@ -377,85 +421,3 @@ class TimeProfiler:
         for i, child in enumerate(node.children):
             child_is_last = i == len(node.children) - 1
             self._format_node(child, lines, child_prefix, child_is_last)
-
-
-class profile_range:  # pylint: disable=invalid-name
-    """层级式计时 — 自动挂到 TimeProfiler 树上。
-
-    无活跃 session 时退化为普通 time_range。
-    支持 with 语句和装饰器两种用法。
-
-    用法::
-
-        @profile_range
-        def func(): ...
-
-        @profile_range("custom_name")
-        def func(): ...
-
-        with profile_range("block_name"):
-            ...
-
-        with profile_range("step_0", annotation="timestep=1.0"):
-            ...
-    """
-
-    def __init__(self, name_or_func: Callable | str | None = None, *, annotation: str | None = None):
-        self._annotation = annotation
-        self._profiler: TimeProfiler | None = None
-        self._fallback_timer: Timer | None = None
-
-        if callable(name_or_func):
-            # @profile_range (无参装饰器，name_or_func 是被装饰的函数)
-            self._name = name_or_func.__name__
-            self._decorated = name_or_func
-        else:
-            self._name = name_or_func if isinstance(name_or_func, str) else "profile_range"
-            self._decorated = None
-
-    def __enter__(self):
-        if KSANA_PROFILE:
-            self._profiler = TimeProfiler.get_current()
-        if self._profiler is not None:
-            self._profiler.begin(self._name, self._annotation)
-        else:
-            self._fallback_timer = Timer(name=self._name)
-            self._fallback_timer.__enter__()
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        if self._profiler is not None:
-            self._profiler.end()
-        elif self._fallback_timer is not None:
-            self._fallback_timer.__exit__(exc_type, exc_val, exc_tb)
-        return False
-
-    def __call__(self, func: Callable | None = None):
-        """装饰器模式。"""
-        if func is None and self._decorated is not None:
-            # 不应该走到这里，但防御性处理
-            func = self._decorated
-
-        if func is None:
-            raise TypeError("profile_range() missing function argument")
-
-        @functools.wraps(func)
-        def wrapper(*args, **kwargs):
-            pr = profile_range(self._name or func.__name__, annotation=self._annotation)
-            with pr:
-                return func(*args, **kwargs)
-
-        return wrapper
-
-
-def _make_profile_range(name_or_func=None, *, annotation=None):
-    """profile_range 的工厂函数 — 处理无参/有参装饰器和 with 语句。
-
-    这是模块级别的便捷入口，等价于直接使用 profile_range 类。
-    """
-    if callable(name_or_func):
-        # @profile_range 无参装饰器
-        pr = profile_range(name_or_func)
-        return pr(name_or_func)
-    else:
-        return profile_range(name_or_func, annotation=annotation)

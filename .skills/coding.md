@@ -22,7 +22,7 @@
 # kdit/nodes/loaders/diffusion_model_loader.py
 
 # ✅ 跨子包 → 绝对导入
-from kdit.config import KsanaLoraConfig, ModelConfig
+from kdit.config import LoraConfig, ModelConfig
 from kdit.memory import PinnedMemoryManager
 from kdit.models import KsanaWanModel
 from kdit.utils import is_file_or_dir, log
@@ -100,7 +100,7 @@ if TYPE_CHECKING:
 ```python
 # ✅ Python 3.10+ 原生支持联合类型和内置泛型
 @dataclass(frozen=True)
-class KsanaSampleConfig:
+class SampleConfig:
     steps: int | None = None
     cfg_scale: float | list[float, float] | None = None
 ```
@@ -665,13 +665,8 @@ grep -rn "import kdit.adapter" kdit/ --include="*.py" | grep -v __pycache__ | gr
 | `KsanaBlockCache` | `BlockCache` | `kdit/cache/base_cache.py` |
 | `KsanaHybridCache` | `HybridCache` | `kdit/cache/base_cache.py` |
 | `KsanaLinearBackend` | `LinearBackend` | `kdit/config/linear_config.py` |
-| `KsanaSolverType` | `SolverType` | `kdit/config/sample_config.py` |
-| `KsanaSampleConfig` | `SampleConfig` | `kdit/config/sample_config.py` |
-| `ModelConfig` | `ModelConfig` | `kdit/config/model_config.py` |
-| `KsanaCacheConfig` | `CacheConfig` | `kdit/config/cache_config/base.py` |
 | `KsanaBlockCacheConfig` | `BlockCacheConfig` | `kdit/config/cache_config/base.py` |
 | `KsanaVideoControlConfig` | `VideoControlConfig` | `kdit/config/video_control_config.py` |
-| `KsanaLoraConfig` | `LoraConfig` | `kdit/config/lora_config.py` |
 | `KsanaAttentionBackend` | `AttentionBackend` | `kdit/config/attention_config.py` |
 | `KsanaAttentionConfig` | `AttentionConfig` | `kdit/config/attention_config.py` |
 | `KsanaRadialSageAttentionConfig` | `RadialSageAttentionConfig` | `kdit/config/attention_config.py` |
@@ -680,7 +675,6 @@ grep -rn "import kdit.adapter" kdit/ --include="*.py" | grep -v __pycache__ | gr
 | `KsanaSLGConfig` | `SLGConfig` | `kdit/config/wan_experimental_config.py` |
 | `KsanaFETAConfig` | `FETAConfig` | `kdit/config/wan_experimental_config.py` |
 | `KsanaExperimentalConfig` | `ExperimentalConfig` | `kdit/config/wan_experimental_config.py` |
-| `DistributedConfig` | `DistributedConfig` | `kdit/config/distributed_config.py` |
 | `KsanaBatchScheduler` | `BatchScheduler` | `kdit/scheduler/scheduler.py` |
 | `KsanaProfiler` | `Profiler` | `kdit/utils/profile.py` |
 | `KsanaQwenImageVAE` | `QwenImageVAE` | `kdit/models/qwen/vae.py` |
@@ -1016,6 +1010,61 @@ kdit/pipelines/
 - **禁止**在 `GenerateInputs` 中放 Pipeline 特有字段（用 `ContextBuilder._extra`）
 - **禁止** `kdit/` 核心代码依赖 `kdit/adapter/`（方向：adapter → kdit）
 - SaveNode 的 `model_key` 参数**必须为 None**
+- **禁止**在 `Pipeline` 或公共函数中根据 `PipelineKey` / `ModelKey` 做 if/else 分支处理不同 Pipeline 的特例逻辑 — 所有 Pipeline 特有的输入处理、模型路径解析、LoRA 配置等**必须**放到对应的 `ContextBuilder` 子类中（通过覆盖 `resolve_model_paths()`、`resolve_lora_config()`、`build_loader_kwargs()` 等方法实现多态）
+
+### ContextBuilder Load 阶段方法
+
+`ContextBuilder` 基类提供三个 Load 阶段的默认实现，子类可按需覆盖：
+
+| 方法 | 职责 | 覆盖场景 |
+|------|------|---------|
+| `resolve_model_paths()` | 解析 `model_path`（目录扫描、列表展开） | Wan 14B 高低噪声模型拆分 |
+| `resolve_lora_config()` | 校验并包装 `LoraConfig` | Wan 14B 高低噪声 LoRA 拆分 |
+| `build_loader_kwargs()` | 按 `ModelKey` 类别构建 loader 参数 | 默认实现已覆盖大多数场景 |
+
+**设计原则**：Pipeline 特例逻辑通过 settings YAML 属性驱动（如 `diffusion.high_noise_checkpoint`），而非硬编码 PipelineKey 判断。ContextBuilder 子类读取 settings 属性决定行为，这样新增 Pipeline 变体时只需修改 YAML 配置，无需改动代码。
+
+### Settings YAML 模块分类规范
+
+`kdit/settings/{model_family}/modules/` 下的 YAML 文件按以下四个子目录分类：
+
+| 子目录 | 内容 | 示例 |
+|--------|------|------|
+| `text_encoder/` | 文本编码器配置（`text_encoder:` 段） | `t5_encoder.yaml`、`text_encoder.yaml` |
+| `diffusion/` | 扩散模型配置（`diffusion:` 段） | `14b.yaml`、`5b.yaml`、`vace.yaml` |
+| `vae/` | VAE 配置（`vae:` 段） | `vae_2_1.yaml`、`vae.yaml` |
+| `config/` | 运行时/采样配置（`runtime_config:`、`sample_config:` 段） | `t2v.yaml`、`i2v.yaml`、`lora.yaml` |
+
+**规则**：
+- `common.yaml` 保持在 `modules/` 根目录，不归入子目录
+- 一个 YAML 文件只包含**一个类别**的配置；如果原始文件跨类别（如同时含 `diffusion:` 和 `sample_config:`），必须拆分为多个文件分别放入对应子目录
+- 新增 YAML 模块时必须放入正确的子目录
+- Pipeline 级 YAML（如 `wan/t2v_14b.yaml`）的 `_base_modules` 引用路径必须包含子目录前缀
+
+**目录结构示例**（Wan）：
+
+```
+kdit/settings/wan/
+├── t2v_14b.yaml              # Pipeline 级配置
+├── i2v_14b.yaml
+├── vace_14b.yaml
+└── modules/
+    ├── common.yaml           # 公共配置（不归入子目录）
+    ├── text_encoder/
+    │   └── t5_encoder.yaml
+    ├── diffusion/
+    │   ├── 5b.yaml
+    │   ├── 14b.yaml
+    │   └── vace.yaml         # VACE diffusion 覆盖
+    ├── vae/
+    │   ├── vae_2_1.yaml
+    │   └── vae_2_2.yaml
+    └── config/
+        ├── t2v.yaml          # T2V runtime/sample 配置
+        ├── i2v.yaml
+        ├── lora.yaml
+        └── vace.yaml         # VACE runtime/sample 配置
+```
 
 ---
 

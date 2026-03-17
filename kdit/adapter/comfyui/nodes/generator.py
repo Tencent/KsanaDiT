@@ -17,7 +17,7 @@ import comfy.model_management as mm
 from comfy.utils import ProgressBar
 
 import kdit.adapter.comfyui as nodes
-from kdit.config.sample_config import KsanaSolverType
+from kdit.config.sample_config import SolverType
 
 from ..types import (
     KSANA_CACHE_CONFIG,
@@ -76,9 +76,9 @@ class KsanaGeneratorNode:
                     },
                 ),
                 "solver_name": (
-                    KsanaSolverType.get_supported_list(),
+                    SolverType.get_supported_list(),
                     {
-                        "default": KsanaSolverType.UNI_PC.value,
+                        "default": SolverType.UNI_PC.value,
                         "tooltip": "The algorithm used when sampling, this can affect the quality, speed, \
                             and style of the generated output.",
                     },

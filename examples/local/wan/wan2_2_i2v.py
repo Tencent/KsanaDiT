@@ -24,12 +24,12 @@ from kdit.config import (
     DistributedConfig,
     KsanaAttentionBackend,
     KsanaAttentionConfig,
-    KsanaLoraConfig,
     KsanaSageSLAConfig,
-    KsanaSampleConfig,
-    KsanaSolverType,
+    LoraConfig,
     ModelConfig,
     RuntimeConfig,
+    SampleConfig,
+    SolverType,
 )
 from kdit.utils.distribute import get_gpu_count
 
@@ -51,7 +51,7 @@ def run_simple(args):
     video = pipeline.generate(
         prompts,
         start_img_path=args.img_path,
-        sample_config=KsanaSampleConfig(steps=40),
+        sample_config=SampleConfig(steps=40),
         runtime_config=RuntimeConfig(
             seed=SEED,
             size=(512, 512),
@@ -63,7 +63,7 @@ def run_simple(args):
     video = pipeline.generate(
         prompts[0],
         start_img_path=args.img_path,
-        sample_config=KsanaSampleConfig(steps=40),
+        sample_config=SampleConfig(steps=40),
         runtime_config=RuntimeConfig(
             seed=SEED,
             size=(1280, 720),
@@ -85,14 +85,14 @@ def run_start_and_end_with_lora(args):
         f"{args.model_dir}/Wan2.2-I2V-A14B",
         dist_config=DistributedConfig(num_gpus=NUM_GPUS),
         model_config=model_config,
-        lora_config=KsanaLoraConfig(f"{args.model_dir}/Wan2.2-Lightning/Wan2.2-I2V-A14B-4steps-lora-rank64-Seko-V1"),
+        lora_config=LoraConfig(f"{args.model_dir}/Wan2.2-Lightning/Wan2.2-I2V-A14B-4steps-lora-rank64-Seko-V1"),
     )
 
-    sample_config = KsanaSampleConfig(
+    sample_config = SampleConfig(
         steps=4,
         cfg_scale=1.0,
         shift=1.0,
-        solver=KsanaSolverType.EULER,
+        solver=SolverType.EULER,
         sigmas=[1.0, 0.9375001, 0.8333333, 0.625, 0.0000],
     )
 
@@ -119,7 +119,7 @@ def run_turbo_diffusion(args):
 
     model_config = ModelConfig(attention_config=sage_sla_config, run_dtype=torch.bfloat16)
 
-    sample_config = KsanaSampleConfig(steps=4, cfg_scale=1.0, shift=5.0, solver=KsanaSolverType.EULER)
+    sample_config = SampleConfig(steps=4, cfg_scale=1.0, shift=5.0, solver=SolverType.EULER)
 
     high = f"{args.model_dir}/TurboWan2.2-I2V-A14B-720P/TurboWan2.2-I2V-A14B-high-720P.pth"
     low = f"{args.model_dir}/TurboWan2.2-I2V-A14B-720P/TurboWan2.2-I2V-A14B-low-720P.pth"

@@ -13,14 +13,6 @@
 # limitations under the License.
 
 
-runtime_config:
-  boundary: 0.9
-
-sample_config:
-  shift: 5.0
-  steps: 50
-  cfg_scale: 5.0
-
 diffusion:
   # VACE specific parameters
   vace_layers: 8
