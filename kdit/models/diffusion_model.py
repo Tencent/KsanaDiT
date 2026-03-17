@@ -21,7 +21,7 @@ import torch
 from kdit.operations.fuse_qkv import remap_state_dict_for_model
 
 from ..accelerator import platform
-from ..config import KsanaDistributedConfig, KsanaLinearBackend, KsanaModelConfig
+from ..config import DistributedConfig, KsanaLinearBackend, ModelConfig
 from ..utils import log, time_range
 from ..utils.load import load_state_dict, replace_key_in_state_dict
 from ..utils.profile import profile_range
@@ -43,14 +43,14 @@ class KsanaDiffusionModel(ModelBase):
     def __init__(
         self,
         model_key: ModelKey,
-        model_config: KsanaModelConfig,
-        dist_config: KsanaDistributedConfig | None,
+        model_config: ModelConfig,
+        dist_config: DistributedConfig | None,
         default_settings,
         pinned_memory_manager=None,
     ):
         super().__init__(model_key, default_settings)
         self.model_config = model_config
-        self.dist_config = dist_config or KsanaDistributedConfig()
+        self.dist_config = dist_config or DistributedConfig()
         sp_size = self.dist_config.ulysses_size
         num_heads = self.default_settings.diffusion.num_heads
         if self.dist_config.ulysses_size > 1:

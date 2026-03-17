@@ -19,9 +19,9 @@ os.environ["KSANA_LOGGER_LEVEL"] = "INFO"
 from kdit import Pipeline
 from kdit.config import (
     KsanaLoraConfig,
-    KsanaModelConfig,
     KsanaSampleConfig,
     KsanaSolverType,
+    ModelConfig,
     RuntimeConfig,
 )
 from kdit.models.model_key import ModelKey
@@ -52,7 +52,7 @@ def run_edit(model_dir: str, lora_dir: str = None):
     # 加载模型
     pipeline = Pipeline.from_models(
         model_dir,
-        model_config=KsanaModelConfig(run_dtype=torch.bfloat16),
+        model_config=ModelConfig(run_dtype=torch.bfloat16),
         pipeline_key=ModelKey.QwenImage_Edit,
         lora_config=lora_config,
         offload_device="cpu",

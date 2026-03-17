@@ -22,7 +22,7 @@ from .torch_compile_config import KsanaTorchCompileConfig
 
 
 @dataclass()
-class KsanaModelConfig:
+class ModelConfig:
     run_dtype: torch.dtype | str = field(default=torch.float16)
     linear_backend: KsanaLinearBackend = field(default=KsanaLinearBackend.FP16_GEMM)
     attention_config: KsanaAttentionConfig = field(default=KsanaAttentionConfig())

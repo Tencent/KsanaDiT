@@ -21,14 +21,14 @@ os.environ["KSANA_LOGGER_LEVEL"] = "INFO"
 
 from kdit import Pipeline
 from kdit.config import (
+    DistributedConfig,
     KsanaAttentionBackend,
     KsanaAttentionConfig,
-    KsanaDistributedConfig,
     KsanaLoraConfig,
-    KsanaModelConfig,
     KsanaSageSLAConfig,
     KsanaSampleConfig,
     KsanaSolverType,
+    ModelConfig,
     RuntimeConfig,
 )
 from kdit.utils.distribute import get_gpu_count
@@ -45,7 +45,7 @@ NUM_GPUS = get_gpu_count()
 
 def run_simple(args):
     pipeline = Pipeline.from_models(
-        f"{args.model_dir}/Wan2.2-I2V-A14B", dist_config=KsanaDistributedConfig(num_gpus=NUM_GPUS)
+        f"{args.model_dir}/Wan2.2-I2V-A14B", dist_config=DistributedConfig(num_gpus=NUM_GPUS)
     )
 
     video = pipeline.generate(
@@ -76,14 +76,14 @@ def run_simple(args):
 
 def run_start_and_end_with_lora(args):
 
-    model_config = KsanaModelConfig(
+    model_config = ModelConfig(
         run_dtype=torch.float16,
         attention_config=KsanaAttentionConfig(backend=KsanaAttentionBackend.SAGE_ATTN),
     )
 
     pipeline = Pipeline.from_models(
         f"{args.model_dir}/Wan2.2-I2V-A14B",
-        dist_config=KsanaDistributedConfig(num_gpus=NUM_GPUS),
+        dist_config=DistributedConfig(num_gpus=NUM_GPUS),
         model_config=model_config,
         lora_config=KsanaLoraConfig(f"{args.model_dir}/Wan2.2-Lightning/Wan2.2-I2V-A14B-4steps-lora-rank64-Seko-V1"),
     )
@@ -117,7 +117,7 @@ def run_turbo_diffusion(args):
         dense_attention_config=KsanaAttentionConfig(backend=KsanaAttentionBackend.SAGE_ATTN), topk=0.1
     )
 
-    model_config = KsanaModelConfig(attention_config=sage_sla_config, run_dtype=torch.bfloat16)
+    model_config = ModelConfig(attention_config=sage_sla_config, run_dtype=torch.bfloat16)
 
     sample_config = KsanaSampleConfig(steps=4, cfg_scale=1.0, shift=5.0, solver=KsanaSolverType.EULER)
 
@@ -130,7 +130,7 @@ def run_turbo_diffusion(args):
         (high, low),
         text_checkpoint_dir=text_dir,
         vae_checkpoint_dir=vae_dir,
-        dist_config=KsanaDistributedConfig(num_gpus=NUM_GPUS),
+        dist_config=DistributedConfig(num_gpus=NUM_GPUS),
         model_config=model_config,
     )
 

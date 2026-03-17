@@ -15,14 +15,14 @@
 import os
 import unittest
 
-from kdit import get_engine
-from kdit.utils.distribute import get_rank_id
-
-from .nodes_test_helper import (
+from comfy_nodes.nodes_test_helper import (
     COMFY_MODEL_DIFFUSION_ROOT,
     iter_test_models,
     run_load_and_generate,
 )
+
+from kdit import get_engine
+from kdit.utils.distribute import get_rank_id
 
 TEST_STEPS = 2
 

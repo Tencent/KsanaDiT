@@ -15,20 +15,20 @@
 import unittest
 
 import torch
-from pipeline_test_helper import (
+from pipelines.pipeline_test_helper import (
     SEED,
     TEST_PORT,
     TEST_STEPS,
-    get_platform_config_or_skip,
 )
+from platform_test_helper import get_platform_expected_or_skip
 
 from kdit import Pipeline
 from kdit.config import (
+    DistributedConfig,
     KsanaAttentionConfig,
-    KsanaDistributedConfig,
-    KsanaModelConfig,
     KsanaSampleConfig,
     KsanaSolverType,
+    ModelConfig,
     RuntimeConfig,
 )
 from kdit.pipelines.pipeline_key import PipelineKey
@@ -46,12 +46,12 @@ class TestKsanaQwenImageEdit(unittest.TestCase):
     def _create_pipeline(self):
         return Pipeline.from_models(
             "./Qwen-Image-Edit-2511",
-            model_config=KsanaModelConfig(
+            model_config=ModelConfig(
                 run_dtype=TEST_DTYPE,
                 attention_config=KsanaAttentionConfig(),
             ),
             pipeline_key=PipelineKey.QwenImage_Edit,
-            dist_config=KsanaDistributedConfig(port=TEST_PORT),
+            dist_config=DistributedConfig(port=TEST_PORT),
             offload_device="cpu",
         )
 
@@ -62,7 +62,7 @@ class TestKsanaQwenImageEdit(unittest.TestCase):
             "GPU": {"mean": 0.667571902275085},
             "NPU": {"mean": 0.6485475897789001},
         }
-        expected = get_platform_config_or_skip(config, test_name="qwen_image_edit.test_image_edit")
+        expected = get_platform_expected_or_skip(config)
 
         pipeline = self._create_pipeline()
 
@@ -98,7 +98,7 @@ class TestKsanaQwenImageEdit(unittest.TestCase):
             "GPU": {"mean": 0.6605427265167236},
             "NPU": {"mean": 0.6609228849411011},
         }
-        expected = get_platform_config_or_skip(config, test_name="qwen_image_edit.test_single_ref_image_edit")
+        expected = get_platform_expected_or_skip(config)
 
         pipeline = self._create_pipeline()
 

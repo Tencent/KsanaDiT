@@ -15,7 +15,7 @@
 import torch
 
 from kdit import get_engine
-from kdit.config import KsanaDistributedConfig
+from kdit.config import DistributedConfig
 from kdit.models.model_key import get_model_key_from_path
 from kdit.nodes.core.node_context import NodeContext
 from kdit.nodes.core.node_types import InferNodeType
@@ -33,7 +33,7 @@ class KsanaNodeVAELoader:
     @classmethod
     def load(cls, vae_path):
         num_gpus = get_gpu_count()
-        kdit_engine = get_engine(dist_config=KsanaDistributedConfig(num_gpus=num_gpus))
+        kdit_engine = get_engine(dist_config=DistributedConfig(num_gpus=num_gpus))
         if cls.LOADED_MODEL is not None:
             kdit_engine.clear_models(cls.LOADED_MODEL)
         model_key = get_model_key_from_path(vae_path)

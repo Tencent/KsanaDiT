@@ -15,20 +15,20 @@
 import unittest
 
 import torch
-from pipeline_test_helper import (
+from pipelines.pipeline_test_helper import (
     PROMPTS,
     SEED,
     TEST_PORT,
     TEST_STEPS,
-    get_platform_config_or_skip,
 )
+from platform_test_helper import get_platform_expected_or_skip
 
 from kdit import Pipeline
 from kdit.config import (
+    DistributedConfig,
     KsanaAttentionConfig,
-    KsanaDistributedConfig,
-    KsanaModelConfig,
     KsanaSampleConfig,
+    ModelConfig,
     RuntimeConfig,
 )
 
@@ -51,14 +51,14 @@ class TestKsanaQwenImageT2I(unittest.TestCase):
             "GPU": {"mean0": 0.5635481476783752, "mean1": 0.5278018712997437, "mean2": 0.5239981412887573},
             "NPU": {"mean0": 0.5845838785171509, "mean1": 0.4992269277572632, "mean2": 0.5440176725387573},
         }
-        expected = get_platform_config_or_skip(config, test_name="qwen_image.test_batch_prompts")
+        expected = get_platform_expected_or_skip(config)
         generator = Pipeline.from_models(
             "./Qwen-Image",
-            model_config=KsanaModelConfig(
+            model_config=ModelConfig(
                 run_dtype=TEST_DTYPE,
                 attention_config=KsanaAttentionConfig(),
             ),
-            dist_config=KsanaDistributedConfig(port=TEST_PORT),
+            dist_config=DistributedConfig(port=TEST_PORT),
             offload_device="cpu",
         )
         images = generator.generate(

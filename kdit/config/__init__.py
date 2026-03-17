@@ -28,10 +28,10 @@ from .cache_config import (
     MagCacheConfig,
     TeaCacheConfig,
 )
-from .distributed_config import KsanaDistributedConfig
+from .distributed_config import DistributedConfig
 from .linear_config import KsanaLinearBackend
 from .lora_config import KsanaLoraConfig
-from .model_config import KsanaModelConfig
+from .model_config import ModelConfig
 from .runtime_config import RuntimeConfig
 from .sample_config import KsanaSampleConfig, KsanaSolverType
 from .torch_compile_config import KsanaTorchCompileConfig
@@ -56,11 +56,11 @@ __all__ = [
     "EasyCacheConfig",
     "KsanaSampleConfig",
     "KsanaSolverType",
-    "KsanaModelConfig",
+    "ModelConfig",
     "RuntimeConfig",
     "KsanaLoraConfig",
     "KsanaTorchCompileConfig",
-    "KsanaDistributedConfig",
+    "DistributedConfig",
     "KsanaRadialSageAttentionConfig",
     "KsanaVideoControlConfig",
     "KsanaSLGConfig",

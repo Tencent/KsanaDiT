@@ -15,7 +15,7 @@
 import unittest
 
 import torch
-from pipeline_test_helper import (
+from pipelines.pipeline_test_helper import (
     PROMPTS,
     RADIAL_ATTN_TEST_FRAME_NUM,
     RADIAL_ATTN_TEST_SIZE,
@@ -25,31 +25,30 @@ from pipeline_test_helper import (
     TEST_PORT,
     TEST_SIZE,
     TEST_STEPS,
-    get_platform_config_or_skip,
 )
+from platform_test_helper import get_platform_expected_or_skip
 
-from kdit import Pipeline
-from kdit.accelerator import platform
-from kdit.config import (
+from kdit import (
+    DistributedConfig,
     KsanaAttentionBackend,
     KsanaAttentionConfig,
-    KsanaDistributedConfig,
     KsanaLinearBackend,
-    KsanaLoraConfig,
-    KsanaModelConfig,
     KsanaSampleConfig,
     KsanaTorchCompileConfig,
+    Pipeline,
     RuntimeConfig,
 )
+from kdit.accelerator import platform
+from kdit.config import KsanaLoraConfig, ModelConfig
 from kdit.utils.distribute import get_gpu_count
 
 
 class TestKsanaPipelineWanT2V(unittest.TestCase):
-    MODEL_CONFIG = KsanaModelConfig(attention_config=KsanaAttentionConfig())
+    MODEL_CONFIG = ModelConfig(attention_config=KsanaAttentionConfig())
 
     def test_batch_size_per_prompt(self):
         print("-----------------test_batch_size_per_prompt-----------------")
-        config = {
+        expected_values = {
             "GPU": {
                 "mean0": 0.666492760181427,
                 "mean1": 0.6856070756912231,
@@ -61,11 +60,11 @@ class TestKsanaPipelineWanT2V(unittest.TestCase):
                 "mean2": 0.6719279289245605,
             },
         }
-        expected_means = get_platform_config_or_skip(config, test_name="wan_t2v.test_batch_size_per_prompt")
+        expected_means = get_platform_expected_or_skip(expected_values)
         pipeline = Pipeline.from_models(
             "./Wan2.2-T2V-A14B",
             model_config=self.MODEL_CONFIG,
-            dist_config=KsanaDistributedConfig(port=TEST_PORT),
+            dist_config=DistributedConfig(port=TEST_PORT),
         )
         batch_size_per_prompts = [2, 3]
         videos = pipeline.generate(
@@ -113,7 +112,7 @@ class TestKsanaPipelineWanT2V(unittest.TestCase):
 
     def test_larger_seq_batch(self):
         print("-----------------test_larger_seq_batch-----------------")
-        config = {
+        expected_values = {
             "GPU": {
                 "mean0": 0.518387496471405,
                 "mean1": 0.2239505499601364,
@@ -123,11 +122,11 @@ class TestKsanaPipelineWanT2V(unittest.TestCase):
                 "mean1": 0.27056941390037537,
             },
         }
-        expected_means = get_platform_config_or_skip(config, test_name="wan_t2v.test_larger_seq_batch")
+        expected_means = get_platform_expected_or_skip(expected_values)
         pipeline = Pipeline.from_models(
             "./Wan2.2-T2V-A14B",
             model_config=self.MODEL_CONFIG,
-            dist_config=KsanaDistributedConfig(port=TEST_PORT),
+            dist_config=DistributedConfig(port=TEST_PORT),
         )
         videos = pipeline.generate(
             PROMPTS,
@@ -154,13 +153,13 @@ class TestKsanaPipelineWanT2V(unittest.TestCase):
     @unittest.skipIf(not platform.is_gpu(), "FP8 pipeline test runs only on GPU")
     def test_fp8(self):
         print("-----------------test_fp8-----------------")
-        config = {"GPU": {"mean0": 0.66}}
-        expected = get_platform_config_or_skip(config, test_name="wan_t2v.test_fp8")
+        expected_values = {"GPU": {"mean0": 0.66}}
+        expected = get_platform_expected_or_skip(expected_values)
         low_noise_model_path = "./comfy_models/diffusion_models/wan2.2_t2v_low_noise_14B_fp8_scaled.safetensors"
         high_noise_model_path = "./comfy_models/diffusion_models/wan2.2_t2v_high_noise_14B_fp8_scaled.safetensors"
         text_dir = "./Wan2.2-T2V-A14B"
         vae_dir = "./Wan2.2-T2V-A14B"
-        model_config = KsanaModelConfig(
+        model_config = ModelConfig(
             run_dtype=torch.float16,
             attention_config=KsanaAttentionConfig(backend=KsanaAttentionBackend.SAGE_ATTN),
             linear_backend=KsanaLinearBackend.FP8_GEMM,
@@ -172,7 +171,7 @@ class TestKsanaPipelineWanT2V(unittest.TestCase):
             text_checkpoint_dir=text_dir,
             vae_checkpoint_dir=vae_dir,
             model_config=model_config,
-            dist_config=KsanaDistributedConfig(port=TEST_PORT),
+            dist_config=DistributedConfig(port=TEST_PORT),
         )
         video = pipeline.generate(
             PROMPTS[0],
@@ -192,13 +191,13 @@ class TestKsanaPipelineWanT2V(unittest.TestCase):
 
     def test_lora(self):
         print("-----------------test_lora-----------------")
-        config = {"GPU": {"mean0": 0.24302400648593903}, "NPU": {"mean0": 0.2562920153141022}}
-        expected = get_platform_config_or_skip(config, test_name="wan_t2v.test_lora")
+        expected_values = {"GPU": {"mean0": 0.24302400648593903}, "NPU": {"mean0": 0.2562920153141022}}
+        expected = get_platform_expected_or_skip(expected_values)
         pipeline = Pipeline.from_models(
             "./Wan2.2-T2V-A14B",
             lora_config=KsanaLoraConfig("./Wan2.2-Lightning/Wan2.2-T2V-A14B-4steps-lora-rank64-Seko-V1"),
             model_config=self.MODEL_CONFIG,
-            dist_config=KsanaDistributedConfig(port=TEST_PORT),
+            dist_config=DistributedConfig(port=TEST_PORT),
         )
 
         video = pipeline.generate(

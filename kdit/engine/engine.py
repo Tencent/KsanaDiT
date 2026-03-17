@@ -21,7 +21,7 @@ import ray
 import torch.distributed as dist
 
 from ..accelerator import platform
-from ..config import KsanaDistributedConfig
+from ..config import DistributedConfig
 from ..executor import KsanaExecutor, RayKsanaExecutor
 from ..utils import log
 from ..utils.distribute import get_gpu_count, get_torchrun_env, is_launched_by_torchrun
@@ -65,7 +65,7 @@ class Engine:
 
     def __init__(
         self,
-        dist_config: KsanaDistributedConfig = KsanaDistributedConfig(),
+        dist_config: DistributedConfig = DistributedConfig(),
         offload_device="cpu",
         _register_atexit=False,
     ):
@@ -118,7 +118,7 @@ class Engine:
                 cls._default_instance.cleanup_distributed()
             cls._default_instance = None
 
-    def init_executors(self, dist_config: KsanaDistributedConfig = None, offload_device=None):
+    def init_executors(self, dist_config: DistributedConfig = None, offload_device=None):
         if dist_config.num_gpus == 1:
             self.executors = KsanaExecutor(0, offload_device=offload_device)
             return

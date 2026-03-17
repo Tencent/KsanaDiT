@@ -15,12 +15,14 @@
 # TODO(refactor): Remove "Ksana" prefix from all class names in kdit/ package (see .skills/coding.md §7)
 
 from .config import (
+    DistributedConfig,
     KsanaAttentionBackend,
     KsanaAttentionConfig,
     KsanaLinearBackend,
     KsanaRadialSageAttentionConfig,
     KsanaSampleConfig,
     KsanaTorchCompileConfig,
+    ModelConfig,
     RuntimeConfig,
 )
 from .engine import Engine, get_engine
@@ -36,6 +38,8 @@ __all__ = [
     "KsanaDiffusionModel",
     "Engine",
     "KsanaTorchCompileConfig",
+    "DistributedConfig",
+    "ModelConfig",
     "KsanaSampleConfig",
     "RuntimeConfig",
     "KsanaAttentionConfig",

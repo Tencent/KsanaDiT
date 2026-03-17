@@ -66,4 +66,5 @@ kdit = ["data/*.json"]
 zip-safe = false  # 禁止以 zip 形式安装
 
 [tool.pytest.ini_options]
-pythonpath = ["."]  # 确保 pytest 直接运行时也能 import kdit（等效于 python -m pytest）
+pythonpath = [".", "tests/kdit"]  # "." 确保 import kdit 正确；"tests/kdit" 让 helper 模块可直接导入
+testpaths = ["tests"]

@@ -16,12 +16,7 @@ import os
 import unittest
 from dataclasses import dataclass
 
-from kdit import get_engine
-from kdit.config import KsanaAttentionBackend, KsanaLinearBackend
-from kdit.models.model_key import ModelKey
-from kdit.utils.distribute import get_gpu_count, get_rank_id
-
-from .nodes_test_helper import (
+from comfy_nodes.nodes_test_helper import (
     COMFY_MODEL_DIFFUSION_ROOT,
     IMG_SHAPE_I2V,
     IMG_SHAPE_T2I,
@@ -30,9 +25,14 @@ from .nodes_test_helper import (
     TEST_GPUS_EPS_PLACE,
     TEST_ONE_GPU_EPS_PLACE,
     WAN_TEXT_SHAPE,
-    get_platform_config_or_skip,
     run_load_and_generate,
 )
+from platform_test_helper import get_platform_expected_or_skip
+
+from kdit import get_engine
+from kdit.config import KsanaAttentionBackend, KsanaLinearBackend
+from kdit.models.model_key import ModelKey
+from kdit.utils.distribute import get_gpu_count, get_rank_id
 
 TEST_STEPS = 1
 
@@ -138,7 +138,7 @@ class TestModelSwitchAndGenerate(unittest.TestCase):
         print("-----------------test_swith_models_and_generate-----------------")
 
         for test_case in test_cases:
-            case_config = get_platform_config_or_skip(test_case.mean_config, test_name="model_switch.generate")
+            case_config = get_platform_expected_or_skip(test_case.mean_config)
             print(f"----------- test model_name: {test_case.model_names} -------------")
             if test_case.expect_model_key in [ModelKey.Wan2_2_I2V_14B, ModelKey.Wan2_2_T2V_14B]:
                 high_noise_model_path = os.path.join(COMFY_MODEL_DIFFUSION_ROOT, test_case.model_names[0])

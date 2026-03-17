@@ -151,7 +151,7 @@ For detailed code examples, refer to [examples](./examples/).
 import torch
 from kdit import Pipeline
 from kdit.config import (
-    KsanaDistributedConfig,
+    DistributedConfig,
     RuntimeConfig,
     KsanaSampleConfig,
 )
@@ -159,7 +159,7 @@ from kdit.config import (
 # Create inference pipeline
 pipeline = Pipeline.from_models(
     "path/to/Wan2.2-T2V-A14B",
-    dist_config=KsanaDistributedConfig(num_gpus=1)
+    dist_config=DistributedConfig(num_gpus=1)
 )
 
 # Generate video
@@ -207,7 +207,7 @@ See [run_turbo_diffusion](./examples/wan/wan2_2_i2v.py#L115)
 import torch
 from kdit import Pipeline
 from kdit.config import (
-    KsanaModelConfig,
+    ModelConfig,
     RuntimeConfig,
     KsanaSampleConfig,
     KsanaSolverType,
@@ -215,7 +215,7 @@ from kdit.config import (
 
 pipeline = Pipeline.from_models(
     "path/to/Qwen-Image",
-    model_config=KsanaModelConfig(run_dtype=torch.bfloat16),
+    model_config=ModelConfig(run_dtype=torch.bfloat16),
 )
 
 image = pipeline.generate(
@@ -240,13 +240,13 @@ image = pipeline.generate(
 import torch
 from kdit import Pipeline
 from kdit.config import (
-    KsanaModelConfig,
+    ModelConfig,
     KsanaAttentionConfig,
     KsanaAttentionBackend,
     KsanaLinearBackend,
 )
 
-model_config = KsanaModelConfig(
+model_config = ModelConfig(
     run_dtype=torch.float16,
     attention_config=KsanaAttentionConfig(backend=KsanaAttentionBackend.SAGE_ATTN),
     linear_backend=KsanaLinearBackend.FP8_GEMM,
@@ -313,11 +313,11 @@ CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 your_script.py
 
 ```python
 from kdit import Pipeline
-from kdit.config import KsanaDistributedConfig
+from kdit.config import DistributedConfig
 
 pipeline = Pipeline.from_models(
     model_path,
-    dist_config=KsanaDistributedConfig(num_gpus=4),
+    dist_config=DistributedConfig(num_gpus=4),
 )
 ```
 

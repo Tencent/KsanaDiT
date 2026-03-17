@@ -14,9 +14,9 @@
 
 import os
 from typing import cast
-from unittest import SkipTest
 
 import torch
+from platform_test_helper import ALL_PLATFORMS, CURRENT_PLATFORM
 
 from kdit import (
     KsanaAttentionBackend,
@@ -25,7 +25,6 @@ from kdit import (
     KsanaRadialSageAttentionConfig,
     get_engine,
 )
-from kdit.accelerator import platform
 
 # TODO: 这里的node测试其实comfyui的测试，应该改成adapter的测试，这个时候应该允许依赖comfy。另外需要node的单独测试。
 from kdit.adapter.comfyui import (
@@ -52,8 +51,6 @@ COMFY_MODEL_DIFFUSION_ROOT = os.path.join(COMFY_MODEL_ROOT, "diffusion_models")
 SEED = 321
 RUN_DTYPE = torch.float16
 
-CURRENT_PLATFORM = "NPU" if platform.is_npu() else "GPU"
-ALL_PLATFORMS = {"GPU", "NPU"}
 
 TestModelTuple = tuple[str, list[int], list[int], ModelKey]
 
@@ -172,11 +169,3 @@ def run_load_and_generate(model_path, image_latent_shape, text_shape, steps, **k
         low_sample_guide_scale=kwargs.get("low_sample_guide_scale", None),
     )
     return load_output, generate_output
-
-
-def get_platform_config_or_skip(config_map: dict, *, test_name: str):
-    normalized = {str(key).upper(): value for key, value in (config_map or {}).items()}
-    config = normalized.get(CURRENT_PLATFORM)
-    if config is None:
-        raise SkipTest(f"{test_name} skipped on {CURRENT_PLATFORM}: no config defined")
-    return config

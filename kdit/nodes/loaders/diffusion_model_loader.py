@@ -17,7 +17,7 @@ import os
 
 import torch
 
-from kdit.config import KsanaLoraConfig, KsanaModelConfig
+from kdit.config import KsanaLoraConfig, ModelConfig
 from kdit.memory import PinnedMemoryManager
 from kdit.models import KsanaQwenImageModel, KsanaWanModel, KsanaWanVaceModel
 from kdit.models.model_key import ModelKey
@@ -159,7 +159,7 @@ class DiffusionLoaderNode(LoaderNode):
     def run(self, model_key, *, model_pool, device_ctx, **kwargs):
         model_path = kwargs.pop("model_path")
         model_patch_path = kwargs.pop("model_patch_path", None)
-        model_config: KsanaModelConfig = kwargs.pop("model_config", None)
+        model_config: ModelConfig = kwargs.pop("model_config", None)
         lora_config = kwargs.pop("lora_config", None)
         dist_config = kwargs.pop("dist_config", None)
         shard_fn = kwargs.pop("shard_fn", None)

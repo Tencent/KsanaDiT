@@ -20,7 +20,7 @@ os.environ["KSANA_LOGGER_LEVEL"] = "INFO"
 from kdit import Pipeline
 from kdit.config import (
     DCacheConfig,
-    KsanaDistributedConfig,
+    DistributedConfig,
     KsanaExperimentalConfig,
     KsanaFETAConfig,
     KsanaSampleConfig,
@@ -48,7 +48,7 @@ SEED = 620012503742781
 def run_simple(args):
     engine = Pipeline.from_models(
         f"{args.model_dir}",
-        dist_config=KsanaDistributedConfig(num_gpus=args.num_gpus),
+        dist_config=DistributedConfig(num_gpus=args.num_gpus),
     )
 
     size = args.size if args.size else (512, 512)
@@ -78,7 +78,7 @@ def run_simple(args):
 def run_with_experimental_configs(args):
     engine = Pipeline.from_models(
         f"{args.model_dir}",
-        dist_config=KsanaDistributedConfig(num_gpus=args.num_gpus),
+        dist_config=DistributedConfig(num_gpus=args.num_gpus),
     )
 
     slg_config = KsanaSLGConfig(
@@ -153,7 +153,7 @@ def run_with_experimental_configs(args):
 def run_with_control_video(args):
     engine = Pipeline.from_models(
         f"{args.model_dir}",
-        dist_config=KsanaDistributedConfig(num_gpus=args.num_gpus),
+        dist_config=DistributedConfig(num_gpus=args.num_gpus),
     )
 
     target_size = args.size if args.size else (512, 512)

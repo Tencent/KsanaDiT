@@ -30,7 +30,7 @@ from pathlib import Path
 
 import torch
 
-from kdit.config import KsanaDistributedConfig, KsanaModelConfig, KsanaSampleConfig, RuntimeConfig
+from kdit.config import DistributedConfig, KsanaSampleConfig, ModelConfig, RuntimeConfig
 from kdit.config.cache_config import HybridCacheConfig, KsanaCacheConfig
 from kdit.config.lora_config import KsanaLoraConfig
 from kdit.engine import get_engine
@@ -46,7 +46,7 @@ from kdit.utils.profile import TimeProfiler
 from .context_builder import ContextBuilder
 from .generate_inputs import GenerateInputs
 from .pipeline_def import PipelineDef, get_pipeline_def
-from .pipeline_key import get_pipeline_key_from_path
+from .pipeline_key import PipelineKey, get_pipeline_key_from_path
 
 # ── Pipeline 类 ─────────────────────────────────────────────────────────
 
@@ -86,8 +86,8 @@ class Pipeline:
     def from_models(
         model_path,
         *,
-        model_config: KsanaModelConfig = None,
-        dist_config: KsanaDistributedConfig = None,
+        model_config: ModelConfig = None,
+        dist_config: DistributedConfig = None,
         pipeline_key=None,
         text_checkpoint_dir=None,
         vae_checkpoint_dir=None,
@@ -112,10 +112,8 @@ class Pipeline:
         pipeline_def = get_pipeline_def(pipeline_key)
 
         # 创建 Engine
-        model_config = model_config or KsanaModelConfig()
-        dist_config = (
-            dist_config or __import__("kdit.config", fromlist=["KsanaDistributedConfig"]).KsanaDistributedConfig()
-        )
+        model_config = model_config or ModelConfig()
+        dist_config = dist_config or __import__("kdit.config", fromlist=["DistributedConfig"]).DistributedConfig()
         engine = get_engine(dist_config=dist_config, offload_device=offload_device)
 
         # 创建 Pipeline 并加载模型
@@ -133,7 +131,7 @@ class Pipeline:
         self,
         model_path,
         *,
-        model_config: KsanaModelConfig = None,
+        model_config: ModelConfig = None,
         text_checkpoint_dir=None,
         vae_checkpoint_dir=None,
         lora_config: KsanaLoraConfig | list[KsanaLoraConfig] | None = None,
@@ -143,13 +141,12 @@ class Pipeline:
         self._default_settings = load_default_settings(self._def.pipeline_key, with_lora=self._has_lora)
 
         # 解析模型路径
-        diffusion_settings = self._default_settings.diffusion
         load_model_path, text_checkpoint_dir, vae_checkpoint_dir = _resolve_model_paths(
-            model_path, text_checkpoint_dir, vae_checkpoint_dir, diffusion_settings
+            model_path, text_checkpoint_dir, vae_checkpoint_dir, self._def.pipeline_key, self._default_settings
         )
 
         # 解析 LoRA
-        lora_list = _resolve_lora_config(lora_config, diffusion_settings) if lora_config else None
+        lora_list = _resolve_lora_config(lora_config, self._default_settings.diffusion) if lora_config else None
 
         # 按 load_phases 顺序加载
         for phase in self._def.load_phases:
@@ -332,23 +329,32 @@ def _valid_cache_config(cache_config, default_config):
     return cache_config
 
 
-def _resolve_model_paths(model_path, text_checkpoint_dir, vae_checkpoint_dir, diffusion_settings):
+def _resolve_model_paths(model_path, text_checkpoint_dir, vae_checkpoint_dir, pipeline_key, pipeline_settings):
     """解析模型路径 — 从 BasePipeline._valid_input_models_path 迁移。"""
     if isinstance(model_path, (list, tuple)):
+        if not Path(text_checkpoint_dir).is_dir():
+            raise ValueError(
+                f"text_checkpoint_dir must be provided when loading from local checkpoint "
+                f"with diffusion model {model_path}"
+            )
+        if not Path(vae_checkpoint_dir).is_dir():
+            raise ValueError(
+                f"vae_checkpoint_dir must be provided when loading from local checkpoint "
+                f"with diffusion model {model_path}"
+            )
+        load_model_path = list(model_path)
+    elif Path(model_path).is_dir():
         load_model_path = model_path
-        if text_checkpoint_dir is None:
-            text_checkpoint_dir = model_path[0] if len(model_path) > 0 else None
-        if vae_checkpoint_dir is None:
-            vae_checkpoint_dir = model_path[0] if len(model_path) > 0 else None
+        text_checkpoint_dir = text_checkpoint_dir or model_path
+        vae_checkpoint_dir = vae_checkpoint_dir or model_path
+        diffusion_settings = pipeline_settings.diffusion
+        if pipeline_key in [PipelineKey.Wan2_2_I2V_14B, PipelineKey.Wan2_2_T2V_14B]:
+            load_model_path = [
+                os.path.join(model_path, diffusion_settings.high_noise_checkpoint),
+                os.path.join(model_path, diffusion_settings.low_noise_checkpoint),
+            ]
     else:
-        load_model_path = model_path
-        base_dir = str(Path(model_path).parent) if model_path else ""
-        if text_checkpoint_dir is None:
-            text_ckpt = getattr(diffusion_settings, "text_checkpoint_dir", "")
-            text_checkpoint_dir = os.path.join(base_dir, text_ckpt) if text_ckpt else base_dir
-        if vae_checkpoint_dir is None:
-            vae_ckpt = getattr(diffusion_settings, "vae_checkpoint_dir", "")
-            vae_checkpoint_dir = os.path.join(base_dir, vae_ckpt) if vae_ckpt else base_dir
+        raise ValueError(f"model_path {model_path} should be a directory or list of diffusion model files")
     return load_model_path, text_checkpoint_dir, vae_checkpoint_dir
 
 

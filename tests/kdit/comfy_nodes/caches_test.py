@@ -15,6 +15,12 @@
 import os
 import unittest
 
+from comfy_nodes.nodes_test_helper import (
+    COMFY_MODEL_DIFFUSION_ROOT,
+    iter_test_models,
+    run_load_and_generate,
+)
+
 from kdit import get_engine
 from kdit.config import (
     DBCacheConfig,
@@ -26,12 +32,6 @@ from kdit.config import (
 )
 from kdit.models import ModelKey
 from kdit.utils.distribute import get_rank_id
-
-from .nodes_test_helper import (
-    COMFY_MODEL_DIFFUSION_ROOT,
-    iter_test_models,
-    run_load_and_generate,
-)
 
 TEST_STEPS = 10
 EPS_PLACES = 2

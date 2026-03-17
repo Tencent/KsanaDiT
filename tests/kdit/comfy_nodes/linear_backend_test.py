@@ -15,12 +15,17 @@
 import os
 import unittest
 
+from comfy_nodes.nodes_test_helper import (
+    COMFY_MODEL_DIFFUSION_ROOT,
+    TEST_STEPS,
+    iter_test_models,
+    run_load_and_generate,
+)
+
 from kdit import get_engine
 from kdit.accelerator import platform
 from kdit.config import KsanaLinearBackend
 from kdit.utils.distribute import get_rank_id
-
-from .nodes_test_helper import COMFY_MODEL_DIFFUSION_ROOT, TEST_STEPS, iter_test_models, run_load_and_generate
 
 
 @unittest.skipIf(platform.is_npu(), "Linear backend tests require GPU")

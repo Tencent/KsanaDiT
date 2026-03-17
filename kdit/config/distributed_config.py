@@ -19,7 +19,7 @@ from ..utils.distribute import get_free_port, get_gpu_count
 
 
 @dataclass()
-class KsanaDistributedConfig:
+class DistributedConfig:
     num_gpus: int = field(default=get_gpu_count(), metadata={"help": "total number of gpus"})
     port: int | None = field(default=DEFAULT_DIST_PORT, metadata={"help": "port for distributed communication"})
 

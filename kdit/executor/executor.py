@@ -18,7 +18,7 @@ from functools import partial
 import torch
 
 from ..accelerator import platform
-from ..config import KsanaDistributedConfig
+from ..config import DistributedConfig
 from ..distributed import shard_model
 from ..models.model_key import ModelKey
 from ..models.model_pool import ModelPool
@@ -53,7 +53,7 @@ class KsanaExecutor(ABC):
         # Note: each executor has its own model pool for nodes call, and pipeline own engine then can use executors
         self.model_pool = ModelPool()
         self.shard_fn = None
-        self.dist_config = KsanaDistributedConfig(num_gpus=1, use_sp=False, dit_fsdp=False, ulysses_size=1)
+        self.dist_config = DistributedConfig(num_gpus=1, use_sp=False, dit_fsdp=False, ulysses_size=1)
 
         # V5 Node 架构：三大管理器
         self.tensor_pool = TensorPool()
@@ -63,7 +63,7 @@ class KsanaExecutor(ABC):
         log.info(f"create executor with device_id {self.device_id}, offload_device {self.offload_device}")
         reset_logging()
 
-    def init_torch_dist_group(self, rank_id, dist_config: KsanaDistributedConfig):
+    def init_torch_dist_group(self, rank_id, dist_config: DistributedConfig):
         """r initialize sequence parallel group."""
         self.dist_config = dist_config
         log.info(f"init torch dist group with dist_config {dist_config}")

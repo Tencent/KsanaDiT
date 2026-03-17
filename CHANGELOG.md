@@ -176,7 +176,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Custom sigma scheduling support
 - VAE encoder/decoder with I2V ComfyUI support
 - Ramdisk model loading optimization for multi-GPU
-- Pipeline configuration: KsanaModelConfig, KsanaPipelineConfig
+- Pipeline configuration: ModelConfig, KsanaPipelineConfig
 - Comprehensive test framework with ComfyUI workflow tests
 
 ### Changed

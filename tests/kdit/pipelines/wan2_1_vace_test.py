@@ -15,16 +15,16 @@
 import unittest
 
 import torch
-from pipeline_test_helper import get_platform_config_or_skip
+from platform_test_helper import get_platform_expected_or_skip
 
 from kdit import Pipeline
 from kdit.accelerator import platform
 from kdit.config import (
     KsanaAttentionBackend,
     KsanaAttentionConfig,
-    KsanaModelConfig,
     KsanaSampleConfig,
     KsanaSolverType,
+    ModelConfig,
     RuntimeConfig,
 )
 from kdit.utils.distribute import get_gpu_count
@@ -58,7 +58,7 @@ class TestKsanaPipelineWanVace(unittest.TestCase):
 
     def test_simple(self):
         name = "wan2_1_vace.test_simple"
-        model_config = KsanaModelConfig(attention_config=KsanaAttentionConfig())
+        model_config = ModelConfig(attention_config=KsanaAttentionConfig())
         result_config = {
             "GPU": {"mean0": 0.80013597},
         }
@@ -66,7 +66,7 @@ class TestKsanaPipelineWanVace(unittest.TestCase):
 
     def test_laser_attn(self):
         name = "wan2_1_vace.test_laser_attn"
-        model_config = KsanaModelConfig(attention_config=KsanaAttentionConfig(KsanaAttentionBackend.LASER_ATTN))
+        model_config = ModelConfig(attention_config=KsanaAttentionConfig(KsanaAttentionBackend.LASER_ATTN))
         result_config = {
             "NPU": {"mean0": 0.7870979905128479},
         }
@@ -76,7 +76,7 @@ class TestKsanaPipelineWanVace(unittest.TestCase):
         print(f"-----------------wan2.1 vace {test_name}-----------------")
         # NOTE: gpu多卡因为vae paralle导致和单卡输出有差异。
         places = TEST_EPS_PLACE if (platform.is_gpu() and get_gpu_count() == 1) else 2
-        expected = get_platform_config_or_skip(config, test_name=test_name)
+        expected = get_platform_expected_or_skip(config)
         pipeline = Pipeline.from_models("./Wan2.1-VACE-14B", model_config=model_config)
         video = pipeline.generate(
             prompts[0],

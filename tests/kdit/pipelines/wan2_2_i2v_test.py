@@ -15,7 +15,7 @@
 import unittest
 
 import torch
-from pipeline_test_helper import (
+from pipelines.pipeline_test_helper import (
     PROMPTS,
     SEED,
     TEST_EPS_PLACE,
@@ -23,26 +23,26 @@ from pipeline_test_helper import (
     TEST_PORT,
     TEST_SIZE,
     TEST_STEPS,
-    get_platform_config_or_skip,
 )
+from platform_test_helper import get_platform_expected_or_skip
 
 from kdit import Pipeline
 from kdit.accelerator import platform
 from kdit.config import (
+    DistributedConfig,
     KsanaAttentionBackend,
     KsanaAttentionConfig,
-    KsanaDistributedConfig,
-    KsanaModelConfig,
     KsanaSageSLAConfig,
     KsanaSampleConfig,
     KsanaSolverType,
+    ModelConfig,
     RuntimeConfig,
 )
 from kdit.utils.distribute import get_gpu_count
 
 
 class TestKsanaPipelineWanI2V(unittest.TestCase):
-    MODEL_CONFIG = KsanaModelConfig(attention_config=KsanaAttentionConfig())
+    MODEL_CONFIG = ModelConfig(attention_config=KsanaAttentionConfig())
 
     def test_simple_i2v(self):
         print("-----------------test_simple_i2v-----------------")
@@ -58,11 +58,11 @@ class TestKsanaPipelineWanI2V(unittest.TestCase):
                 "mean2": 0.44211167097091675,
             },
         }
-        expected_means = get_platform_config_or_skip(config, test_name="wan_i2v.test_simple_i2v")
+        expected_means = get_platform_expected_or_skip(config)
         pipeline = Pipeline.from_models(
             "./Wan2.2-I2V-A14B",
             model_config=self.MODEL_CONFIG,
-            dist_config=KsanaDistributedConfig(port=TEST_PORT),
+            dist_config=DistributedConfig(port=TEST_PORT),
         )
         videos = pipeline.generate(
             PROMPTS[0],
@@ -118,12 +118,12 @@ class TestKsanaPipelineWanI2V(unittest.TestCase):
                 "mean2": 0.45431801676750183,
             }
         }
-        expected_means = get_platform_config_or_skip(config, test_name="wan_i2v.test_turbo_wan_i2v")
+        expected_means = get_platform_expected_or_skip(config)
         sage_sla_config = KsanaSageSLAConfig(
             dense_attention_config=KsanaAttentionConfig(backend=KsanaAttentionBackend.SAGE_ATTN), topk=0.1
         )
 
-        model_config = KsanaModelConfig(attention_config=sage_sla_config, run_dtype=torch.bfloat16)
+        model_config = ModelConfig(attention_config=sage_sla_config, run_dtype=torch.bfloat16)
 
         sample_config = KsanaSampleConfig(steps=TEST_STEPS, cfg_scale=1.0, shift=5.0, solver=KsanaSolverType.EULER)
 
@@ -137,7 +137,7 @@ class TestKsanaPipelineWanI2V(unittest.TestCase):
             text_checkpoint_dir=text_dir,
             vae_checkpoint_dir=vae_dir,
             model_config=model_config,
-            dist_config=KsanaDistributedConfig(port=TEST_PORT),
+            dist_config=DistributedConfig(port=TEST_PORT),
         )
 
         videos = pipeline.generate(

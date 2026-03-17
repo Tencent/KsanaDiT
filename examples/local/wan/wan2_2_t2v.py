@@ -21,15 +21,15 @@ os.environ["KSANA_LOGGER_LEVEL"] = "INFO"
 
 from kdit import Pipeline
 from kdit.config import (
+    DistributedConfig,
     KsanaAttentionBackend,
     KsanaAttentionConfig,
-    KsanaDistributedConfig,
     KsanaLinearBackend,
     KsanaLoraConfig,
-    KsanaModelConfig,
     KsanaSampleConfig,
     KsanaSolverType,
     KsanaTorchCompileConfig,
+    ModelConfig,
     RuntimeConfig,
 )
 from kdit.config.cache_config import CustomStepCacheConfig, DBCacheConfig, DCacheConfig, HybridCacheConfig
@@ -46,7 +46,7 @@ NUM_GPUS = get_gpu_count()
 
 def run_simple(args):
     pipeline = Pipeline.from_models(
-        f"{args.model_dir}/Wan2.2-T2V-A14B", dist_config=KsanaDistributedConfig(num_gpus=NUM_GPUS)
+        f"{args.model_dir}/Wan2.2-T2V-A14B", dist_config=DistributedConfig(num_gpus=NUM_GPUS)
     )
 
     video = pipeline.generate(
@@ -73,7 +73,7 @@ def run_fp8_models(args):
     text_dir = f"{args.model_dir}/Wan2.2-T2V-A14B"
     vae_dir = f"{args.model_dir}/Wan2.2-T2V-A14B"
 
-    model_config = KsanaModelConfig(
+    model_config = ModelConfig(
         run_dtype=torch.float16,
         attention_config=KsanaAttentionConfig(backend=KsanaAttentionBackend.SAGE_ATTN),
         linear_backend=KsanaLinearBackend.FP8_GEMM,
@@ -84,7 +84,7 @@ def run_fp8_models(args):
         (high_noise_model_path, low_noise_model_path),  # high go first
         text_checkpoint_dir=text_dir,
         vae_checkpoint_dir=vae_dir,
-        dist_config=KsanaDistributedConfig(num_gpus=NUM_GPUS),
+        dist_config=DistributedConfig(num_gpus=NUM_GPUS),
         model_config=model_config,
     )
     high_cache_config = DCacheConfig(fast_degree=55)
@@ -105,7 +105,7 @@ def run_fp8_models(args):
 
 
 def run_advanced(args):
-    model_config = KsanaModelConfig(
+    model_config = ModelConfig(
         run_dtype=torch.float16,
         attention_config=KsanaAttentionConfig(backend=KsanaAttentionBackend.FLASH_ATTN),
         torch_compile_config=KsanaTorchCompileConfig(),
@@ -113,7 +113,7 @@ def run_advanced(args):
     pipeline = Pipeline.from_models(
         f"{args.model_dir}/Wan2.2-T2V-A14B",
         model_config=model_config,
-        dist_config=KsanaDistributedConfig(num_gpus=NUM_GPUS),
+        dist_config=DistributedConfig(num_gpus=NUM_GPUS),
     )
 
     runtime_config = RuntimeConfig(
@@ -140,7 +140,7 @@ def run_advanced(args):
 
 
 def run_fast(args):
-    model_config = KsanaModelConfig(
+    model_config = ModelConfig(
         run_dtype=torch.float16,
         attention_config=KsanaAttentionConfig(backend=KsanaAttentionBackend.FLASH_ATTN),
         torch_compile_config=KsanaTorchCompileConfig(mode="max-autotune-no-cudagraphs"),
@@ -150,7 +150,7 @@ def run_fast(args):
         f"{args.model_dir}/Wan2.2-T2V-A14B",
         model_config=model_config,
         lora_config=KsanaLoraConfig(f"{args.model_dir}/Wan2.2-Lightning/Wan2.2-T2V-A14B-4steps-lora-rank64-Seko-V1"),
-        dist_config=KsanaDistributedConfig(num_gpus=NUM_GPUS),
+        dist_config=DistributedConfig(num_gpus=NUM_GPUS),
     )
 
     runtime_config = RuntimeConfig(

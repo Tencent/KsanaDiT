@@ -22,7 +22,7 @@
 # kdit/nodes/loaders/diffusion_model_loader.py
 
 # ✅ 跨子包 → 绝对导入
-from kdit.config import KsanaLoraConfig, KsanaModelConfig
+from kdit.config import KsanaLoraConfig, ModelConfig
 from kdit.memory import PinnedMemoryManager
 from kdit.models import KsanaWanModel
 from kdit.utils import is_file_or_dir, log
@@ -428,7 +428,7 @@ KsanaExecutor (每卡一个实例)
 | `device_ctx` | `NodeDeviceContext` | 初始化后不变（frozen） | 只读设备上下文，传入 Node.run() |
 | `device` | `torch.device` | 不变 | 计算设备 (如 `cuda:0`) |
 | `offload_device` | `torch.device` | 不变 | 卸载设备 (如 `cpu`) |
-| `dist_config` | `KsanaDistributedConfig` | `init_torch_dist_group()` 后更新 | 分布式配置 |
+| `dist_config` | `DistributedConfig` | `init_torch_dist_group()` 后更新 | 分布式配置 |
 | `shard_fn` | `partial` 或 `None` | `init_torch_dist_group()` 后设置 | FSDP 分片函数 |
 
 #### NodeDeviceContext (`kdit/nodes/core/device_context.py`)
@@ -667,7 +667,7 @@ grep -rn "import kdit.adapter" kdit/ --include="*.py" | grep -v __pycache__ | gr
 | `KsanaLinearBackend` | `LinearBackend` | `kdit/config/linear_config.py` |
 | `KsanaSolverType` | `SolverType` | `kdit/config/sample_config.py` |
 | `KsanaSampleConfig` | `SampleConfig` | `kdit/config/sample_config.py` |
-| `KsanaModelConfig` | `ModelConfig` | `kdit/config/model_config.py` |
+| `ModelConfig` | `ModelConfig` | `kdit/config/model_config.py` |
 | `KsanaCacheConfig` | `CacheConfig` | `kdit/config/cache_config/base.py` |
 | `KsanaBlockCacheConfig` | `BlockCacheConfig` | `kdit/config/cache_config/base.py` |
 | `KsanaVideoControlConfig` | `VideoControlConfig` | `kdit/config/video_control_config.py` |
@@ -680,7 +680,7 @@ grep -rn "import kdit.adapter" kdit/ --include="*.py" | grep -v __pycache__ | gr
 | `KsanaSLGConfig` | `SLGConfig` | `kdit/config/wan_experimental_config.py` |
 | `KsanaFETAConfig` | `FETAConfig` | `kdit/config/wan_experimental_config.py` |
 | `KsanaExperimentalConfig` | `ExperimentalConfig` | `kdit/config/wan_experimental_config.py` |
-| `KsanaDistributedConfig` | `DistributedConfig` | `kdit/config/distributed_config.py` |
+| `DistributedConfig` | `DistributedConfig` | `kdit/config/distributed_config.py` |
 | `KsanaBatchScheduler` | `BatchScheduler` | `kdit/scheduler/scheduler.py` |
 | `KsanaProfiler` | `Profiler` | `kdit/utils/profile.py` |
 | `KsanaQwenImageVAE` | `QwenImageVAE` | `kdit/models/qwen/vae.py` |

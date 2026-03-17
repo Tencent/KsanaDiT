@@ -17,7 +17,7 @@ import os
 import ray
 
 from ..accelerator import platform
-from ..config import KsanaDistributedConfig
+from ..config import DistributedConfig
 from .executor import KsanaExecutor
 
 if platform.is_npu():
@@ -29,7 +29,7 @@ else:
 @ray.remote(**_ray_options)
 class RayKsanaExecutor(KsanaExecutor):
 
-    def init_torch_dist_group(self, rank_id, dist_config: KsanaDistributedConfig):
+    def init_torch_dist_group(self, rank_id, dist_config: DistributedConfig):
         """
         初始化 PyTorch DDP。
         """
