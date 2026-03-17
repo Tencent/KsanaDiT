@@ -11,3 +11,18 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
+
+from .qwen_edit import QWEN_EDIT_DEF  # noqa: F401  # pylint: disable=unused-import
+from .qwen_t2i import QWEN_T2I_DEF  # noqa: F401  # pylint: disable=unused-import
+from .wan_i2v import WAN_I2V_14B_DEF  # noqa: F401  # pylint: disable=unused-import
+from .wan_t2v import WAN_T2V_14B_DEF  # noqa: F401  # pylint: disable=unused-import
+from .wan_vace import WAN_VACE_14B_DEF  # noqa: F401  # pylint: disable=unused-import
+
+__all__ = [
+    "QWEN_EDIT_DEF",
+    "QWEN_T2I_DEF",
+    "WAN_I2V_14B_DEF",
+    "WAN_T2V_14B_DEF",
+    "WAN_VACE_14B_DEF",
+]

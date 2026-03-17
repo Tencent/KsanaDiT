@@ -28,10 +28,10 @@ import torchvision.transforms.functional as tvtf
 from PIL import Image
 
 from kdit.engine import Engine
-from kdit.models.model_key import KsanaModelKey
+from kdit.models.model_key import ModelKey
 from kdit.models.vae_model import compute_video_latent_shape
-from kdit.nodes.core.node_context import KsanaNodeContext
-from kdit.nodes.core.node_types import KsanaInferNodeType as NT
+from kdit.nodes.core.node_context import NodeContext
+from kdit.nodes.core.node_types import InferNodeType as NT
 from kdit.tensor import TensorKey
 from kdit.utils.logger import log
 from kdit.utils.types import str_to_list
@@ -50,18 +50,18 @@ class WanContextBuilder(ContextBuilder):
     子类只需实现 ``prepare_generate_inputs`` 和 ``build_context``。
     """
 
-    def _build_text_ctx(self, inputs: GenerateInputs) -> KsanaNodeContext:
+    def _build_text_ctx(self, inputs: GenerateInputs) -> NodeContext:
         """构建 TextEncode 的 context。"""
-        return KsanaNodeContext(
+        return NodeContext(
             prompt=inputs.prompt,
             negative_prompt=inputs.prompt_negative,
             metadata=self._common_metadata(inputs),
         )
 
-    def _build_gen_ctx(self, inputs: GenerateInputs) -> KsanaNodeContext:
+    def _build_gen_ctx(self, inputs: GenerateInputs) -> NodeContext:
         """构建 Generator 的 context。"""
         extra = self._extra
-        return KsanaNodeContext(
+        return NodeContext(
             sample_config=inputs.sample_config,
             runtime_config=inputs.runtime_config,
             cache_config=inputs.cache_config,
@@ -71,19 +71,19 @@ class WanContextBuilder(ContextBuilder):
             },
         )
 
-    def _build_decode_ctx(self, inputs: GenerateInputs) -> KsanaNodeContext:
+    def _build_decode_ctx(self, inputs: GenerateInputs) -> NodeContext:
         """构建 VAE Decode 的 context。"""
         extra = self._extra
-        return KsanaNodeContext(
+        return NodeContext(
             metadata={
                 "offload_model": inputs.runtime_config.offload_model,
                 "with_end_image": getattr(extra, "with_end_image", False),
             },
         )
 
-    def _build_save_ctx(self, inputs: GenerateInputs) -> KsanaNodeContext:
+    def _build_save_ctx(self, inputs: GenerateInputs) -> NodeContext:
         """构建 SaveNode 的 context — 包含保存路径和 fps。"""
-        return KsanaNodeContext(
+        return NodeContext(
             metadata={
                 "save_path": _compute_save_path(inputs),
                 "fps": inputs.sample_config.fps,
@@ -132,7 +132,7 @@ class WanT2VContextBuilder(WanContextBuilder):
         )
         self._extra = self.Extra(noise_shape=noise_shape)
 
-    def build_context(self, phase: InferPhase, inputs: GenerateInputs) -> KsanaNodeContext:
+    def build_context(self, phase: InferPhase, inputs: GenerateInputs) -> NodeContext:
         """按 node_type 分发构建 context。"""
         match phase.node_type:
             case NT.TEXT_ENCODE:
@@ -244,14 +244,14 @@ class WanI2VContextBuilder(WanContextBuilder):
             vace_video_control_config=vace_video_control_config,
         )
 
-    def build_context(self, phase: InferPhase, inputs: GenerateInputs) -> KsanaNodeContext:
+    def build_context(self, phase: InferPhase, inputs: GenerateInputs) -> NodeContext:
         """按 node_type 分发构建 context。"""
         extra = self._extra
         match phase.node_type:
             case NT.TEXT_ENCODE:
                 return self._build_text_ctx(inputs)
             case NT.VAE_ENCODE_SPATIAL:
-                return KsanaNodeContext(
+                return NodeContext(
                     metadata={
                         "target_f": extra.target_frame_num,
                         "target_h": inputs.runtime_config.size[1],
@@ -345,7 +345,7 @@ def _valid_video_control_config(
     video_control_config: VaceConfig | None,
     runtime_config: Any,
     engine: Engine | None,
-    vae_model_key: KsanaModelKey | None,
+    vae_model_key: ModelKey | None,
     vae_stride: Any | None,
 ) -> VaceConfig | None:
     """校验并构建 VACE 配置 — 从 BasePipeline._valid_video_control_config 迁移。
@@ -364,7 +364,7 @@ def _valid_video_control_config(
     num_frames = runtime_config.frame_num
 
     def vae_encode_fn(frame: torch.Tensor) -> torch.Tensor:
-        context = KsanaNodeContext()
+        context = NodeContext()
         with engine.tensor_scope(keep=[TensorKey.IMAGE_EMBEDS]):
             engine.put_tensors(**{TensorKey.IMAGE: frame})
             engine.run_infer_node(NT.VAE_ENCODE_IMAGES, vae_model_key, context)

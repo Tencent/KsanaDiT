@@ -18,7 +18,7 @@ from dataclasses import dataclass
 
 from kdit import get_engine
 from kdit.config import KsanaAttentionBackend, KsanaLinearBackend
-from kdit.models.model_key import KsanaModelKey
+from kdit.models.model_key import ModelKey
 from kdit.utils.distribute import get_gpu_count, get_rank_id
 
 from .nodes_test_helper import (
@@ -44,7 +44,7 @@ class KsanaNodesTestCase:
     attention_backends: KsanaAttentionBackend | None
     linear_backends: KsanaLinearBackend
     rope_function: str
-    expect_model_key: KsanaModelKey
+    expect_model_key: ModelKey
     mean_config: dict
 
 
@@ -58,7 +58,7 @@ test_cases = [
         attention_backends=KsanaAttentionBackend.SAGE_ATTN,
         linear_backends=KsanaLinearBackend.DEFAULT,
         rope_function="comfy",
-        expect_model_key=KsanaModelKey.Wan2_2_T2V_14B,
+        expect_model_key=ModelKey.Wan2_2_T2V_14B,
         mean_config={"GPU": {"single_mean": 0.76318359375, "multi_mean": 0.76318359375}},
     ),
     KsanaNodesTestCase(
@@ -70,12 +70,12 @@ test_cases = [
         attention_backends=KsanaAttentionBackend.SAGE_ATTN,
         linear_backends=KsanaLinearBackend.DEFAULT,
         rope_function="default",
-        expect_model_key=KsanaModelKey.Wan2_2_I2V_14B,
+        expect_model_key=ModelKey.Wan2_2_I2V_14B,
         mean_config={"GPU": {"single_mean": 0.7939453125, "multi_mean": 0.7939453125}},
     ),
     KsanaNodesTestCase(
         model_names=["wan2.2_t2v_low_noise_14B_fp8_scaled.safetensors", None],
-        expect_model_key=KsanaModelKey.Wan2_2_T2V_14B,
+        expect_model_key=ModelKey.Wan2_2_T2V_14B,
         image_latent_shape=IMG_SHAPE_T2V,
         attention_backends=None,
         linear_backends=KsanaLinearBackend.FP8_GEMM,
@@ -87,7 +87,7 @@ test_cases = [
             "wan2.2_t2v_high_noise_14B_fp16.safetensors",
             "wan2.2_t2v_low_noise_14B_fp16.safetensors",
         ],
-        expect_model_key=KsanaModelKey.Wan2_2_T2V_14B,
+        expect_model_key=ModelKey.Wan2_2_T2V_14B,
         image_latent_shape=IMG_SHAPE_T2V,
         attention_backends=KsanaAttentionBackend.SAGE_ATTN,
         linear_backends=KsanaLinearBackend.FP8_GEMM_DYNAMIC,
@@ -99,7 +99,7 @@ test_cases = [
             "wan2.2_i2v_high_noise_14B_fp16.safetensors",
             "wan2.2_i2v_low_noise_14B_fp16.safetensors",
         ],
-        expect_model_key=KsanaModelKey.Wan2_2_I2V_14B,
+        expect_model_key=ModelKey.Wan2_2_I2V_14B,
         image_latent_shape=IMG_SHAPE_I2V,
         attention_backends=None,
         linear_backends=KsanaLinearBackend.FP16_GEMM,
@@ -111,7 +111,7 @@ test_cases = [
     ),
     KsanaNodesTestCase(
         model_names=["wan2.2_i2v_high_noise_14B_fp16.safetensors", None],
-        expect_model_key=KsanaModelKey.Wan2_2_I2V_14B,
+        expect_model_key=ModelKey.Wan2_2_I2V_14B,
         image_latent_shape=IMG_SHAPE_I2V,
         attention_backends=None,
         linear_backends=KsanaLinearBackend.FP8_GEMM_DYNAMIC,
@@ -123,7 +123,7 @@ test_cases = [
     ),
     KsanaNodesTestCase(
         model_names="qwen_image_2512_fp8_e4m3fn.safetensors",
-        expect_model_key=KsanaModelKey.QwenImage_T2I,
+        expect_model_key=ModelKey.QwenImage_T2I,
         image_latent_shape=IMG_SHAPE_T2I,
         attention_backends=None,
         linear_backends=KsanaLinearBackend.FP8_GEMM,
@@ -140,7 +140,7 @@ class TestModelSwitchAndGenerate(unittest.TestCase):
         for test_case in test_cases:
             case_config = get_platform_config_or_skip(test_case.mean_config, test_name="model_switch.generate")
             print(f"----------- test model_name: {test_case.model_names} -------------")
-            if test_case.expect_model_key in [KsanaModelKey.Wan2_2_I2V_14B, KsanaModelKey.Wan2_2_T2V_14B]:
+            if test_case.expect_model_key in [ModelKey.Wan2_2_I2V_14B, ModelKey.Wan2_2_T2V_14B]:
                 high_noise_model_path = os.path.join(COMFY_MODEL_DIFFUSION_ROOT, test_case.model_names[0])
                 low_noise_model_path = (
                     os.path.join(COMFY_MODEL_DIFFUSION_ROOT, test_case.model_names[1])
@@ -151,7 +151,7 @@ class TestModelSwitchAndGenerate(unittest.TestCase):
             else:
                 high_noise_model_path = os.path.join(COMFY_MODEL_DIFFUSION_ROOT, test_case.model_names)
                 low_noise_model_path = None
-            if test_case.expect_model_key in [KsanaModelKey.QwenImage_T2I]:
+            if test_case.expect_model_key in [ModelKey.QwenImage_T2I]:
                 text_shape = QWEN_TEXT_SHAPE
             else:
                 text_shape = WAN_TEXT_SHAPE

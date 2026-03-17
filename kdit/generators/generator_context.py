@@ -19,8 +19,8 @@ from dataclasses import dataclass
 
 import torch
 
-from kdit.config import KsanaRuntimeConfig, KsanaSampleConfig
-from kdit.config.cache_config import KsanaCacheConfig, KsanaHybridCacheConfig
+from kdit.config import KsanaSampleConfig, RuntimeConfig
+from kdit.config.cache_config import HybridCacheConfig, KsanaCacheConfig
 from kdit.config.video_control_config import KsanaVideoControlConfig
 from kdit.models import KsanaDiffusionModel
 from kdit.utils.vace import VaceConfig
@@ -53,8 +53,8 @@ class GeneratorInferContext:
 
     # 配置
     sample_config: KsanaSampleConfig | None = None
-    runtime_config: KsanaRuntimeConfig | None = None
-    cache_config: list[KsanaCacheConfig | KsanaHybridCacheConfig] | None = None
+    runtime_config: RuntimeConfig | None = None
+    cache_config: list[KsanaCacheConfig | HybridCacheConfig] | None = None
 
     # 可选控制
     video_control: KsanaVideoControlConfig | None = None

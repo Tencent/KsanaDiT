@@ -87,10 +87,10 @@ class VaceConfig:
 
 def _get_latent_stats():
     if _LATENTS_MEAN_5D is None or _LATENTS_STD_5D is None:
-        from ..models.model_key import KsanaModelKey
+        from ..models.model_key import ModelKey
         from ..settings import load_default_settings
 
-        vae_cfg = load_default_settings(KsanaModelKey.VAE_WAN2_1).vae
+        vae_cfg = load_default_settings(ModelKey.VAE_WAN2_1).vae
         init_latent_stats(vae_cfg.latents_mean, vae_cfg.latents_std)
     return _LATENTS_MEAN_5D, _LATENTS_STD_5D
 

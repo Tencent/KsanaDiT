@@ -14,11 +14,11 @@
 
 from dataclasses import dataclass, field
 
-from .base import KsanaStepCacheConfig
+from .base import StepCacheConfig
 
 
 @dataclass
-class EasyCacheConfig(KsanaStepCacheConfig):
+class EasyCacheConfig(StepCacheConfig):
     name: str = field(default="EasyCache")
     reuse_thresh: float | None = field(default=None)
     start_percent: float | None = field(default=None)

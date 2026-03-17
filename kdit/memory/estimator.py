@@ -14,28 +14,28 @@
 
 import torch
 
-from kdit.models.model_key import KsanaModelKey
+from kdit.models.model_key import ModelKey
 
 # TODO: memory management
 # 模型内存配置映射表，基于模型key
 MODEL_MEMORY_CONFIG = {
-    KsanaModelKey.Wan2_2_T2V_14B: {
+    ModelKey.Wan2_2_T2V_14B: {
         "model_size": 28 * 1024 * 1024 * 1024,  # 14B参数模型，约28GB (fp16)
         "usage_factor": 2.305,  # wan_t2v_A14B
     },
-    KsanaModelKey.Wan2_2_I2V_14B: {
+    ModelKey.Wan2_2_I2V_14B: {
         "model_size": 28 * 1024 * 1024 * 1024,  # 14B参数模型，约28GB (fp16)
         "usage_factor": 2.305,  # wan_i2v_A14B
     },
-    KsanaModelKey.Wan2_1_VACE_14B: {
+    ModelKey.Wan2_1_VACE_14B: {
         "model_size": 28 * 1024 * 1024 * 1024,  # 14B参数模型，约28GB (fp16)
         "usage_factor": 2.305,  # wan vace 14B
     },
-    KsanaModelKey.QwenImage_T2I: {
+    ModelKey.QwenImage_T2I: {
         "model_size": 40 * 1024 * 1024 * 1024,  # 20B参数模型，约40GB (fp16)
         "usage_factor": 2.5,  # qwen-image t2i 20B
     },
-    KsanaModelKey.QwenImage_Edit: {
+    ModelKey.QwenImage_Edit: {
         "model_size": 40 * 1024 * 1024 * 1024,  # Edit 模式共用 Qwen-Image 20B 模型
         "usage_factor": 2.5,
     },

@@ -146,14 +146,14 @@ class KsanaWanVaceToVideoNode:
 
     def _vae_encode(self, vae_key, image):
         """Encode images using kDiT VAE, returns raw tensor data."""
-        from kdit.nodes.core.node_context import KsanaNodeContext
-        from kdit.nodes.core.node_types import KsanaInferNodeType
+        from kdit.nodes.core.node_context import NodeContext
+        from kdit.nodes.core.node_types import InferNodeType
         from kdit.tensor import TensorKey
 
         kdit_engine = get_engine()
-        context = KsanaNodeContext(metadata={"image": image})
+        context = NodeContext(metadata={"image": image})
         with kdit_engine.tensor_scope(keep=TensorKey.IMAGE_EMBEDS):
-            kdit_engine.run_infer_node(KsanaInferNodeType.VAE_ENCODE_IMAGES, vae_key, context)
+            kdit_engine.run_infer_node(InferNodeType.VAE_ENCODE_IMAGES, vae_key, context)
         tensor_value = kdit_engine.get_tensor(TensorKey.IMAGE_EMBEDS)
         return tensor_value.data if tensor_value is not None else None
 

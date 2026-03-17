@@ -16,7 +16,7 @@ import torch
 
 from kdit.config import KsanaSolverType
 from kdit.config.wan_experimental_config import KsanaExperimentalConfig, KsanaFETAConfig, KsanaSLGConfig
-from kdit.models import KsanaModelKey
+from kdit.models import ModelKey
 from kdit.utils.vace import (
     apply_bidirectional_sampling,
     apply_experimental_cfg,
@@ -31,7 +31,7 @@ from .generator_factory import GeneratorFactory
 from .wan_generator import WanGenerator
 
 
-@GeneratorFactory.register(KsanaModelKey.Wan2_1_VACE_14B)
+@GeneratorFactory.register(ModelKey.Wan2_1_VACE_14B)
 class VaceGenerator(WanGenerator):
     def init_denoising_loop(self, video_control_kwargs, diffusion_model, sample_scheduler):
         return parse_video_control_kwargs(

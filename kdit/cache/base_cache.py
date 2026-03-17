@@ -17,11 +17,11 @@ from dataclasses import dataclass, field
 
 import torch
 
-from ..models.model_key import KsanaModelKey
+from ..models.model_key import ModelKey
 
 
 class KsanaCache(ABC):
-    def __init__(self, model_key: KsanaModelKey):
+    def __init__(self, model_key: ModelKey):
         self.model_key = model_key
 
     @abstractmethod
@@ -34,7 +34,7 @@ class KsanaCache(ABC):
 
 
 class KsanaStepCache(ABC):
-    def __init__(self, model_key: KsanaModelKey, config):
+    def __init__(self, model_key: ModelKey, config):
         self.model_key = model_key
         self.input_config = config
         self.need_compile_cache = False
@@ -70,7 +70,7 @@ class KsanaStepCache(ABC):
 
 
 class KsanaBlockCache(ABC):
-    def __init__(self, model_key: KsanaModelKey, config):
+    def __init__(self, model_key: ModelKey, config):
         self.model_key = model_key
         self.input_config = config
 
@@ -90,14 +90,14 @@ class KsanaBlockCache(ABC):
 @dataclass
 class KsanaHybridCache(KsanaCache):
     name: str = field(default="hybrid_cache")
-    model_key: KsanaModelKey = None
+    model_key: ModelKey = None
     step_cache: KsanaStepCache = None
     block_cache: KsanaBlockCache = None
 
     def __post_init__(self):
         if self.model_key is None:
             raise ValueError("KsanaHybridCache model_key must be set")
-        self.name = f"{KsanaModelKey(self.model_key).name}_{self.name}"
+        self.name = f"{ModelKey(self.model_key).name}_{self.name}"
         if self.step_cache is not None:
             self.name = f"{self.name}_{type(self.step_cache).__name__}"
         if self.block_cache is not None:

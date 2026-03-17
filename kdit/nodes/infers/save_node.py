@@ -24,16 +24,16 @@ from kdit.tensor import TensorKey
 from kdit.utils import log
 from kdit.utils.media import save_image, save_video
 
-from ..core.base_node import KsanaInferNode
+from ..core.base_node import InferNode
 from ..core.node_factory import InferNodeFactory
-from ..core.node_types import KsanaDispatchPolicy, KsanaInferNodeType
+from ..core.node_types import InferNodeType, NodeDispatchPolicy
 
 
-@InferNodeFactory.register(KsanaInferNodeType.SAVE_VIDEO, [None])
-class SaveVideoNode(KsanaInferNode):
+@InferNodeFactory.register(InferNodeType.SAVE_VIDEO, [None])
+class SaveVideoNode(InferNode):
     """保存视频 — 只在 rank 0 执行，不广播。"""
 
-    dispatch_policy = KsanaDispatchPolicy.ALL_R0_R0
+    dispatch_policy = NodeDispatchPolicy.ALL_R0_R0
     input_tensor_keys = [TensorKey.VIDEO]
     output_tensor_keys = []
 
@@ -62,11 +62,11 @@ class SaveVideoNode(KsanaInferNode):
         log.info(f"SaveVideoNode: saved video to {save_path}")
 
 
-@InferNodeFactory.register(KsanaInferNodeType.SAVE_IMAGE, [None])
-class SaveImageNode(KsanaInferNode):
+@InferNodeFactory.register(InferNodeType.SAVE_IMAGE, [None])
+class SaveImageNode(InferNode):
     """保存图像 — 只在 rank 0 执行，不广播。"""
 
-    dispatch_policy = KsanaDispatchPolicy.ALL_R0_R0
+    dispatch_policy = NodeDispatchPolicy.ALL_R0_R0
     input_tensor_keys = [TensorKey.VIDEO]  # 复用 VIDEO key（图像也存在此 key）
     output_tensor_keys = []
 

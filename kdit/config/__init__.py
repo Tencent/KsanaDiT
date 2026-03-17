@@ -23,8 +23,8 @@ from .cache_config import (
     DBCacheConfig,
     DCacheConfig,
     EasyCacheConfig,
+    HybridCacheConfig,
     KsanaCacheConfig,
-    KsanaHybridCacheConfig,
     MagCacheConfig,
     TeaCacheConfig,
 )
@@ -32,7 +32,7 @@ from .distributed_config import KsanaDistributedConfig
 from .linear_config import KsanaLinearBackend
 from .lora_config import KsanaLoraConfig
 from .model_config import KsanaModelConfig
-from .runtime_config import KsanaRuntimeConfig
+from .runtime_config import RuntimeConfig
 from .sample_config import KsanaSampleConfig, KsanaSolverType
 from .torch_compile_config import KsanaTorchCompileConfig
 from .video_control_config import KsanaVideoControlConfig
@@ -47,7 +47,7 @@ __all__ = [
     "KsanaLinearBackend",
     "KsanaAttentionConfig",
     "KsanaCacheConfig",
-    "KsanaHybridCacheConfig",
+    "HybridCacheConfig",
     "CustomStepCacheConfig",
     "DCacheConfig",
     "DBCacheConfig",
@@ -57,7 +57,7 @@ __all__ = [
     "KsanaSampleConfig",
     "KsanaSolverType",
     "KsanaModelConfig",
-    "KsanaRuntimeConfig",
+    "RuntimeConfig",
     "KsanaLoraConfig",
     "KsanaTorchCompileConfig",
     "KsanaDistributedConfig",

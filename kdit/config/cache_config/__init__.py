@@ -13,10 +13,10 @@
 # limitations under the License.
 
 from .base import (
+    HybridCacheConfig,
     KsanaBlockCacheConfig,
     KsanaCacheConfig,
-    KsanaHybridCacheConfig,
-    KsanaStepCacheConfig,
+    StepCacheConfig,
     warp_as_hybrid_cache,
 )
 from .custom_cache import CustomStepCacheConfig
@@ -30,8 +30,8 @@ __all__ = [
     "warp_as_hybrid_cache",
     "KsanaCacheConfig",
     "KsanaBlockCacheConfig",
-    "KsanaStepCacheConfig",
-    "KsanaHybridCacheConfig",
+    "StepCacheConfig",
+    "HybridCacheConfig",
     "CustomStepCacheConfig",
     "DCacheConfig",
     "DBCacheConfig",

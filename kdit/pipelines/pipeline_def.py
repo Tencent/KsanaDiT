@@ -26,8 +26,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from kdit.models.model_key import KsanaModelKey
-from kdit.nodes.core.node_types import KsanaInferNodeType
+from kdit.models.model_key import ModelKey
+from kdit.nodes.core.node_types import InferNodeType
 from kdit.tensor import TensorKey
 from kdit.utils import log
 
@@ -65,13 +65,13 @@ class PipelineDefBuilder:
 
         WAN_T2V_DEF = (
             PipelineDefBuilder(PipelineKey.Wan2_2_T2V_14B)
-            .load("text_encoder", KsanaModelKey.T5TextEncoder)
-            .load("diffusion", KsanaModelKey.Wan2_2_T2V_14B)
-            .load("vae", KsanaModelKey.VAE_WAN2_2)
-            .add_infer(KsanaInferNodeType.TEXT_ENCODE, model_role="text_encoder")
-            .add_infer(KsanaInferNodeType.GENERATE, model_role="diffusion")
-            .add_infer(KsanaInferNodeType.VAE_DECODE, model_role="vae")
-            .add_infer(KsanaInferNodeType.SAVE_VIDEO)
+            .load(ModelKey.T5TextEncoder)
+            .load(ModelKey.Wan2_2_T2V_14B)
+            .load(ModelKey.VAE_WAN2_2)
+            .add_infer(InferNodeType.TEXT_ENCODE, ModelKey.T5TextEncoder)
+            .add_infer(InferNodeType.GENERATE, ModelKey.Wan2_2_T2V_14B)
+            .add_infer(InferNodeType.VAE_DECODE, ModelKey.VAE_WAN2_2)
+            .add_infer(InferNodeType.SAVE_VIDEO)
             .keep_tensors(TensorKey.VIDEO)
             .context_builder(WanT2VContextBuilder)
             .build()
@@ -85,18 +85,18 @@ class PipelineDefBuilder:
         self._context_builder_cls: type[ContextBuilder] | None = None
         self._keep_tensors: list[TensorKey] = []
 
-    def load(self, model_role: str, model_key: KsanaModelKey) -> PipelineDefBuilder:
+    def load(self, model_key: ModelKey) -> PipelineDefBuilder:
         """添加一个模型加载阶段。"""
-        self._load_phases.append(LoadPhase(model_role=model_role, model_key=model_key))
+        self._load_phases.append(LoadPhase(model_key=model_key))
         return self
 
     def add_infer(
         self,
-        node_type: KsanaInferNodeType,
-        model_role: str | None = None,
+        node_type: InferNodeType,
+        model_key: ModelKey | None = None,
     ) -> _InferPhaseChain:
         """添加一个推理阶段，返回链式对象以支持 .when() 条件。"""
-        phase = InferPhase(node_type=node_type, model_role=model_role)
+        phase = InferPhase(node_type=node_type, model_key=model_key)
         self._infer_phases.append(phase)
         return _InferPhaseChain(self, len(self._infer_phases) - 1)
 
@@ -119,14 +119,14 @@ class PipelineDefBuilder:
         if not self._infer_phases:
             raise ValueError("At least one infer phase is required. Call .add_infer() before .build().")
 
-        # 校验 infer_phases 中的 model_role 都在 load_phases 中声明过
-        load_roles = {lp.model_role for lp in self._load_phases}
+        # 校验 infer_phases 中的 model_key 都在 load_phases 中声明过
+        load_keys = {lp.model_key for lp in self._load_phases}
         for ip in self._infer_phases:
-            if ip.model_role is not None and ip.model_role not in load_roles:
+            if ip.model_key is not None and ip.model_key not in load_keys:
                 raise ValueError(
-                    f"InferPhase references model_role='{ip.model_role}' "
+                    f"InferPhase references model_key={ip.model_key!r} "
                     f"which is not declared in any LoadPhase. "
-                    f"Available roles: {load_roles}"
+                    f"Available keys: {load_keys}"
                 )
 
         return PipelineDef(
@@ -155,7 +155,7 @@ class _InferPhaseChain:
         old = self._builder._infer_phases[self._phase_index]
         self._builder._infer_phases[self._phase_index] = InferPhase(
             node_type=old.node_type,
-            model_role=old.model_role,
+            model_key=old.model_key,
             condition=condition_name,
         )
         return self._builder

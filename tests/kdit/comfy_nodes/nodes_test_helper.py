@@ -34,7 +34,7 @@ from kdit.adapter.comfyui import (
     build_list_of_lora_config,
     generate,
 )
-from kdit.models.model_key import KsanaModelKey
+from kdit.models.model_key import ModelKey
 from kdit.tensor import TensorKey
 
 IMG_SHAPE_T2V = [1, 16, 16, 32, 32]
@@ -55,40 +55,40 @@ RUN_DTYPE = torch.float16
 CURRENT_PLATFORM = "NPU" if platform.is_npu() else "GPU"
 ALL_PLATFORMS = {"GPU", "NPU"}
 
-TestModelTuple = tuple[str, list[int], list[int], KsanaModelKey]
+TestModelTuple = tuple[str, list[int], list[int], ModelKey]
 
 TEST_MODELS = [
     (
         "wan2.2_t2v_high_noise_14B_fp8_scaled.safetensors",
         IMG_SHAPE_T2V,
         WAN_TEXT_SHAPE,
-        KsanaModelKey.Wan2_2_T2V_14B,
+        ModelKey.Wan2_2_T2V_14B,
         {"GPU"},
     ),
     (
         "wan2.2_i2v_high_noise_14B_fp8_scaled.safetensors",
         IMG_SHAPE_I2V,
         WAN_TEXT_SHAPE,
-        KsanaModelKey.Wan2_2_I2V_14B,
+        ModelKey.Wan2_2_I2V_14B,
         {"GPU"},
     ),
     (
         "wan2.2_t2v_high_noise_14B_fp16.safetensors",
         IMG_SHAPE_T2V,
         WAN_TEXT_SHAPE,
-        KsanaModelKey.Wan2_2_T2V_14B,
+        ModelKey.Wan2_2_T2V_14B,
     ),
     (
         "wan2.2_i2v_high_noise_14B_fp16.safetensors",
         IMG_SHAPE_I2V,
         WAN_TEXT_SHAPE,
-        KsanaModelKey.Wan2_2_I2V_14B,
+        ModelKey.Wan2_2_I2V_14B,
     ),
     (
         "qwen_image_2512_fp8_e4m3fn.safetensors",
         IMG_SHAPE_T2I,
         QWEN_TEXT_SHAPE,
-        KsanaModelKey.QwenImage_T2I,
+        ModelKey.QwenImage_T2I,
         {"GPU"},
     ),
 ]

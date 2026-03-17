@@ -14,11 +14,11 @@
 
 from dataclasses import dataclass, field
 
-from .base import KsanaStepCacheConfig
+from .base import StepCacheConfig
 
 
 @dataclass
-class CustomStepCacheConfig(KsanaStepCacheConfig):
+class CustomStepCacheConfig(StepCacheConfig):
     name: str = field(default="CustomStepCache")
     steps: list[int] | None = field(default=None)
     scales: list[float] | None = field(default=None)

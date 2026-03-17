@@ -14,36 +14,36 @@
 
 from abc import ABC, abstractmethod
 
-from kdit.models.model_pool import KsanaModelPool
+from kdit.models.model_pool import ModelPool
 from kdit.tensor import TensorKey, TensorPool
 
-from .device_context import KsanaDeviceContext
-from .node_context import KsanaNodeContext
-from .node_types import KsanaDispatchPolicy
+from .device_context import NodeDeviceContext
+from .node_context import NodeContext
+from .node_types import NodeDispatchPolicy
 
 
-class KsanaLoadNode(ABC):
+class LoaderNode(ABC):
     """加载模型的 Node — 写入 model_pool。
 
     子类覆写 run() 实现具体加载逻辑。
     dispatch_policy 默认 ALL_ALL_ALL（每卡独立加载），子类可覆写。
     """
 
-    dispatch_policy: KsanaDispatchPolicy = KsanaDispatchPolicy.ALL_ALL_ALL
+    dispatch_policy: NodeDispatchPolicy = NodeDispatchPolicy.ALL_ALL_ALL
 
     @abstractmethod
     def run(
         self,
         model_key,
         *,
-        model_pool: KsanaModelPool,
-        device_ctx: KsanaDeviceContext,
+        model_pool: ModelPool,
+        device_ctx: NodeDeviceContext,
         **kwargs,
     ) -> None:
         """加载模型到 model_pool。"""
 
 
-class KsanaInferNode(ABC):
+class InferNode(ABC):
     """前向推理的 Node — 读写 tensor_pool。
 
     子类覆写 run() 实现具体推理逻辑。
@@ -62,7 +62,7 @@ class KsanaInferNode(ABC):
     - 未来 executor 可据此做输入校验和 DAG 构建
     """
 
-    dispatch_policy: KsanaDispatchPolicy = KsanaDispatchPolicy.ALL_ALL_ALL
+    dispatch_policy: NodeDispatchPolicy = NodeDispatchPolicy.ALL_ALL_ALL
     input_tensor_keys: list[str] = []
     output_tensor_keys: list[str] = []
 
@@ -76,10 +76,10 @@ class KsanaInferNode(ABC):
     def run(
         self,
         model_key,
-        context: KsanaNodeContext,
+        context: NodeContext,
         *,
         tensor_pool: TensorPool,
-        model_pool: KsanaModelPool,
-        device_ctx: KsanaDeviceContext,
+        model_pool: ModelPool,
+        device_ctx: NodeDeviceContext,
     ) -> None:
         """前向推理 — 结果写入 tensor_pool，不返回值。"""

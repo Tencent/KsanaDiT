@@ -27,11 +27,11 @@ from kdit.config import (
     KsanaAttentionConfig,
     KsanaDistributedConfig,
     KsanaModelConfig,
-    KsanaRuntimeConfig,
     KsanaSampleConfig,
     KsanaSolverType,
+    RuntimeConfig,
 )
-from kdit.models.model_key import KsanaModelKey
+from kdit.pipelines.pipeline_key import PipelineKey
 
 TEST_DTYPE = torch.bfloat16
 TEST_SIZE = (512, 512)  # (W, H)
@@ -50,7 +50,7 @@ class TestKsanaQwenImageEdit(unittest.TestCase):
                 run_dtype=TEST_DTYPE,
                 attention_config=KsanaAttentionConfig(),
             ),
-            pipeline_key=KsanaModelKey.QwenImage_Edit,
+            pipeline_key=PipelineKey.QwenImage_Edit,
             dist_config=KsanaDistributedConfig(port=TEST_PORT),
             offload_device="cpu",
         )
@@ -75,7 +75,7 @@ class TestKsanaQwenImageEdit(unittest.TestCase):
                 cfg_scale=4.0,
                 solver=KsanaSolverType.FLOWMATCH_EULER,
             ),
-            runtime_config=KsanaRuntimeConfig(
+            runtime_config=RuntimeConfig(
                 seed=SEED,
                 size=TEST_SIZE,
                 return_frames=True,
@@ -111,7 +111,7 @@ class TestKsanaQwenImageEdit(unittest.TestCase):
                 cfg_scale=4.0,
                 solver=KsanaSolverType.FLOWMATCH_EULER,
             ),
-            runtime_config=KsanaRuntimeConfig(
+            runtime_config=RuntimeConfig(
                 seed=SEED,
                 size=TEST_SIZE,
                 return_frames=True,

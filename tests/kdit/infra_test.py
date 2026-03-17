@@ -18,10 +18,10 @@ import pytest
 import torch
 
 from kdit.executor.distributed_group import DistributedGroupManager
-from kdit.nodes.core.device_context import KsanaDeviceContext
-from kdit.nodes.core.node_context import KsanaNodeContext
+from kdit.nodes.core.device_context import NodeDeviceContext
+from kdit.nodes.core.node_context import NodeContext
 from kdit.nodes.core.node_factory import InferNodeFactory, LoaderNodeFactory
-from kdit.nodes.core.node_types import KsanaDispatchPolicy, KsanaInferNodeType
+from kdit.nodes.core.node_types import InferNodeType, NodeDispatchPolicy
 from kdit.tensor import TensorKey, TensorPool, TensorValue
 
 # ── TensorValue ─────────────────────────────────────────────────────────────
@@ -270,18 +270,18 @@ class TestDistributedGroupManager:
         assert len(tensor_value.data) == 2
 
 
-# ── KsanaDispatchPolicy ────────────────────────────────────────────────────
+# ── NodeDispatchPolicy ────────────────────────────────────────────────────
 
 
 class TestDispatchPolicy:
     def test_three_values(self):
-        assert len(KsanaDispatchPolicy) == 3
-        assert KsanaDispatchPolicy.ALL_ALL_ALL is not None
-        assert KsanaDispatchPolicy.R0_R0_BCAST is not None
-        assert KsanaDispatchPolicy.ALL_R0_R0 is not None
+        assert len(NodeDispatchPolicy) == 3
+        assert NodeDispatchPolicy.ALL_ALL_ALL is not None
+        assert NodeDispatchPolicy.R0_R0_BCAST is not None
+        assert NodeDispatchPolicy.ALL_R0_R0 is not None
 
 
-# ── KsanaInferNodeType ────────────────────────────────────────────────
+# ── InferNodeType ────────────────────────────────────────────────
 
 
 class TestKsanaInferNodeType:
@@ -293,16 +293,16 @@ class TestKsanaInferNodeType:
             "VAE_DECODE",
             "GENERATE",
         }
-        actual = {nt.name for nt in KsanaInferNodeType}
+        actual = {nt.name for nt in InferNodeType}
         assert actual == expected
 
 
-# ── DeviceContext ─────────────────────────────────────────────────────
+# ── NodeDeviceContext ─────────────────────────────────────────────────────
 
 
 class TestKsanaDeviceContext:
     def test_creation(self):
-        ctx = KsanaDeviceContext(
+        ctx = NodeDeviceContext(
             device=torch.device("cpu"),
             offload_device=torch.device("cpu"),
             rank_id=0,
@@ -312,7 +312,7 @@ class TestKsanaDeviceContext:
         assert ctx.world_size == 2
 
     def test_frozen(self):
-        ctx = KsanaDeviceContext(
+        ctx = NodeDeviceContext(
             device=torch.device("cpu"),
             offload_device=torch.device("cpu"),
             rank_id=0,
@@ -322,18 +322,18 @@ class TestKsanaDeviceContext:
             ctx.rank_id = 1
 
 
-# ── KsanaNodeContext ────────────────────────────────────────────────────────
+# ── NodeContext ────────────────────────────────────────────────────────
 
 
 class TestNodeContext:
     def test_basic_creation(self):
-        ctx = KsanaNodeContext(prompt="hello world")
+        ctx = NodeContext(prompt="hello world")
         assert ctx.prompt == "hello world"
         assert ctx.metadata == {}
 
     def test_tensor_rejected(self):
         with pytest.raises(TypeError, match="Tensor"):
-            KsanaNodeContext(prompt=torch.zeros(1))
+            NodeContext(prompt=torch.zeros(1))
 
 
 # ── NodeFactory ─────────────────────────────────────────────────────

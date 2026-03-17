@@ -17,8 +17,8 @@ import torch
 from kdit import get_engine
 from kdit.config import KsanaDistributedConfig
 from kdit.models.model_key import get_model_key_from_path
-from kdit.nodes.core.node_context import KsanaNodeContext
-from kdit.nodes.core.node_types import KsanaInferNodeType
+from kdit.nodes.core.node_context import NodeContext
+from kdit.nodes.core.node_types import InferNodeType
 from kdit.tensor import TensorKey
 from kdit.utils import get_gpu_count, log
 from kdit.utils.profile import MemoryProfiler
@@ -96,7 +96,7 @@ def vae_encode(
 
     with_end_image = end_image is not None
 
-    context = KsanaNodeContext(
+    context = NodeContext(
         metadata={
             "target_f": num_frames,
             "target_h": height,
@@ -107,7 +107,7 @@ def vae_encode(
     )
     with kdit_engine.tensor_scope(keep=[TensorKey.IMAGE_EMBEDS]):
         kdit_engine.put_tensors(**{TensorKey.START_IMG: start_image, TensorKey.END_IMG: end_image})
-        kdit_engine.run_infer_node(KsanaInferNodeType.VAE_ENCODE_SPATIAL, vae, context)
+        kdit_engine.run_infer_node(InferNodeType.VAE_ENCODE_SPATIAL, vae, context)
 
     return KsanaNodeVAEEncodeOutput(
         samples=TensorKey.IMAGE_EMBEDS,
@@ -127,10 +127,10 @@ def vae_encode_image(
     kdit_engine = get_engine()
     log.info(f"encoder vae: {vae}")
 
-    context = KsanaNodeContext(metadata={"batch_size": batch_size})
+    context = NodeContext(metadata={"batch_size": batch_size})
     with kdit_engine.tensor_scope(keep=[TensorKey.IMAGE_EMBEDS]):
         kdit_engine.put_tensors(**{TensorKey.IMAGE: image})
-        kdit_engine.run_infer_node(KsanaInferNodeType.VAE_ENCODE_IMAGES, vae, context)
+        kdit_engine.run_infer_node(InferNodeType.VAE_ENCODE_IMAGES, vae, context)
 
     MemoryProfiler.record_memory("after vae_encode_image")
     return KsanaNodeVAEEncodeOutput(
@@ -156,13 +156,13 @@ def vae_decode(vae, latent):
             "Ensure the upstream node (vae_encode/generate) used tensor_scope(keep=...) correctly."
         )
 
-    context = KsanaNodeContext(metadata={"with_end_image": with_end_image})
+    context = NodeContext(metadata={"with_end_image": with_end_image})
     with kdit_engine.tensor_scope():
         # latents_key 可能是 LATENTS 或 IMAGE_EMBEDS，VAEDecodeNode 读 LATENTS
         if latents_key != TensorKey.LATENTS:
             tensor_value = kdit_engine.get_tensor(latents_key)
             kdit_engine.put_tensors(**{TensorKey.LATENTS: tensor_value.data})
-        kdit_engine.run_infer_node(KsanaInferNodeType.VAE_DECODE, vae, context)
+        kdit_engine.run_infer_node(InferNodeType.VAE_DECODE, vae, context)
         video_tv = kdit_engine.get_tensor(TensorKey.VIDEO)
         images = video_tv.data
 

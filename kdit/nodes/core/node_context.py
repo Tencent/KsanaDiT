@@ -16,11 +16,11 @@ from dataclasses import dataclass, field
 
 import torch
 
-from kdit.config import KsanaRuntimeConfig, KsanaSampleConfig
+from kdit.config import KsanaSampleConfig, RuntimeConfig
 
 
 @dataclass
-class KsanaNodeContext:
+class NodeContext:
     """Node 间传递的上下文，只包含可序列化数据。
 
     设计约束：
@@ -36,7 +36,7 @@ class KsanaNodeContext:
 
     # 配置
     sample_config: KsanaSampleConfig = None
-    runtime_config: KsanaRuntimeConfig = None
+    runtime_config: RuntimeConfig = None
     cache_config: list = None
 
     # 元数据（如 noise_shape、vace_config 等由上游 Node 或 Pipeline 写入）
@@ -47,15 +47,15 @@ class KsanaNodeContext:
         for field_name, value in self.__dict__.items():
             if isinstance(value, torch.Tensor):
                 raise TypeError(
-                    f"KsanaNodeContext.{field_name} is a Tensor! "
+                    f"NodeContext.{field_name} is a Tensor! "
                     f"Use engine.put_tensors() + TensorKey instead. "
-                    f"KsanaNodeContext must be serializable for Ray dispatch."
+                    f"NodeContext must be serializable for Ray dispatch."
                 )
             if isinstance(value, dict):
                 for k, v in value.items():
                     if isinstance(v, torch.Tensor):
                         raise TypeError(
-                            f"KsanaNodeContext.{field_name}[{k!r}] is a Tensor! "
+                            f"NodeContext.{field_name}[{k!r}] is a Tensor! "
                             f"Use engine.put_tensors() + TensorKey instead. "
-                            f"KsanaNodeContext must be serializable for Ray dispatch."
+                            f"NodeContext must be serializable for Ray dispatch."
                         )

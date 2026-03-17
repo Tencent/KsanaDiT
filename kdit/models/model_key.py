@@ -12,9 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""KsanaModelKey — 标识一个具体的模型类别。
+"""ModelKey — 标识一个具体的模型类别。
 
-KsanaModelPool 只接受此类型。路径推导函数 get_model_key_from_path() 也在本文件中。
+ModelPool 只接受此类型。路径推导函数 get_model_key_from_path() 也在本文件中。
 """
 
 from __future__ import annotations
@@ -26,7 +26,10 @@ from pathlib import Path
 from ..utils import any_key_in_str, is_file_or_dir
 
 __all__ = [
-    "KsanaModelKey",
+    "ModelKey",
+    "TEXT_ENCODER_KEYS",
+    "VAE_KEYS",
+    "DIFFUSION_KEYS",
     "get_model_key_from_path",
 ]
 
@@ -43,12 +46,12 @@ X2I_TYPES = ["t2i", "i2i", "edit"]
 
 
 @unique
-class KsanaModelKey(Enum):
+class ModelKey(Enum):
     """标识一个具体的模型类别。
 
     零依赖枚举 — 可被任意子包安全导入，不会触发 kdit/__init__.py 的重量级导入链。
 
-    KsanaModelPool 只接受此类型。用于：
+    ModelPool 只接受此类型。用于：
       - LoaderNodeFactory / InferNodeFactory 按模型注册 Node
       - GeneratorFactory 按模型注册 Generator
       - settings 配置映射
@@ -74,11 +77,41 @@ class KsanaModelKey(Enum):
 
     # TODO: remove is_i2v_type is_image_type
     def is_i2v_type(self) -> bool:
-        return self in (KsanaModelKey.Wan2_2_I2V_14B,)
+        return self in (ModelKey.Wan2_2_I2V_14B,)
 
     def is_image_type(self) -> bool:
-        return self in (KsanaModelKey.QwenImage_T2I, KsanaModelKey.QwenImage_Edit)
+        return self in (ModelKey.QwenImage_T2I, ModelKey.QwenImage_Edit)
 
+
+# ── 类别分组常量 ─────────────────────────────────────────────────────────
+# Pipeline._build_loader_kwargs() 等处用于按类别分发，替代旧的 model_role 字符串。
+
+TEXT_ENCODER_KEYS: frozenset[ModelKey] = frozenset(
+    {
+        ModelKey.T5TextEncoder,
+        ModelKey.Qwen2VLTextEncoder,
+        ModelKey.Qwen2VLTextEncoderMultimodal,
+    }
+)
+
+VAE_KEYS: frozenset[ModelKey] = frozenset(
+    {
+        ModelKey.QwenImageVAE,
+        ModelKey.VAE_WAN2_1,
+        ModelKey.VAE_WAN2_2,
+    }
+)
+
+DIFFUSION_KEYS: frozenset[ModelKey] = frozenset(
+    {
+        ModelKey.Wan2_2_T2V_14B,
+        ModelKey.Wan2_2_I2V_14B,
+        ModelKey.Wan2_2_TI2V_5B,
+        ModelKey.Wan2_1_VACE_14B,
+        ModelKey.QwenImage_T2I,
+        ModelKey.QwenImage_Edit,
+    }
+)
 
 # ── 路径推导 ───────────────────────────────────────────────────────────
 
@@ -97,10 +130,10 @@ def _resolve_model_path(model_path: str | list[str]) -> str:
     raise ValueError(f"model_path {model_path} is not exist, or not a file or directory")
 
 
-def get_model_key_from_path(model_path: str | list[str]) -> KsanaModelKey:
-    """从路径推导 KsanaModelKey。
+def get_model_key_from_path(model_path: str | list[str]) -> ModelKey:
+    """从路径推导 ModelKey。
 
-    统一返回 KsanaModelKey。调用方如需 PipelineKey，
+    统一返回 ModelKey。调用方如需 PipelineKey，
     需自行通过 PipelineKey[model_key.name] 转换。
     """
     model_path = _resolve_model_path(model_path)
@@ -111,28 +144,28 @@ def get_model_key_from_path(model_path: str | list[str]) -> KsanaModelKey:
     return _detect_diffusion_key(file_name)
 
 
-def _detect_vae_key(model_path: str, file_name: str) -> KsanaModelKey:
-    """从 VAE 路径推导 KsanaModelKey。"""
+def _detect_vae_key(model_path: str, file_name: str) -> ModelKey:
+    """从 VAE 路径推导 ModelKey。"""
     if os.path.isfile(model_path) and any_key_in_str(QWEN_IMAGE, file_name) is not None and "hf" not in file_name:
-        return KsanaModelKey.VAE_WAN2_1  # comfyui use wan2.1 to load qwen-image vae
+        return ModelKey.VAE_WAN2_1  # comfyui use wan2.1 to load qwen-image vae
     if any_key_in_str(QWEN_IMAGE, file_name) is not None:
-        return KsanaModelKey.QwenImageVAE
+        return ModelKey.QwenImageVAE
     if any_key_in_str(WAN2_2, file_name) is not None:
-        return KsanaModelKey.VAE_WAN2_2
+        return ModelKey.VAE_WAN2_2
     if any_key_in_str(WAN2_1, file_name) is not None:
-        return KsanaModelKey.VAE_WAN2_1
+        return ModelKey.VAE_WAN2_1
     raise RuntimeError(
         f"can not detect model_key from model_name:{file_name}, model_path:{model_path} "
         f"maybe not in support list {WAN2_2 + WAN2_1 + QWEN_IMAGE}"
     )
 
 
-def _detect_diffusion_key(file_name: str) -> KsanaModelKey:
-    """从非 VAE 路径推导 KsanaModelKey（Diffusion 模型）。"""
+def _detect_diffusion_key(file_name: str) -> ModelKey:
+    """从非 VAE 路径推导 ModelKey（Diffusion 模型）。"""
     if any_key_in_str(QWEN_IMAGE_EDIT, file_name) is not None:
-        return KsanaModelKey.QwenImage_Edit
+        return ModelKey.QwenImage_Edit
     if any_key_in_str(QWEN_IMAGE, file_name) is not None:
-        return KsanaModelKey.QwenImage_T2I
+        return ModelKey.QwenImage_T2I
 
     if any_key_in_str(WAN2_2, file_name) is not None:
         return _detect_wan22_key(file_name)
@@ -140,7 +173,7 @@ def _detect_diffusion_key(file_name: str) -> KsanaModelKey:
     if any_key_in_str(WAN2_1, file_name) is not None:
         idx = any_key_in_str(X2V_TYPES, file_name)
         if idx is not None and X2V_TYPES[idx] == "vace":
-            return KsanaModelKey.Wan2_1_VACE_14B
+            return ModelKey.Wan2_1_VACE_14B
         raise NotImplementedError(f"wan2.1 of {file_name} is not supported yet!")
 
     raise RuntimeError(
@@ -149,17 +182,17 @@ def _detect_diffusion_key(file_name: str) -> KsanaModelKey:
     )
 
 
-def _detect_wan22_key(file_name: str) -> KsanaModelKey:
-    """从 Wan2.2 路径推导 KsanaModelKey。"""
+def _detect_wan22_key(file_name: str) -> ModelKey:
+    """从 Wan2.2 路径推导 ModelKey。"""
     idx = any_key_in_str(X2V_TYPES, file_name)
     if idx is None:
         raise RuntimeError(f"can not detect model_type:{X2V_TYPES} from file_name:{file_name}")
 
     task_type = X2V_TYPES[idx]
     _key_map = {
-        "t2v": KsanaModelKey.Wan2_2_T2V_14B,
-        "i2v": KsanaModelKey.Wan2_2_I2V_14B,
-        "vace": KsanaModelKey.Wan2_1_VACE_14B,
+        "t2v": ModelKey.Wan2_2_T2V_14B,
+        "i2v": ModelKey.Wan2_2_I2V_14B,
+        "vace": ModelKey.Wan2_1_VACE_14B,
     }
 
     if task_type not in _key_map:

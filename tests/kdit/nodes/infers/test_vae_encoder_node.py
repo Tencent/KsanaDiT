@@ -22,10 +22,10 @@ from unittest.mock import MagicMock
 
 import torch
 
-from kdit.models.model_key import KsanaModelKey
-from kdit.nodes.core.device_context import KsanaDeviceContext
-from kdit.nodes.core.node_context import KsanaNodeContext
-from kdit.nodes.core.node_types import KsanaDispatchPolicy
+from kdit.models.model_key import ModelKey
+from kdit.nodes.core.device_context import NodeDeviceContext
+from kdit.nodes.core.node_context import NodeContext
+from kdit.nodes.core.node_types import NodeDispatchPolicy
 from kdit.nodes.infers.vae_encoder_node import VAEEncodeImagesNode, VAEEncodeSpatialNode
 from kdit.tensor import TensorKey
 
@@ -52,11 +52,11 @@ class TestVAEEncodeSpatialNode(unittest.TestCase):
 
         self.model_pool = MagicMock()
         self.mock_vae = MagicMock()
-        self.mock_vae.model_key = KsanaModelKey.VAE_WAN2_2
+        self.mock_vae.model_key = ModelKey.VAE_WAN2_2
         self.mock_vae.forward_encode.return_value = torch.randn(1, 16, 16, 32, 32)
         self.model_pool.get_model.return_value = self.mock_vae
 
-        self.device_ctx = KsanaDeviceContext(
+        self.device_ctx = NodeDeviceContext(
             device=torch.device("cpu"),
             offload_device=torch.device("cpu"),
             rank_id=0,
@@ -64,9 +64,9 @@ class TestVAEEncodeSpatialNode(unittest.TestCase):
         )
 
     def test_run_calls_forward_encode(self):
-        context = KsanaNodeContext(metadata={"target_f": 16, "target_h": 480, "target_w": 832})
+        context = NodeContext(metadata={"target_f": 16, "target_h": 480, "target_w": 832})
         self.node.run(
-            model_key=KsanaModelKey.VAE_WAN2_2,
+            model_key=ModelKey.VAE_WAN2_2,
             context=context,
             tensor_pool=self.tensor_pool,
             model_pool=self.model_pool,
@@ -75,9 +75,9 @@ class TestVAEEncodeSpatialNode(unittest.TestCase):
         self.mock_vae.forward_encode.assert_called_once()
 
     def test_run_writes_image_embeds_as_list(self):
-        context = KsanaNodeContext(metadata={"target_f": 16, "target_h": 480, "target_w": 832})
+        context = NodeContext(metadata={"target_f": 16, "target_h": 480, "target_w": 832})
         self.node.run(
-            model_key=KsanaModelKey.VAE_WAN2_2,
+            model_key=ModelKey.VAE_WAN2_2,
             context=context,
             tensor_pool=self.tensor_pool,
             model_pool=self.model_pool,
@@ -90,9 +90,9 @@ class TestVAEEncodeSpatialNode(unittest.TestCase):
 
     def test_none_encode_result_not_written(self):
         self.mock_vae.forward_encode.return_value = None
-        context = KsanaNodeContext(metadata={"target_f": 16, "target_h": 480, "target_w": 832})
+        context = NodeContext(metadata={"target_f": 16, "target_h": 480, "target_w": 832})
         self.node.run(
-            model_key=KsanaModelKey.VAE_WAN2_2,
+            model_key=ModelKey.VAE_WAN2_2,
             context=context,
             tensor_pool=self.tensor_pool,
             model_pool=self.model_pool,
@@ -101,7 +101,7 @@ class TestVAEEncodeSpatialNode(unittest.TestCase):
         self.tensor_pool.put.assert_not_called()
 
     def test_dispatch_policy(self):
-        self.assertEqual(VAEEncodeSpatialNode.dispatch_policy, KsanaDispatchPolicy.R0_R0_BCAST)
+        self.assertEqual(VAEEncodeSpatialNode.dispatch_policy, NodeDispatchPolicy.R0_R0_BCAST)
 
     def test_tensor_keys(self):
         self.assertIn(TensorKey.START_IMG, VAEEncodeSpatialNode.input_tensor_keys)
@@ -122,11 +122,11 @@ class TestVAEEncodeImagesNode(unittest.TestCase):
 
         self.model_pool = MagicMock()
         self.mock_vae = MagicMock()
-        self.mock_vae.model_key = KsanaModelKey.VAE_WAN2_2
+        self.mock_vae.model_key = ModelKey.VAE_WAN2_2
         self.mock_vae.forward_encode_image.return_value = torch.randn(1, 16, 1, 32, 32)
         self.model_pool.get_model.return_value = self.mock_vae
 
-        self.device_ctx = KsanaDeviceContext(
+        self.device_ctx = NodeDeviceContext(
             device=torch.device("cpu"),
             offload_device=torch.device("cpu"),
             rank_id=0,
@@ -134,9 +134,9 @@ class TestVAEEncodeImagesNode(unittest.TestCase):
         )
 
     def test_run_calls_forward_encode_image(self):
-        context = KsanaNodeContext(metadata={"batch_size": 1})
+        context = NodeContext(metadata={"batch_size": 1})
         self.node.run(
-            model_key=KsanaModelKey.VAE_WAN2_2,
+            model_key=ModelKey.VAE_WAN2_2,
             context=context,
             tensor_pool=self.tensor_pool,
             model_pool=self.model_pool,
@@ -145,9 +145,9 @@ class TestVAEEncodeImagesNode(unittest.TestCase):
         self.mock_vae.forward_encode_image.assert_called_once()
 
     def test_run_writes_image_embeds_as_list(self):
-        context = KsanaNodeContext(metadata={"batch_size": 1})
+        context = NodeContext(metadata={"batch_size": 1})
         self.node.run(
-            model_key=KsanaModelKey.VAE_WAN2_2,
+            model_key=ModelKey.VAE_WAN2_2,
             context=context,
             tensor_pool=self.tensor_pool,
             model_pool=self.model_pool,
@@ -159,7 +159,7 @@ class TestVAEEncodeImagesNode(unittest.TestCase):
         self.assertIsInstance(put_val, list)
 
     def test_dispatch_policy(self):
-        self.assertEqual(VAEEncodeImagesNode.dispatch_policy, KsanaDispatchPolicy.R0_R0_BCAST)
+        self.assertEqual(VAEEncodeImagesNode.dispatch_policy, NodeDispatchPolicy.R0_R0_BCAST)
 
     def test_tensor_keys(self):
         self.assertEqual(VAEEncodeImagesNode.input_tensor_keys, [TensorKey.IMAGE])

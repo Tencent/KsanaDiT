@@ -14,11 +14,11 @@
 
 from dataclasses import dataclass, field
 
-from .base import KsanaStepCacheConfig
+from .base import StepCacheConfig
 
 
 @dataclass
-class DCacheConfig(KsanaStepCacheConfig):
+class DCacheConfig(StepCacheConfig):
     name: str = field(default="DCache")
     fast_degree: int | None = field(default=None)
     slow_degree: int | None = field(default=None)

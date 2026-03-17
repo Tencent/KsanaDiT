@@ -14,11 +14,11 @@
 
 from abc import ABC, abstractmethod
 
-from .model_key import KsanaModelKey
+from .model_key import ModelKey
 
 
 class ModelBase(ABC):
-    def __init__(self, model_key: KsanaModelKey, default_settings):
+    def __init__(self, model_key: ModelKey, default_settings):
         self._model_key = model_key
         self._default_settings = default_settings
 
@@ -27,7 +27,7 @@ class ModelBase(ABC):
         pass
 
     @property
-    def model_key(self) -> KsanaModelKey:
+    def model_key(self) -> ModelKey:
         return self._model_key
 
     @property

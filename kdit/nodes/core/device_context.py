@@ -18,7 +18,7 @@ import torch
 
 
 @dataclass(frozen=True)
-class KsanaDeviceContext:
+class NodeDeviceContext:
     """运行时设备信息，由 Executor 创建并传入 Node.run()。
 
     frozen=True 保证 Node 无法篡改设备配置。

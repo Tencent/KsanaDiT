@@ -22,10 +22,10 @@ from unittest.mock import MagicMock
 
 import torch
 
-from kdit.models.model_key import KsanaModelKey
-from kdit.nodes.core.device_context import KsanaDeviceContext
-from kdit.nodes.core.node_context import KsanaNodeContext
-from kdit.nodes.core.node_types import KsanaDispatchPolicy
+from kdit.models.model_key import ModelKey
+from kdit.nodes.core.device_context import NodeDeviceContext
+from kdit.nodes.core.node_context import NodeContext
+from kdit.nodes.core.node_types import NodeDispatchPolicy
 from kdit.nodes.infers.vae_decoder_node import VAEDecodeNode
 from kdit.tensor import TensorKey
 
@@ -49,7 +49,7 @@ class TestVAEDecodeNode(unittest.TestCase):
         self.model_pool.get_model.return_value = self.mock_vae
 
         # device_ctx
-        self.device_ctx = KsanaDeviceContext(
+        self.device_ctx = NodeDeviceContext(
             device=torch.device("cpu"),
             offload_device=torch.device("cpu"),
             rank_id=0,
@@ -57,9 +57,9 @@ class TestVAEDecodeNode(unittest.TestCase):
         )
 
     def test_run_calls_forward_decode(self):
-        context = KsanaNodeContext(metadata={})
+        context = NodeContext(metadata={})
         self.node.run(
-            model_key=KsanaModelKey.VAE_WAN2_2,
+            model_key=ModelKey.VAE_WAN2_2,
             context=context,
             tensor_pool=self.tensor_pool,
             model_pool=self.model_pool,
@@ -71,9 +71,9 @@ class TestVAEDecodeNode(unittest.TestCase):
         self.assertEqual(call_kwargs["local_rank"], 0)
 
     def test_run_writes_video_to_tensor_pool(self):
-        context = KsanaNodeContext(metadata={})
+        context = NodeContext(metadata={})
         self.node.run(
-            model_key=KsanaModelKey.VAE_WAN2_2,
+            model_key=ModelKey.VAE_WAN2_2,
             context=context,
             tensor_pool=self.tensor_pool,
             model_pool=self.model_pool,
@@ -84,9 +84,9 @@ class TestVAEDecodeNode(unittest.TestCase):
         self.assertEqual(put_key, TensorKey.VIDEO)
 
     def test_offload_model_when_requested(self):
-        context = KsanaNodeContext(metadata={"offload_model": True})
+        context = NodeContext(metadata={"offload_model": True})
         self.node.run(
-            model_key=KsanaModelKey.VAE_WAN2_2,
+            model_key=ModelKey.VAE_WAN2_2,
             context=context,
             tensor_pool=self.tensor_pool,
             model_pool=self.model_pool,
@@ -95,9 +95,9 @@ class TestVAEDecodeNode(unittest.TestCase):
         self.mock_vae.to.assert_called_once_with(torch.device("cpu"))
 
     def test_no_offload_by_default(self):
-        context = KsanaNodeContext(metadata={})
+        context = NodeContext(metadata={})
         self.node.run(
-            model_key=KsanaModelKey.VAE_WAN2_2,
+            model_key=ModelKey.VAE_WAN2_2,
             context=context,
             tensor_pool=self.tensor_pool,
             model_pool=self.model_pool,
@@ -106,7 +106,7 @@ class TestVAEDecodeNode(unittest.TestCase):
         self.mock_vae.to.assert_not_called()
 
     def test_dispatch_policy(self):
-        self.assertEqual(VAEDecodeNode.dispatch_policy, KsanaDispatchPolicy.ALL_R0_R0)
+        self.assertEqual(VAEDecodeNode.dispatch_policy, NodeDispatchPolicy.ALL_R0_R0)
 
     def test_tensor_keys(self):
         self.assertEqual(VAEDecodeNode.input_tensor_keys, [TensorKey.LATENTS])

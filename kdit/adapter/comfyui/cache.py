@@ -17,10 +17,10 @@ from kdit.config.cache_config import (
     DBCacheConfig,
     DCacheConfig,
     EasyCacheConfig,
+    HybridCacheConfig,
     KsanaBlockCacheConfig,
-    KsanaHybridCacheConfig,
-    KsanaStepCacheConfig,
     MagCacheConfig,
+    StepCacheConfig,
     TeaCacheConfig,
 )
 
@@ -28,11 +28,11 @@ from kdit.config.cache_config import (
 def hybrid_cache(step_cache=None, block_cache=None, name=None):
     if step_cache is None and block_cache is None:
         raise ValueError("step_cache and block_cache cannot be both None")
-    if step_cache is not None and not isinstance(step_cache, KsanaStepCacheConfig):
-        raise ValueError("step_cache must be KsanaStepCacheConfig")
+    if step_cache is not None and not isinstance(step_cache, StepCacheConfig):
+        raise ValueError("step_cache must be StepCacheConfig")
     if block_cache is not None and not isinstance(block_cache, KsanaBlockCacheConfig):
         raise ValueError("block_cache must be KsanaBlockCacheConfig")
-    return KsanaHybridCacheConfig(
+    return HybridCacheConfig(
         step_cache=step_cache,
         block_cache=block_cache,
         name=name,

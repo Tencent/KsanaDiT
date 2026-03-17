@@ -16,7 +16,7 @@ import numpy as np
 import torch
 
 from ..config.cache_config import TeaCacheConfig
-from ..models.model_key import KsanaModelKey
+from ..models.model_key import ModelKey
 from ..utils import log
 from ..utils.conf import load_cache_yaml_keys
 from .base_cache import KsanaStepCache
@@ -28,7 +28,7 @@ TEACACHE_COEFFICIENTS, DEFAULT_THRESHOLDS = load_cache_yaml_keys(
 
 
 class TeaCache(KsanaStepCache):
-    def __init__(self, model_key: KsanaModelKey, config: TeaCacheConfig):
+    def __init__(self, model_key: ModelKey, config: TeaCacheConfig):
         super().__init__(model_key, config)
         mode = config.mode if config.mode else "t2v"
         self.threshold = config.threshold if config.threshold is not None else DEFAULT_THRESHOLDS.get(mode, 0.2)

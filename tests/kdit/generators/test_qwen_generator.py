@@ -32,10 +32,10 @@ from unittest.mock import MagicMock
 
 import torch
 
-from kdit.models import KsanaModelKey
+from kdit.models import ModelKey
 
 
-def _make_qwen_generator(model_key=KsanaModelKey.QwenImage_T2I):
+def _make_qwen_generator(model_key=ModelKey.QwenImage_T2I):
     """构造 QwenGenerator 实例，绕过 AdvancedFactory 注册。"""
     from kdit.generators.qwen_generator import QwenGenerator
 
@@ -114,7 +114,7 @@ class TestQwenApplyCfg(unittest.TestCase):
     """测试 apply_cfg — 标准 CFG 和 Edit 模式。"""
 
     def test_standard_cfg(self):
-        gen = _make_qwen_generator(KsanaModelKey.QwenImage_T2I)
+        gen = _make_qwen_generator(ModelKey.QwenImage_T2I)
         cond = torch.ones(2, 4)
         uncond = torch.zeros(2, 4)
         result = gen.apply_cfg(7.5, cond, uncond)
@@ -122,7 +122,7 @@ class TestQwenApplyCfg(unittest.TestCase):
         self.assertTrue(torch.allclose(result, expected))
 
     def test_edit_cfg_with_norm_rescale(self):
-        gen = _make_qwen_generator(KsanaModelKey.QwenImage_Edit)
+        gen = _make_qwen_generator(ModelKey.QwenImage_Edit)
         cond = torch.randn(2, 4)
         uncond = torch.randn(2, 4)
         result = gen.apply_cfg(7.5, cond, uncond)

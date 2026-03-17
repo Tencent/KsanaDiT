@@ -17,14 +17,14 @@ import torch.nn.functional as F
 
 from kdit.config import KsanaSampleConfig
 from kdit.config.wan_experimental_config import KsanaExperimentalConfig
-from kdit.models import KsanaModelKey
+from kdit.models import ModelKey
 from kdit.utils import evolve_with_recommend, log
 
 from .base_generator import BaseGenerator
 from .generator_factory import GeneratorFactory
 
 
-@GeneratorFactory.register([KsanaModelKey.QwenImage_T2I, KsanaModelKey.QwenImage_Edit])
+@GeneratorFactory.register([ModelKey.QwenImage_T2I, ModelKey.QwenImage_Edit])
 class QwenGenerator(BaseGenerator):
 
     def __init__(self):
@@ -106,7 +106,7 @@ class QwenGenerator(BaseGenerator):
                 total_steps=total_steps,
             )
         comb_pred = uncond + float(cfg_scale) * (cond - uncond)
-        if self.model_key == KsanaModelKey.QwenImage_Edit:
+        if self.model_key == ModelKey.QwenImage_Edit:
             # Normalize to conditional prediction norm (per-token, last-dim), matching diffusers.
             cond_norm = torch.norm(cond, dim=-1, keepdim=True)
             comb_norm = torch.norm(comb_pred, dim=-1, keepdim=True)

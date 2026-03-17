@@ -15,25 +15,25 @@
 import os
 
 from kdit.models import KsanaQwenVAEModel, KsanaWanVAEModel
-from kdit.models.model_key import KsanaModelKey
+from kdit.models.model_key import ModelKey
 from kdit.settings import load_default_settings
 from kdit.utils import is_file_or_dir, log, time_range
 
-from ..core.base_node import KsanaLoadNode
+from ..core.base_node import LoaderNode
 from ..core.node_factory import LoaderNodeFactory
-from ..core.node_types import KsanaDispatchPolicy
+from ..core.node_types import NodeDispatchPolicy
 
 
-@LoaderNodeFactory.register([KsanaModelKey.VAE_WAN2_1, KsanaModelKey.VAE_WAN2_2, KsanaModelKey.QwenImageVAE])
-class VAELoaderNode(KsanaLoadNode):
+@LoaderNodeFactory.register([ModelKey.VAE_WAN2_1, ModelKey.VAE_WAN2_2, ModelKey.QwenImageVAE])
+class VAELoaderNode(LoaderNode):
     """加载 VAE 模型。"""
 
-    dispatch_policy = KsanaDispatchPolicy.ALL_ALL_ALL
+    dispatch_policy = NodeDispatchPolicy.ALL_ALL_ALL
 
     _MAP_KEY_TO_MODEL_CLASS = {
-        KsanaModelKey.VAE_WAN2_1: KsanaWanVAEModel,
-        KsanaModelKey.VAE_WAN2_2: KsanaWanVAEModel,
-        KsanaModelKey.QwenImageVAE: KsanaQwenVAEModel,
+        ModelKey.VAE_WAN2_1: KsanaWanVAEModel,
+        ModelKey.VAE_WAN2_2: KsanaWanVAEModel,
+        ModelKey.QwenImageVAE: KsanaQwenVAEModel,
     }
 
     @time_range

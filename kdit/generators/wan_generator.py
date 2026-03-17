@@ -15,7 +15,7 @@
 import torch
 
 from kdit.config import KsanaSampleConfig
-from kdit.models import KsanaDiffusionModel, KsanaModelKey
+from kdit.models import KsanaDiffusionModel, ModelKey
 from kdit.utils import log
 
 from .base_generator import BaseGenerator
@@ -23,7 +23,7 @@ from .generator_factory import GeneratorFactory
 
 
 # TODO: need better abstract base implement for vace, vace can not invade base
-@GeneratorFactory.register([KsanaModelKey.Wan2_2_T2V_14B, KsanaModelKey.Wan2_2_I2V_14B])
+@GeneratorFactory.register([ModelKey.Wan2_2_T2V_14B, ModelKey.Wan2_2_I2V_14B])
 class WanGenerator(BaseGenerator):
     def __init__(self):
         super().__init__()
@@ -32,7 +32,7 @@ class WanGenerator(BaseGenerator):
 
     def valid_noise_shape(self, noise_shape: tuple[int] | list[int], diffusion_model: list[KsanaDiffusionModel]):
         noise_shape = super().valid_noise_shape(noise_shape, diffusion_model)
-        if self.model_key == KsanaModelKey.Wan2_2_I2V_14B:
+        if self.model_key == ModelKey.Wan2_2_I2V_14B:
             # Note: i2v used image_embeds as noise_shape, so need change to shape[1] as right z_dim
             #       and should have added z_dim to yaml settings
             default_settings = diffusion_model[0].default_settings
@@ -44,7 +44,7 @@ class WanGenerator(BaseGenerator):
     def cast_image_tensor_to(
         self, image_embeds: list[torch.Tensor] | None, *, dtype: torch.dtype, device: torch.device
     ):
-        if self.model_key == KsanaModelKey.Wan2_2_T2V_14B:
+        if self.model_key == ModelKey.Wan2_2_T2V_14B:
             return None
         return super().cast_image_tensor_to(image_embeds, dtype=dtype, device=device)
 
@@ -192,14 +192,14 @@ class WanGenerator(BaseGenerator):
                 "t": combine_t,
                 "context": combine_context,
             }
-            if self.model_key == KsanaModelKey.Wan2_2_I2V_14B and img_y is not None:
+            if self.model_key == ModelKey.Wan2_2_I2V_14B and img_y is not None:
                 combine_kargs["y"] = torch.cat([img_y, img_y], dim=0)
             return base | combine_kargs
 
         base.update({"x": noise_latent, "t": timestep})
         arg_cond = {"phase": "cond", "context": positive}
         arg_uncond = {"phase": "uncond", "context": negative}
-        if self.model_key == KsanaModelKey.Wan2_2_I2V_14B:
+        if self.model_key == ModelKey.Wan2_2_I2V_14B:
             arg_cond["y"] = img_y
             arg_uncond["y"] = img_y
         if use_cfg:

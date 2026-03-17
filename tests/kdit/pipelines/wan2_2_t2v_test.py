@@ -37,9 +37,9 @@ from kdit.config import (
     KsanaLinearBackend,
     KsanaLoraConfig,
     KsanaModelConfig,
-    KsanaRuntimeConfig,
     KsanaSampleConfig,
     KsanaTorchCompileConfig,
+    RuntimeConfig,
 )
 from kdit.utils.distribute import get_gpu_count
 
@@ -71,7 +71,7 @@ class TestKsanaPipelineWanT2V(unittest.TestCase):
         videos = pipeline.generate(
             PROMPTS,
             sample_config=KsanaSampleConfig(steps=TEST_STEPS),
-            runtime_config=KsanaRuntimeConfig(
+            runtime_config=RuntimeConfig(
                 seed=SEED,
                 size=TEST_SIZE,
                 frame_num=TEST_FRAME_NUM,
@@ -96,7 +96,7 @@ class TestKsanaPipelineWanT2V(unittest.TestCase):
         videos = pipeline.generate(
             PROMPTS[0],
             sample_config=KsanaSampleConfig(steps=TEST_STEPS),
-            runtime_config=KsanaRuntimeConfig(
+            runtime_config=RuntimeConfig(
                 seed=SEED,
                 size=TEST_SIZE,
                 frame_num=TEST_FRAME_NUM,
@@ -132,7 +132,7 @@ class TestKsanaPipelineWanT2V(unittest.TestCase):
         videos = pipeline.generate(
             PROMPTS,
             sample_config=KsanaSampleConfig(steps=TEST_STEPS),
-            runtime_config=KsanaRuntimeConfig(
+            runtime_config=RuntimeConfig(
                 seed=SEED,
                 size=(1280, 720),
                 frame_num=81,
@@ -177,7 +177,7 @@ class TestKsanaPipelineWanT2V(unittest.TestCase):
         video = pipeline.generate(
             PROMPTS[0],
             sample_config=KsanaSampleConfig(steps=TEST_STEPS),
-            runtime_config=KsanaRuntimeConfig(
+            runtime_config=RuntimeConfig(
                 seed=SEED,
                 size=TEST_SIZE,
                 frame_num=TEST_FRAME_NUM,
@@ -204,7 +204,7 @@ class TestKsanaPipelineWanT2V(unittest.TestCase):
         video = pipeline.generate(
             PROMPTS[0],
             sample_config=KsanaSampleConfig(steps=TEST_STEPS),
-            runtime_config=KsanaRuntimeConfig(
+            runtime_config=RuntimeConfig(
                 seed=SEED,
                 size=RADIAL_ATTN_TEST_SIZE,
                 frame_num=RADIAL_ATTN_TEST_FRAME_NUM,

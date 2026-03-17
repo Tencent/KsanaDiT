@@ -28,7 +28,7 @@ from ..utils.profile import profile_range
 from ..utils.quantize import apply_dynamic_fp8_quant, find_fp8_info_from_state_dict
 from ..utils.torch_compile import apply_torch_compile
 from .model_base import ModelBase
-from .model_key import KsanaModelKey
+from .model_key import ModelKey
 from .qwen import QwenImageTransformer2DModel
 from .wan import VaceWanModel, WanModel
 
@@ -42,7 +42,7 @@ class KsanaDiffusionModel(ModelBase):
 
     def __init__(
         self,
-        model_key: KsanaModelKey,
+        model_key: ModelKey,
         model_config: KsanaModelConfig,
         dist_config: KsanaDistributedConfig | None,
         default_settings,

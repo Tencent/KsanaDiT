@@ -21,7 +21,7 @@
 2. 对每个 InferPhase:
    a. check_condition(name, inputs) — 是否跳过
    b. prepare_tensors(phase, inputs) — 准备 tensor -> put 到 pool
-   c. build_context(phase, inputs) — 构建 KsanaNodeContext
+   c. build_context(phase, inputs) — 构建 NodeContext
 3. post_process(output, inputs) — 输出后处理
 """
 
@@ -30,7 +30,7 @@ from typing import Any
 
 import torch
 
-from kdit.nodes.core.node_context import KsanaNodeContext
+from kdit.nodes.core.node_context import NodeContext
 from kdit.tensor import TensorKey
 
 from .generate_inputs import GenerateInputs
@@ -58,7 +58,7 @@ class ContextBuilder(ABC):
         self,
         phase: InferPhase,
         inputs: GenerateInputs,
-    ) -> KsanaNodeContext:
+    ) -> NodeContext:
         """为指定的 InferPhase 构建 NodeContext。
 
         内部通过 phase.node_type 分支，为不同 Node 构建不同的 context。

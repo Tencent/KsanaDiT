@@ -27,9 +27,9 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
-from kdit.models.model_key import KsanaModelKey
-from kdit.nodes.core.node_context import KsanaNodeContext
-from kdit.nodes.core.node_types import KsanaInferNodeType as NT
+from kdit.models.model_key import ModelKey
+from kdit.nodes.core.node_context import NodeContext
+from kdit.nodes.core.node_types import InferNodeType as NT
 from kdit.pipelines.context_builder import ContextBuilder
 from kdit.pipelines.generate_inputs import GenerateInputs
 from kdit.pipelines.pipeline import (
@@ -55,7 +55,7 @@ class _DummyContextBuilder(ContextBuilder):
     """最小可用的 ContextBuilder — 用于 Builder 测试。"""
 
     def build_context(self, phase, inputs):
-        return KsanaNodeContext()
+        return NodeContext()
 
 
 # ── PipelineDefBuilder 测试 ──────────────────────────────────────────────
@@ -68,12 +68,12 @@ class TestPipelineDefBuilder(unittest.TestCase):
         """基本构建 — 3 个 load + 4 个 infer + context_builder。"""
         pipeline_def = (
             PipelineDefBuilder(PipelineKey.Wan2_2_T2V_14B)
-            .load("text_encoder", KsanaModelKey.T5TextEncoder)
-            .load("diffusion", KsanaModelKey.Wan2_2_T2V_14B)
-            .load("vae", KsanaModelKey.VAE_WAN2_2)
-            .add_infer(NT.TEXT_ENCODE, model_role="text_encoder")
-            .add_infer(NT.GENERATE, model_role="diffusion")
-            .add_infer(NT.VAE_DECODE, model_role="vae")
+            .load(ModelKey.T5TextEncoder)
+            .load(ModelKey.Wan2_2_T2V_14B)
+            .load(ModelKey.VAE_WAN2_2)
+            .add_infer(NT.TEXT_ENCODE, ModelKey.T5TextEncoder)
+            .add_infer(NT.GENERATE, ModelKey.Wan2_2_T2V_14B)
+            .add_infer(NT.VAE_DECODE, ModelKey.VAE_WAN2_2)
             .add_infer(NT.SAVE_VIDEO)
             .keep_tensors(TensorKey.VIDEO)
             .context_builder(_DummyContextBuilder)
@@ -91,27 +91,27 @@ class TestPipelineDefBuilder(unittest.TestCase):
         """load_phases 保持声明顺序。"""
         pipeline_def = (
             PipelineDefBuilder(PipelineKey.Wan2_2_T2V_14B)
-            .load("text_encoder", KsanaModelKey.T5TextEncoder)
-            .load("diffusion", KsanaModelKey.Wan2_2_T2V_14B)
-            .load("vae", KsanaModelKey.VAE_WAN2_2)
-            .add_infer(NT.TEXT_ENCODE, model_role="text_encoder")
+            .load(ModelKey.T5TextEncoder)
+            .load(ModelKey.Wan2_2_T2V_14B)
+            .load(ModelKey.VAE_WAN2_2)
+            .add_infer(NT.TEXT_ENCODE, ModelKey.T5TextEncoder)
             .context_builder(_DummyContextBuilder)
             .build()
         )
 
-        roles = [lp.model_role for lp in pipeline_def.load_phases]
-        self.assertEqual(roles, ["text_encoder", "diffusion", "vae"])
+        keys = [lp.model_key for lp in pipeline_def.load_phases]
+        self.assertEqual(keys, [ModelKey.T5TextEncoder, ModelKey.Wan2_2_T2V_14B, ModelKey.VAE_WAN2_2])
 
     def test_infer_phases_order(self):
         """infer_phases 保持声明顺序。"""
         pipeline_def = (
             PipelineDefBuilder(PipelineKey.Wan2_2_T2V_14B)
-            .load("text_encoder", KsanaModelKey.T5TextEncoder)
-            .load("diffusion", KsanaModelKey.Wan2_2_T2V_14B)
-            .load("vae", KsanaModelKey.VAE_WAN2_2)
-            .add_infer(NT.TEXT_ENCODE, model_role="text_encoder")
-            .add_infer(NT.GENERATE, model_role="diffusion")
-            .add_infer(NT.VAE_DECODE, model_role="vae")
+            .load(ModelKey.T5TextEncoder)
+            .load(ModelKey.Wan2_2_T2V_14B)
+            .load(ModelKey.VAE_WAN2_2)
+            .add_infer(NT.TEXT_ENCODE, ModelKey.T5TextEncoder)
+            .add_infer(NT.GENERATE, ModelKey.Wan2_2_T2V_14B)
+            .add_infer(NT.VAE_DECODE, ModelKey.VAE_WAN2_2)
             .add_infer(NT.SAVE_VIDEO)
             .context_builder(_DummyContextBuilder)
             .build()
@@ -124,8 +124,8 @@ class TestPipelineDefBuilder(unittest.TestCase):
         """add_infer().when() 设置条件。"""
         pipeline_def = (
             PipelineDefBuilder(PipelineKey.Wan2_2_I2V_14B)
-            .load("vae", KsanaModelKey.VAE_WAN2_2)
-            .add_infer(NT.VAE_ENCODE_SPATIAL, model_role="vae")
+            .load(ModelKey.VAE_WAN2_2)
+            .add_infer(NT.VAE_ENCODE_SPATIAL, ModelKey.VAE_WAN2_2)
             .when("has_start_image")
             .add_infer(NT.SAVE_VIDEO)
             .context_builder(_DummyContextBuilder)
@@ -140,8 +140,8 @@ class TestPipelineDefBuilder(unittest.TestCase):
     def test_when_chain_returns_builder(self):
         """add_infer().when() 返回 PipelineDefBuilder，可继续链式。"""
         builder = PipelineDefBuilder(PipelineKey.Wan2_2_I2V_14B)
-        builder.load("vae", KsanaModelKey.VAE_WAN2_2)
-        chain = builder.add_infer(NT.VAE_ENCODE_SPATIAL, model_role="vae")
+        builder.load(ModelKey.VAE_WAN2_2)
+        chain = builder.add_infer(NT.VAE_ENCODE_SPATIAL, ModelKey.VAE_WAN2_2)
         self.assertIsInstance(chain, _InferPhaseChain)
         result = chain.when("has_start_image")
         self.assertIs(result, builder)
@@ -150,30 +150,30 @@ class TestPipelineDefBuilder(unittest.TestCase):
         """不调用 .when() 时，_InferPhaseChain 代理到 builder。"""
         pipeline_def = (
             PipelineDefBuilder(PipelineKey.Wan2_2_T2V_14B)
-            .load("text_encoder", KsanaModelKey.T5TextEncoder)
-            .add_infer(NT.TEXT_ENCODE, model_role="text_encoder")
+            .load(ModelKey.T5TextEncoder)
+            .add_infer(NT.TEXT_ENCODE, ModelKey.T5TextEncoder)
             .keep_tensors(TensorKey.VIDEO)  # 通过 __getattr__ 代理
             .context_builder(_DummyContextBuilder)
             .build()
         )
         self.assertEqual(pipeline_def.keep_tensors, (TensorKey.VIDEO,))
 
-    def test_save_node_no_model_role(self):
-        """SaveNode 的 model_role 为 None。"""
+    def test_save_node_no_model_key(self):
+        """SaveNode 的 model_key 为 None。"""
         pipeline_def = (
             PipelineDefBuilder(PipelineKey.Wan2_2_T2V_14B)
-            .load("vae", KsanaModelKey.VAE_WAN2_2)
+            .load(ModelKey.VAE_WAN2_2)
             .add_infer(NT.SAVE_VIDEO)
             .context_builder(_DummyContextBuilder)
             .build()
         )
-        self.assertIsNone(pipeline_def.infer_phases[0].model_role)
+        self.assertIsNone(pipeline_def.infer_phases[0].model_key)
 
     def test_frozen_dataclass(self):
         """PipelineDef 是 frozen dataclass — 不可修改。"""
         pipeline_def = (
             PipelineDefBuilder(PipelineKey.Wan2_2_T2V_14B)
-            .load("vae", KsanaModelKey.VAE_WAN2_2)
+            .load(ModelKey.VAE_WAN2_2)
             .add_infer(NT.SAVE_VIDEO)
             .context_builder(_DummyContextBuilder)
             .build()
@@ -185,11 +185,7 @@ class TestPipelineDefBuilder(unittest.TestCase):
 
     def test_missing_context_builder(self):
         """缺少 context_builder 时 build() 报错。"""
-        builder = (
-            PipelineDefBuilder(PipelineKey.Wan2_2_T2V_14B)
-            .load("vae", KsanaModelKey.VAE_WAN2_2)
-            .add_infer(NT.SAVE_VIDEO)
-        )
+        builder = PipelineDefBuilder(PipelineKey.Wan2_2_T2V_14B).load(ModelKey.VAE_WAN2_2).add_infer(NT.SAVE_VIDEO)
         with self.assertRaises(ValueError, msg="context_builder_cls is required"):
             builder.build()
 
@@ -204,17 +200,17 @@ class TestPipelineDefBuilder(unittest.TestCase):
     def test_missing_infer_phases(self):
         """缺少 infer phase 时 build() 报错。"""
         builder = PipelineDefBuilder(PipelineKey.Wan2_2_T2V_14B)
-        builder.load("vae", KsanaModelKey.VAE_WAN2_2)
+        builder.load(ModelKey.VAE_WAN2_2)
         builder.context_builder(_DummyContextBuilder)
         with self.assertRaises(ValueError, msg="At least one infer phase"):
             builder.build()
 
-    def test_invalid_model_role_reference(self):
-        """infer_phase 引用未声明的 model_role 时 build() 报错。"""
+    def test_invalid_model_key_reference(self):
+        """infer_phase 引用未声明的 model_key 时 build() 报错。"""
         builder = (
             PipelineDefBuilder(PipelineKey.Wan2_2_T2V_14B)
-            .load("vae", KsanaModelKey.VAE_WAN2_2)
-            .add_infer(NT.TEXT_ENCODE, model_role="text_encoder")  # 未声明
+            .load(ModelKey.VAE_WAN2_2)
+            .add_infer(NT.TEXT_ENCODE, ModelKey.T5TextEncoder)  # 未在 load 中声明
             .context_builder(_DummyContextBuilder)
         )
         with self.assertRaises(ValueError, msg="not declared in any LoadPhase"):
@@ -325,11 +321,11 @@ class TestPipelineDefStructure(unittest.TestCase):
         self.assertEqual(len(d.infer_phases), 5)
 
         # 检查 model_key 不同于 I2V
-        diffusion_phase = next(lp for lp in d.load_phases if lp.model_role == "diffusion")
-        self.assertEqual(diffusion_phase.model_key, KsanaModelKey.Wan2_1_VACE_14B)
+        diffusion_phase = next(lp for lp in d.load_phases if lp.model_key == ModelKey.Wan2_1_VACE_14B)
+        self.assertEqual(diffusion_phase.model_key, ModelKey.Wan2_1_VACE_14B)
 
-        vae_phase = next(lp for lp in d.load_phases if lp.model_role == "vae")
-        self.assertEqual(vae_phase.model_key, KsanaModelKey.VAE_WAN2_1)
+        vae_phase = next(lp for lp in d.load_phases if lp.model_key == ModelKey.VAE_WAN2_1)
+        self.assertEqual(vae_phase.model_key, ModelKey.VAE_WAN2_1)
 
     def test_qwen_t2i_structure(self):
         """Qwen T2I: 3 load + 4 infer, 无条件。"""
@@ -485,10 +481,10 @@ class TestWanT2VContextBuilder(unittest.TestCase):
         inputs = _make_inputs(prompt="hello world")
         builder.prepare_generate_inputs(inputs, _default_settings=_make_wan_settings())
 
-        phase = InferPhase(node_type=NT.TEXT_ENCODE, model_role="text_encoder")
+        phase = InferPhase(node_type=NT.TEXT_ENCODE, model_key=ModelKey.T5TextEncoder)
         ctx = builder.build_context(phase, inputs)
 
-        self.assertIsInstance(ctx, KsanaNodeContext)
+        self.assertIsInstance(ctx, NodeContext)
         self.assertEqual(ctx.prompt, "hello world")
 
     def test_build_context_generate(self):
@@ -499,7 +495,7 @@ class TestWanT2VContextBuilder(unittest.TestCase):
         inputs = _make_inputs()
         builder.prepare_generate_inputs(inputs, _default_settings=_make_wan_settings())
 
-        phase = InferPhase(node_type=NT.GENERATE, model_role="diffusion")
+        phase = InferPhase(node_type=NT.GENERATE, model_key=ModelKey.Wan2_2_T2V_14B)
         ctx = builder.build_context(phase, inputs)
 
         self.assertIn("noise_shape", ctx.metadata)
@@ -607,7 +603,7 @@ class TestWanI2VContextBuilder(unittest.TestCase):
             start_img_path="test.png",
         )
 
-        phase = InferPhase(node_type=NT.VAE_ENCODE_SPATIAL, model_role="vae")
+        phase = InferPhase(node_type=NT.VAE_ENCODE_SPATIAL, model_key=ModelKey.VAE_WAN2_2)
         tensors = builder.prepare_tensors(phase, inputs)
 
         self.assertIsNotNone(tensors)
@@ -621,7 +617,7 @@ class TestWanI2VContextBuilder(unittest.TestCase):
         inputs = _make_inputs()
         builder.prepare_generate_inputs(inputs, _default_settings=_make_wan_settings())
 
-        phase = InferPhase(node_type=NT.GENERATE, model_role="diffusion")
+        phase = InferPhase(node_type=NT.GENERATE, model_key=ModelKey.Wan2_2_I2V_14B)
         tensors = builder.prepare_tensors(phase, inputs)
         self.assertIsNone(tensors)
 
@@ -633,7 +629,7 @@ class TestWanI2VContextBuilder(unittest.TestCase):
         inputs = _make_inputs()
         builder.prepare_generate_inputs(inputs, _default_settings=_make_wan_settings())
 
-        phase = InferPhase(node_type=NT.VAE_ENCODE_SPATIAL, model_role="vae")
+        phase = InferPhase(node_type=NT.VAE_ENCODE_SPATIAL, model_key=ModelKey.VAE_WAN2_2)
         ctx = builder.build_context(phase, inputs)
 
         self.assertIn("target_f", ctx.metadata)
@@ -681,7 +677,7 @@ class TestQwenT2IContextBuilder(unittest.TestCase):
         inputs.runtime_config.size = (1024, 1024)
         builder.prepare_generate_inputs(inputs, _default_settings=_make_qwen_settings())
 
-        phase = InferPhase(node_type=NT.TEXT_ENCODE, model_role="text_encoder")
+        phase = InferPhase(node_type=NT.TEXT_ENCODE, model_key=ModelKey.Qwen2VLTextEncoder)
         ctx = builder.build_context(phase, inputs)
 
         self.assertEqual(ctx.prompt, "a cat")
@@ -699,7 +695,7 @@ class TestQwenT2IContextBuilder(unittest.TestCase):
 
         phase = InferPhase(node_type=NT.SAVE_IMAGE)
         ctx = builder.build_context(phase, inputs)
-        self.assertIsInstance(ctx, KsanaNodeContext)
+        self.assertIsInstance(ctx, NodeContext)
 
 
 class TestQwenEditContextBuilder(unittest.TestCase):
@@ -770,7 +766,7 @@ class TestQwenEditContextBuilder(unittest.TestCase):
             img_path="ref.png",
         )
 
-        phase = InferPhase(node_type=NT.TEXT_ENCODE, model_role="text_encoder")
+        phase = InferPhase(node_type=NT.TEXT_ENCODE, model_key=ModelKey.Qwen2VLTextEncoderMultimodal)
         ctx = builder.build_context(phase, inputs)
 
         self.assertIn("condition_image_path", ctx.metadata)
@@ -793,7 +789,7 @@ class TestQwenEditContextBuilder(unittest.TestCase):
             img_path="ref.png",
         )
 
-        phase = InferPhase(node_type=NT.VAE_ENCODE_IMAGES, model_role="vae")
+        phase = InferPhase(node_type=NT.VAE_ENCODE_IMAGES, model_key=ModelKey.QwenImageVAE)
         tensors = builder.prepare_tensors(phase, inputs)
 
         self.assertIsNotNone(tensors)

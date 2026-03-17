@@ -21,13 +21,13 @@
 import torch
 from torch.nn.utils.rnn import pad_sequence
 
-from kdit.models.model_key import KsanaModelKey
+from kdit.models.model_key import ModelKey
 from kdit.tensor import TensorKey
 from kdit.utils import str_to_list, time_range
 
-from ..core.base_node import KsanaInferNode
+from ..core.base_node import InferNode
 from ..core.node_factory import InferNodeFactory
-from ..core.node_types import KsanaDispatchPolicy, KsanaInferNodeType
+from ..core.node_types import InferNodeType, NodeDispatchPolicy
 
 
 def _validate_prompts(prompt, negative_prompt, default_neg_prompt=None, target_len=None):
@@ -59,11 +59,11 @@ def _offload_model_if_needed(model, offload_model, offload_device, current_devic
         model.to(offload_device)
 
 
-@InferNodeFactory.register(KsanaInferNodeType.TEXT_ENCODE, KsanaModelKey.T5TextEncoder)
-class T5TextEncodeNode(KsanaInferNode):
+@InferNodeFactory.register(InferNodeType.TEXT_ENCODE, ModelKey.T5TextEncoder)
+class T5TextEncodeNode(InferNode):
     """T5 文本编码 — forward 后 pad + chunk 拆分 pos/neg。"""
 
-    dispatch_policy = KsanaDispatchPolicy.ALL_ALL_ALL
+    dispatch_policy = NodeDispatchPolicy.ALL_ALL_ALL
     input_tensor_keys = []
     output_tensor_keys = [TensorKey.POSITIVE, TensorKey.NEGATIVE]
 
@@ -102,13 +102,13 @@ class T5TextEncodeNode(KsanaInferNode):
 
 
 @InferNodeFactory.register(
-    KsanaInferNodeType.TEXT_ENCODE,
-    [KsanaModelKey.Qwen2VLTextEncoder, KsanaModelKey.Qwen2VLTextEncoderMultimodal],
+    InferNodeType.TEXT_ENCODE,
+    [ModelKey.Qwen2VLTextEncoder, ModelKey.Qwen2VLTextEncoderMultimodal],
 )
-class QwenTextEncodeNode(KsanaInferNode):
+class QwenTextEncodeNode(InferNode):
     """Qwen VL 文本编码 — 分别 forward pos/neg，返回 (embeds, mask)。"""
 
-    dispatch_policy = KsanaDispatchPolicy.ALL_ALL_ALL
+    dispatch_policy = NodeDispatchPolicy.ALL_ALL_ALL
     input_tensor_keys = []
     output_tensor_keys = [TensorKey.POSITIVE, TensorKey.NEGATIVE]
 

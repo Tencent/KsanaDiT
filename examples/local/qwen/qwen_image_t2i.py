@@ -22,9 +22,9 @@ os.environ["KSANA_LOGGER_LEVEL"] = "INFO"
 from kdit import Pipeline
 from kdit.config import (
     KsanaModelConfig,
-    KsanaRuntimeConfig,
     KsanaSampleConfig,
     KsanaSolverType,
+    RuntimeConfig,
 )
 from kdit.utils.media import save_image
 
@@ -50,7 +50,7 @@ def run_simple(args):
             cfg_scale=4.0,
             solver=KsanaSolverType.FLOWMATCH_EULER,
         ),
-        runtime_config=KsanaRuntimeConfig(
+        runtime_config=RuntimeConfig(
             seed=SEED,
             size=(1024, 1024),
         ),

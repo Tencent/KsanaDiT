@@ -20,11 +20,11 @@ from kdit import Pipeline
 from kdit.config import (
     KsanaLoraConfig,
     KsanaModelConfig,
-    KsanaRuntimeConfig,
     KsanaSampleConfig,
     KsanaSolverType,
+    RuntimeConfig,
 )
-from kdit.models.model_key import KsanaModelKey
+from kdit.models.model_key import ModelKey
 from kdit.utils.media import save_image
 
 # 生成配置
@@ -53,7 +53,7 @@ def run_edit(model_dir: str, lora_dir: str = None):
     pipeline = Pipeline.from_models(
         model_dir,
         model_config=KsanaModelConfig(run_dtype=torch.bfloat16),
-        pipeline_key=KsanaModelKey.QwenImage_Edit,
+        pipeline_key=ModelKey.QwenImage_Edit,
         lora_config=lora_config,
         offload_device="cpu",
     )
@@ -77,7 +77,7 @@ def run_edit(model_dir: str, lora_dir: str = None):
             cfg_scale=cfg_scale,
             solver=KsanaSolverType.FLOWMATCH_EULER,
         ),
-        runtime_config=KsanaRuntimeConfig(
+        runtime_config=RuntimeConfig(
             seed=config["seed"],
             size=config["size"],
             return_frames=True,

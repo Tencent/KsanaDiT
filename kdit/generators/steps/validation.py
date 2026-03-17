@@ -16,15 +16,15 @@
 
 import torch
 
-from kdit.config import KsanaRuntimeConfig, KsanaSampleConfig, KsanaSolverType
-from kdit.config.cache_config import KsanaCacheConfig, KsanaHybridCacheConfig, warp_as_hybrid_cache
-from kdit.models import KsanaDiffusionModel, KsanaModelKey
+from kdit.config import KsanaSampleConfig, KsanaSolverType, RuntimeConfig
+from kdit.config.cache_config import HybridCacheConfig, KsanaCacheConfig, warp_as_hybrid_cache
+from kdit.models import KsanaDiffusionModel, ModelKey
 from kdit.utils import evolve_with_recommend, log
 
 
 def valid_diffusion_model(
     diffusion_model: KsanaDiffusionModel | list[KsanaDiffusionModel],
-    model_key: KsanaModelKey,
+    model_key: ModelKey,
 ) -> list[KsanaDiffusionModel]:
     """校验并规范化 diffusion_model 为 list 形式。"""
     if isinstance(diffusion_model, (tuple, list)):
@@ -36,7 +36,7 @@ def valid_diffusion_model(
             f"diffusion_model {diffusion_model} must be KsanaDiffusionModel or list of KsanaDiffusionModel"
         )
     if len(diffusion_model) != 1:
-        if model_key in [KsanaModelKey.Wan2_2_I2V_14B, KsanaModelKey.Wan2_2_T2V_14B]:
+        if model_key in [ModelKey.Wan2_2_I2V_14B, ModelKey.Wan2_2_T2V_14B]:
             if len(diffusion_model) > 2 or len(diffusion_model) < 1:
                 raise ValueError(f"{model_key} must have one or two model, but got {len(diffusion_model)} model")
             else:
@@ -74,9 +74,7 @@ def valid_sample_config(sample_config: KsanaSampleConfig, model_len: int) -> Ksa
     return sample_config
 
 
-def valid_cache_config(
-    cache_config: KsanaCacheConfig | KsanaHybridCacheConfig, model_len: int
-) -> KsanaHybridCacheConfig:
+def valid_cache_config(cache_config: KsanaCacheConfig | HybridCacheConfig, model_len: int) -> HybridCacheConfig:
     """校验并规范化 cache_config 为 HybridCacheConfig list。"""
     log.info(f"cache_config: {cache_config}")
     if cache_config is None:
@@ -90,14 +88,14 @@ def valid_cache_config(
         if one_config is None:
             hybrid_caches.append(None)
             continue
-        if not isinstance(one_config, (KsanaCacheConfig, KsanaHybridCacheConfig)):
-            raise ValueError(f"cache_config {one_config} must be KsanaCacheConfig or KsanaHybridCacheConfig")
+        if not isinstance(one_config, (KsanaCacheConfig, HybridCacheConfig)):
+            raise ValueError(f"cache_config {one_config} must be KsanaCacheConfig or HybridCacheConfig")
         as_hybrid_cache = warp_as_hybrid_cache(one_config)
         hybrid_caches.append(as_hybrid_cache)
     return hybrid_caches
 
 
-def valid_runtime_config(runtime_config: KsanaRuntimeConfig, num_prompts: int) -> KsanaRuntimeConfig:
+def valid_runtime_config(runtime_config: RuntimeConfig, num_prompts: int) -> RuntimeConfig:
     """校验并规范化 runtime_config。"""
     log.info(f"runtime_config: {runtime_config}")
     if runtime_config is None:

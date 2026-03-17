@@ -33,10 +33,10 @@ from kdit.config.cache_config import (
     MagCacheConfig,
     TeaCacheConfig,
 )
-from kdit.models.model_key import KsanaModelKey
+from kdit.models.model_key import ModelKey
 
 
-def check_cache_apis(class_type, config_type, model_key=KsanaModelKey.Wan2_2_T2V_14B):
+def check_cache_apis(class_type, config_type, model_key=ModelKey.Wan2_2_T2V_14B):
     cache_config = config_type(steps=0) if config_type is CustomStepCacheConfig else config_type()
     cache = class_type(model_key, cache_config)
     x = torch.randn(1, 14, 14, 14)

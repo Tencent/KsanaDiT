@@ -27,12 +27,12 @@ from kdit.config import (
     KsanaLinearBackend,
     KsanaLoraConfig,
     KsanaModelConfig,
-    KsanaRuntimeConfig,
     KsanaSampleConfig,
     KsanaSolverType,
     KsanaTorchCompileConfig,
+    RuntimeConfig,
 )
-from kdit.config.cache_config import CustomStepCacheConfig, DBCacheConfig, DCacheConfig, KsanaHybridCacheConfig
+from kdit.config.cache_config import CustomStepCacheConfig, DBCacheConfig, DCacheConfig, HybridCacheConfig
 from kdit.utils.distribute import get_gpu_count
 
 prompts = [
@@ -52,7 +52,7 @@ def run_simple(args):
     video = pipeline.generate(
         prompts[0],
         sample_config=KsanaSampleConfig(steps=40),
-        runtime_config=KsanaRuntimeConfig(
+        runtime_config=RuntimeConfig(
             seed=SEED,
             size=(720, 480),
             frame_num=17,
@@ -93,7 +93,7 @@ def run_fp8_models(args):
     video = pipeline.generate(
         prompts[0],
         sample_config=KsanaSampleConfig(steps=40),
-        runtime_config=KsanaRuntimeConfig(
+        runtime_config=RuntimeConfig(
             seed=SEED,
             size=(720, 480),
             frame_num=17,
@@ -116,7 +116,7 @@ def run_advanced(args):
         dist_config=KsanaDistributedConfig(num_gpus=NUM_GPUS),
     )
 
-    runtime_config = KsanaRuntimeConfig(
+    runtime_config = RuntimeConfig(
         size=(720, 480),
         seed=SEED,
         frame_num=17,
@@ -127,7 +127,7 @@ def run_advanced(args):
 
     sample_config = KsanaSampleConfig(steps=40, cfg_scale=3.0, shift=12.0, solver=KsanaSolverType.UNI_PC)
 
-    cache_config = KsanaHybridCacheConfig(
+    cache_config = HybridCacheConfig(
         step_cache=DCacheConfig(fast_degree=50),
         block_cache=DBCacheConfig(),
     )
@@ -153,7 +153,7 @@ def run_fast(args):
         dist_config=KsanaDistributedConfig(num_gpus=NUM_GPUS),
     )
 
-    runtime_config = KsanaRuntimeConfig(
+    runtime_config = RuntimeConfig(
         size=(1280, 720),
         seed=SEED,
         frame_num=81,

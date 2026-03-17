@@ -17,8 +17,8 @@ from abc import abstractmethod
 import torch
 from tqdm import tqdm
 
-from kdit.config import KsanaRuntimeConfig, KsanaSampleConfig
-from kdit.config.cache_config import KsanaCacheConfig, KsanaHybridCacheConfig
+from kdit.config import KsanaSampleConfig, RuntimeConfig
+from kdit.config.cache_config import HybridCacheConfig, KsanaCacheConfig
 from kdit.models import KsanaDiffusionModel
 from kdit.sample_solvers import get_sample_scheduler
 from kdit.scheduler import KsanaBatchScheduler
@@ -161,8 +161,8 @@ class BaseGenerator:
         image_embeds: list[torch.Tensor] | None,
         process_info: list[int],
         sample_config: KsanaSampleConfig,
-        runtime_config: KsanaRuntimeConfig,
-        cache_config: list[KsanaCacheConfig | KsanaHybridCacheConfig],
+        runtime_config: RuntimeConfig,
+        cache_config: list[KsanaCacheConfig | HybridCacheConfig],
         combine_cond_uncond: bool,
         timesteps: torch.Tensor,  # Tensor(list[int])
         run_dtype: torch.dtype,
@@ -283,7 +283,7 @@ class BaseGenerator:
         positive: torch.Tensor,
         negative: torch.Tensor,
         image_embeds: list[torch.Tensor] | None,
-        sample_config: KsanaRuntimeConfig,
+        sample_config: RuntimeConfig,
         input_latent: torch.Tensor,
         run_steps_kwargs: dict,
     ):

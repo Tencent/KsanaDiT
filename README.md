@@ -152,7 +152,7 @@ import torch
 from kdit import Pipeline
 from kdit.config import (
     KsanaDistributedConfig,
-    KsanaRuntimeConfig,
+    RuntimeConfig,
     KsanaSampleConfig,
 )
 
@@ -166,7 +166,7 @@ pipeline = Pipeline.from_models(
 video = pipeline.generate(
     "Street photography, cool girl with headphones skateboarding, New York streets, graffiti wall background",
     sample_config=KsanaSampleConfig(steps=40),
-    runtime_config=KsanaRuntimeConfig(
+    runtime_config=RuntimeConfig(
         seed=1234,
         size=(720, 480),
         frame_num=17,
@@ -181,7 +181,7 @@ print(f"Generated video shape: {video.shape}")
 
 ```python
 from kdit import Pipeline
-from kdit.config import KsanaRuntimeConfig, KsanaSampleConfig
+from kdit.config import RuntimeConfig, KsanaSampleConfig
 
 pipeline = Pipeline.from_models("path/to/Wan2.2-I2V-A14B")
 
@@ -189,7 +189,7 @@ video = pipeline.generate(
     "Girl gently waves her fan, blows a breath of fairy air, lightning flies from her hand into the sky and thunder begins",
     start_img_path="input.png",
     sample_config=KsanaSampleConfig(steps=40),
-    runtime_config=KsanaRuntimeConfig(
+    runtime_config=RuntimeConfig(
         seed=1234,
         size=(512, 512),
         frame_num=17,
@@ -208,7 +208,7 @@ import torch
 from kdit import Pipeline
 from kdit.config import (
     KsanaModelConfig,
-    KsanaRuntimeConfig,
+    RuntimeConfig,
     KsanaSampleConfig,
     KsanaSolverType,
 )
@@ -225,7 +225,7 @@ image = pipeline.generate(
         cfg_scale=4.0,
         solver=KsanaSolverType.FLOWMATCH_EULER,
     ),
-    runtime_config=KsanaRuntimeConfig(
+    runtime_config=RuntimeConfig(
         seed=42,
         size=(1024, 1024),
     ),
@@ -286,11 +286,11 @@ video = pipeline.generate(
 from kdit.config.cache_config import (
     DCacheConfig,
     DBCacheConfig,
-    KsanaHybridCacheConfig,
+    HybridCacheConfig,
 )
 
 # Use hybrid caching strategy
-cache_config = KsanaHybridCacheConfig(
+cache_config = HybridCacheConfig(
     step_cache=DCacheConfig(fast_degree=50),
     block_cache=DBCacheConfig(),
 )

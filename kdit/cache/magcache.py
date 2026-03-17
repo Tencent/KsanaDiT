@@ -16,7 +16,7 @@ import numpy as np
 import torch
 
 from ..config.cache_config import MagCacheConfig
-from ..models.model_key import KsanaModelKey
+from ..models.model_key import ModelKey
 from ..utils.conf import load_cache_yaml_keys_safe, save_cache_yaml_key
 from ..utils.logger import log
 from .base_cache import KsanaStepCache
@@ -37,7 +37,7 @@ def _nearest_interp(src_array, target_length):
 
 
 class MagCache(KsanaStepCache):
-    def __init__(self, model_key: KsanaModelKey, config: MagCacheConfig):
+    def __init__(self, model_key: ModelKey, config: MagCacheConfig):
         super().__init__(model_key, config)
         self.threshold = config.threshold if config.threshold is not None else 0.04
         max_skip = config.max_skip_steps if config.max_skip_steps is not None else config.k

@@ -30,7 +30,7 @@ from unittest.mock import MagicMock, patch
 
 import torch
 
-from kdit.models import KsanaModelKey
+from kdit.models import ModelKey
 
 
 def _make_vace_generator():
@@ -39,7 +39,7 @@ def _make_vace_generator():
 
     gen = VaceGenerator.__new__(VaceGenerator)
     gen.__init__()
-    gen.model_key = KsanaModelKey.Wan2_1_VACE_14B
+    gen.model_key = ModelKey.Wan2_1_VACE_14B
     return gen
 
 

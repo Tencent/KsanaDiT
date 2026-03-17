@@ -17,8 +17,8 @@
 
 from dataclasses import dataclass
 
-from kdit.models.model_key import KsanaModelKey
-from kdit.nodes.core.node_types import KsanaInferNodeType
+from kdit.models.model_key import ModelKey
+from kdit.nodes.core.node_types import InferNodeType
 
 
 @dataclass(frozen=True)
@@ -26,27 +26,26 @@ class LoadPhase:
     """模型加载阶段 — 声明一个需要加载的模型。
 
     Attributes:
-        model_role: 角色名（如 "text_encoder", "diffusion", "vae")
-                    在 InferPhase 中通过同名引用。
-        model_key: 具体的模型 key。
+        model_key: 具体的模型 key（ModelKey 枚举值）。
     """
 
-    model_role: str
-    model_key: KsanaModelKey
+    model_key: ModelKey
 
 
 @dataclass(frozen=True)
 class InferPhase:
     """推理阶段 — 声明一个 InferNode 的执行。
 
+    与 InferNodeFactory 的二级注册 (node_type, model_key) 对齐。
+
     Attributes:
         node_type: InferNode 类型枚举。
-        model_role: 关联的 model_role（与 LoadPhase 对应），
-                    SaveNode 等无模型 Node 为 None。
+        model_key: 关联的 ModelKey（与 LoadPhase 对应），
+                   SaveNode 等无模型 Node 为 None。
         condition: ContextBuilder 上的条件方法名，
                    为 None 时无条件执行。
     """
 
-    node_type: KsanaInferNodeType
-    model_role: str | None = None
+    node_type: InferNodeType
+    model_key: ModelKey | None = None
     condition: str | None = None

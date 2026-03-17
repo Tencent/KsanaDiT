@@ -22,12 +22,12 @@ from unittest.mock import MagicMock, patch
 
 import torch
 
-from kdit.config import KsanaRuntimeConfig, KsanaSampleConfig, KsanaSolverType
+from kdit.config import KsanaSampleConfig, KsanaSolverType, RuntimeConfig
 from kdit.generators.generator_context import GeneratorInferContext
-from kdit.models.model_key import KsanaModelKey
-from kdit.nodes.core.device_context import KsanaDeviceContext
-from kdit.nodes.core.node_context import KsanaNodeContext
-from kdit.nodes.core.node_types import KsanaDispatchPolicy
+from kdit.models.model_key import ModelKey
+from kdit.nodes.core.device_context import NodeDeviceContext
+from kdit.nodes.core.node_context import NodeContext
+from kdit.nodes.core.node_types import NodeDispatchPolicy
 from kdit.nodes.infers.generator_node import GeneratorNode
 from kdit.tensor import TensorKey
 from kdit.tensor.tensor_value import TensorValue
@@ -66,7 +66,7 @@ class TestGeneratorNode(unittest.TestCase):
         self.model_pool.get_model.return_value = self.mock_diffusion_model
 
         # mock device_ctx
-        self.device_ctx = KsanaDeviceContext(
+        self.device_ctx = NodeDeviceContext(
             device=torch.device("cpu"),
             offload_device=torch.device("cpu"),
             rank_id=0,
@@ -75,8 +75,8 @@ class TestGeneratorNode(unittest.TestCase):
 
         # mock context
         self.sample_config = KsanaSampleConfig(steps=20, cfg_scale=5.0, solver=KsanaSolverType.EULER)
-        self.runtime_config = KsanaRuntimeConfig(size=(512, 512), frame_num=16, seed=42)
-        self.context = KsanaNodeContext(
+        self.runtime_config = RuntimeConfig(size=(512, 512), frame_num=16, seed=42)
+        self.context = NodeContext(
             sample_config=self.sample_config,
             runtime_config=self.runtime_config,
             metadata={"noise_shape": [4, 16, 32, 32]},
@@ -90,7 +90,7 @@ class TestGeneratorNode(unittest.TestCase):
         mock_factory.create.return_value = mock_generator
 
         self.node.run(
-            model_key=KsanaModelKey.Wan2_2_T2V_14B,
+            model_key=ModelKey.Wan2_2_T2V_14B,
             context=self.context,
             tensor_pool=self.tensor_pool,
             model_pool=self.model_pool,
@@ -118,14 +118,14 @@ class TestGeneratorNode(unittest.TestCase):
         mock_generator.run.return_value = torch.randn(1, 4, 16, 32, 32)
         mock_factory.create.return_value = mock_generator
 
-        context_no_shape = KsanaNodeContext(
+        context_no_shape = NodeContext(
             sample_config=self.sample_config,
             runtime_config=self.runtime_config,
             metadata={},
         )
 
         self.node.run(
-            model_key=KsanaModelKey.Wan2_2_T2V_14B,
+            model_key=ModelKey.Wan2_2_T2V_14B,
             context=context_no_shape,
             tensor_pool=self.tensor_pool,
             model_pool=self.model_pool,
@@ -137,7 +137,7 @@ class TestGeneratorNode(unittest.TestCase):
         self.assertEqual(ctx_arg.noise_shape, [4, 16, 32, 32])
 
     def test_dispatch_policy(self):
-        self.assertEqual(GeneratorNode.dispatch_policy, KsanaDispatchPolicy.ALL_ALL_ALL)
+        self.assertEqual(GeneratorNode.dispatch_policy, NodeDispatchPolicy.ALL_ALL_ALL)
 
     def test_tensor_keys(self):
         self.assertIn(TensorKey.POSITIVE, GeneratorNode.input_tensor_keys)

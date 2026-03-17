@@ -17,7 +17,7 @@ import os
 import torch
 
 from .model_base import ModelBase
-from .model_key import KsanaModelKey
+from .model_key import ModelKey
 from .qwen import Qwen2VLTextEncoderModel
 from .qwen.multimodal_text_encoder import Qwen2VLMultimodalTextEncoderModel
 from .wan import T5EncoderModel
@@ -26,12 +26,12 @@ from .wan import T5EncoderModel
 class KsanaTextEncoderModel(ModelBase):
 
     _MAP_KEY_TO_CLASS = {
-        KsanaModelKey.T5TextEncoder: T5EncoderModel,
-        KsanaModelKey.Qwen2VLTextEncoder: Qwen2VLTextEncoderModel,
-        KsanaModelKey.Qwen2VLTextEncoderMultimodal: Qwen2VLMultimodalTextEncoderModel,
+        ModelKey.T5TextEncoder: T5EncoderModel,
+        ModelKey.Qwen2VLTextEncoder: Qwen2VLTextEncoderModel,
+        ModelKey.Qwen2VLTextEncoderMultimodal: Qwen2VLMultimodalTextEncoderModel,
     }
 
-    def __init__(self, model_key: KsanaModelKey, default_settings, checkpoint_dir, device, dtype):
+    def __init__(self, model_key: ModelKey, default_settings, checkpoint_dir, device, dtype):
         super().__init__(model_key, default_settings)
         checkpoint_path = os.path.join(checkpoint_dir, default_settings.checkpoint)
         # 配置中使用 tokenizer 字段（可以是 tokenizer 或 processor 路径）
@@ -62,7 +62,7 @@ class KsanaTextEncoderModel(ModelBase):
 
     def forward(self, text, images=None, device=torch.device("cpu")):
         # Note: 多模态编码器需要传入 images
-        if self.model_key == KsanaModelKey.Qwen2VLTextEncoderMultimodal:
+        if self.model_key == ModelKey.Qwen2VLTextEncoderMultimodal:
             return self.model(text, images=images, device=device)
         return self.model(text, device=device)
 

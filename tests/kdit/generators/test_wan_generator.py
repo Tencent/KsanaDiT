@@ -31,10 +31,10 @@ from unittest.mock import MagicMock
 
 import torch
 
-from kdit.models import KsanaModelKey
+from kdit.models import ModelKey
 
 
-def _make_wan_generator(model_key=KsanaModelKey.Wan2_2_T2V_14B):
+def _make_wan_generator(model_key=ModelKey.Wan2_2_T2V_14B):
     """构造 WanGenerator 实例，绕过 AdvancedFactory 注册。"""
     from kdit.generators.wan_generator import WanGenerator
 
@@ -82,19 +82,19 @@ class TestWanValidNoiseShape(unittest.TestCase):
     """测试 valid_noise_shape — I2V 模式下覆写 z_dim。"""
 
     def test_t2v_keeps_original_shape(self):
-        gen = _make_wan_generator(KsanaModelKey.Wan2_2_T2V_14B)
+        gen = _make_wan_generator(ModelKey.Wan2_2_T2V_14B)
         dm = _make_diffusion_model()
         result = gen.valid_noise_shape([16, 8, 32, 32], [dm])
         self.assertEqual(result, [16, 8, 32, 32])
 
     def test_i2v_overrides_z_dim(self):
-        gen = _make_wan_generator(KsanaModelKey.Wan2_2_I2V_14B)
+        gen = _make_wan_generator(ModelKey.Wan2_2_I2V_14B)
         dm = _make_diffusion_model(z_dim=32)
         result = gen.valid_noise_shape([16, 8, 32, 32], [dm])
         self.assertEqual(result[0], 32)
 
     def test_i2v_missing_z_dim_raises(self):
-        gen = _make_wan_generator(KsanaModelKey.Wan2_2_I2V_14B)
+        gen = _make_wan_generator(ModelKey.Wan2_2_I2V_14B)
         dm = _make_diffusion_model()
         # 用一个没有 z_dim 属性的空对象替换 vae
         dm.default_settings.vae = type("_EmptyVAE", (), {})()
@@ -106,12 +106,12 @@ class TestWanCastImageTensor(unittest.TestCase):
     """测试 cast_image_tensor_to — T2V 返回 None。"""
 
     def test_t2v_returns_none(self):
-        gen = _make_wan_generator(KsanaModelKey.Wan2_2_T2V_14B)
+        gen = _make_wan_generator(ModelKey.Wan2_2_T2V_14B)
         result = gen.cast_image_tensor_to([torch.randn(1, 4)], dtype=torch.float16, device=torch.device("cpu"))
         self.assertIsNone(result)
 
     def test_i2v_casts_tensors(self):
-        gen = _make_wan_generator(KsanaModelKey.Wan2_2_I2V_14B)
+        gen = _make_wan_generator(ModelKey.Wan2_2_I2V_14B)
         embeds = [torch.randn(1, 4, dtype=torch.float32)]
         result = gen.cast_image_tensor_to(embeds, dtype=torch.float16, device=torch.device("cpu"))
         self.assertIsNotNone(result)
@@ -288,7 +288,7 @@ class TestWanGetRunningCfgScale(unittest.TestCase):
 class TestWanPrepareModelForwardKargs(unittest.TestCase):
     """测试 prepare_model_forward_kargs — combine/split/no-cfg 模式。"""
 
-    def _make_args(self, *, cfg_scale=7.5, combine=True, model_key=KsanaModelKey.Wan2_2_T2V_14B):
+    def _make_args(self, *, cfg_scale=7.5, combine=True, model_key=ModelKey.Wan2_2_T2V_14B):
         gen = _make_wan_generator(model_key)
         noise = torch.randn(2, 16, 4, 8, 8)
         timestep = torch.tensor([500])
@@ -328,7 +328,7 @@ class TestWanPrepareModelForwardKargs(unittest.TestCase):
         self.assertEqual(result["phase"], "cond")
 
     def test_i2v_includes_y(self):
-        gen, kwargs = self._make_args(cfg_scale=7.5, combine=True, model_key=KsanaModelKey.Wan2_2_I2V_14B)
+        gen, kwargs = self._make_args(cfg_scale=7.5, combine=True, model_key=ModelKey.Wan2_2_I2V_14B)
         kwargs["image_embeds"] = [torch.randn(2, 256)]
         result = gen.prepare_model_forward_kargs(**kwargs)
         self.assertIn("y", result)

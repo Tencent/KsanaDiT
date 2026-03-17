@@ -23,11 +23,11 @@ from kdit.config import (
     KsanaDistributedConfig,
     KsanaExperimentalConfig,
     KsanaFETAConfig,
-    KsanaRuntimeConfig,
     KsanaSampleConfig,
     KsanaSLGConfig,
     KsanaSolverType,
     KsanaVideoControlConfig,
+    RuntimeConfig,
 )
 from kdit.utils import load_control_frames
 from kdit.utils.vace import VaceConfig
@@ -63,7 +63,7 @@ def run_simple(args):
             shift=8.0,
             solver=KsanaSolverType.UNI_PC,
         ),
-        runtime_config=KsanaRuntimeConfig(
+        runtime_config=RuntimeConfig(
             seed=SEED,
             size=size,
             frame_num=frame_num,
@@ -137,7 +137,7 @@ def run_with_experimental_configs(args):
                 experimental=experimental_config,
             ),
         ),
-        runtime_config=KsanaRuntimeConfig(
+        runtime_config=RuntimeConfig(
             seed=SEED,
             size=size,
             frame_num=frame_num,
@@ -174,7 +174,7 @@ def run_with_control_video(args):
             shift=8.0,
             solver=KsanaSolverType.UNI_PC,
         ),
-        runtime_config=KsanaRuntimeConfig(
+        runtime_config=RuntimeConfig(
             seed=SEED,
             size=target_size,
             frame_num=target_frames,

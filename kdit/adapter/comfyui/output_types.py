@@ -18,13 +18,13 @@ from dataclasses import dataclass, field
 
 import torch
 
-from kdit.models.model_key import KsanaModelKey
+from kdit.models.model_key import ModelKey
 from kdit.tensor import TensorKey
 
 
 @dataclass
 class KsanaNodeModelLoaderOutput:
-    model: KsanaModelKey | list[KsanaModelKey] = field(default=None)
+    model: ModelKey | list[ModelKey] = field(default=None)
     model_name: str = field(default_factory=str)  # TODO(qian):  need remove
     run_dtype: torch.dtype | None = field(default=None)
 

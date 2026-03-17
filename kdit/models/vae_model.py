@@ -18,7 +18,7 @@ import numpy as np
 import torch
 
 from ..accelerator.platform import empty_cache
-from ..models.model_key import KsanaModelKey
+from ..models.model_key import ModelKey
 from ..utils.logger import log
 from ..utils.media import calculate_aligned_dimensions
 from ..utils.profile import time_range
@@ -70,7 +70,7 @@ def compute_image_latent_shape(
 
 
 class KsanaVAEModel(ModelBase):
-    def __init__(self, model_key: KsanaModelKey, default_settings, device, dtype=torch.float32):
+    def __init__(self, model_key: ModelKey, default_settings, device, dtype=torch.float32):
         super().__init__(model_key, default_settings)
         self.device = device
         self.dtype = dtype
@@ -278,7 +278,7 @@ class KsanaVAEModel(ModelBase):
 class KsanaWanVAEModel(KsanaVAEModel):
     def load(self, model_path: str, shard_fn=None):
         self.dtype = torch.bfloat16
-        if self.model_key is KsanaModelKey.VAE_WAN2_1:
+        if self.model_key is ModelKey.VAE_WAN2_1:
             vae_cfg = self.default_settings.vae
             self.model = Wan2_1_VAE(
                 vae_pth=model_path,
@@ -288,7 +288,7 @@ class KsanaWanVAEModel(KsanaVAEModel):
                 latents_std=vae_cfg.latents_std,
             )
             init_latent_stats(vae_cfg.latents_mean, vae_cfg.latents_std)
-        elif self.model_key is KsanaModelKey.VAE_WAN2_2:
+        elif self.model_key is ModelKey.VAE_WAN2_2:
             self.model = Wan2_2_VAE(vae_pth=model_path, dtype=self.dtype, device=self.device)
         else:
             raise ValueError(f"vae model {self.model_key} not supported")
@@ -312,7 +312,7 @@ class KsanaWanVAEModel(KsanaVAEModel):
 
 class KsanaQwenVAEModel(KsanaVAEModel):
     def load(self, model_path: str, shard_fn=None):
-        if self.model_key != KsanaModelKey.QwenImageVAE:
+        if self.model_key != ModelKey.QwenImageVAE:
             raise ValueError(f"vae model {self.model_key} should be QwenImageVAE")
         self.dtype = torch.bfloat16
         self.model = KsanaQwenImageVAE(

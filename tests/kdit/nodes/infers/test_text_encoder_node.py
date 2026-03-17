@@ -22,10 +22,10 @@ from unittest.mock import MagicMock
 
 import torch
 
-from kdit.models.model_key import KsanaModelKey
-from kdit.nodes.core.device_context import KsanaDeviceContext
-from kdit.nodes.core.node_context import KsanaNodeContext
-from kdit.nodes.core.node_types import KsanaDispatchPolicy
+from kdit.models.model_key import ModelKey
+from kdit.nodes.core.device_context import NodeDeviceContext
+from kdit.nodes.core.node_context import NodeContext
+from kdit.nodes.core.node_types import NodeDispatchPolicy
 from kdit.nodes.infers.text_encoder_node import QwenTextEncodeNode, T5TextEncodeNode
 from kdit.tensor import TensorKey
 
@@ -43,7 +43,7 @@ class TestT5TextEncodeNode(unittest.TestCase):
         self.mock_model.default_settings = MagicMock(neg_prompt="")
         self.model_pool.get_model.return_value = self.mock_model
 
-        self.device_ctx = KsanaDeviceContext(
+        self.device_ctx = NodeDeviceContext(
             device=torch.device("cpu"),
             offload_device=torch.device("cpu"),
             rank_id=0,
@@ -55,14 +55,14 @@ class TestT5TextEncodeNode(unittest.TestCase):
         emb = torch.randn(77, 768)
         self.mock_model.forward.return_value = [emb, emb]
 
-        context = KsanaNodeContext(
+        context = NodeContext(
             prompt=["a cat"],
             negative_prompt=[""],
             metadata={},
         )
 
         self.node.run(
-            model_key=KsanaModelKey.T5TextEncoder,
+            model_key=ModelKey.T5TextEncoder,
             context=context,
             tensor_pool=self.tensor_pool,
             model_pool=self.model_pool,
@@ -79,7 +79,7 @@ class TestT5TextEncodeNode(unittest.TestCase):
         self.assertEqual(calls[1][0][0], TensorKey.NEGATIVE)
 
     def test_dispatch_policy(self):
-        self.assertEqual(T5TextEncodeNode.dispatch_policy, KsanaDispatchPolicy.ALL_ALL_ALL)
+        self.assertEqual(T5TextEncodeNode.dispatch_policy, NodeDispatchPolicy.ALL_ALL_ALL)
 
     def test_tensor_keys(self):
         self.assertEqual(T5TextEncodeNode.input_tensor_keys, [])
@@ -100,7 +100,7 @@ class TestQwenTextEncodeNode(unittest.TestCase):
         self.mock_model.default_settings = MagicMock(neg_prompt="")
         self.model_pool.get_model.return_value = self.mock_model
 
-        self.device_ctx = KsanaDeviceContext(
+        self.device_ctx = NodeDeviceContext(
             device=torch.device("cpu"),
             offload_device=torch.device("cpu"),
             rank_id=0,
@@ -114,14 +114,14 @@ class TestQwenTextEncodeNode(unittest.TestCase):
         neg_mask = torch.ones(1, 77)
         self.mock_model.forward.side_effect = [(pos_embeds, pos_mask), (neg_embeds, neg_mask)]
 
-        context = KsanaNodeContext(
+        context = NodeContext(
             prompt=["a cat"],
             negative_prompt=[""],
             metadata={},
         )
 
         self.node.run(
-            model_key=KsanaModelKey.Qwen2VLTextEncoder,
+            model_key=ModelKey.Qwen2VLTextEncoder,
             context=context,
             tensor_pool=self.tensor_pool,
             model_pool=self.model_pool,
@@ -141,7 +141,7 @@ class TestQwenTextEncodeNode(unittest.TestCase):
         self.assertIsInstance(calls[1][0][1], tuple)
 
     def test_dispatch_policy(self):
-        self.assertEqual(QwenTextEncodeNode.dispatch_policy, KsanaDispatchPolicy.ALL_ALL_ALL)
+        self.assertEqual(QwenTextEncodeNode.dispatch_policy, NodeDispatchPolicy.ALL_ALL_ALL)
 
     def test_tensor_keys(self):
         self.assertEqual(QwenTextEncodeNode.input_tensor_keys, [])

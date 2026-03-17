@@ -269,10 +269,16 @@ class Engine:
 
     def run_loader_node(self, model_key, **kwargs):
         """统一的模型加载入口 — 分发到所有 Executor。"""
-        if self.is_ray:
-            ray.get([ex.run_loader_node.remote(model_key, **kwargs) for ex in self.executors])
-        else:
-            self.executors.run_loader_node(model_key, **kwargs)
+        # 自动按 model_key 生成 profile label
+        node_label = "load_unknown"
+        if model_key is not None:
+            model_name = model_key.name if hasattr(model_key, "name") else str(model_key)
+            node_label = f"load_[{model_name}]"
+        with profile_range(node_label):
+            if self.is_ray:
+                ray.get([ex.run_loader_node.remote(model_key, **kwargs) for ex in self.executors])
+            else:
+                self.executors.run_loader_node(model_key, **kwargs)
 
     def run_infer_node(self, infer_node_type, model_key, context):
         """统一的前向推理入口 — 分发到所有 Executor，结果写入各自 tensor_pool。

@@ -26,10 +26,10 @@ from kdit.config import (
     KsanaDistributedConfig,
     KsanaLoraConfig,
     KsanaModelConfig,
-    KsanaRuntimeConfig,
     KsanaSageSLAConfig,
     KsanaSampleConfig,
     KsanaSolverType,
+    RuntimeConfig,
 )
 from kdit.utils.distribute import get_gpu_count
 
@@ -52,7 +52,7 @@ def run_simple(args):
         prompts,
         start_img_path=args.img_path,
         sample_config=KsanaSampleConfig(steps=40),
-        runtime_config=KsanaRuntimeConfig(
+        runtime_config=RuntimeConfig(
             seed=SEED,
             size=(512, 512),
             frame_num=17,
@@ -64,7 +64,7 @@ def run_simple(args):
         prompts[0],
         start_img_path=args.img_path,
         sample_config=KsanaSampleConfig(steps=40),
-        runtime_config=KsanaRuntimeConfig(
+        runtime_config=RuntimeConfig(
             seed=SEED,
             size=(1280, 720),
             frame_num=81,
@@ -101,7 +101,7 @@ def run_start_and_end_with_lora(args):
         start_img_path="./examples/images/start_image.png",
         end_img_path="./examples/images/end_image.png",
         sample_config=sample_config,
-        runtime_config=KsanaRuntimeConfig(
+        runtime_config=RuntimeConfig(
             seed=SEED,
             size=(512, 512),
             frame_num=49,
@@ -148,7 +148,7 @@ def run_turbo_diffusion(args):
     pipeline.generate(
         text,
         start_img_path="./examples/images/cat.png",
-        runtime_config=KsanaRuntimeConfig(size=(1280, 720), seed=SEED, frame_num=81),
+        runtime_config=RuntimeConfig(size=(1280, 720), seed=SEED, frame_num=81),
         sample_config=sample_config,
     )
 

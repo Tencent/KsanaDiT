@@ -17,18 +17,18 @@ import gc
 from ..accelerator.platform import empty_cache
 from ..utils.logger import log
 from .model_base import ModelBase
-from .model_key import KsanaModelKey
+from .model_key import ModelKey
 
 
-class KsanaModelPool:
+class ModelPool:
     def __init__(self):
-        self.loaded_models: dict[KsanaModelKey, ModelBase] = {}
+        self.loaded_models: dict[ModelKey, ModelBase] = {}
 
     def update_model(self, model: ModelBase, allow_exist=False):
         model_key = model.model_key
         self.update_model_with_key(model_key=model_key, model=model, allow_exist=allow_exist)
 
-    def update_model_with_key(self, model_key: KsanaModelKey, model: ModelBase | list[ModelBase], allow_exist=False):
+    def update_model_with_key(self, model_key: ModelKey, model: ModelBase | list[ModelBase], allow_exist=False):
         """update model with specific key"""
         if model_key in self.loaded_models:
             log.warning(f"model_key {model_key} has been loaded")
@@ -43,7 +43,7 @@ class KsanaModelPool:
         for model in model_list:
             self.update_model(model, allow_exist)
 
-    def get_model(self, model_key: KsanaModelKey) -> ModelBase:
+    def get_model(self, model_key: ModelKey) -> ModelBase:
         if model_key is None:
             return None
         if model_key not in self.loaded_models:
@@ -51,7 +51,7 @@ class KsanaModelPool:
             raise RuntimeError(f"model_key {model_key} has not been loaded")
         return self.loaded_models.get(model_key)
 
-    def get_models(self, model_key_list: list[KsanaModelKey] | tuple[KsanaModelKey, ...]) -> list[ModelBase]:
+    def get_models(self, model_key_list: list[ModelKey] | tuple[ModelKey, ...]) -> list[ModelBase]:
         if model_key_list is None:
             return []
         return [self.get_model(model_key) for model_key in model_key_list]
@@ -63,13 +63,13 @@ class KsanaModelPool:
             return
         if isinstance(model, (list, tuple)):
             for m in model:
-                KsanaModelPool._release_model_resources(m)
+                ModelPool._release_model_resources(m)
             return
         log.info("releasing_model_resources")
         if hasattr(model, "release_pinned_memory") and callable(model.release_pinned_memory):
             model.release_pinned_memory()
 
-    def clear_models(self, model_keys: list[KsanaModelKey] | KsanaModelKey = None):
+    def clear_models(self, model_keys: list[ModelKey] | ModelKey = None):
         """clear models loaded by this executor
         clear all if model_keys is None
         """

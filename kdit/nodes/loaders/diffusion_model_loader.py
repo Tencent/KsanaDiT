@@ -20,28 +20,28 @@ import torch
 from kdit.config import KsanaLoraConfig, KsanaModelConfig
 from kdit.memory import PinnedMemoryManager
 from kdit.models import KsanaQwenImageModel, KsanaWanModel, KsanaWanVaceModel
-from kdit.models.model_key import KsanaModelKey
+from kdit.models.model_key import ModelKey
 from kdit.operations import build_ops
 from kdit.settings import load_default_settings
 from kdit.utils import is_file_or_dir, log
 from kdit.utils.lora import load_state_dict_and_merge_lora
 from kdit.utils.profile import time_range
 
-from ..core.base_node import KsanaLoadNode
+from ..core.base_node import LoaderNode
 from ..core.node_factory import LoaderNodeFactory
-from ..core.node_types import KsanaDispatchPolicy
+from ..core.node_types import NodeDispatchPolicy
 
 
 @LoaderNodeFactory.register(
     [
-        KsanaModelKey.Wan2_2_T2V_14B,
-        KsanaModelKey.Wan2_2_I2V_14B,
-        KsanaModelKey.Wan2_1_VACE_14B,
-        KsanaModelKey.QwenImage_T2I,
-        KsanaModelKey.QwenImage_Edit,
+        ModelKey.Wan2_2_T2V_14B,
+        ModelKey.Wan2_2_I2V_14B,
+        ModelKey.Wan2_1_VACE_14B,
+        ModelKey.QwenImage_T2I,
+        ModelKey.QwenImage_Edit,
     ],
 )
-class DiffusionLoaderNode(KsanaLoadNode):
+class DiffusionLoaderNode(LoaderNode):
     """加载 Diffusion 模型。
 
     kwargs 由 Executor.run_loader_node() 自动注入 dist_config / shard_fn，
@@ -49,14 +49,14 @@ class DiffusionLoaderNode(KsanaLoadNode):
     ComfyUI 适配层可额外传 model_patch_path 用于合并补丁权重（如 VACE）。
     """
 
-    dispatch_policy = KsanaDispatchPolicy.ALL_ALL_ALL
+    dispatch_policy = NodeDispatchPolicy.ALL_ALL_ALL
 
     _MAP_KEY_TO_MODEL_CLASS = {
-        KsanaModelKey.Wan2_2_I2V_14B: KsanaWanModel,
-        KsanaModelKey.Wan2_2_T2V_14B: KsanaWanModel,
-        KsanaModelKey.Wan2_1_VACE_14B: KsanaWanVaceModel,
-        KsanaModelKey.QwenImage_T2I: KsanaQwenImageModel,
-        KsanaModelKey.QwenImage_Edit: KsanaQwenImageModel,
+        ModelKey.Wan2_2_I2V_14B: KsanaWanModel,
+        ModelKey.Wan2_2_T2V_14B: KsanaWanModel,
+        ModelKey.Wan2_1_VACE_14B: KsanaWanVaceModel,
+        ModelKey.QwenImage_T2I: KsanaQwenImageModel,
+        ModelKey.QwenImage_Edit: KsanaQwenImageModel,
     }
 
     _pinned_memory_manager: PinnedMemoryManager = None
@@ -137,7 +137,7 @@ class DiffusionLoaderNode(KsanaLoadNode):
         lora_config: None | list[KsanaLoraConfig] = None,
         model_patch_path: str = None,
     ):
-        if model_key in [KsanaModelKey.QwenImage_T2I, KsanaModelKey.QwenImage_Edit] and os.path.isdir(model_path):
+        if model_key in [ModelKey.QwenImage_T2I, ModelKey.QwenImage_Edit] and os.path.isdir(model_path):
             if getattr(default_settings.diffusion, "transformer_subdir", None) is None:
                 raise ValueError(
                     f"transformer_subdir must be set in diffusion section of default_settings for"

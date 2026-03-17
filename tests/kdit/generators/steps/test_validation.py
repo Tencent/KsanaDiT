@@ -19,8 +19,8 @@ from unittest.mock import MagicMock
 
 import torch
 
-from kdit.config import KsanaRuntimeConfig, KsanaSampleConfig, KsanaSolverType
-from kdit.config.cache_config import KsanaHybridCacheConfig, KsanaStepCacheConfig
+from kdit.config import KsanaSampleConfig, KsanaSolverType, RuntimeConfig
+from kdit.config.cache_config import HybridCacheConfig, StepCacheConfig
 from kdit.generators.steps.validation import (
     valid_cache_config,
     valid_diffusion_model,
@@ -29,10 +29,10 @@ from kdit.generators.steps.validation import (
     valid_sample_config,
 )
 from kdit.models import KsanaDiffusionModel
-from kdit.models.model_key import KsanaModelKey
+from kdit.models.model_key import ModelKey
 
 
-def _make_mock_diffusion_model(model_key=KsanaModelKey.Wan2_2_T2V_14B, run_dtype=torch.float16):
+def _make_mock_diffusion_model(model_key=ModelKey.Wan2_2_T2V_14B, run_dtype=torch.float16):
     """创建一个 mock KsanaDiffusionModel。"""
     m = MagicMock(spec=KsanaDiffusionModel)
     m.model_key = model_key
@@ -46,36 +46,36 @@ class TestValidDiffusionModel(unittest.TestCase):
 
     def test_single_model_wrapped_to_list(self):
         model = _make_mock_diffusion_model()
-        result = valid_diffusion_model(model, KsanaModelKey.Wan2_2_T2V_14B)
+        result = valid_diffusion_model(model, ModelKey.Wan2_2_T2V_14B)
         self.assertIsInstance(result, list)
         self.assertEqual(len(result), 1)
 
     def test_list_of_one_model_passes(self):
         model = _make_mock_diffusion_model()
-        result = valid_diffusion_model([model], KsanaModelKey.Wan2_2_T2V_14B)
+        result = valid_diffusion_model([model], ModelKey.Wan2_2_T2V_14B)
         self.assertEqual(len(result), 1)
 
     def test_two_models_for_wan_passes(self):
-        m1 = _make_mock_diffusion_model(KsanaModelKey.Wan2_2_I2V_14B)
-        m2 = _make_mock_diffusion_model(KsanaModelKey.Wan2_2_I2V_14B)
-        result = valid_diffusion_model([m1, m2], KsanaModelKey.Wan2_2_I2V_14B)
+        m1 = _make_mock_diffusion_model(ModelKey.Wan2_2_I2V_14B)
+        m2 = _make_mock_diffusion_model(ModelKey.Wan2_2_I2V_14B)
+        result = valid_diffusion_model([m1, m2], ModelKey.Wan2_2_I2V_14B)
         self.assertEqual(len(result), 2)
 
     def test_two_models_for_non_wan_raises(self):
-        m1 = _make_mock_diffusion_model(KsanaModelKey.QwenImage_T2I)
-        m2 = _make_mock_diffusion_model(KsanaModelKey.QwenImage_T2I)
+        m1 = _make_mock_diffusion_model(ModelKey.QwenImage_T2I)
+        m2 = _make_mock_diffusion_model(ModelKey.QwenImage_T2I)
         with self.assertRaises(ValueError):
-            valid_diffusion_model([m1, m2], KsanaModelKey.QwenImage_T2I)
+            valid_diffusion_model([m1, m2], ModelKey.QwenImage_T2I)
 
     def test_invalid_type_raises(self):
         with self.assertRaises(ValueError):
-            valid_diffusion_model("not_a_model", KsanaModelKey.Wan2_2_T2V_14B)
+            valid_diffusion_model("not_a_model", ModelKey.Wan2_2_T2V_14B)
 
     def test_two_models_mismatched_dtype_raises(self):
-        m1 = _make_mock_diffusion_model(KsanaModelKey.Wan2_2_I2V_14B, run_dtype=torch.float16)
-        m2 = _make_mock_diffusion_model(KsanaModelKey.Wan2_2_I2V_14B, run_dtype=torch.bfloat16)
+        m1 = _make_mock_diffusion_model(ModelKey.Wan2_2_I2V_14B, run_dtype=torch.float16)
+        m2 = _make_mock_diffusion_model(ModelKey.Wan2_2_I2V_14B, run_dtype=torch.bfloat16)
         with self.assertRaises(ValueError):
-            valid_diffusion_model([m1, m2], KsanaModelKey.Wan2_2_I2V_14B)
+            valid_diffusion_model([m1, m2], ModelKey.Wan2_2_I2V_14B)
 
 
 class TestValidSampleConfig(unittest.TestCase):
@@ -124,13 +124,13 @@ class TestValidCacheConfig(unittest.TestCase):
         self.assertIsNone(valid_cache_config(None, model_len=1))
 
     def test_single_step_cache_wrapped(self):
-        step_cache = KsanaStepCacheConfig(name="teacache")
+        step_cache = StepCacheConfig(name="teacache")
         result = valid_cache_config([step_cache], model_len=1)
         self.assertEqual(len(result), 1)
-        self.assertIsInstance(result[0], KsanaHybridCacheConfig)
+        self.assertIsInstance(result[0], HybridCacheConfig)
 
     def test_length_mismatch_raises(self):
-        step_cache = KsanaStepCacheConfig(name="teacache")
+        step_cache = StepCacheConfig(name="teacache")
         with self.assertRaises(ValueError):
             valid_cache_config([step_cache, step_cache, step_cache], model_len=2)
 
@@ -148,7 +148,7 @@ class TestValidRuntimeConfig(unittest.TestCase):
     """valid_runtime_config 校验 batch_size_per_prompts。"""
 
     def _make_config(self, batch_size_per_prompts=None, seed=42):
-        return KsanaRuntimeConfig(
+        return RuntimeConfig(
             size=(512, 512),
             frame_num=16,
             batch_size_per_prompts=batch_size_per_prompts,

@@ -16,22 +16,22 @@ import os
 from pathlib import Path
 
 from kdit.models import KsanaTextEncoderModel
-from kdit.models.model_key import KsanaModelKey
+from kdit.models.model_key import ModelKey
 from kdit.settings import load_default_settings
 from kdit.utils import log, time_range
 
-from ..core.base_node import KsanaLoadNode
+from ..core.base_node import LoaderNode
 from ..core.node_factory import LoaderNodeFactory
-from ..core.node_types import KsanaDispatchPolicy
+from ..core.node_types import NodeDispatchPolicy
 
 
 @LoaderNodeFactory.register(
-    [KsanaModelKey.T5TextEncoder, KsanaModelKey.Qwen2VLTextEncoder, KsanaModelKey.Qwen2VLTextEncoderMultimodal]
+    [ModelKey.T5TextEncoder, ModelKey.Qwen2VLTextEncoder, ModelKey.Qwen2VLTextEncoderMultimodal]
 )
-class TextEncoderLoaderNode(KsanaLoadNode):
+class TextEncoderLoaderNode(LoaderNode):
     """加载 TextEncoder 模型。"""
 
-    dispatch_policy = KsanaDispatchPolicy.ALL_ALL_ALL
+    dispatch_policy = NodeDispatchPolicy.ALL_ALL_ALL
 
     @time_range
     def run(self, model_key, *, model_pool, device_ctx, **kwargs):

@@ -14,11 +14,11 @@
 
 from dataclasses import dataclass, field
 
-from .base import KsanaStepCacheConfig
+from .base import StepCacheConfig
 
 
 @dataclass
-class TeaCacheConfig(KsanaStepCacheConfig):
+class TeaCacheConfig(StepCacheConfig):
     name: str = field(default="TeaCache")
     threshold: float = field(default=0.2)
     mode: str = field(default="t2v")

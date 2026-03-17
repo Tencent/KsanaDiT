@@ -12,19 +12,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .base_node import KsanaInferNode, KsanaLoadNode
-from .device_context import KsanaDeviceContext
-from .node_context import KsanaNodeContext
+from .base_node import InferNode, LoaderNode
+from .device_context import NodeDeviceContext
+from .node_context import NodeContext
 from .node_factory import InferNodeFactory, LoaderNodeFactory
-from .node_types import KsanaDispatchPolicy, KsanaInferNodeType
+from .node_types import InferNodeType, NodeDispatchPolicy
 
 __all__ = [
-    "KsanaLoadNode",
-    "KsanaInferNode",
-    "KsanaDeviceContext",
-    "KsanaNodeContext",
+    "LoaderNode",
+    "InferNode",
+    "NodeDeviceContext",
+    "NodeContext",
     "LoaderNodeFactory",
     "InferNodeFactory",
-    "KsanaInferNodeType",
-    "KsanaDispatchPolicy",
+    "InferNodeType",
+    "NodeDispatchPolicy",
 ]

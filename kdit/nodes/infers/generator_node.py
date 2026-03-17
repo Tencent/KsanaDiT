@@ -20,28 +20,28 @@
 
 from kdit.generators import GeneratorFactory
 from kdit.generators.generator_context import GeneratorInferContext
-from kdit.models.model_key import KsanaModelKey
+from kdit.models.model_key import ModelKey
 from kdit.tensor import TensorKey
 
-from ..core.base_node import KsanaInferNode
+from ..core.base_node import InferNode
 from ..core.node_factory import InferNodeFactory
-from ..core.node_types import KsanaDispatchPolicy, KsanaInferNodeType
+from ..core.node_types import InferNodeType, NodeDispatchPolicy
 
 
 @InferNodeFactory.register(
-    KsanaInferNodeType.GENERATE,
+    InferNodeType.GENERATE,
     [
-        KsanaModelKey.Wan2_2_T2V_14B,
-        KsanaModelKey.Wan2_2_I2V_14B,
-        KsanaModelKey.Wan2_1_VACE_14B,
-        KsanaModelKey.QwenImage_T2I,
-        KsanaModelKey.QwenImage_Edit,
+        ModelKey.Wan2_2_T2V_14B,
+        ModelKey.Wan2_2_I2V_14B,
+        ModelKey.Wan2_1_VACE_14B,
+        ModelKey.QwenImage_T2I,
+        ModelKey.QwenImage_Edit,
     ],
 )
-class GeneratorNode(KsanaInferNode):
+class GeneratorNode(InferNode):
     """Diffusion 去噪 — 所有卡并行执行。"""
 
-    dispatch_policy = KsanaDispatchPolicy.ALL_ALL_ALL
+    dispatch_policy = NodeDispatchPolicy.ALL_ALL_ALL
     input_tensor_keys = [
         TensorKey.POSITIVE,
         TensorKey.NEGATIVE,

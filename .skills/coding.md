@@ -7,7 +7,7 @@
 | 导入层级 | 写法 | 示例 |
 |---------|------|------|
 | 同目录（`.`） | **相对导入** | `from .base import Foo` |
-| 同子包内（`..`） | **相对导入** | `from ..core.base_node import KsanaLoadNode` |
+| 同子包内（`..`） | **相对导入** | `from ..core.base_node import LoaderNode` |
 | 跨子包（`...` 及以上） | **绝对导入** | `from kdit.utils.factory import AdvancedFactory` |
 
 ### 判定标准
@@ -28,9 +28,9 @@ from kdit.models import KsanaWanModel
 from kdit.utils import is_file_or_dir, log
 
 # ✅ 同子包 (nodes) → 相对导入
-from ..core.base_node import KsanaLoadNode
+from ..core.base_node import LoaderNode
 from ..core.node_factory import LoaderNodeFactory
-from ..core.node_types import KsanaDispatchPolicy
+from ..core.node_types import NodeDispatchPolicy
 ```
 
 ```python
@@ -121,21 +121,21 @@ from typing import Any  # ✅ Any 无替代品，可以从 typing 导入
 
 | Key 类型 | 定义位置 | 语义 | 使用场景 |
 |----------|---------|------|---------|
-| `KsanaModelKey` | `kdit/models/model_key.py` | 标识一个具体的模型类别 | `KsanaModelPool` 存取、`KsanaModel.__init__`、Loader/Infer Node 注册与分发、`GeneratorFactory` 注册、`settings` 配置映射 |
+| `ModelKey` | `kdit/models/model_key.py` | 标识一个具体的模型类别 | `ModelPool` 存取、`KsanaModel.__init__`、Loader/Infer Node 注册与分发、`GeneratorFactory` 注册、`settings` 配置映射 |
 | `PipelineKey` | `kdit/pipelines/pipeline_key.py` | 标识一条完整的推理流水线 | `KsanaBasePipeline.__init__`、pipeline 创建与路由、`base_pipeline` 中 pipeline→model 映射表的 key 侧 |
-| `KsanaInferNodeType` | `kdit/nodes/core/node_types.py` | 标识推理节点类型 | `InferNodeFactory` 注册与分发、`executor.run_infer_node` |
+| `InferNodeType` | `kdit/nodes/core/node_types.py` | 标识推理节点类型 | `InferNodeFactory` 注册与分发、`executor.run_infer_node` |
 
 ### 核心约束
 
-1. **`KsanaModelPool` 只接受 `KsanaModelKey`** — 不允许传入 `PipelineKey` 或其他类型。
-2. **`KsanaModelKey` 和 `PipelineKey` 是独立枚举** — 不存在别名关系（如 `KsanaModelKey = PipelineKey`），即使部分成员同名。
-3. **DiffusionModel 的 `KsanaModelKey` 成员与 `PipelineKey` 同名** — 因为不同 pipeline 的 diffusion model 权重不同，需要独立的 key。
-4. **`get_model_key_from_path()` 统一返回 `KsanaModelKey`** — 调用方如需 `PipelineKey`，必须自行通过 `PipelineKey[model_key.name]` 转换。
+1. **`ModelPool` 只接受 `ModelKey`** — 不允许传入 `PipelineKey` 或其他类型。
+2. **`ModelKey` 和 `PipelineKey` 是独立枚举** — 不存在别名关系（如 `ModelKey = PipelineKey`），即使部分成员同名。
+3. **DiffusionModel 的 `ModelKey` 成员与 `PipelineKey` 同名** — 因为不同 pipeline 的 diffusion model 权重不同，需要独立的 key。
+4. **`get_model_key_from_path()` 统一返回 `ModelKey`** — 调用方如需 `PipelineKey`，必须自行通过 `PipelineKey[model_key.name]` 转换。
 
 ### 成员分类
 
 ```python
-class KsanaModelKey(Enum):
+class ModelKey(Enum):
     # Text Encoders
     T5TextEncoder = auto()
     Qwen2VLTextEncoder = auto()
@@ -160,19 +160,19 @@ class KsanaModelKey(Enum):
 `base_pipeline.py` 中的映射表遵循 **pipeline key → model key** 方向：
 
 ```python
-# key 侧: KsanaPipelineKey（输入）
-# value 侧: KsanaModelKey（输出）
+# key 侧: PipelineKey（输入）
+# value 侧: ModelKey（输出）
 _TEXT_ENCODER_MAP = {
-    PipelineKey.Wan2_2_T2V_14B: KsanaModelKey.T5TextEncoder,
+    PipelineKey.Wan2_2_T2V_14B: ModelKey.T5TextEncoder,
     ...
 }
 ```
 
 ### 禁止事项
 
-- ❌ 不要创建 `KsanaModelKey = PipelineKey` 这样的别名
-- ❌ 不要让 `KsanaModelPool` 接受 `PipelineKey`
-- ❌ 不要在 `KsanaModelKey` 中添加 pipeline 级别的概念
+- ❌ 不要创建 `ModelKey = PipelineKey` 这样的别名
+- ❌ 不要让 `ModelPool` 接受 `PipelineKey`
+- ❌ 不要在 `ModelKey` 中添加 pipeline 级别的概念
 - ❌ 不要创建未被任何代码使用的 Key 成员（如曾经的 `WanDiT_14B`）
 
 ## 4. V5 Node / Tensor API 规范
@@ -181,10 +181,10 @@ _TEXT_ENCODER_MAP = {
 
 | Node 类型 | 返回值 | 说明 |
 |-----------|--------|------|
-| `KsanaLoadNode.run()` | `None` | 模型写入 model_pool，不返回 |
-| `KsanaInferNode.run()` | `None` | 结果写入 tensor_pool，不返回 tensor |
+| `LoaderNode.run()` | `None` | 模型写入 model_pool，不返回 |
+| `InferNode.run()` | `None` | 结果写入 tensor_pool，不返回 tensor |
 
-**禁止** `KsanaInferNode.run()` 返回 dict 或 tensor。所有中间结果通过 `tensor_pool.put(key, tensor)` 写入。
+**禁止** `InferNode.run()` 返回 dict 或 tensor。所有中间结果通过 `tensor_pool.put(key, tensor)` 写入。
 
 ### output_tensor_keys 静态声明
 
@@ -192,7 +192,7 @@ _TEXT_ENCODER_MAP = {
 对于条件性输出（如 VAEEncodeNode 可能不写入 img_latents），broadcast 逻辑对 `tensor_pool.peek(key) is None` 的 key 做 skip 容错。
 
 ```python
-class GeneratorNode(KsanaInferNode):
+class GeneratorNode(InferNode):
     output_tensor_keys = [TensorKey.LATENTS]
 
     def run(self, model_key, context, *, tensor_pool, model_pool, device_ctx) -> None:
@@ -247,9 +247,9 @@ tensor_pool.put("latents", latents)
 | `TensorKey.END_IMG` | `"end_img"` | Pipeline put_tensors | VAEEncodeNode |
 | `TensorKey.INPUT_LATENT` | `"input_latent"` | Pipeline put_tensors | GeneratorNode |
 
-### KsanaNodeContext 禁止 tensor
+### NodeContext 禁止 tensor
 
-`KsanaNodeContext.metadata` 中**禁止**包含 `torch.Tensor`。`__post_init__` 必须递归检查 metadata dict 的 values：
+`NodeContext.metadata` 中**禁止**包含 `torch.Tensor`。`__post_init__` 必须递归检查 metadata dict 的 values：
 
 ```python
 def __post_init__(self):
@@ -260,7 +260,7 @@ def __post_init__(self):
             for k, v in value.items():
                 if isinstance(v, torch.Tensor):
                     raise TypeError(
-                        f"KsanaNodeContext.{field_name}[{k!r}] is a Tensor! "
+                        f"NodeContext.{field_name}[{k!r}] is a Tensor! "
                         f"Use engine.put_tensors() + TensorKey instead."
                     )
 ```
@@ -317,37 +317,37 @@ class TensorValue:
 
 ```python
 # 分段调用：vae_encode 保留 IMAGE_EMBEDS
-with engine.tensor_scope(keep=[KsanaTensorKey.IMAGE_EMBEDS]):
-    engine.put_tensors(**{KsanaTensorKey.IMAGE: image})
-    engine.run_infer_node(KsanaInferNodeType.VAE_ENCODE_IMAGES, vae, context)
+with engine.tensor_scope(keep=[TensorKey.IMAGE_EMBEDS]):
+    engine.put_tensors(**{TensorKey.IMAGE: image})
+    engine.run_infer_node(InferNodeType.VAE_ENCODE_IMAGES, vae, context)
 # scope 退出：IMAGE 被 release，IMAGE_EMBEDS 保留在 pool 中
 
 # 最终步骤：vae_decode 不 keep，全部清理
 with engine.tensor_scope():
-    engine.run_infer_node(KsanaInferNodeType.VAE_DECODE, vae, context)
-    video = engine.get_tensor(KsanaTensorKey.VIDEO).data  # 取裸 tensor
+    engine.run_infer_node(InferNodeType.VAE_DECODE, vae, context)
+    video = engine.get_tensor(TensorKey.VIDEO).data  # 取裸 tensor
 # scope 退出：全部 release
 ```
 
 #### ComfyUI adapter 之间传递 key
 
-ComfyUI adapter 之间传递的是 `KsanaTensorKey`（而非裸 tensor），真正的 `TensorValue` 存在 Executor 的 pool 中：
+ComfyUI adapter 之间传递的是 `TensorKey`（而非裸 tensor），真正的 `TensorValue` 存在 Executor 的 pool 中：
 
 ```python
 # vae_encode 返回 key
 def vae_encode_image(...):
-    with engine.tensor_scope(keep=[KsanaTensorKey.IMAGE_EMBEDS]):
+    with engine.tensor_scope(keep=[TensorKey.IMAGE_EMBEDS]):
         engine.put_tensors(...)
         engine.run_infer_node(...)
-    return KsanaNodeVAEEncodeOutput(samples=KsanaTensorKey.IMAGE_EMBEDS, ...)
+    return KsanaNodeVAEEncodeOutput(samples=TensorKey.IMAGE_EMBEDS, ...)
 
 # generate 收到 key，先检查存在性
 def generate(...):
     if not engine.has_tensor(image_embeds_key):
         raise RuntimeError(f"Tensor {image_embeds_key} not found in pool")
-    with engine.tensor_scope(keep=[KsanaTensorKey.LATENTS]):
+    with engine.tensor_scope(keep=[TensorKey.LATENTS]):
         engine.run_infer_node(...)
-    return KsanaNodeGeneratorOutput(samples=KsanaTensorKey.LATENTS, ...)
+    return KsanaNodeGeneratorOutput(samples=TensorKey.LATENTS, ...)
 ```
 
 #### Pool 的 clear(exclude=[...])
@@ -355,7 +355,7 @@ def generate(...):
 `KsanaTensorStorePool.clear(exclude)` 释放除 exclude 列表外的所有 tensor：
 
 ```python
-def clear(self, exclude: list[KsanaTensorKey] | None = None) -> None:
+def clear(self, exclude: list[TensorKey] | None = None) -> None:
     exclude_set = set(exclude) if exclude else set()
     keys_to_remove = [k for k in self._tensors if k not in exclude_set]
     for key in keys_to_remove:
@@ -369,7 +369,7 @@ def clear(self, exclude: list[KsanaTensorKey] | None = None) -> None:
 - 跨 rank 数据传递由 `DispatchPolicy.RANK_0_BROADCAST` 的 broadcast 机制自动处理
 - `engine.get_tensor()` 只用于 Pipeline/ComfyUI 取回最终结果，不用于 Node 间传递
 - Pipeline/ComfyUI 向 Node 传递 tensor 输入时，必须通过 `engine.put_tensors()` 写入 tensor_pool
-- **禁止**在 ComfyUI adapter 之间传递裸 `torch.Tensor`，必须传递 `KsanaTensorKey`
+- **禁止**在 ComfyUI adapter 之间传递裸 `torch.Tensor`，必须传递 `TensorKey`
 
 ---
 
@@ -387,10 +387,10 @@ Engine (singleton via get_default / 或多实例)
  └── NOT own: 任何 Node 实例 (Node 由 AdvancedFactory 按需创建，用完即弃)
 
 KsanaExecutor (每卡一个实例)
- ├── owns: model_pool        — KsanaModelPool (存储已加载的模型)
+ ├── owns: model_pool        — ModelPool (存储已加载的模型)
  ├── owns: tensor_pool       — KsanaTensorStorePool (存储推理中间 tensor)
  ├── owns: dist_group        — DistributedGroupManager (管理 torch.distributed)
- ├── owns: device_ctx        — KsanaDeviceContext (frozen dataclass, 只读)
+ ├── owns: device_ctx        — NodeDeviceContext (frozen dataclass, 只读)
  ├── owns: device / offload_device / device_id (设备信息)
  ├── owns: rank_id / world_size (分布式信息)
  ├── owns: dist_config / shard_fn (分布式配置)
@@ -422,20 +422,20 @@ KsanaExecutor (每卡一个实例)
 
 | 属性 | 类型 | 生命周期 | 说明 |
 |------|------|---------|------|
-| `model_pool` | `KsanaModelPool` | 与 Executor 同生命周期 | 存储所有已加载模型，按 `KsanaModelKey` 索引 |
+| `model_pool` | `ModelPool` | 与 Executor 同生命周期 | 存储所有已加载模型，按 `ModelKey` 索引 |
 | `tensor_pool` | `KsanaTensorStorePool` | 每次 `inference_session()` 结束时 clear | 存储推理中间 tensor，按 string key 索引 |
 | `dist_group` | `DistributedGroupManager` | 与 Executor 同生命周期 | 管理 broadcast 等分布式操作 |
-| `device_ctx` | `KsanaDeviceContext` | 初始化后不变（frozen） | 只读设备上下文，传入 Node.run() |
+| `device_ctx` | `NodeDeviceContext` | 初始化后不变（frozen） | 只读设备上下文，传入 Node.run() |
 | `device` | `torch.device` | 不变 | 计算设备 (如 `cuda:0`) |
 | `offload_device` | `torch.device` | 不变 | 卸载设备 (如 `cpu`) |
 | `dist_config` | `KsanaDistributedConfig` | `init_torch_dist_group()` 后更新 | 分布式配置 |
 | `shard_fn` | `partial` 或 `None` | `init_torch_dist_group()` 后设置 | FSDP 分片函数 |
 
-#### KsanaDeviceContext (`kdit/nodes/core/device_context.py`)
+#### NodeDeviceContext (`kdit/nodes/core/device_context.py`)
 
 ```python
 @dataclass(frozen=True)  # ← frozen! Node 无法篡改
-class KsanaDeviceContext:
+class NodeDeviceContext:
     device: torch.device        # 计算设备
     offload_device: torch.device # 卸载设备
     rank_id: int                # 当前 rank
@@ -450,15 +450,15 @@ class KsanaDeviceContext:
 
 - **Owner**: Executor
 - **生命周期**: 每次 `engine.tensor_scope()` 退出（depth→0）时 `clear(exclude=keep)`
-- **内容**: `dict[KsanaTensorKey, TensorValue]`，每个 TensorValue 持有 `Tensor | list[Tensor]`
-- **用途**: Node 间通过 `KsanaTensorKey` 引用 tensor，避免 tensor 跨 Ray 边界序列化
+- **内容**: `dict[TensorKey, TensorValue]`，每个 TensorValue 持有 `Tensor | list[Tensor]`
+- **用途**: Node 间通过 `TensorKey` 引用 tensor，避免 tensor 跨 Ray 边界序列化
 - **关键方法**: `put` / `get`（返回 TensorValue）/ `clear(exclude)` / `has` / `keys` / `__len__`
 
-#### KsanaModelPool (`kdit/models/model_pool.py`)
+#### ModelPool (`kdit/models/model_pool.py`)
 
 - **Owner**: Executor
 - **生命周期**: 与 Executor 同生命周期，`clear_models()` 可手动清理
-- **内容**: `dict[KsanaModelKey, KsanaModel]`
+- **内容**: `dict[ModelKey, KsanaModel]`
 - **用途**: LoaderNode 写入模型，InferNode 读取模型
 
 #### DistributedGroupManager (`kdit/executor/distributed_group.py`)
@@ -469,7 +469,7 @@ class KsanaDeviceContext:
 
 ### Node 状态分析
 
-#### LoaderNode (`KsanaLoadNode` 子类)
+#### LoaderNode (`LoaderNode` 子类)
 
 | Node | 类变量状态 | 实例变量状态 | 说明 |
 |------|-----------|-------------|------|
@@ -481,7 +481,7 @@ class KsanaDeviceContext:
 - 同一进程内所有 `DiffusionLoaderNode` 实例共享同一个 `PinnedMemoryManager`
 - 这是有意设计（共享 pinned memory 池），但违反了"Node 无状态"的理想模型
 
-#### InferNode (`KsanaInferNode` 子类)
+#### InferNode (`InferNode` 子类)
 
 | Node | 类变量状态 | 实例变量状态 | 说明 |
 |------|-----------|-------------|------|
@@ -509,7 +509,7 @@ def run_loader_node(self, model_key, **kwargs):
 def run_infer_node(self, infer_node_type, model_key, context):
     node = InferNodeFactory.create(infer_node_type, model_key)  # ← 每次新建
     self._pre_sync_tensors(node, policy)
-    is_active_rank = policy == KsanaDispatchPolicy.ALL_ALL_ALL or self.device_ctx.rank_id == 0
+    is_active_rank = policy == NodeDispatchPolicy.ALL_ALL_ALL or self.device_ctx.rank_id == 0
     if is_active_rank:
         node.run(model_key, context, tensor_pool=self.tensor_pool, model_pool=self.model_pool, device_ctx=self.device_ctx)
     self._post_sync_tensors(node, policy)
@@ -524,7 +524,7 @@ Node 实例是**临时对象**，用完即弃。Executor 不持有 Node 引用�
 | Engine 不持有资源 | Engine 只是分发层，所有实际资源（model_pool, tensor_pool, device）在 Executor 上 |
 | Executor 持有所有资源 | model_pool + tensor_pool + dist_group + device_ctx |
 | Node 无状态（理想） | InferNode 完全无状态；LoaderNode 中 `DiffusionLoaderNode` 有类级 `_pinned_memory_manager` 例外 |
-| DeviceContext 只读 | `frozen=True` dataclass，Node 无法篡改 |
+| NodeDeviceContext 只读 | `frozen=True` dataclass，Node 无法篡改 |
 | NodeContext 无 tensor | `__post_init__` 强制校验不含 `torch.Tensor`，保证可跨 Ray 序列化 |
 | tensor_pool 生命周期 | 由 `engine.inference_session()` 管理，session 结束自动 clear |
 | model_pool 生命周期 | 与 Executor 同生命周期，需手动 `clear_models()` 释放 |
@@ -533,11 +533,11 @@ Node 实例是**临时对象**，用完即弃。Executor 不持有 Node 引用�
 
 ---
 
-## 6. KsanaInferNode 开发规范
+## 6. InferNode 开发规范
 
 ### run() 签名固定，禁止扩展
 
-`KsanaInferNode.run()` 签名是固定的：
+`InferNode.run()` 签名是固定的：
 
 ```python
 def run(self, model_key, context, *, tensor_pool, model_pool, device_ctx) -> None:
@@ -552,14 +552,14 @@ def run(self, model_key, context, *, tensor_pool, model_pool, device_ctx) -> Non
 - **输入 tensor**: 只能通过 `tensor_pool.get(key)` 或 `tensor_pool.peek(key)` 获取
 - **输出 tensor**: 只能通过 `tensor_pool.put(key, tensor)` 写入
 - **禁止** 在 `run()` 参数中传递 tensor
-- **禁止** 在 `context.metadata` 中放 tensor（`KsanaNodeContext.__post_init__` 会校验）
+- **禁止** 在 `context.metadata` 中放 tensor（`NodeContext.__post_init__` 会校验）
 
 ### 声明 tensor 契约
 
 每个 Node 必须声明 `input_tensor_keys` 和 `output_tensor_keys`：
 
 ```python
-class MyNode(KsanaInferNode):
+class MyNode(InferNode):
     input_tensor_keys = [TensorKey.POSITIVE, TensorKey.NEGATIVE]
     output_tensor_keys = [TensorKey.LATENTS]
 ```
@@ -569,7 +569,7 @@ class MyNode(KsanaInferNode):
 
 ### dispatch_policy 三维度命名
 
-`KsanaDispatchPolicy` 使用 `input_exec_output` 三维度拼接命名：
+`NodeDispatchPolicy` 使用 `input_exec_output` 三维度拼接命名：
 
 | Policy | 输入要求 | 执行范围 | 输出行为 | 典型场景 |
 |--------|---------|---------|---------|---------|
@@ -580,8 +580,8 @@ class MyNode(KsanaInferNode):
 ### Node 注册
 
 - 使用 `@InferNodeFactory.register()` 装饰器注册
-- 注册键为 `(KsanaInferNodeType, [KsanaModelKey, ...])`
-- `KsanaInferNodeType` 枚举值：`TEXT_ENCODE`, `VAE_ENCODE_SPATIAL`, `VAE_ENCODE_IMAGES`, `VAE_DECODE`, `GENERATE`
+- 注册键为 `(InferNodeType, [ModelKey, ...])`
+- `InferNodeType` 枚举值：`TEXT_ENCODE`, `VAE_ENCODE_SPATIAL`, `VAE_ENCODE_IMAGES`, `VAE_DECODE`, `GENERATE`
 
 ### 现有 Node 参考
 
@@ -665,14 +665,11 @@ grep -rn "import kdit.adapter" kdit/ --include="*.py" | grep -v __pycache__ | gr
 | `KsanaBlockCache` | `BlockCache` | `kdit/cache/base_cache.py` |
 | `KsanaHybridCache` | `HybridCache` | `kdit/cache/base_cache.py` |
 | `KsanaLinearBackend` | `LinearBackend` | `kdit/config/linear_config.py` |
-| `KsanaRuntimeConfig` | `RuntimeConfig` | `kdit/config/runtime_config.py` |
 | `KsanaSolverType` | `SolverType` | `kdit/config/sample_config.py` |
 | `KsanaSampleConfig` | `SampleConfig` | `kdit/config/sample_config.py` |
 | `KsanaModelConfig` | `ModelConfig` | `kdit/config/model_config.py` |
 | `KsanaCacheConfig` | `CacheConfig` | `kdit/config/cache_config/base.py` |
 | `KsanaBlockCacheConfig` | `BlockCacheConfig` | `kdit/config/cache_config/base.py` |
-| `KsanaStepCacheConfig` | `StepCacheConfig` | `kdit/config/cache_config/base.py` |
-| `KsanaHybridCacheConfig` | `HybridCacheConfig` | `kdit/config/cache_config/base.py` |
 | `KsanaVideoControlConfig` | `VideoControlConfig` | `kdit/config/video_control_config.py` |
 | `KsanaLoraConfig` | `LoraConfig` | `kdit/config/lora_config.py` |
 | `KsanaAttentionBackend` | `AttentionBackend` | `kdit/config/attention_config.py` |
@@ -684,18 +681,8 @@ grep -rn "import kdit.adapter" kdit/ --include="*.py" | grep -v __pycache__ | gr
 | `KsanaFETAConfig` | `FETAConfig` | `kdit/config/wan_experimental_config.py` |
 | `KsanaExperimentalConfig` | `ExperimentalConfig` | `kdit/config/wan_experimental_config.py` |
 | `KsanaDistributedConfig` | `DistributedConfig` | `kdit/config/distributed_config.py` |
-| `LoaderNodeFactory` | `LoaderNodeFactory` | `kdit/nodes/core/node_factory.py` |
-| `InferNodeFactory` | `InferNodeFactory` | `kdit/nodes/core/node_factory.py` |
-| `KsanaNodeContext` | `NodeContext` | `kdit/nodes/core/node_context.py` |
-| `KsanaLoadNode` | `LoadNode` | `kdit/nodes/core/base_node.py` |
-| `KsanaInferNode` | `InferNode` | `kdit/nodes/core/base_node.py` |
-| `KsanaDispatchPolicy` | `DispatchPolicy` | `kdit/nodes/core/node_types.py` |
-| `KsanaInferNodeType` | `InferNodeType` | `kdit/nodes/core/node_types.py` |
-| `KsanaDeviceContext` | `DeviceContext` | `kdit/nodes/core/device_context.py` |
 | `KsanaBatchScheduler` | `BatchScheduler` | `kdit/scheduler/scheduler.py` |
 | `KsanaProfiler` | `Profiler` | `kdit/utils/profile.py` |
-| `VaceConfig` | `VaceContext` | `kdit/utils/vace.py` |
-| `KsanaModelKey` | `ModelKey` | `kdit/models/model_key.py` |
 | `KsanaQwenImageVAE` | `QwenImageVAE` | `kdit/models/qwen/vae.py` |
 | `KsanaDiffusionModel` | `DiffusionModel` | `kdit/models/diffusion_model.py` |
 | `KsanaWanModel` | `WanModel` | `kdit/models/diffusion_model.py` |
@@ -704,7 +691,6 @@ grep -rn "import kdit.adapter" kdit/ --include="*.py" | grep -v __pycache__ | gr
 | `KsanaVAEModel` | `VAEModel` | `kdit/models/vae_model.py` |
 | `KsanaWanVAEModel` | `WanVAEModel` | `kdit/models/vae_model.py` |
 | `KsanaQwenVAEModel` | `QwenVAEModel` | `kdit/models/vae_model.py` |
-| `KsanaModelPool` | `ModelPool` | `kdit/models/model_pool.py` |
 | `KsanaTextEncoderModel` | `TextEncoderModel` | `kdit/models/text_encoder_model.py` |
 | `KsanaAttentionOp` | `AttentionOp` | `kdit/operations/attention/attention_op.py` |
 | `KsanaAttentionBackendImpl` | `AttentionBackendImpl` | `kdit/operations/attention/backends/base.py` |
@@ -713,7 +699,6 @@ grep -rn "import kdit.adapter" kdit/ --include="*.py" | grep -v __pycache__ | gr
 | `KsanaBaseGenerator` | `BaseGenerator` | `kdit/generators/base_generator.py` |
 | `KsanaVaceGenerator` | `VaceGenerator` | `kdit/generators/vace_generator.py` |
 | `KsanaExecutor` | `Executor` | `kdit/executor/executor.py` |
-| `KsanaTensorKey` | `TensorKey` | `kdit/tensor/tensor_key.py` |
 | `KsanaTensorStorePool` | `TensorStorePool` | `kdit/tensor/tensor_store_pool.py` |
 
 ### 保留 `Ksana` 前缀的类（comfyui 适配层）
@@ -751,7 +736,7 @@ grep -rn "class Ksana" kdit/ --include="*.py" | grep -v __pycache__ | grep -v "a
 
 ### 现状问题
 
-[`KsanaNodeContext.metadata`](../kdit/nodes/core/node_context.py:37) 是一个无类型的 `dict`，当前承载了多种混合关注点：
+[`NodeContext.metadata`](../kdit/nodes/core/node_context.py:37) 是一个无类型的 `dict`，当前承载了多种混合关注点：
 
 | metadata key | 使用方 | 类型 |
 |---|---|---|
@@ -766,7 +751,7 @@ grep -rn "class Ksana" kdit/ --include="*.py" | grep -v __pycache__ | grep -v "a
 
 ### 重构方向
 
-1. **提升高频 key 为 `KsanaNodeContext` 的显式字段**：
+1. **提升高频 key 为 `NodeContext` 的显式字段**：
    - `offload_model: bool = False`
    - `text_run_device: str | None = None`
    - `noise_shape: list[int] | None = None`
@@ -786,7 +771,7 @@ grep -rn "class Ksana" kdit/ --include="*.py" | grep -v __pycache__ | grep -v "a
 ### 约束
 
 - `__post_init__` 中的 tensor 校验逻辑保留
-- 不改变 `KsanaNodeContext` 的可序列化约束（Ray 多卡广播）
+- 不改变 `NodeContext` 的可序列化约束（Ray 多卡广播）
 - `comfy_bar_callback` 等不可序列化对象**仍然放 metadata**，不提升为字段
 
 ### 自动检查
@@ -877,7 +862,7 @@ class ContextBuilder(ABC):
     2. 对每个 InferPhase:
        a. check_condition(name, inputs) — 是否跳过
        b. prepare_tensors(phase, inputs) — 准备 tensor → put 到 pool
-       c. build_context(phase, inputs) — 构建 KsanaNodeContext
+       c. build_context(phase, inputs) — 构建 NodeContext
     3. post_process(output, inputs) — 输出后处理
     """
 
@@ -886,7 +871,7 @@ class ContextBuilder(ABC):
         pass
 
     @abstractmethod
-    def build_context(self, phase: InferPhase, inputs: GenerateInputs) -> KsanaNodeContext:
+    def build_context(self, phase: InferPhase, inputs: GenerateInputs) -> NodeContext:
         """按 phase.node_type 分支，构建该 Node 的 context。"""
         ...
 
@@ -940,16 +925,16 @@ class GenerateInputs:
 # kdit/nodes/infers/save_node.py
 
 @InferNodeFactory.register(NT.SAVE_VIDEO, None)
-class SaveVideoNode(KsanaInferNode):
+class SaveVideoNode(InferNode):
     input_tensor_keys = [TensorKey.VIDEO]
     output_tensor_keys = []
-    dispatch_policy = KsanaDispatchPolicy.ALL_R0_R0  # 只在 rank 0 保存
+    dispatch_policy = NodeDispatchPolicy.ALL_R0_R0  # 只在 rank 0 保存
 
 @InferNodeFactory.register(NT.SAVE_IMAGE, None)
-class SaveImageNode(KsanaInferNode):
+class SaveImageNode(InferNode):
     input_tensor_keys = [TensorKey.VIDEO]  # 复用 VIDEO key
     output_tensor_keys = []
-    dispatch_policy = KsanaDispatchPolicy.ALL_R0_R0
+    dispatch_policy = NodeDispatchPolicy.ALL_R0_R0
 ```
 
 **规则**:
@@ -1045,6 +1030,8 @@ kdit/pipelines/
 | 必要但未使用的 import | `# noqa: F401  # pylint: disable=unused-import` | 如 `__init__.py` 中的 re-export、side-effect import、`TYPE_CHECKING` 块外的前向引用等 |
 | 必要但未使用的变量 | `# noqa: F841  # pylint: disable=unused-variable` | 如从环境变量读取但仅用于触发副作用的变量、解构赋值中的占位变量等 |
 
+对于如果需要因为方便都直接使用`import *`的时候，需要加上 `# noqa: F403`
+
 ### 示例
 
 ```python
@@ -1060,6 +1047,9 @@ SOME_FLAG = os.environ.get("SOME_FLAG", "0")  # noqa: F841  # pylint: disable=un
 
 # ✅ 解构赋值中的占位变量
 c1, c2, t, h, w = conv_weight.size()  # noqa: F841  # pylint: disable=unused-variable
+
+# ✅ 导入所有内容， 通常不推荐，非必要情况还是显示import具体内容
+from .defs import * # noqa: F403
 ```
 
 ### 判定标准

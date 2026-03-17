@@ -18,8 +18,8 @@
 I2V 流程：TextEncode → (VAE_ENCODE_SPATIAL when has_start_image) → Generate → VAE_DECODE → SaveVideo。
 """
 
-from kdit.models.model_key import KsanaModelKey
-from kdit.nodes.core.node_types import KsanaInferNodeType
+from kdit.models.model_key import ModelKey
+from kdit.nodes.core.node_types import InferNodeType
 from kdit.tensor import TensorKey
 
 from ..context_builders.wan import WanI2VContextBuilder
@@ -28,15 +28,15 @@ from ..pipeline_key import PipelineKey
 
 WAN_I2V_14B_DEF = register_pipeline_def(
     PipelineDefBuilder(PipelineKey.Wan2_2_I2V_14B)
-    .load("text_encoder", KsanaModelKey.T5TextEncoder)
-    .load("diffusion", KsanaModelKey.Wan2_2_I2V_14B)
-    .load("vae", KsanaModelKey.VAE_WAN2_2)
-    .add_infer(KsanaInferNodeType.TEXT_ENCODE, model_role="text_encoder")
-    .add_infer(KsanaInferNodeType.VAE_ENCODE_SPATIAL, model_role="vae")
+    .load(ModelKey.T5TextEncoder)
+    .load(ModelKey.Wan2_2_I2V_14B)
+    .load(ModelKey.VAE_WAN2_2)
+    .add_infer(InferNodeType.TEXT_ENCODE, ModelKey.T5TextEncoder)
+    .add_infer(InferNodeType.VAE_ENCODE_SPATIAL, ModelKey.VAE_WAN2_2)
     .when("has_start_image")
-    .add_infer(KsanaInferNodeType.GENERATE, model_role="diffusion")
-    .add_infer(KsanaInferNodeType.VAE_DECODE, model_role="vae")
-    .add_infer(KsanaInferNodeType.SAVE_VIDEO)
+    .add_infer(InferNodeType.GENERATE, ModelKey.Wan2_2_I2V_14B)
+    .add_infer(InferNodeType.VAE_DECODE, ModelKey.VAE_WAN2_2)
+    .add_infer(InferNodeType.SAVE_VIDEO)
     .keep_tensors(TensorKey.VIDEO)
     .context_builder(WanI2VContextBuilder)
     .build()

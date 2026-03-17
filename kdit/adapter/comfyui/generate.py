@@ -13,15 +13,15 @@
 # limitations under the License.
 
 from kdit import get_engine
-from kdit.config import KsanaRuntimeConfig, KsanaSampleConfig, KsanaSolverType
+from kdit.config import KsanaSampleConfig, KsanaSolverType, RuntimeConfig
 from kdit.memory.estimator import (
     MODEL_MEMORY_CONFIG,
     estimate_kdit_model_memory,
     get_available_memory,
 )
-from kdit.models.model_key import KsanaModelKey
-from kdit.nodes.core.node_context import KsanaNodeContext
-from kdit.nodes.core.node_types import KsanaInferNodeType
+from kdit.models.model_key import ModelKey
+from kdit.nodes.core.node_context import NodeContext
+from kdit.nodes.core.node_types import InferNodeType
 from kdit.tensor import TensorKey
 from kdit.utils import log
 from kdit.utils.env import KSANA_PROFILE
@@ -92,12 +92,12 @@ def _resolve_latent_shape(kdit_engine, image_embeds, latent, diffusion_model_key
         latent_shape = None
 
     # Qwen Image Edit: latent 直接决定输出 shape
-    if latent is not None and diffusion_model_key == KsanaModelKey.QwenImage_Edit:
+    if latent is not None and diffusion_model_key == ModelKey.QwenImage_Edit:
         tensor_value = kdit_engine.get_tensor(latent.samples)
         latent_raw = tensor_value.data if tensor_value is not None else None
         noise_shape = list(latent_raw[0].shape[1:]) if latent_raw is not None else None
         image_embeds_list = image_embeds_list[0]
-    elif diffusion_model_key == KsanaModelKey.QwenImage_T2I:
+    elif diffusion_model_key == ModelKey.QwenImage_T2I:
         # T2I: image_embeds 仅用于提供输出 shape，不作为图像条件传入 generator
         if image_embeds_list is not None and len(image_embeds_list) > 0:
             noise_shape = list(image_embeds_list[0].shape[1:])
@@ -190,8 +190,8 @@ def generate(  # noqa: C901
         vace_embeds=vace_embeds,
     )
 
-    # 构建 KsanaNodeContext — tensor 参数通过 tensor_pool 传递
-    context = KsanaNodeContext(
+    # 构建 NodeContext — tensor 参数通过 tensor_pool 传递
+    context = NodeContext(
         sample_config=KsanaSampleConfig(
             steps=steps,
             cfg_scale=(sample_guide_scale, low_sample_guide_scale),
@@ -201,7 +201,7 @@ def generate(  # noqa: C901
             sigmas=sigmas,
             add_noise_to_latent=add_noise_to_latent,
         ),
-        runtime_config=KsanaRuntimeConfig(
+        runtime_config=RuntimeConfig(
             seed=seed,
             rope_function=rope_function,
             batch_size_per_prompts=batch_size_per_prompts,
@@ -222,7 +222,7 @@ def generate(  # noqa: C901
         if latent is not None and latent.samples is not None:
             # latent.samples 是 TensorKey — 重命名为 GeneratorNode 期望的 INPUT_LATENT
             kdit_engine.rename_tensor(latent.samples, TensorKey.INPUT_LATENT)
-        kdit_engine.run_infer_node(KsanaInferNodeType.GENERATE, diffusion_model_key, context)
+        kdit_engine.run_infer_node(InferNodeType.GENERATE, diffusion_model_key, context)
 
     MemoryProfiler.record_memory("after_kdit_engine_generate_with_tensors")
 

@@ -14,15 +14,15 @@
 
 from .diffusion_model import KsanaDiffusionModel, KsanaQwenImageModel, KsanaWanModel, KsanaWanVaceModel
 from .model_base import ModelBase
-from .model_key import KsanaModelKey
-from .model_pool import KsanaModelPool
+from .model_key import ModelKey
+from .model_pool import ModelPool
 from .text_encoder_model import KsanaTextEncoderModel
 from .vae_model import KsanaQwenVAEModel, KsanaVAEModel, KsanaWanVAEModel
 
 __all__ = [
     "ModelBase",
-    "KsanaModelKey",
-    "KsanaModelPool",
+    "ModelKey",
+    "ModelPool",
     "KsanaDiffusionModel",
     "KsanaWanModel",
     "KsanaWanVaceModel",

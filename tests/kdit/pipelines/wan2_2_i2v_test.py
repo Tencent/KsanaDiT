@@ -33,10 +33,10 @@ from kdit.config import (
     KsanaAttentionConfig,
     KsanaDistributedConfig,
     KsanaModelConfig,
-    KsanaRuntimeConfig,
     KsanaSageSLAConfig,
     KsanaSampleConfig,
     KsanaSolverType,
+    RuntimeConfig,
 )
 from kdit.utils.distribute import get_gpu_count
 
@@ -68,7 +68,7 @@ class TestKsanaPipelineWanI2V(unittest.TestCase):
             PROMPTS[0],
             start_img_path="./examples/images/input.png",
             sample_config=KsanaSampleConfig(steps=TEST_STEPS),
-            runtime_config=KsanaRuntimeConfig(
+            runtime_config=RuntimeConfig(
                 seed=SEED,
                 size=TEST_SIZE,
                 frame_num=TEST_FRAME_NUM,
@@ -86,7 +86,7 @@ class TestKsanaPipelineWanI2V(unittest.TestCase):
             start_img_path="./examples/images/start_image.png",
             end_img_path="./examples/images/end_image.png",
             sample_config=KsanaSampleConfig(steps=TEST_STEPS, add_noise_to_latent=True),
-            runtime_config=KsanaRuntimeConfig(
+            runtime_config=RuntimeConfig(
                 seed=SEED,
                 size=TEST_SIZE,
                 frame_num=TEST_FRAME_NUM,
@@ -144,7 +144,7 @@ class TestKsanaPipelineWanI2V(unittest.TestCase):
             PROMPTS[0],
             start_img_path="./examples/images/input.png",
             sample_config=sample_config,
-            runtime_config=KsanaRuntimeConfig(
+            runtime_config=RuntimeConfig(
                 seed=SEED,
                 size=TEST_SIZE,
                 frame_num=TEST_FRAME_NUM,
@@ -161,7 +161,7 @@ class TestKsanaPipelineWanI2V(unittest.TestCase):
             start_img_path="./examples/images/start_image.png",
             end_img_path="./examples/images/end_image.png",
             sample_config=sample_config,
-            runtime_config=KsanaRuntimeConfig(
+            runtime_config=RuntimeConfig(
                 seed=SEED,
                 size=TEST_SIZE,
                 frame_num=TEST_FRAME_NUM,

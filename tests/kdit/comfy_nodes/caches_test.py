@@ -20,11 +20,11 @@ from kdit.config import (
     DBCacheConfig,
     DCacheConfig,
     EasyCacheConfig,
-    KsanaHybridCacheConfig,
+    HybridCacheConfig,
     MagCacheConfig,
     TeaCacheConfig,
 )
-from kdit.models import KsanaModelKey
+from kdit.models import ModelKey
 from kdit.utils.distribute import get_rank_id
 
 from .nodes_test_helper import (
@@ -38,7 +38,7 @@ EPS_PLACES = 2
 CACHE_CONFIGS = [
     DCacheConfig(),
     DBCacheConfig(),
-    KsanaHybridCacheConfig(step_cache=DCacheConfig(), block_cache=DBCacheConfig()),
+    HybridCacheConfig(step_cache=DCacheConfig(), block_cache=DBCacheConfig()),
 ]
 
 CACHE_TEST_CONFIGS = {
@@ -103,7 +103,7 @@ class TestCacheAllModels(unittest.TestCase):
 
     def test_all_cache_configs(self):
         for model_name, img_shape, text_shape, expected_model_key in iter_test_models():
-            if expected_model_key in [KsanaModelKey.Wan2_2_I2V_14B, KsanaModelKey.QwenImage_T2I]:
+            if expected_model_key in [ModelKey.Wan2_2_I2V_14B, ModelKey.QwenImage_T2I]:
                 print(f"-----------------skip {expected_model_key}, cache not supported yet -----------------")
                 continue
             for cache_config in CACHE_CONFIGS:
@@ -115,7 +115,7 @@ class TestWan22T2VCachesRegression(unittest.TestCase):
 
     def test_all_caches(self):
         for model_name, img_shape, text_shape, model_key in iter_test_models():
-            if model_key != KsanaModelKey.Wan2_2_T2V_14B:
+            if model_key != ModelKey.Wan2_2_T2V_14B:
                 continue
             if "fp8" in model_name:
                 continue
@@ -127,7 +127,7 @@ class TestWan22T2VCachesRegression(unittest.TestCase):
                     TEST_STEPS,
                     cache_config=cache_config,
                 )
-                self.assertEqual(load_output.model, KsanaModelKey.Wan2_2_T2V_14B)
+                self.assertEqual(load_output.model, ModelKey.Wan2_2_T2V_14B)
                 latent_key = gen_output.samples
                 tensor_value = get_engine().get_tensor(latent_key)
                 latent_tensor = tensor_value.data if tensor_value is not None else None

@@ -15,7 +15,7 @@
 import torch
 
 from ..config.cache_config import EasyCacheConfig
-from ..models.model_key import KsanaModelKey
+from ..models.model_key import ModelKey
 from ..utils import log
 from .base_cache import KsanaStepCache
 
@@ -27,7 +27,7 @@ DEFAULT_THRESH = {
 
 
 class EasyCache(KsanaStepCache):
-    def __init__(self, model_key: KsanaModelKey, config: EasyCacheConfig):
+    def __init__(self, model_key: ModelKey, config: EasyCacheConfig):
         super().__init__(model_key, config)
         mode = config.mode if config.mode is not None else "t2v"
         default_thresh = DEFAULT_THRESH.get(mode, 0.05)

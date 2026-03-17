@@ -17,12 +17,12 @@ from ..config.cache_config import (
     DBCacheConfig,
     DCacheConfig,
     EasyCacheConfig,
+    HybridCacheConfig,
     KsanaCacheConfig,
-    KsanaHybridCacheConfig,
     MagCacheConfig,
     TeaCacheConfig,
 )
-from ..models.model_key import KsanaModelKey
+from ..models.model_key import ModelKey
 from .base_cache import KsanaCache, KsanaHybridCache
 from .custom_cache import CustomStepCache
 from .dbcache import DBCache
@@ -32,7 +32,7 @@ from .magcache import MagCache
 from .teacache import TeaCache
 
 
-def _create_cache(model_key: KsanaModelKey, config: KsanaCacheConfig):
+def _create_cache(model_key: ModelKey, config: KsanaCacheConfig):
     if config is None:
         return None
     if isinstance(config, DCacheConfig):
@@ -52,8 +52,8 @@ def _create_cache(model_key: KsanaModelKey, config: KsanaCacheConfig):
 
 
 def create_hybrid_cache(
-    model_key: KsanaModelKey,
-    cache_config: KsanaHybridCacheConfig,
+    model_key: ModelKey,
+    cache_config: HybridCacheConfig,
 ):
     return KsanaHybridCache(
         model_key=model_key,

@@ -25,7 +25,7 @@ from ..utils.const import (
 
 
 @dataclass(frozen=True)
-class KsanaRuntimeConfig:
+class RuntimeConfig:
     """_summary_
     size: tuple[int, int] = field(default=None): target image or video image size
     """

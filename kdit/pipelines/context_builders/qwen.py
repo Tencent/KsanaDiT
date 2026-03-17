@@ -28,8 +28,8 @@ import torchvision.transforms.functional as tvtf
 from PIL import Image
 
 from kdit.models.vae_model import compute_image_latent_shape
-from kdit.nodes.core.node_context import KsanaNodeContext
-from kdit.nodes.core.node_types import KsanaInferNodeType as NT
+from kdit.nodes.core.node_context import NodeContext
+from kdit.nodes.core.node_types import InferNodeType as NT
 from kdit.tensor import TensorKey
 from kdit.utils.logger import log
 
@@ -46,7 +46,7 @@ class QwenContextBuilder(ContextBuilder):
     子类只需实现 ``prepare_generate_inputs`` 和 ``build_context``。
     """
 
-    def _build_text_ctx(self, inputs: GenerateInputs, condition_image_path: Any = None) -> KsanaNodeContext:
+    def _build_text_ctx(self, inputs: GenerateInputs, condition_image_path: Any = None) -> NodeContext:
         """构建 TextEncode 的 context。
 
         Args:
@@ -55,16 +55,16 @@ class QwenContextBuilder(ContextBuilder):
         metadata = self._common_metadata(inputs)
         if condition_image_path is not None:
             metadata["condition_image_path"] = condition_image_path
-        return KsanaNodeContext(
+        return NodeContext(
             prompt=inputs.prompt,
             negative_prompt=inputs.prompt_negative,
             metadata=metadata,
         )
 
-    def _build_gen_ctx(self, inputs: GenerateInputs) -> KsanaNodeContext:
+    def _build_gen_ctx(self, inputs: GenerateInputs) -> NodeContext:
         """构建 Generator 的 context。"""
         extra = self._extra
-        return KsanaNodeContext(
+        return NodeContext(
             sample_config=inputs.sample_config,
             runtime_config=inputs.runtime_config,
             cache_config=inputs.cache_config,
@@ -73,17 +73,17 @@ class QwenContextBuilder(ContextBuilder):
             },
         )
 
-    def _build_decode_ctx(self, inputs: GenerateInputs) -> KsanaNodeContext:
+    def _build_decode_ctx(self, inputs: GenerateInputs) -> NodeContext:
         """构建 VAE Decode 的 context。"""
-        return KsanaNodeContext(
+        return NodeContext(
             metadata={
                 "offload_model": inputs.runtime_config.offload_model,
             },
         )
 
-    def _build_save_ctx(self, inputs: GenerateInputs) -> KsanaNodeContext:
+    def _build_save_ctx(self, inputs: GenerateInputs) -> NodeContext:
         """构建 SaveImage 的 context — 包含保存路径。"""
-        return KsanaNodeContext(
+        return NodeContext(
             metadata={
                 "save_path": _compute_save_path(inputs),
             },
@@ -127,7 +127,7 @@ class QwenT2IContextBuilder(QwenContextBuilder):
         )
         self._extra = self.Extra(noise_shape=noise_shape)
 
-    def build_context(self, phase: InferPhase, inputs: GenerateInputs) -> KsanaNodeContext:
+    def build_context(self, phase: InferPhase, inputs: GenerateInputs) -> NodeContext:
         """按 node_type 分发构建 context。"""
         match phase.node_type:
             case NT.TEXT_ENCODE:
@@ -199,7 +199,7 @@ class QwenEditContextBuilder(QwenContextBuilder):
             noise_shape=noise_shape,
         )
 
-    def build_context(self, phase: InferPhase, inputs: GenerateInputs) -> KsanaNodeContext:
+    def build_context(self, phase: InferPhase, inputs: GenerateInputs) -> NodeContext:
         """按 node_type 分发构建 context。"""
         extra = self._extra
         match phase.node_type:
@@ -207,7 +207,7 @@ class QwenEditContextBuilder(QwenContextBuilder):
                 # Edit 模式：传入 condition_image_path
                 return self._build_text_ctx(inputs, condition_image_path=extra.img_path)
             case NT.VAE_ENCODE_IMAGES:
-                return KsanaNodeContext()
+                return NodeContext()
             case NT.GENERATE:
                 return self._build_gen_ctx(inputs)
             case NT.VAE_DECODE:

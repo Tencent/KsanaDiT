@@ -19,7 +19,7 @@ from unittest.mock import MagicMock
 
 import torch
 
-from kdit.config import KsanaRuntimeConfig, KsanaSampleConfig, KsanaSolverType
+from kdit.config import KsanaSampleConfig, KsanaSolverType, RuntimeConfig
 from kdit.generators.generator_context import GeneratorInferContext
 
 
@@ -48,7 +48,7 @@ class TestGeneratorRunContext(unittest.TestCase):
         positive = torch.randn(1, 77, 768)
         negative = torch.randn(1, 77, 768)
         sample_cfg = KsanaSampleConfig(steps=20, cfg_scale=5.0, solver=KsanaSolverType.EULER)
-        runtime_cfg = KsanaRuntimeConfig(size=(512, 512), frame_num=16, seed=42)
+        runtime_cfg = RuntimeConfig(size=(512, 512), frame_num=16, seed=42)
 
         ctx = GeneratorInferContext(
             diffusion_model=mock_model,

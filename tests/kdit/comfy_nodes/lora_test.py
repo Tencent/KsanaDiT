@@ -16,7 +16,7 @@ import os
 import unittest
 
 from kdit import get_engine
-from kdit.models import KsanaModelKey
+from kdit.models import ModelKey
 from kdit.utils.distribute import get_rank_id
 
 from .nodes_test_helper import (
@@ -48,7 +48,7 @@ TEST_MODELS = [
         "wan2.2_i2v_high_noise_14B_fp16.safetensors",
         IMG_SHAPE_I2V,
         WAN_TEXT_SHAPE,
-        KsanaModelKey.Wan2_2_I2V_14B,
+        ModelKey.Wan2_2_I2V_14B,
         TEST_LORAS,
     ),
 ]

@@ -36,3 +36,20 @@ class PipelineKey(Enum):
 
     def is_image_type(self) -> bool:
         return self in (PipelineKey.QwenImage_T2I, PipelineKey.QwenImage_Edit)
+
+
+def get_pipeline_key_from_path(model_path: str | list[str]) -> PipelineKey:
+    """从 diffusion 模型路径推导 PipelineKey。
+
+    内部复用 get_model_key_from_path() 得到 diffusion ModelKey，
+    再通过同名映射转换为 PipelineKey。
+    """
+    from kdit.models.model_key import DIFFUSION_KEYS, get_model_key_from_path
+
+    model_key = get_model_key_from_path(model_path)
+    if model_key not in DIFFUSION_KEYS:
+        raise ValueError(
+            f"get_pipeline_key_from_path() expects a diffusion model path, "
+            f"but got ModelKey.{model_key.name} which is not a diffusion key."
+        )
+    return PipelineKey[model_key.name]

@@ -18,23 +18,23 @@ from . import (  # noqa: F401  # pylint: disable=unused-import
     loaders,
 )
 from .core import (
+    InferNode,
     InferNodeFactory,
-    KsanaDeviceContext,
-    KsanaDispatchPolicy,
-    KsanaInferNode,
-    KsanaInferNodeType,
-    KsanaLoadNode,
-    KsanaNodeContext,
+    InferNodeType,
+    LoaderNode,
     LoaderNodeFactory,
+    NodeContext,
+    NodeDeviceContext,
+    NodeDispatchPolicy,
 )
 
 __all__ = [
-    "KsanaLoadNode",
-    "KsanaInferNode",
-    "KsanaDeviceContext",
-    "KsanaNodeContext",
+    "LoaderNode",
+    "InferNode",
+    "NodeDeviceContext",
+    "NodeContext",
     "LoaderNodeFactory",
     "InferNodeFactory",
-    "KsanaInferNodeType",
-    "KsanaDispatchPolicy",
+    "InferNodeType",
+    "NodeDispatchPolicy",
 ]

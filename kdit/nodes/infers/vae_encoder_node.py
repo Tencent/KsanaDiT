@@ -19,27 +19,27 @@
   - VAEEncodeImagesNode:  image → 图片 latent（用于 Edit/帧级编码）
 """
 
-from kdit.models.model_key import KsanaModelKey
+from kdit.models.model_key import ModelKey
 from kdit.tensor import TensorKey
 from kdit.utils import log
 
-from ..core.base_node import KsanaInferNode
+from ..core.base_node import InferNode
 from ..core.node_factory import InferNodeFactory
-from ..core.node_types import KsanaDispatchPolicy, KsanaInferNodeType
+from ..core.node_types import InferNodeType, NodeDispatchPolicy
 
 
 @InferNodeFactory.register(
-    KsanaInferNodeType.VAE_ENCODE_SPATIAL,
-    [KsanaModelKey.VAE_WAN2_1, KsanaModelKey.VAE_WAN2_2, KsanaModelKey.QwenImageVAE],
+    InferNodeType.VAE_ENCODE_SPATIAL,
+    [ModelKey.VAE_WAN2_1, ModelKey.VAE_WAN2_2, ModelKey.QwenImageVAE],
 )
-class VAEEncodeSpatialNode(KsanaInferNode):
+class VAEEncodeSpatialNode(InferNode):
     """VAE 时序条件编码 — rank 0 执行后 broadcast 到所有卡。
 
     构建视频帧序列（首帧 + 零帧 + 尾帧）→ encode → 拼接 mask 通道。
     用于 I2V（首尾帧控制）、VACE（视频控制）等场景。
     """
 
-    dispatch_policy = KsanaDispatchPolicy.R0_R0_BCAST
+    dispatch_policy = NodeDispatchPolicy.R0_R0_BCAST
     input_tensor_keys = [TensorKey.START_IMG, TensorKey.END_IMG]
     output_tensor_keys = [TensorKey.IMAGE_EMBEDS]
 
@@ -80,17 +80,17 @@ class VAEEncodeSpatialNode(KsanaInferNode):
 
 
 @InferNodeFactory.register(
-    KsanaInferNodeType.VAE_ENCODE_IMAGES,
-    [KsanaModelKey.VAE_WAN2_1, KsanaModelKey.VAE_WAN2_2, KsanaModelKey.QwenImageVAE],
+    InferNodeType.VAE_ENCODE_IMAGES,
+    [ModelKey.VAE_WAN2_1, ModelKey.VAE_WAN2_2, ModelKey.QwenImageVAE],
 )
-class VAEEncodeImagesNode(KsanaInferNode):
+class VAEEncodeImagesNode(InferNode):
     """VAE 图片编码 — rank 0 执行后 broadcast 到所有卡。
 
     将参考图（单张或多张）编码为 latent，纯空间编码，不涉及时序。
     用于 Edit（图片编辑参考图）、VACE（帧级编码）等场景。
     """
 
-    dispatch_policy = KsanaDispatchPolicy.R0_R0_BCAST
+    dispatch_policy = NodeDispatchPolicy.R0_R0_BCAST
     input_tensor_keys = [TensorKey.IMAGE]
     output_tensor_keys = [TensorKey.IMAGE_EMBEDS]
 

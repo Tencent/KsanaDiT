@@ -16,8 +16,8 @@
 import torch
 
 from kdit import get_engine
-from kdit.nodes.core.node_context import KsanaNodeContext
-from kdit.nodes.core.node_types import KsanaInferNodeType
+from kdit.nodes.core.node_context import NodeContext
+from kdit.nodes.core.node_types import InferNodeType
 from kdit.tensor import TensorKey
 from kdit.utils import log
 
@@ -67,7 +67,7 @@ class EmptyLatentNode:
 
         kdit_engine = get_engine()
         log.info(f"encoder vae: {vae}")
-        context = KsanaNodeContext(
+        context = NodeContext(
             metadata={
                 "target_f": num_frames,
                 "target_h": height,
@@ -76,7 +76,7 @@ class EmptyLatentNode:
             }
         )
         with kdit_engine.tensor_scope(keep=[TensorKey.LATENTS]):
-            kdit_engine.run_infer_node(KsanaInferNodeType.VAE_ENCODE_SPATIAL, vae, context)
+            kdit_engine.run_infer_node(InferNodeType.VAE_ENCODE_SPATIAL, vae, context)
             kdit_engine.rename_tensor(TensorKey.IMAGE_EMBEDS, TensorKey.LATENTS)
 
         return (EmptyLatentOutput(samples=TensorKey.LATENTS),)

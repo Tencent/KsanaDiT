@@ -16,7 +16,7 @@ import numpy as np
 import torch
 
 from ..config.cache_config import DCacheConfig
-from ..models.model_key import KsanaModelKey
+from ..models.model_key import ModelKey
 from ..utils import log
 from ..utils.torch_compile import disable_dynamo
 from ..utils.types import evolve_with_recommend
@@ -26,14 +26,14 @@ __all__ = ["DCache"]
 
 # TODO(TJ): remove me use params in yaml
 DCACHE_COEFFS_MAPS = {
-    KsanaModelKey.Wan2_2_T2V_14B: [
+    ModelKey.Wan2_2_T2V_14B: [
         1.79787941e-06,
         -6.73669299e-03,
         9.45476817e00,
         -5.89111662e03,
         1.37508591e06,
     ],
-    KsanaModelKey.Wan2_1_VACE_14B: [
+    ModelKey.Wan2_1_VACE_14B: [
         1.79787941e-06,
         -6.73669299e-03,
         9.45476817e00,
@@ -44,23 +44,23 @@ DCACHE_COEFFS_MAPS = {
 
 # TODO(TJ): remove me use params in yaml
 RECOMMEND_DCACHE_CONFIGS = {
-    KsanaModelKey.Wan2_2_T2V_14B: DCacheConfig(
-        name=KsanaModelKey.Wan2_2_T2V_14B.name,
+    ModelKey.Wan2_2_T2V_14B: DCacheConfig(
+        name=ModelKey.Wan2_2_T2V_14B.name,
         fast_degree=70,
         slow_degree=35,
         fast_force_calc_every_n_step=1,
         slow_force_calc_every_n_step=5,
     ),
-    KsanaModelKey.Wan2_1_VACE_14B: DCacheConfig(
-        name=KsanaModelKey.Wan2_1_VACE_14B.name,
+    ModelKey.Wan2_1_VACE_14B: DCacheConfig(
+        name=ModelKey.Wan2_1_VACE_14B.name,
         fast_degree=70,
         slow_degree=35,
         fast_force_calc_every_n_step=1,
         slow_force_calc_every_n_step=5,
     ),
     # # TODO(TJ): differ high and low
-    # KsanaModelKey.Wan2_2_T2V_14B: DCacheConfig(
-    #     name=KsanaModelKey.Wan2_2_T2V_14B.name,
+    # ModelKey.Wan2_2_T2V_14B: DCacheConfig(
+    #     name=ModelKey.Wan2_2_T2V_14B.name,
     #     fast_degree=65,
     #     slow_degree=25,
     #     fast_force_calc_every_n_step=2,
@@ -69,7 +69,7 @@ RECOMMEND_DCACHE_CONFIGS = {
 }
 
 
-def _get_coeffs(model_key: KsanaModelKey):
+def _get_coeffs(model_key: ModelKey):
     try:
         return DCACHE_COEFFS_MAPS[model_key]
     except KeyError:
@@ -77,7 +77,7 @@ def _get_coeffs(model_key: KsanaModelKey):
 
 
 class DCache(KsanaStepCache):
-    def __init__(self, model_key: KsanaModelKey, config: DCacheConfig, is_high: bool = False):
+    def __init__(self, model_key: ModelKey, config: DCacheConfig, is_high: bool = False):
         super().__init__(model_key, config)
         self.config = evolve_with_recommend(config, RECOMMEND_DCACHE_CONFIGS[model_key])
         self.degree_func = np.poly1d(_get_coeffs(model_key))

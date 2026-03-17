@@ -15,7 +15,7 @@
 from enum import Enum, auto
 
 
-class KsanaDispatchPolicy(Enum):
+class NodeDispatchPolicy(Enum):
     """Node 的多卡调度策略 — 三维度拼接命名：input_exec_output。
 
     每个策略隐含三个维度：
@@ -35,7 +35,7 @@ class KsanaDispatchPolicy(Enum):
     ALL_R0_R0 = auto()
 
 
-class KsanaInferNodeType(Enum):
+class InferNodeType(Enum):
     """Infer Node 类型枚举，用于 InferNodeFactory 的二级注册键。"""
 
     TEXT_ENCODE = auto()

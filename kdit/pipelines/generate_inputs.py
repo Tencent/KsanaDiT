@@ -20,8 +20,8 @@ Pipeline 特有的输入由 ContextBuilder.prepare_generate_inputs() 管理，
 
 from dataclasses import dataclass
 
-from kdit.config import KsanaRuntimeConfig, KsanaSampleConfig
-from kdit.config.cache_config import KsanaCacheConfig, KsanaHybridCacheConfig
+from kdit.config import KsanaSampleConfig, RuntimeConfig
+from kdit.config.cache_config import HybridCacheConfig, KsanaCacheConfig
 
 
 @dataclass
@@ -42,6 +42,6 @@ class GenerateInputs:
     prompt_negative: str | list[str] | None
     num_prompts: int
     sample_config: KsanaSampleConfig
-    runtime_config: KsanaRuntimeConfig
-    cache_config: list[KsanaCacheConfig | KsanaHybridCacheConfig] | None
+    runtime_config: RuntimeConfig
+    cache_config: list[KsanaCacheConfig | HybridCacheConfig] | None
     has_lora: bool

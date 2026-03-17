@@ -18,23 +18,23 @@
 结果写入 tensor_pool。
 """
 
-from kdit.models.model_key import KsanaModelKey
+from kdit.models.model_key import ModelKey
 from kdit.tensor import TensorKey
 from kdit.utils import log
 
-from ..core.base_node import KsanaInferNode
+from ..core.base_node import InferNode
 from ..core.node_factory import InferNodeFactory
-from ..core.node_types import KsanaDispatchPolicy, KsanaInferNodeType
+from ..core.node_types import InferNodeType, NodeDispatchPolicy
 
 
 @InferNodeFactory.register(
-    KsanaInferNodeType.VAE_DECODE,
-    [KsanaModelKey.VAE_WAN2_1, KsanaModelKey.VAE_WAN2_2, KsanaModelKey.QwenImageVAE],
+    InferNodeType.VAE_DECODE,
+    [ModelKey.VAE_WAN2_1, ModelKey.VAE_WAN2_2, ModelKey.QwenImageVAE],
 )
-class VAEDecodeNode(KsanaInferNode):
+class VAEDecodeNode(InferNode):
     """VAE 解码 — 只在 rank 0 执行，不广播。"""
 
-    dispatch_policy = KsanaDispatchPolicy.ALL_R0_R0
+    dispatch_policy = NodeDispatchPolicy.ALL_R0_R0
     input_tensor_keys = [TensorKey.LATENTS]
     output_tensor_keys = [TensorKey.VIDEO]
 

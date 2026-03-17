@@ -20,9 +20,9 @@ import torch
 from ..accelerator import platform
 from ..config import KsanaDistributedConfig
 from ..distributed import shard_model
-from ..models.model_key import KsanaModelKey
-from ..models.model_pool import KsanaModelPool
-from ..nodes.core.device_context import KsanaDeviceContext
+from ..models.model_key import ModelKey
+from ..models.model_pool import ModelPool
+from ..nodes.core.device_context import NodeDeviceContext
 from ..tensor import TensorPool
 from ..utils import log
 from ..utils.logger import reset_logging
@@ -51,7 +51,7 @@ class KsanaExecutor(ABC):
         self.offload_device = torch.device(offload_device)
         torch.cuda.set_device(self.device)
         # Note: each executor has its own model pool for nodes call, and pipeline own engine then can use executors
-        self.model_pool = KsanaModelPool()
+        self.model_pool = ModelPool()
         self.shard_fn = None
         self.dist_config = KsanaDistributedConfig(num_gpus=1, use_sp=False, dit_fsdp=False, ulysses_size=1)
 
@@ -87,7 +87,7 @@ class KsanaExecutor(ABC):
         self.dist_group.init(rank_id, self.world_size)
         self.device_ctx = self._build_device_ctx(self.device, self.offload_device, rank_id, self.world_size)
 
-    def clear_models(self, model_keys: list[KsanaModelKey] | KsanaModelKey = None):
+    def clear_models(self, model_keys: list[ModelKey] | ModelKey = None):
         if self.model_pool is None:
             return
         self.model_pool.clear_models(model_keys)
@@ -98,17 +98,17 @@ class KsanaExecutor(ABC):
     # ── V5 Node 架构：统一入口 ──────────────────────────────────────────
 
     @staticmethod
-    def _build_device_ctx(device, offload_device, rank_id, world_size) -> KsanaDeviceContext:
+    def _build_device_ctx(device, offload_device, rank_id, world_size) -> NodeDeviceContext:
         """构建 KsanaDeviceContext。"""
-        return KsanaDeviceContext(device=device, offload_device=offload_device, rank_id=rank_id, world_size=world_size)
+        return NodeDeviceContext(device=device, offload_device=offload_device, rank_id=rank_id, world_size=world_size)
 
     def run_loader_node(self, model_key, **kwargs):
-        """统一的模型加载入口 — 根据 KsanaDispatchPolicy 决定是否执行。
+        """统一的模型加载入口 — 根据 NodeDispatchPolicy 决定是否执行。
 
         自动注入 Executor 级别的 dist_config 和 shard_fn（Node 无需关心来源）。
         """
         from ..nodes.core.node_factory import LoaderNodeFactory
-        from ..nodes.core.node_types import KsanaDispatchPolicy
+        from ..nodes.core.node_types import NodeDispatchPolicy
 
         kwargs.setdefault("dist_config", self.dist_config)
         kwargs.setdefault("shard_fn", self.shard_fn)
@@ -116,16 +116,16 @@ class KsanaExecutor(ABC):
         node = LoaderNodeFactory.create(model_key)
         policy = node.dispatch_policy
 
-        if policy == KsanaDispatchPolicy.ALL_ALL_ALL or self.device_ctx.rank_id == 0:
+        if policy == NodeDispatchPolicy.ALL_ALL_ALL or self.device_ctx.rank_id == 0:
             node.run(model_key, model_pool=self.model_pool, device_ctx=self.device_ctx, **kwargs)
 
     def run_infer_node(self, infer_node_type, model_key, context):
-        """统一的前向推理入口 — 根据 KsanaDispatchPolicy 决定执行 + 同步。
+        """统一的前向推理入口 — 根据 NodeDispatchPolicy 决定执行 + 同步。
 
         结果写入 tensor_pool，不返回值。外部通过 engine.get_tensor() 获取输出。
         """
         from ..nodes.core.node_factory import InferNodeFactory
-        from ..nodes.core.node_types import KsanaDispatchPolicy
+        from ..nodes.core.node_types import NodeDispatchPolicy
 
         node = InferNodeFactory.create(infer_node_type, model_key)
         policy = node.dispatch_policy
@@ -135,7 +135,7 @@ class KsanaExecutor(ABC):
         # 这样 Node 内部不需要感知多卡，executor 负责 tensor 的 pre-sync 和 post-sync
         self._pre_sync_tensors(node, policy)
 
-        is_active_rank = policy == KsanaDispatchPolicy.ALL_ALL_ALL or self.device_ctx.rank_id == 0
+        is_active_rank = policy == NodeDispatchPolicy.ALL_ALL_ALL or self.device_ctx.rank_id == 0
         if is_active_rank:
             node.run(
                 model_key,
@@ -159,9 +159,9 @@ class KsanaExecutor(ABC):
 
         当前实现：R0_R0_BCAST 时 broadcast output_tensor_keys 到所有卡。
         """
-        from ..nodes.core.node_types import KsanaDispatchPolicy
+        from ..nodes.core.node_types import NodeDispatchPolicy
 
-        if policy == KsanaDispatchPolicy.R0_R0_BCAST and self.device_ctx.world_size > 1:
+        if policy == NodeDispatchPolicy.R0_R0_BCAST and self.device_ctx.world_size > 1:
             self.dist_group.broadcast_tensors(
                 tensor_pool=self.tensor_pool,
                 keys=node.output_tensor_keys,

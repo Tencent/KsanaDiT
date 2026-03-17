@@ -14,11 +14,11 @@
 
 from dataclasses import dataclass, field
 
-from .base import KsanaStepCacheConfig
+from .base import StepCacheConfig
 
 
 @dataclass
-class MagCacheConfig(KsanaStepCacheConfig):
+class MagCacheConfig(StepCacheConfig):
     name: str = field(default="MagCache")
     threshold: float | None = field(default=None)
     k: int | None = field(default=None)

@@ -19,17 +19,17 @@ from unittest.mock import MagicMock, patch
 
 import torch
 
-from kdit.config import KsanaRuntimeConfig
-from kdit.config.cache_config import KsanaStepCacheConfig
+from kdit.config import RuntimeConfig
+from kdit.config.cache_config import StepCacheConfig
 from kdit.generators.steps.noise import create_cache, create_random_noise_latents
-from kdit.models.model_key import KsanaModelKey
+from kdit.models.model_key import ModelKey
 
 
 class TestCreateRandomNoiseLatents(unittest.TestCase):
     """create_random_noise_latents 创建随机噪声。"""
 
     def _make_runtime_config(self, seed=42):
-        return KsanaRuntimeConfig(
+        return RuntimeConfig(
             size=(512, 512),
             frame_num=16,
             seed=seed,
@@ -126,19 +126,19 @@ class TestCreateCache(unittest.TestCase):
     """create_cache 根据 cache_config 创建 hybrid cache 列表。"""
 
     def test_none_returns_none(self):
-        self.assertIsNone(create_cache(None, KsanaModelKey.Wan2_2_T2V_14B))
+        self.assertIsNone(create_cache(None, ModelKey.Wan2_2_T2V_14B))
 
     @patch("kdit.generators.steps.noise.create_hybrid_cache")
     def test_creates_cache_for_each_config(self, mock_create):
         mock_create.return_value = MagicMock(name="hybrid_cache")
-        step_cache = KsanaStepCacheConfig(name="teacache")
-        result = create_cache([step_cache, step_cache], KsanaModelKey.Wan2_2_T2V_14B)
+        step_cache = StepCacheConfig(name="teacache")
+        result = create_cache([step_cache, step_cache], ModelKey.Wan2_2_T2V_14B)
         self.assertEqual(len(result), 2)
         self.assertEqual(mock_create.call_count, 2)
 
     @patch("kdit.generators.steps.noise.create_hybrid_cache")
     def test_none_element_preserved(self, mock_create):
-        result = create_cache([None], KsanaModelKey.Wan2_2_T2V_14B)
+        result = create_cache([None], ModelKey.Wan2_2_T2V_14B)
         self.assertEqual(len(result), 1)
         self.assertIsNone(result[0])
         mock_create.assert_not_called()

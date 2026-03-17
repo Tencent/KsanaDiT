@@ -30,12 +30,12 @@ from pathlib import Path
 
 import torch
 
-from kdit.config import KsanaDistributedConfig, KsanaModelConfig, KsanaRuntimeConfig, KsanaSampleConfig
-from kdit.config.cache_config import KsanaCacheConfig, KsanaHybridCacheConfig
+from kdit.config import KsanaDistributedConfig, KsanaModelConfig, KsanaSampleConfig, RuntimeConfig
+from kdit.config.cache_config import HybridCacheConfig, KsanaCacheConfig
 from kdit.config.lora_config import KsanaLoraConfig
 from kdit.engine import get_engine
 from kdit.engine.engine import Engine
-from kdit.models.model_key import KsanaModelKey, get_model_key_from_path
+from kdit.models.model_key import DIFFUSION_KEYS, TEXT_ENCODER_KEYS, VAE_KEYS
 from kdit.settings import load_default_settings
 from kdit.tensor import TensorKey
 from kdit.utils import log
@@ -46,6 +46,7 @@ from kdit.utils.profile import TimeProfiler
 from .context_builder import ContextBuilder
 from .generate_inputs import GenerateInputs
 from .pipeline_def import PipelineDef, get_pipeline_def
+from .pipeline_key import get_pipeline_key_from_path
 
 # ── Pipeline 类 ─────────────────────────────────────────────────────────
 
@@ -65,9 +66,6 @@ class Pipeline:
         self._engine = engine
         self._offload_device = offload_device
         self._ctx_builder: ContextBuilder = pipeline_def.context_builder_cls()
-
-        # model_role -> actual model_key 的映射（load_models 时填充）
-        self._model_keys: dict[str, KsanaModelKey] = {}
 
         # 从 settings 加载的默认配置
         self._default_settings = None
@@ -108,7 +106,7 @@ class Pipeline:
             path = None
             if isinstance(model_path, (list, tuple)):
                 path = text_checkpoint_dir or vae_checkpoint_dir
-            pipeline_key = get_model_key_from_path(model_path if path is None else text_checkpoint_dir)
+            pipeline_key = get_pipeline_key_from_path(model_path if path is None else text_checkpoint_dir)
 
         # 获取 PipelineDef
         pipeline_def = get_pipeline_def(pipeline_key)
@@ -155,12 +153,8 @@ class Pipeline:
 
         # 按 load_phases 顺序加载
         for phase in self._def.load_phases:
-            role = phase.model_role
             model_key = phase.model_key
-            self._model_keys[role] = model_key
-
             kwargs = self._build_loader_kwargs(
-                role,
                 model_key,
                 load_model_path,
                 text_checkpoint_dir,
@@ -170,26 +164,26 @@ class Pipeline:
             )
             self._engine.run_loader_node(model_key, **kwargs)
 
-    def _build_loader_kwargs(self, role, model_key, model_path, text_dir, vae_dir, *, model_config, lora_list) -> dict:
-        """根据 model_role 构建 loader node 的 kwargs。"""
-        if role == "text_encoder":
+    def _build_loader_kwargs(self, model_key, model_path, text_dir, vae_dir, *, model_config, lora_list) -> dict:
+        """根据 ModelKey 类别构建 loader node 的 kwargs。"""
+        if model_key in TEXT_ENCODER_KEYS:
             return {"model_path": text_dir}
-        if role == "diffusion":
+        if model_key in DIFFUSION_KEYS:
             kwargs = {"model_path": model_path, "model_config": model_config}
             if lora_list:
                 kwargs["lora_config"] = lora_list
             return kwargs
-        if role == "vae":
+        if model_key in VAE_KEYS:
             vae_ckpt = getattr(self._default_settings, "vae", None)
             vae_checkpoint = vae_ckpt.checkpoint if vae_ckpt else ""
             return {"model_path": os.path.join(vae_dir, vae_checkpoint)}
-        # 未知 role — 默认传 model_path
+        # 未知类别 — 默认传 model_path
         return {"model_path": model_path}
 
     def clear(self):
         """清理所有已加载的模型。"""
-        model_keys = list(self._model_keys.values())
-        if model_keys:
+        load_keys = [lp.model_key for lp in self._def.load_phases]
+        if load_keys:
             self._engine.cleanup_distributed()
 
     # ── Generate 阶段 ──────────────────────────────────────────────────
@@ -201,8 +195,8 @@ class Pipeline:
         *,
         prompt_negative: str | list[str] | None = None,
         sample_config: KsanaSampleConfig = None,
-        runtime_config: KsanaRuntimeConfig = None,
-        cache_config: list[KsanaCacheConfig | KsanaHybridCacheConfig] | None = None,
+        runtime_config: RuntimeConfig = None,
+        cache_config: list[KsanaCacheConfig | HybridCacheConfig] | None = None,
         **kwargs,
     ):
         """按 PipelineDef.infer_phases 执行推理 — 100% 兼容旧 API。
@@ -238,11 +232,12 @@ class Pipeline:
         )
 
         # ContextBuilder 提取特有输入（注入内部引用供 noise_shape / VACE 等计算）
+        vae_model_key = next((lp.model_key for lp in self._def.load_phases if lp.model_key in VAE_KEYS), None)
         self._ctx_builder.prepare_generate_inputs(
             inputs,
             _default_settings=self._default_settings,
             _engine=self._engine,
-            _vae_model_key=self._model_keys.get("vae"),
+            _vae_model_key=vae_model_key,
             **kwargs,
         )
 
@@ -263,8 +258,7 @@ class Pipeline:
                 node_ctx = self._ctx_builder.build_context(phase, inputs)
 
                 # 4. 执行
-                model_key = self._model_keys.get(phase.model_role) if phase.model_role else None
-                self._engine.run_infer_node(phase.node_type, model_key, node_ctx)
+                self._engine.run_infer_node(phase.node_type, phase.model_key, node_ctx)
 
             # 获取输出
             output_tv = self._engine.get_tensor(TensorKey.VIDEO)
@@ -319,7 +313,7 @@ def _valid_sample_config(sample_config, default_config):
 def _valid_runtime_config(runtime_config, default_config, num_prompts: int):
     """校验并合并 runtime_config。"""
     if runtime_config is None:
-        runtime_config = KsanaRuntimeConfig()
+        runtime_config = RuntimeConfig()
     if runtime_config.size is None:
         runtime_config.size = default_config.size
     if runtime_config.frame_num is None:

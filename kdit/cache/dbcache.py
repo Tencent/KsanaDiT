@@ -44,13 +44,13 @@ from .base_cache import KsanaBlockCache
 
 __all__ = ["DBCache", "DBCacheContext"]
 
-from ..models.model_key import KsanaModelKey
+from ..models.model_key import ModelKey
 from ..utils.torch_compile import disable_dynamo
 from ..utils.types import evolve_with_recommend
 
 RECOMMEND_DBCACHE_CONFIGS = {
-    KsanaModelKey.Wan2_2_T2V_14B: DBCacheConfig(
-        name=KsanaModelKey.Wan2_2_T2V_14B.name,
+    ModelKey.Wan2_2_T2V_14B: DBCacheConfig(
+        name=ModelKey.Wan2_2_T2V_14B.name,
         fn_compute_blocks=1,
         bn_compute_blocks=0,
         residual_diff_threshold=0.08,
@@ -162,7 +162,7 @@ class DBCache(KsanaBlockCache):
 
     def __init__(
         self,
-        model_key: KsanaModelKey,
+        model_key: ModelKey,
         config: DBCacheConfig,
     ):
         super().__init__(model_key.name, config)
