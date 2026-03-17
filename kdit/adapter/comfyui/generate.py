@@ -26,7 +26,7 @@ from kdit.tensor import TensorKey
 from kdit.utils import log
 from kdit.utils.env import KSANA_PROFILE
 from kdit.utils.monitor import report
-from kdit.utils.profile import HierarchicalProfiler, MemoryProfiler
+from kdit.utils.profile import MemoryProfiler, TimeProfiler
 from kdit.utils.vace import prepare_video_control_config
 
 from .output_types import KsanaNodeGeneratorOutput
@@ -151,7 +151,7 @@ def generate(  # noqa: C901
     kdit_engine = get_engine()
 
     # 启动层级 profiler session（仅在 KSANA_PROFILE=1 时生效）
-    _profiler = HierarchicalProfiler.start_session("comfyui_generate") if KSANA_PROFILE else None
+    _profiler = TimeProfiler.start_session("comfyui_generate") if KSANA_PROFILE else None
 
     MemoryProfiler.record_memory("before_kdit_engine_generate_with_tensors")
 

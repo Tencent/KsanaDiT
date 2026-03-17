@@ -22,8 +22,7 @@ from kdit.nodes.core.node_types import KsanaInferNodeType
 from kdit.tensor import TensorKey
 
 from ..context_builders.wan import WanT2VContextBuilder
-from ..pipeline import register_pipeline_def
-from ..pipeline_def import PipelineDefBuilder
+from ..pipeline_def import PipelineDefBuilder, register_pipeline_def
 from ..pipeline_key import PipelineKey
 
 WAN_T2V_14B_DEF = register_pipeline_def(

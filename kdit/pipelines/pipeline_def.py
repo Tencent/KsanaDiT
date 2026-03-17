@@ -29,42 +29,11 @@ from dataclasses import dataclass
 from kdit.models.model_key import KsanaModelKey
 from kdit.nodes.core.node_types import KsanaInferNodeType
 from kdit.tensor import TensorKey
+from kdit.utils import log
 
 from .context_builder import ContextBuilder
 from .pipeline_key import PipelineKey
-
-# ── 数据类 ──────────────────────────────────────────────────────────────
-
-
-@dataclass(frozen=True)
-class LoadPhase:
-    """模型加载阶段 — 声明一个需要加载的模型。
-
-    Attributes:
-        model_role: 角色名（如 "text_encoder", "diffusion", "vae"），
-                    在 InferPhase 中通过同名引用。
-        model_key: 具体的模型 key。
-    """
-
-    model_role: str
-    model_key: KsanaModelKey
-
-
-@dataclass(frozen=True)
-class InferPhase:
-    """推理阶段 — 声明一个 InferNode 的执行。
-
-    Attributes:
-        node_type: InferNode 类型枚举。
-        model_role: 关联的 model_role（与 LoadPhase 对应），
-                    SaveNode 等无模型 Node 为 None。
-        condition: ContextBuilder 上的条件方法名，
-                   为 None 时无条件执行。
-    """
-
-    node_type: KsanaInferNodeType
-    model_role: str | None = None
-    condition: str | None = None
+from .pipeline_phase import InferPhase, LoadPhase
 
 
 @dataclass(frozen=True)
@@ -194,3 +163,26 @@ class _InferPhaseChain:
     def __getattr__(self, name):
         """代理到 PipelineDefBuilder — 允许不调用 .when() 直接继续链式构建。"""
         return getattr(self._builder, name)
+
+
+# ── PipelineDef 注册表 ──────────────────────────────────────────────────
+
+_PIPELINE_DEF_REGISTRY: dict[PipelineKey, PipelineDef] = {}
+
+
+def register_pipeline_def(pipeline_def: PipelineDef) -> PipelineDef:
+    """注册一个 PipelineDef 到全局注册表。"""
+    key = pipeline_def.pipeline_key
+    if key in _PIPELINE_DEF_REGISTRY:
+        log.warning(f"PipelineDef for {key} is being overwritten.")
+    _PIPELINE_DEF_REGISTRY[key] = pipeline_def
+    return pipeline_def
+
+
+def get_pipeline_def(pipeline_key) -> PipelineDef:
+    """从全局注册表获取 PipelineDef。"""
+    if pipeline_key not in _PIPELINE_DEF_REGISTRY:
+        raise KeyError(
+            f"No PipelineDef registered for {pipeline_key}. " f"Available: {list(_PIPELINE_DEF_REGISTRY.keys())}"
+        )
+    return _PIPELINE_DEF_REGISTRY[pipeline_key]

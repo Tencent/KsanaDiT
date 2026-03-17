@@ -21,9 +21,15 @@ from .defs import wan_i2v as _wan_i2v  # noqa: F401  # pylint: disable=unused-im
 from .defs import wan_t2v as _wan_t2v  # noqa: F401  # pylint: disable=unused-import
 from .defs import wan_vace as _wan_vace  # noqa: F401  # pylint: disable=unused-import
 from .generate_inputs import GenerateInputs
-from .pipeline import Pipeline, get_pipeline_def, register_pipeline_def
-from .pipeline_def import InferPhase, LoadPhase, PipelineDef, PipelineDefBuilder
+from .pipeline import Pipeline
+from .pipeline_def import (
+    PipelineDef,
+    PipelineDefBuilder,
+    get_pipeline_def,
+    register_pipeline_def,
+)
 from .pipeline_key import PipelineKey
+from .pipeline_phase import InferPhase, LoadPhase
 
 __all__ = [
     "Pipeline",

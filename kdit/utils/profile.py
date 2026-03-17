@@ -266,12 +266,12 @@ class ProfileNode:
     _start_time: float = field(default=0.0, repr=False)
 
 
-class HierarchicalProfiler:
+class TimeProfiler:
     """层级式 Profiler — 线程局部单例，通过栈维护父子关系。
 
     用法::
 
-        profiler = HierarchicalProfiler.start_session("pipeline_generate")
+        profiler = TimeProfiler.start_session("pipeline_generate")
         with profile_range("step_0", annotation="timestep=1.0"):
             with profile_range("model_forward"):
                 ...
@@ -289,14 +289,14 @@ class HierarchicalProfiler:
         self._finished = False
 
     @classmethod
-    def start_session(cls, name: str) -> HierarchicalProfiler:
+    def start_session(cls, name: str) -> TimeProfiler:
         """启动一个新的 profiler session（线程局部）。"""
         profiler = cls(name)
         cls._local.current_profiler = profiler
         return profiler
 
     @classmethod
-    def get_current(cls) -> HierarchicalProfiler | None:
+    def get_current(cls) -> TimeProfiler | None:
         """获取当前线程的活跃 profiler，无则返回 None。"""
         return getattr(cls._local, "current_profiler", None)
 
@@ -380,7 +380,7 @@ class HierarchicalProfiler:
 
 
 class profile_range:  # pylint: disable=invalid-name
-    """层级式计时 — 自动挂到 HierarchicalProfiler 树上。
+    """层级式计时 — 自动挂到 TimeProfiler 树上。
 
     无活跃 session 时退化为普通 time_range。
     支持 with 语句和装饰器两种用法。
@@ -402,7 +402,7 @@ class profile_range:  # pylint: disable=invalid-name
 
     def __init__(self, name_or_func: Callable | str | None = None, *, annotation: str | None = None):
         self._annotation = annotation
-        self._profiler: HierarchicalProfiler | None = None
+        self._profiler: TimeProfiler | None = None
         self._fallback_timer: Timer | None = None
 
         if callable(name_or_func):
@@ -415,7 +415,7 @@ class profile_range:  # pylint: disable=invalid-name
 
     def __enter__(self):
         if KSANA_PROFILE:
-            self._profiler = HierarchicalProfiler.get_current()
+            self._profiler = TimeProfiler.get_current()
         if self._profiler is not None:
             self._profiler.begin(self._name, self._annotation)
         else:

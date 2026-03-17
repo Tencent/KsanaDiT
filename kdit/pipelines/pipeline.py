@@ -23,12 +23,10 @@ ContextBuilder 负责为每个 InferPhase 构建 NodeContext。
     output = pipeline.generate(prompt, sample_config=..., runtime_config=...)
 """
 
-from __future__ import annotations
 
 import gc
 import os
 from pathlib import Path
-from typing import Any
 
 import torch
 
@@ -43,34 +41,11 @@ from kdit.tensor import TensorKey
 from kdit.utils import log
 from kdit.utils.env import KSANA_PROFILE
 from kdit.utils.monitor import report
-from kdit.utils.profile import HierarchicalProfiler
+from kdit.utils.profile import TimeProfiler
 
 from .context_builder import ContextBuilder
 from .generate_inputs import GenerateInputs
-from .pipeline_def import PipelineDef
-
-# ── PipelineDef 注册表 ──────────────────────────────────────────────────
-
-_PIPELINE_DEF_REGISTRY: dict[Any, PipelineDef] = {}
-
-
-def register_pipeline_def(pipeline_def: PipelineDef) -> PipelineDef:
-    """注册一个 PipelineDef 到全局注册表。"""
-    key = pipeline_def.pipeline_key
-    if key in _PIPELINE_DEF_REGISTRY:
-        log.warning(f"PipelineDef for {key} is being overwritten.")
-    _PIPELINE_DEF_REGISTRY[key] = pipeline_def
-    return pipeline_def
-
-
-def get_pipeline_def(pipeline_key) -> PipelineDef:
-    """从全局注册表获取 PipelineDef。"""
-    if pipeline_key not in _PIPELINE_DEF_REGISTRY:
-        raise KeyError(
-            f"No PipelineDef registered for {pipeline_key}. " f"Available: {list(_PIPELINE_DEF_REGISTRY.keys())}"
-        )
-    return _PIPELINE_DEF_REGISTRY[pipeline_key]
-
+from .pipeline_def import PipelineDef, get_pipeline_def
 
 # ── Pipeline 类 ─────────────────────────────────────────────────────────
 
@@ -120,7 +95,7 @@ class Pipeline:
         vae_checkpoint_dir=None,
         lora_config: KsanaLoraConfig | list[KsanaLoraConfig] | None = None,
         offload_device="cpu",
-    ) -> Pipeline:
+    ):
         """从模型路径创建 Pipeline — 100% 兼容旧 API。"""
         log.info(f"Loading models from {model_path}")
 
@@ -229,7 +204,7 @@ class Pipeline:
         runtime_config: KsanaRuntimeConfig = None,
         cache_config: list[KsanaCacheConfig | KsanaHybridCacheConfig] | None = None,
         **kwargs,
-    ) -> Any:
+    ):
         """按 PipelineDef.infer_phases 执行推理 — 100% 兼容旧 API。
 
         公共参数在此校验，Pipeline 特有参数通过 **kwargs 传给 ContextBuilder。
@@ -244,7 +219,7 @@ class Pipeline:
         cache_config = _valid_cache_config(cache_config, getattr(self._default_settings, "cache", None))
 
         # 启动层级 profiler session（仅在 KSANA_PROFILE=1 时生效）
-        _profiler = HierarchicalProfiler.start_session("pipeline_generate") if KSANA_PROFILE else None
+        _profiler = TimeProfiler.start_session("pipeline_generate") if KSANA_PROFILE else None
 
         log.info(f"generate prompt: {prompt}")
         log.info(f"sample_config : {sample_config}")

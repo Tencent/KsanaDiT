@@ -34,7 +34,7 @@ from kdit.nodes.core.node_context import KsanaNodeContext
 from kdit.tensor import TensorKey
 
 from .generate_inputs import GenerateInputs
-from .pipeline_def import InferPhase
+from .pipeline_phase import InferPhase
 
 
 class ContextBuilder(ABC):

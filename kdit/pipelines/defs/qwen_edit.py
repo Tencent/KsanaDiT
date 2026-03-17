@@ -23,8 +23,7 @@ from kdit.nodes.core.node_types import KsanaInferNodeType
 from kdit.tensor import TensorKey
 
 from ..context_builders.qwen import QwenEditContextBuilder
-from ..pipeline import register_pipeline_def
-from ..pipeline_def import PipelineDefBuilder
+from ..pipeline_def import PipelineDefBuilder, register_pipeline_def
 from ..pipeline_key import PipelineKey
 
 QWEN_EDIT_DEF = register_pipeline_def(
