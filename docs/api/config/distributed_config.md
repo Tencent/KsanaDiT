@@ -1,0 +1,3 @@
+# DistributedConfig
+
+::: kdit.config.DistributedConfig

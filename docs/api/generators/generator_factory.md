@@ -1,0 +1,3 @@
+# GeneratorFactory
+
+::: kdit.generators.GeneratorFactory

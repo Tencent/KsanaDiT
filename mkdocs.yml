@@ -1,0 +1,218 @@
+site_name: kDiT
+site_description: High-Performance DiT Inference Framework
+site_url: https://github.com/Tencent/kDiT
+repo_url: https://github.com/Tencent/kDiT
+repo_name: Tencent/kDiT
+
+theme:
+  name: material
+  language: en
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.code.annotate
+  icon:
+    repo: fontawesome/brands/github
+
+plugins:
+  - search
+  - i18n:
+      docs_structure: suffix
+      languages:
+        - locale: en
+          default: true
+          name: English
+          build: true
+        - locale: zh
+          name: 中文
+          build: true
+          nav_translations:
+            Home: 首页
+            Architecture: 架构概览
+            User Guide: 用户指南
+            Local Usage: 本地使用指南
+            ComfyUI Usage: ComfyUI 使用指南
+            ComfyUI Nodes: ComfyUI 节点参考
+            Supported Models: 支持的模型
+            API Reference: API 参考
+            Engine: 引擎
+            Pipeline: 流水线
+            PipelineDef: 流水线定义
+            ContextBuilder: 上下文构建器
+            PipelineKey: 流水线标识
+            Config: 配置
+            ModelConfig: 模型配置
+            SampleConfig: 采样配置
+            RuntimeConfig: 运行时配置
+            AttentionConfig: 注意力配置
+            LinearConfig: 线性层配置
+            DistributedConfig: 分布式配置
+            CacheConfig: 缓存配置
+            TorchCompileConfig: 编译配置
+            Nodes: 节点
+            Core: 核心
+            Infer Nodes: 推理节点
+            Loader Nodes: 加载节点
+            Models: 模型
+            Generators: 生成器
+            BaseGenerator: 基础生成器
+            WanGenerator: Wan 生成器
+            QwenGenerator: Qwen 生成器
+            VaceGenerator: Vace 生成器
+            GeneratorFactory: 生成器工厂
+            Executor: 执行器
+            RayExecutor: Ray 执行器
+            DistributedGroup: 分布式组
+            Operations: 算子
+            Attention: 注意力
+            Linear: 线性层
+            QKV Fusion: QKV 融合
+            Cache: 缓存
+            BaseCache: 基础缓存
+            Tensor: 张量
+            Accelerator: 加速器
+            Sample Solvers: 采样求解器
+            Scheduler: 调度器
+            Memory: 内存管理
+            Utilities: 工具函数
+  - mkdocstrings:
+      default_handler: python
+      handlers:
+        python:
+          options:
+            show_source: true
+            show_root_heading: true
+            show_root_full_path: false
+            show_symbol_type_heading: true
+            show_symbol_type_toc: true
+            members_order: source
+            docstring_style: google
+            merge_init_into_class: true
+            show_if_no_docstring: false
+            inherited_members: false
+            signature_crossrefs: true
+          paths: ["."]
+  - mermaid2
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:mermaid2.fence_mermaid_custom
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.arithmatex:
+      generic: true
+  - attr_list
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+
+extra_javascript:
+  - https://polyfill.io/v3/polyfill.min.js?features=es6
+  - https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js
+
+nav:
+  - Home: index.md
+  - Architecture: architecture.md
+  - User Guide:
+      - guide/index.md
+      - Local Usage: guide/local-usage.md
+      - ComfyUI Usage: guide/comfyui-usage.md
+      - ComfyUI Nodes: guide/comfyui-nodes.md
+      - Supported Models: guide/supported-models.md
+  - API Reference:
+      - api/index.md
+      - Engine: api/engine.md
+      - Pipeline:
+          - api/pipeline/index.md
+          - Pipeline: api/pipeline/pipeline.md
+          - PipelineDef: api/pipeline/pipeline_def.md
+          - ContextBuilder: api/pipeline/context_builder.md
+          - PipelineKey: api/pipeline/pipeline_key.md
+      - Config:
+          - api/config/index.md
+          - ModelConfig: api/config/model_config.md
+          - SampleConfig: api/config/sample_config.md
+          - RuntimeConfig: api/config/runtime_config.md
+          - AttentionConfig: api/config/attention_config.md
+          - LinearConfig: api/config/linear_config.md
+          - DistributedConfig: api/config/distributed_config.md
+          - CacheConfig: api/config/cache_config.md
+          - TorchCompileConfig: api/config/torch_compile_config.md
+      - Nodes:
+          - api/nodes/index.md
+          - Core: api/nodes/core.md
+          - Infer Nodes: api/nodes/infers.md
+          - Loader Nodes: api/nodes/loaders.md
+      - Models:
+          - api/models/index.md
+          - ModelKey: api/models/model_key.md
+          - ModelPool: api/models/model_pool.md
+          - DiffusionModel: api/models/diffusion_model.md
+          - TextEncoderModel: api/models/text_encoder_model.md
+          - VAEModel: api/models/vae_model.md
+      - Generators:
+          - api/generators/index.md
+          - BaseGenerator: api/generators/base_generator.md
+          - WanGenerator: api/generators/wan_generator.md
+          - QwenGenerator: api/generators/qwen_generator.md
+          - VaceGenerator: api/generators/vace_generator.md
+          - GeneratorFactory: api/generators/generator_factory.md
+      - Executor:
+          - api/executor/index.md
+          - Executor: api/executor/executor.md
+          - RayExecutor: api/executor/ray_executor.md
+          - DistributedGroup: api/executor/distributed_group.md
+      - Operations:
+          - api/operations/index.md
+          - Attention: api/operations/attention.md
+          - Linear: api/operations/linear.md
+          - QKV Fusion: api/operations/fuse_qkv.md
+      - Cache:
+          - api/cache/index.md
+          - BaseCache: api/cache/base_cache.md
+          - TeaCache: api/cache/teacache.md
+          - DBCache: api/cache/dbcache.md
+          - DCache: api/cache/dcache.md
+          - EasyCache: api/cache/easycache.md
+          - MagCache: api/cache/magcache.md
+      - Tensor:
+          - api/tensor/index.md
+          - TensorPool: api/tensor/tensor_pool.md
+          - TensorKey: api/tensor/tensor_key.md
+      - Accelerator: api/accelerator.md
+      - Sample Solvers: api/sample_solvers.md
+      - Scheduler: api/scheduler.md
+      - Memory: api/memory.md
+      - Utilities: api/utils.md

@@ -1,0 +1,3 @@
+# ModelConfig
+
+::: kdit.config.ModelConfig

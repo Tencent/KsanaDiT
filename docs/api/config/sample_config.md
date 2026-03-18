@@ -1,0 +1,3 @@
+# SampleConfig
+
+::: kdit.config.SampleConfig

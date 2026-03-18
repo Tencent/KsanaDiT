@@ -1,0 +1,3 @@
+# DistributedGroup
+
+::: kdit.executor.DistributedGroupManager

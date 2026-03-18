@@ -1,0 +1,3 @@
+# VaceGenerator
+
+::: kdit.generators.VaceGenerator

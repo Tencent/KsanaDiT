@@ -1,0 +1,3 @@
+# Pipeline
+
+::: kdit.pipelines.Pipeline

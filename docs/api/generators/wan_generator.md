@@ -1,0 +1,3 @@
+# WanGenerator
+
+::: kdit.generators.WanGenerator

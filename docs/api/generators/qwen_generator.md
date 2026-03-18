@@ -1,0 +1,3 @@
+# QwenGenerator
+
+::: kdit.generators.QwenGenerator

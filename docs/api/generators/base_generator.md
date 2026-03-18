@@ -1,0 +1,3 @@
+# BaseGenerator
+
+::: kdit.generators.BaseGenerator

@@ -1,0 +1,3 @@
+# TorchCompileConfig
+
+::: kdit.config.KsanaTorchCompileConfig
