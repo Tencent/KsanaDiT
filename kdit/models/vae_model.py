@@ -14,7 +14,6 @@
 
 from abc import abstractmethod
 
-import numpy as np
 import torch
 
 from ..accelerator.platform import empty_cache
@@ -23,50 +22,10 @@ from ..utils.logger import log
 from ..utils.media import calculate_aligned_dimensions
 from ..utils.profile import time_profile
 from ..utils.vace import init_latent_stats
+from .latent_shape import compute_image_latent_shape, compute_video_latent_shape
 from .model_base import ModelBase
 from .qwen.vae import KsanaQwenImageVAE
 from .wan import Wan2_1_VAE, Wan2_2_VAE
-
-
-def compute_video_latent_shape(
-    z_dim: int,
-    target_f: int,
-    target_h: int,
-    target_w: int,
-    vae_stride: list[int],
-    vae_patch: list[int],
-    img_shape: list[int] | None = None,
-) -> tuple[int, int, int, int]:
-    """根据 VAE 配置计算视频 latent 形状 ``[z_dim, lat_f, lat_h, lat_w]``。
-
-    当提供 *img_shape* ``[bs, 3, ih, iw]`` 时，会按图片宽高比修正 latent 尺寸，
-    使 latent 面积 ≈ ``target_h * target_w / (stride * patch)^2`` 但宽高比与图片一致。
-    """
-    if img_shape is not None:
-        if len(img_shape) != 4 or img_shape[1] != 3:
-            raise ValueError(f"img_shape must be 4D [bs, 3, h, w], got {img_shape}")
-        img_h, img_w = img_shape[2], img_shape[3]
-    else:
-        img_h, img_w = target_h, target_w
-
-    lat_h = round(np.sqrt(target_w * target_h * (img_h / img_w)) // vae_stride[1] // vae_patch[1] * vae_patch[1])
-    lat_w = round(np.sqrt(target_w * target_h * (img_w / img_h)) // vae_stride[2] // vae_patch[2] * vae_patch[2])
-    lat_f = (target_f - 1) // vae_stride[0] + 1
-    return z_dim, lat_f, lat_h, lat_w
-
-
-def compute_image_latent_shape(
-    z_dim: int,
-    target_h: int,
-    target_w: int,
-    vae_scale_factor: int,
-    patch_size: int,
-) -> tuple[int, int, int, int]:
-    """根据 VAE 配置计算图像 latent 形状 ``[z_dim, 1, lat_h, lat_w]``。"""
-    multiple_of = vae_scale_factor * patch_size
-    lat_h = target_h // multiple_of * patch_size
-    lat_w = target_w // multiple_of * patch_size
-    return z_dim, 1, lat_h, lat_w
 
 
 class KsanaVAEModel(ModelBase):
@@ -320,13 +279,9 @@ class KsanaQwenVAEModel(KsanaVAEModel):
         )
 
         self.z_dim = self.model.z_dim
-        self.vae_stride_size = getattr(self.default_settings.vae, "stride", (4, 8, 8))
+        self.vae_stride_size = list(getattr(self.default_settings.vae, "stride", [4, 8, 8]))
         self.vae_patch_size = getattr(self.default_settings.diffusion, "patch_size", 2)
-        self.vae_scale_factor = getattr(self.default_settings.vae, "scale_factor", 8)
-        log.info(
-            f"z_dim {self.z_dim}, vae_stride {self.vae_stride_size}, "
-            f"vae_patch_size {self.vae_patch_size}, vae_scale_factor {self.vae_scale_factor}"
-        )
+        log.info(f"z_dim {self.z_dim}, vae_stride {self.vae_stride_size}, vae_patch_size {self.vae_patch_size}")
 
     VAE_IMAGE_SIZE = 1024 * 1024
 
@@ -389,6 +344,6 @@ class KsanaQwenVAEModel(KsanaVAEModel):
             z_dim=self.z_dim,
             target_h=target_h,
             target_w=target_w,
-            vae_scale_factor=self.vae_scale_factor,
-            patch_size=self.vae_patch_size,
+            vae_stride=list(vae_stride or self.vae_stride_size),
+            patch_size=vae_patch or self.vae_patch_size,
         )

@@ -25,7 +25,7 @@ import torch
 import torchvision.transforms.functional as tvtf
 from PIL import Image
 
-from kdit.models.vae_model import compute_image_latent_shape
+from kdit.models.latent_shape import compute_image_latent_shape
 from kdit.nodes.core.node_context import NodeContext
 from kdit.nodes.core.node_types import InferNodeType as NT
 from kdit.tensor import TensorKey
@@ -121,7 +121,7 @@ class QwenT2IContextBuilder(QwenContextBuilder):
                 z_dim=settings.vae.z_dim,
                 target_h=rc.size[1],
                 target_w=rc.size[0],
-                vae_scale_factor=settings.vae.vae_scale_factor,
+                vae_stride=list(settings.vae.stride),
                 patch_size=settings.diffusion.patch_size,
             )
         )
@@ -182,7 +182,7 @@ class QwenEditContextBuilder(QwenContextBuilder):
                 z_dim=settings.vae.z_dim,
                 target_h=rc.size[1],
                 target_w=rc.size[0],
-                vae_scale_factor=settings.vae.vae_scale_factor,
+                vae_stride=list(settings.vae.stride),
                 patch_size=settings.diffusion.patch_size,
             )
         )

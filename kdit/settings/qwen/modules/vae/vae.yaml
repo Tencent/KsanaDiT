@@ -17,6 +17,7 @@ vae:
   checkpoint : "vae"
   z_dim: 16
   stride : [1, 8, 8]
+  # TODO: maybe cloud remove scale_factor, using stride[1]/stride[2] instead
   scale_factor: 8
   attn_scales : []
   base_dim : 96

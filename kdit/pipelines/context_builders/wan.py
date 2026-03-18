@@ -29,8 +29,8 @@ from PIL import Image
 
 from kdit.config.lora_config import LoraConfig
 from kdit.engine import Engine
+from kdit.models.latent_shape import compute_video_latent_shape
 from kdit.models.model_key import ModelKey
-from kdit.models.vae_model import compute_video_latent_shape
 from kdit.nodes.core.node_context import NodeContext
 from kdit.nodes.core.node_types import InferNodeType as NT
 from kdit.tensor import TensorKey
