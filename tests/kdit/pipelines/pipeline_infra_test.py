@@ -643,7 +643,7 @@ class TestWanI2VContextBuilder(unittest.TestCase):
 def _make_qwen_settings():
     """创建模拟的 default_settings（Qwen 系列）。"""
     return SimpleNamespace(
-        vae=SimpleNamespace(z_dim=16, vae_scale_factor=8),
+        vae=SimpleNamespace(z_dim=16, stride=[1, 8, 8]),
         diffusion=SimpleNamespace(patch_size=2),
         sample_config=MagicMock(),
         runtime_config=MagicMock(),

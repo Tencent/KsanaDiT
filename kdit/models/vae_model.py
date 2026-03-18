@@ -73,7 +73,7 @@ class KsanaVAEModel(ModelBase):
             target_w=target_w,
             vae_stride=list(vae_stride or self.vae_stride_size),
             vae_patch=list(vae_patch or self.vae_patch_size),
-            img_shape=img_shape,
+            refer_image_shape=img_shape,
         )
 
     def forward_encode_image(
