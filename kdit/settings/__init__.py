@@ -76,6 +76,16 @@ def _ensure_pipeline_key_entries():
         }
     )
 
+    _MODEL_LORA_PATH_MAP.update(
+        {
+            PipelineKey.Wan2_2_T2V_14B: "wan/modules/config/lora.yaml",
+            PipelineKey.Wan2_2_I2V_14B: "wan/modules/config/lora.yaml",
+            PipelineKey.Wan2_1_VACE_14B: "wan/modules/config/lora.yaml",
+            PipelineKey.QwenImage_T2I: "qwen/modules/config/lora.yaml",
+            PipelineKey.QwenImage_Edit: "qwen/modules/config/lora.yaml",
+        }
+    )
+
 
 def load_default_settings(model_key, with_lora: bool = False):
     """加载默认配置。model_key 可以是 ModelKey 或 PipelineKey。"""

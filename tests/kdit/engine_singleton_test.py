@@ -21,14 +21,14 @@ These tests mock init_executors to avoid CUDA/Ray dependencies.
 import logging
 import threading
 import unittest
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from kdit.engine.engine import Engine, get_engine
 
 
 def _noop_init_executors(self, dist_config=None, offload_device=None):
     """Stub that skips real executor initialization."""
-    self.executors = "mock_executor"
+    self.executors = MagicMock()
 
 
 @patch.object(Engine, "init_executors", _noop_init_executors)
