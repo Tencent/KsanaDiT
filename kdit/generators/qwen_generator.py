@@ -45,10 +45,6 @@ class QwenGenerator(BaseGenerator):
             return embeds, mask
         raise ValueError(f"Unsupported conditioning format: {type(conditioning)}")
 
-    def preprocess_image_embeds(self, image_embeds):
-        """上游已统一为 list[Tensor]，此处仅做透传。"""
-        return image_embeds
-
     def _valid_prompts(self, positive: tuple, negative: tuple):
         pos, pos_mask = positive
         neg, neg_mask = negative

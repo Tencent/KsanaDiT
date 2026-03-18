@@ -25,6 +25,16 @@ from kdit.config.video_control_config import KsanaVideoControlConfig
 from kdit.models import KsanaDiffusionModel
 from kdit.utils.vace import VaceConfig
 
+# ── image_embeds 类型别名 ─────────────────────────────────────────────────
+# ImageEmbeds: 单个 Tensor，shape[0] = batch 维度。
+#   适用于 WAN I2V（单张首帧）、ComfyUI 单 prompt 等场景。
+ImageEmbeds = torch.Tensor
+
+# MultiPromptImageEmbeds: list[Tensor]，list 长度 = prompt 数量，
+#   每个 Tensor.shape[0] = 该 prompt 对应的参考图数量（num_refs）。
+#   适用于 Qwen Edit Pipeline（每个 prompt 可有不同参考图组）。
+MultiPromptImageEmbeds = list[torch.Tensor]
+
 
 @dataclass
 class GeneratorInferContext:
@@ -43,7 +53,7 @@ class GeneratorInferContext:
     # 输入 tensor
     positive: torch.Tensor | tuple = None
     negative: torch.Tensor | tuple = None
-    image_embeds: list[torch.Tensor] | None = None
+    image_embeds: ImageEmbeds | MultiPromptImageEmbeds | None = None
     input_latent: torch.Tensor | None = None
     noise_shape: list[int] | None = None
 

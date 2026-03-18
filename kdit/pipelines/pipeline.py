@@ -238,6 +238,7 @@ class Pipeline:
                 node_ctx = self._ctx_builder.build_context(phase, inputs)
 
                 # 4. 执行
+                log.info(f"run_infer_node {phase.node_type} {phase.model_key} with ctx {node_ctx}")
                 self._engine.run_infer_node(phase.node_type, phase.model_key, node_ctx)
 
             # 获取输出

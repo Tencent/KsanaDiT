@@ -73,9 +73,6 @@ class VAEEncodeSpatialNode(InferNode):
         )
 
         if image_embeds is not None:
-            # 统一为 list[Tensor]，I2V 场景包装为单元素 list
-            if not isinstance(image_embeds, list):
-                image_embeds = [image_embeds]
             tensor_pool.put(TensorKey.IMAGE_EMBEDS, image_embeds)
 
 
@@ -113,7 +110,4 @@ class VAEEncodeImagesNode(InferNode):
         )
 
         if image_embeds is not None:
-            # 统一为 list[Tensor]，单 tensor 包装为单元素 list
-            if not isinstance(image_embeds, list):
-                image_embeds = [image_embeds]
             tensor_pool.put(TensorKey.IMAGE_EMBEDS, image_embeds)

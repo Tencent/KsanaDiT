@@ -53,16 +53,18 @@ def _prepare_memory_for_kdit_models(model_key, latent_shape, run_dtype, comfy_de
         raise RuntimeError(f"Failed to prepare memory for kDiT models: {e}")
 
 
+# TODO： remove _resolve_latent_shape, 需要修改json直接用shape的节点
 def _resolve_latent_shape(kdit_engine, image_embeds, latent, diffusion_model_key):
-    """从 image_embeds key 或 latent 推导 latent_shape 和 image_embeds_list。
+    """从 image_embeds key 或 latent 推导 latent_shape 和 image_embeds_data。
 
     Returns:
-        (latent_shape, image_embeds_list)
+        (noise_shape, image_embeds_data, latent_shape)
+        - noise_shape: list[int] | None
+        - image_embeds_data: Tensor | list[Tensor] | None — 保持原始类型，用于 put_tensors
         - latent_shape: list[int] | None
-        - image_embeds_list: list[Tensor] | None — 裸 tensor list，用于 put_tensors
     """
     noise_shape = None
-    image_embeds_list = None
+    image_embeds_data = None
 
     # image_embeds.samples 是 TensorKey — 从 pool 取裸 tensor
     image_embeds_key = image_embeds.samples
@@ -74,20 +76,23 @@ def _resolve_latent_shape(kdit_engine, image_embeds, latent, diffusion_model_key
     tensor_value = kdit_engine.get_tensor(image_embeds_key)
     raw_data = tensor_value.data if tensor_value is not None else None
 
-    if isinstance(raw_data, list):
-        image_embeds_list = raw_data
-    elif raw_data is not None:
-        image_embeds_list = [raw_data]
+    # 保持原始类型：Tensor (ImageEmbeds) 或 list[Tensor] (MultiPromptImageEmbeds)
+    image_embeds_data = raw_data
+
+    def _first_tensor_shape(data):
+        """从 Tensor 或 list[Tensor] 中取第一个 Tensor 的 shape。"""
+        if isinstance(data, list):
+            return list(data[0].shape) if data else None
+        return list(data.shape) if data is not None else None
 
     # latent shape 推导
     if latent is not None:
         latent_key = latent.samples  # TensorKey
         tensor_value = kdit_engine.get_tensor(latent_key)
         latent_raw = tensor_value.data if tensor_value is not None else None
-        latent_shape = list(latent_raw[0].shape) if latent_raw is not None else None
-        image_embeds_list = image_embeds_list[0]
-    elif image_embeds_list is not None and len(image_embeds_list) > 0:
-        latent_shape = list(image_embeds_list[0].shape)
+        latent_shape = _first_tensor_shape(latent_raw)
+    elif image_embeds_data is not None:
+        latent_shape = _first_tensor_shape(image_embeds_data)
     else:
         latent_shape = None
 
@@ -95,15 +100,15 @@ def _resolve_latent_shape(kdit_engine, image_embeds, latent, diffusion_model_key
     if latent is not None and diffusion_model_key == ModelKey.QwenImage_Edit:
         tensor_value = kdit_engine.get_tensor(latent.samples)
         latent_raw = tensor_value.data if tensor_value is not None else None
-        noise_shape = list(latent_raw[0].shape[1:]) if latent_raw is not None else None
-        image_embeds_list = image_embeds_list[0]
+        first_shape = _first_tensor_shape(latent_raw)
+        noise_shape = first_shape[1:] if first_shape is not None else None
     elif diffusion_model_key == ModelKey.QwenImage_T2I:
         # T2I: image_embeds 仅用于提供输出 shape，不作为图像条件传入 generator
-        if image_embeds_list is not None and len(image_embeds_list) > 0:
-            noise_shape = list(image_embeds_list[0].shape[1:])
-        image_embeds_list = None
+        first_shape = _first_tensor_shape(image_embeds_data)
+        noise_shape = first_shape[1:] if first_shape is not None else None
+        image_embeds_data = None
 
-    return noise_shape, image_embeds_list, latent_shape
+    return noise_shape, image_embeds_data, latent_shape
 
 
 @report("comfyui_generate")
@@ -157,7 +162,7 @@ def generate(  # noqa: C901
 
     # 从 pool 中的 key 推导 shape 和裸 tensor
     # TODO: remove this way, add way empty noise latent or shape
-    noise_shape, image_embeds_list, latent_shape = _resolve_latent_shape(
+    noise_shape, image_embeds_data, latent_shape = _resolve_latent_shape(
         kdit_engine, image_embeds, latent, diffusion_model_key
     )
 
@@ -217,8 +222,8 @@ def generate(  # noqa: C901
 
     with kdit_engine.tensor_scope(keep=[TensorKey.LATENTS]):
         kdit_engine.put_tensors(**{TensorKey.POSITIVE: positive[0][0], TensorKey.NEGATIVE: negative[0][0]})
-        if image_embeds_list is not None:
-            kdit_engine.put_tensors(**{TensorKey.IMAGE_EMBEDS: image_embeds_list})
+        if image_embeds_data is not None:
+            kdit_engine.put_tensors(**{TensorKey.IMAGE_EMBEDS: image_embeds_data})
         if latent is not None and latent.samples is not None:
             # latent.samples 是 TensorKey — 重命名为 GeneratorNode 期望的 INPUT_LATENT
             kdit_engine.rename_tensor(latent.samples, TensorKey.INPUT_LATENT)

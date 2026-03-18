@@ -25,7 +25,7 @@ from kdit.scheduler import KsanaBatchScheduler
 from kdit.utils import log
 from kdit.utils.profile import time_profile
 
-from .generator_context import GeneratorInferContext
+from .generator_context import GeneratorInferContext, ImageEmbeds, MultiPromptImageEmbeds
 from .steps import noise as noise_ops
 from .steps import tensor_ops, validation
 
@@ -61,14 +61,25 @@ class BaseGenerator:
         return tensor
 
     def _valid_image_to_total_prompts_size(
-        self, image_embeds: list[torch.Tensor] | None, num_prompts: int, batch_size_per_prompts: list[int]
-    ):
+        self,
+        image_embeds: ImageEmbeds | MultiPromptImageEmbeds | None,
+        num_prompts: int,
+        batch_size_per_prompts: list[int],
+    ) -> list[torch.Tensor] | None:
+        """按 batch_size_per_prompts 扩展 image_embeds，返回统一的 list[Tensor]。
+
+        通过 isinstance 自动分发：
+        - Tensor (ImageEmbeds): shape[0] 是 batch 维度 → _expand_single_latents
+        - list[Tensor] (MultiPromptImageEmbeds): list 长度 = prompt 数 → _expand_list_latents
+        """
         if image_embeds is None:
             return None
-        if len(image_embeds) == 1:
-            return self._expand_single_latents(image_embeds[0], num_prompts, batch_size_per_prompts)
-        else:
+        if isinstance(image_embeds, torch.Tensor):
+            return self._expand_single_latents(image_embeds, num_prompts, batch_size_per_prompts)
+        elif isinstance(image_embeds, list):
             return self._expand_list_latents(image_embeds, num_prompts, batch_size_per_prompts)
+        else:
+            raise TypeError(f"image_embeds must be Tensor, list[Tensor] or None, got {type(image_embeds)}")
 
     def _expand_list_latents(
         self, image_embeds: list[torch.Tensor], num_prompts: int, batch_size_per_prompts: list[int]
