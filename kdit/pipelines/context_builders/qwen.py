@@ -18,9 +18,7 @@ QwenContextBuilder 是公共基类，提供 Qwen 系列共用的 context 构建�
 QwenT2IContextBuilder 和 QwenEditContextBuilder 分别处理纯文生图和编辑模式。
 """
 
-import os
 from dataclasses import dataclass
-from datetime import datetime
 from typing import Any
 
 import torch
@@ -34,7 +32,7 @@ from kdit.tensor import TensorKey
 from kdit.utils.logger import log
 
 from ..context_builder import ContextBuilder
-from ..generate_inputs import GenerateInputs
+from ..generate_inputs import PipelineGenerateInputs
 from ..pipeline_def import InferPhase
 
 # ── 公共基类 ─────────────────────────────────────────────────────────────
@@ -46,7 +44,7 @@ class QwenContextBuilder(ContextBuilder):
     子类只需实现 ``prepare_generate_inputs`` 和 ``build_context``。
     """
 
-    def _build_text_ctx(self, inputs: GenerateInputs, condition_image_path: Any = None) -> NodeContext:
+    def _build_text_ctx(self, inputs: PipelineGenerateInputs, condition_image_path: Any = None) -> NodeContext:
         """构建 TextEncode 的 context。
 
         Args:
@@ -61,7 +59,7 @@ class QwenContextBuilder(ContextBuilder):
             metadata=metadata,
         )
 
-    def _build_gen_ctx(self, inputs: GenerateInputs) -> NodeContext:
+    def _build_gen_ctx(self, inputs: PipelineGenerateInputs) -> NodeContext:
         """构建 Generator 的 context。"""
         extra = self._extra
         return NodeContext(
@@ -73,7 +71,7 @@ class QwenContextBuilder(ContextBuilder):
             },
         )
 
-    def _build_decode_ctx(self, inputs: GenerateInputs) -> NodeContext:
+    def _build_decode_ctx(self, inputs: PipelineGenerateInputs) -> NodeContext:
         """构建 VAE Decode 的 context。"""
         return NodeContext(
             metadata={
@@ -81,11 +79,13 @@ class QwenContextBuilder(ContextBuilder):
             },
         )
 
-    def _build_save_ctx(self, inputs: GenerateInputs) -> NodeContext:
+    def _build_save_ctx(self, inputs: PipelineGenerateInputs) -> NodeContext:
         """构建 SaveImage 的 context — 包含保存路径。"""
+        from . import compute_save_path
+
         return NodeContext(
             metadata={
-                "save_path": _compute_save_path(inputs),
+                "save_path": compute_save_path(inputs, prefix="qwen", ext=".png"),
             },
         )
 
@@ -101,12 +101,12 @@ class QwenT2IContextBuilder(QwenContextBuilder):
     """
 
     @dataclass
-    class Extra:
+    class ExtraPipelineGenerateInputs:
         """T2I 特有的中间数据。"""
 
         noise_shape: list[int]
 
-    def prepare_generate_inputs(self, base_inputs: GenerateInputs, **kwargs) -> None:
+    def prepare_generate_inputs(self, base_inputs: PipelineGenerateInputs, **kwargs) -> None:
         """计算 noise_shape 并存入 _extra。"""
         settings = kwargs.get("_default_settings")
         if settings is None:
@@ -125,9 +125,9 @@ class QwenT2IContextBuilder(QwenContextBuilder):
                 patch_size=settings.diffusion.patch_size,
             )
         )
-        self._extra = self.Extra(noise_shape=noise_shape)
+        self._extra = self.ExtraPipelineGenerateInputs(noise_shape=noise_shape)
 
-    def build_context(self, phase: InferPhase, inputs: GenerateInputs) -> NodeContext:
+    def build_context(self, phase: InferPhase, inputs: PipelineGenerateInputs) -> NodeContext:
         """按 node_type 分发构建 context。"""
         match phase.node_type:
             case NT.TEXT_ENCODE:
@@ -153,7 +153,7 @@ class QwenEditContextBuilder(QwenContextBuilder):
     """
 
     @dataclass
-    class Extra:
+    class ExtraPipelineGenerateInputs:
         """Edit 特有的中间数据。"""
 
         img_path: list[list[str]] | None
@@ -161,7 +161,7 @@ class QwenEditContextBuilder(QwenContextBuilder):
         input_latent: torch.Tensor | None
         noise_shape: list[int]
 
-    def prepare_generate_inputs(self, base_inputs: GenerateInputs, **kwargs) -> None:
+    def prepare_generate_inputs(self, base_inputs: PipelineGenerateInputs, **kwargs) -> None:
         """提取 Edit 特有输入：参考图路径、noise_shape。"""
         settings = kwargs.get("_default_settings")
         if settings is None:
@@ -192,14 +192,14 @@ class QwenEditContextBuilder(QwenContextBuilder):
         if img_path is not None:
             img_tensor = _load_ref_images(img_path)
 
-        self._extra = self.Extra(
+        self._extra = self.ExtraPipelineGenerateInputs(
             img_path=img_path,
             img_tensor=img_tensor,
             input_latent=kwargs.get("input_latent"),
             noise_shape=noise_shape,
         )
 
-    def build_context(self, phase: InferPhase, inputs: GenerateInputs) -> NodeContext:
+    def build_context(self, phase: InferPhase, inputs: PipelineGenerateInputs) -> NodeContext:
         """按 node_type 分发构建 context。"""
         extra = self._extra
         match phase.node_type:
@@ -217,7 +217,7 @@ class QwenEditContextBuilder(QwenContextBuilder):
             case _:
                 raise ValueError(f"QwenEditContextBuilder: unexpected node_type {phase.node_type}")
 
-    def prepare_tensors(self, phase: InferPhase, inputs: GenerateInputs) -> dict[TensorKey, Any] | None:
+    def prepare_tensors(self, phase: InferPhase, inputs: PipelineGenerateInputs) -> dict[TensorKey, Any] | None:
         """为 VAE_ENCODE_IMAGES 和 GENERATE 阶段准备 tensor。"""
         extra = self._extra
         if phase.node_type == NT.VAE_ENCODE_IMAGES and extra.img_tensor is not None:
@@ -226,29 +226,12 @@ class QwenEditContextBuilder(QwenContextBuilder):
             return {TensorKey.INPUT_LATENT: extra.input_latent}
         return None
 
-    def has_ref_images(self, inputs: GenerateInputs) -> bool:
+    def has_ref_images(self, inputs: PipelineGenerateInputs) -> bool:
         """条件方法：是否有参考图 — 用于 PipelineDef 的 .when("has_ref_images")。"""
         return self._extra.img_path is not None
 
 
 # ── 辅助函数 ─────────────────────────────────────────────────────────────
-
-
-def _compute_save_path(inputs: GenerateInputs) -> str | None:
-    """从 runtime_config 计算保存路径。
-
-    如果 save_output=False，返回 None（SaveNode 会跳过保存）。
-    """
-    rc = inputs.runtime_config
-    if not rc.save_output:
-        return None
-
-    formatted_time = datetime.now().strftime("%Y%m%d_%H%M%S")
-    prompt_text = inputs.prompt if isinstance(inputs.prompt, str) else inputs.prompt[0]
-    formatted_prompt = prompt_text.replace(" ", "_").replace("/", "_")[:30]
-    out_size = rc.size
-    filename = f"qwen_w{out_size[0]}_h{out_size[1]}_{formatted_time}_{formatted_prompt}_0.png"
-    return os.path.join(rc.output_folder, filename)
 
 
 def _valid_ref_images(

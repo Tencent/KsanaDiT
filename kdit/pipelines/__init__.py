@@ -14,7 +14,7 @@
 
 from .context_builder import ContextBuilder
 from .defs import *  # noqa: F403
-from .generate_inputs import GenerateInputs
+from .generate_inputs import PipelineGenerateInputs
 from .pipeline import Pipeline
 from .pipeline_def import (
     PipelineDef,
@@ -33,7 +33,7 @@ __all__ = [
     "LoadPhase",
     "InferPhase",
     "ContextBuilder",
-    "GenerateInputs",
+    "PipelineGenerateInputs",
     "register_pipeline_def",
     "get_pipeline_def",
     "get_pipeline_key_from_path",

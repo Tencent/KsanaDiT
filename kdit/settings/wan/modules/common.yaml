@@ -27,13 +27,14 @@ sample_config:
   cfg_scale: [4.0, 3.0]  # high noise, low noise
   shift: 12.0
   solver: "uni_pc"
-  fps : 16
   num_train_timesteps: 1000
 
 vae:
   checkpoint : "Wan2.1_VAE.pth"
   z_dim: 16
   stride : [4, 8, 8]
+  # TODO: fps should have better place to store, maybe not vae, runtime_config or sample_config
+  fps : 16
 
 diffusion:
   patch_size: [1, 2, 2]

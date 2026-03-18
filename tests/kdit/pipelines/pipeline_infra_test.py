@@ -27,23 +27,23 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
+from kdit.config.sample_config import SampleConfig
 from kdit.models.model_key import ModelKey
 from kdit.nodes.core.node_context import NodeContext
 from kdit.nodes.core.node_types import InferNodeType as NT
 from kdit.pipelines.context_builder import ContextBuilder
-from kdit.pipelines.generate_inputs import GenerateInputs
+from kdit.pipelines.generate_inputs import PipelineGenerateInputs
 from kdit.pipelines.pipeline import (
+    _ensure_cache_config_list,
     _get_num_prompts,
-    _valid_cache_config,
-    _valid_lora_config,
-    _valid_sample_config,
-    get_pipeline_def,
+    _merge_sample_config,
 )
 from kdit.pipelines.pipeline_def import (
     InferPhase,
     PipelineDef,
     PipelineDefBuilder,
     _InferPhaseChain,
+    get_pipeline_def,
 )
 from kdit.pipelines.pipeline_key import PipelineKey
 from kdit.tensor import TensorKey
@@ -359,7 +359,7 @@ class TestPipelineDefStructure(unittest.TestCase):
 class TestContextBuilderBase(unittest.TestCase):
     """ContextBuilder 基类的 check_condition 和 post_process。"""
 
-    def _make_inputs(self, **overrides) -> GenerateInputs:
+    def _make_inputs(self, **overrides) -> PipelineGenerateInputs:
         """创建最小 GenerateInputs。"""
         defaults = {
             "prompt": "test",
@@ -371,7 +371,7 @@ class TestContextBuilderBase(unittest.TestCase):
             "has_lora": False,
         }
         defaults.update(overrides)
-        return GenerateInputs(**defaults)
+        return PipelineGenerateInputs(**defaults)
 
     def test_check_condition_calls_method(self):
         """check_condition 调用 self 上的同名方法。"""
@@ -424,7 +424,7 @@ def _make_wan_settings():
     )
 
 
-def _make_inputs(prompt="test", num_prompts=1, **overrides) -> GenerateInputs:
+def _make_inputs(prompt="test", num_prompts=1, **overrides) -> PipelineGenerateInputs:
     """创建最小 GenerateInputs。"""
     rc = MagicMock()
     rc.size = (720, 480)
@@ -444,7 +444,7 @@ def _make_inputs(prompt="test", num_prompts=1, **overrides) -> GenerateInputs:
         "has_lora": False,
     }
     defaults.update(overrides)
-    return GenerateInputs(**defaults)
+    return PipelineGenerateInputs(**defaults)
 
 
 class TestWanT2VContextBuilder(unittest.TestCase):
@@ -814,30 +814,41 @@ class TestHelperFunctions(unittest.TestCase):
     def test_get_num_prompts_invalid(self):
         self.assertEqual(_get_num_prompts(123), 0)
 
-    def test_valid_sample_config_none_returns_default(self):
+    def test_merge_sample_config_none_returns_sample_config(self):
         default = MagicMock()
-        result = _valid_sample_config(None, default)
-        self.assertIs(result, default)
+        default.steps = None
+        default.shift = None
+        default.denoise = None
+        default.cfg_scale = None
+        default.solver = None
+        result = _merge_sample_config(None, default)
+        self.assertIsInstance(result, SampleConfig)
 
-    def test_valid_cache_config_none_returns_default(self):
+    def test_ensure_cache_config_list_none_returns_none(self):
         default = MagicMock()
-        result = _valid_cache_config(None, default)
-        self.assertIs(result, default)
-
-    def test_valid_cache_config_passthrough(self):
-        config = MagicMock()
-        result = _valid_cache_config(config, MagicMock())
-        self.assertIs(result, config)
-
-    def test_resolve_lora_config_none(self):
-        result = _valid_lora_config(None, MagicMock())
+        result = _ensure_cache_config_list(None, default)
         self.assertIsNone(result)
+
+    def test_ensure_cache_config_list_passthrough(self):
+        from kdit.cache import CacheConfig
+
+        config = CacheConfig()
+        result = _ensure_cache_config_list(config, MagicMock())
+        self.assertIsInstance(result, list)
+        self.assertEqual(len(result), 1)
+        self.assertIs(result[0], config)
 
     def test_resolve_lora_config_single(self):
         from kdit.config.lora_config import LoraConfig
+        from kdit.pipelines.context_builder import ContextBuilder
 
+        class _TestBuilder(ContextBuilder):
+            def build_context(self, phase, inputs):
+                return None
+
+        builder = _TestBuilder()
         lora = LoraConfig("/path/to/lora")
-        result = _valid_lora_config(lora, MagicMock())
+        result = builder.resolve_lora_config(lora, MagicMock())
         self.assertIsInstance(result, list)
         self.assertEqual(len(result), 1)
         self.assertIsInstance(result[0], list)
@@ -871,20 +882,20 @@ class TestWanHelperFunctions(unittest.TestCase):
             _valid_images(["a.png", "b.png"], 3)
 
     def test_compute_save_path_no_save(self):
-        from kdit.pipelines.context_builders.wan import _compute_save_path
+        from kdit.pipelines.context_builders import compute_save_path
 
         inputs = _make_inputs()
         inputs.runtime_config.save_output = False
-        result = _compute_save_path(inputs)
+        result = compute_save_path(inputs, prefix="wan", ext=".mp4")
         self.assertIsNone(result)
 
     def test_compute_save_path_with_save(self):
-        from kdit.pipelines.context_builders.wan import _compute_save_path
+        from kdit.pipelines.context_builders import compute_save_path
 
         inputs = _make_inputs()
         inputs.runtime_config.save_output = True
         inputs.runtime_config.output_folder = "/tmp/test"
-        result = _compute_save_path(inputs)
+        result = compute_save_path(inputs, prefix="wan", ext=".mp4")
         self.assertIsNotNone(result)
         self.assertTrue(result.startswith("/tmp/test/"))
         self.assertTrue(result.endswith(".mp4"))
@@ -924,12 +935,12 @@ class TestQwenHelperFunctions(unittest.TestCase):
             _valid_ref_images([["a.png"], ["b.png"]], 3)
 
     def test_compute_save_path_png(self):
-        from kdit.pipelines.context_builders.qwen import _compute_save_path
+        from kdit.pipelines.context_builders import compute_save_path
 
         inputs = _make_inputs()
         inputs.runtime_config.save_output = True
         inputs.runtime_config.output_folder = "/tmp/test"
-        result = _compute_save_path(inputs)
+        result = compute_save_path(inputs, prefix="qwen", ext=".png")
         self.assertIsNotNone(result)
         self.assertTrue(result.endswith(".png"))
 
@@ -956,9 +967,9 @@ class TestPipelineExports(unittest.TestCase):
         self.assertTrue(callable(ContextBuilder))
 
     def test_generate_inputs_importable(self):
-        from kdit.pipelines import GenerateInputs
+        from kdit.pipelines import PipelineGenerateInputs
 
-        self.assertTrue(callable(GenerateInputs))
+        self.assertTrue(callable(PipelineGenerateInputs))
 
     def test_pipeline_key_importable(self):
         from kdit.pipelines import PipelineKey

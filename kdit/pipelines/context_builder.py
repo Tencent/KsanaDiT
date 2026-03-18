@@ -44,7 +44,7 @@ from kdit.models.model_key import DIFFUSION_KEYS, TEXT_ENCODER_KEYS, VAE_KEYS, M
 from kdit.nodes.core.node_context import NodeContext
 from kdit.tensor import TensorKey
 
-from .generate_inputs import GenerateInputs
+from .generate_inputs import PipelineGenerateInputs
 from .pipeline_phase import InferPhase
 
 
@@ -145,7 +145,7 @@ class ContextBuilder(ABC):
 
     # ── Generate 阶段 ──
 
-    def prepare_generate_inputs(self, base_inputs: GenerateInputs, **kwargs) -> None:
+    def prepare_generate_inputs(self, base_inputs: PipelineGenerateInputs, **kwargs) -> None:
         """从 kwargs 中提取并校验 Pipeline 特有的输入。
 
         子类覆盖此方法，将结果存入 self._extra。
@@ -156,7 +156,7 @@ class ContextBuilder(ABC):
     def build_context(
         self,
         phase: InferPhase,
-        inputs: GenerateInputs,
+        inputs: PipelineGenerateInputs,
     ) -> NodeContext:
         """为指定的 InferPhase 构建 NodeContext。
 
@@ -168,7 +168,7 @@ class ContextBuilder(ABC):
     def prepare_tensors(
         self,
         phase: InferPhase,
-        inputs: GenerateInputs,
+        inputs: PipelineGenerateInputs,
     ) -> dict[TensorKey, Any] | None:
         """为指定的 InferPhase 准备需要 put 到 tensor_pool 的 tensor。
 
@@ -176,7 +176,7 @@ class ContextBuilder(ABC):
         """
         return None
 
-    def check_condition(self, condition_name: str, inputs: GenerateInputs) -> bool:
+    def check_condition(self, condition_name: str, inputs: PipelineGenerateInputs) -> bool:
         """检查条件是否满足 — 查找 self 上的同名方法。"""
         checker = getattr(self, condition_name, None)
         if checker is None:
@@ -186,14 +186,14 @@ class ContextBuilder(ABC):
             )
         return checker(inputs)
 
-    def post_process(self, output_tensor: Any, inputs: GenerateInputs) -> Any:
+    def post_process(self, output_tensor: Any, inputs: PipelineGenerateInputs) -> Any:
         """输出后处理 — 默认直接返回。子类可覆盖。"""
         return output_tensor
 
     # ── 通用辅助 ──
 
     @staticmethod
-    def _common_metadata(inputs: GenerateInputs) -> dict:
+    def _common_metadata(inputs: PipelineGenerateInputs) -> dict:
         """构建通用 metadata（offload_model, text_run_device）。"""
         return {
             "offload_model": inputs.runtime_config.offload_model,

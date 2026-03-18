@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""GenerateInputs — 所有 Pipeline 共有的最小公共输入集。
+"""PipelineGenerateInputs — 所有 Pipeline 共有的最小公共输入集。
 
 Pipeline 特有的输入由 ContextBuilder.prepare_generate_inputs() 管理，
 存储在 ContextBuilder._extra 中。
@@ -25,7 +25,7 @@ from kdit.config.cache_config import CacheConfig, HybridCacheConfig
 
 
 @dataclass
-class GenerateInputs:
+class PipelineGenerateInputs:
     """所有 Pipeline 共有的输入 — 最小公共集。
 
     Attributes:

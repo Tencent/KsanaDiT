@@ -44,7 +44,7 @@ from kdit.utils.profile import TimeProfiler
 from kdit.utils.types import evolve_with_recommend
 
 from .context_builder import ContextBuilder
-from .generate_inputs import GenerateInputs
+from .generate_inputs import PipelineGenerateInputs
 from .pipeline_def import PipelineDef, get_pipeline_def
 from .pipeline_key import get_pipeline_key_from_path
 
@@ -201,7 +201,7 @@ class Pipeline:
         log.info(f"cache_config : {cache_config}")
 
         # 构建公共输入
-        inputs = GenerateInputs(
+        inputs = PipelineGenerateInputs(
             prompt=prompt,
             prompt_negative=prompt_negative,
             num_prompts=num_prompts,

@@ -20,7 +20,6 @@ WanContextBuilder 是公共基类，提供 Wan 系列共用的 context 构建方
 
 import os
 from dataclasses import dataclass
-from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -40,7 +39,7 @@ from kdit.utils.types import str_to_list
 from kdit.utils.vace import VaceConfig, build_vace_video_control_config, latent_process_out
 
 from ..context_builder import ContextBuilder
-from ..generate_inputs import GenerateInputs
+from ..generate_inputs import PipelineGenerateInputs
 from ..pipeline_def import InferPhase
 
 # ── 公共基类 ─────────────────────────────────────────────────────────────
@@ -132,7 +131,7 @@ class WanContextBuilder(ContextBuilder):
 
     # ── Generate 阶段 ──
 
-    def _build_text_ctx(self, inputs: GenerateInputs) -> NodeContext:
+    def _build_text_ctx(self, inputs: PipelineGenerateInputs) -> NodeContext:
         """构建 TextEncode 的 context。"""
         return NodeContext(
             prompt=inputs.prompt,
@@ -140,7 +139,7 @@ class WanContextBuilder(ContextBuilder):
             metadata=self._common_metadata(inputs),
         )
 
-    def _build_gen_ctx(self, inputs: GenerateInputs) -> NodeContext:
+    def _build_gen_ctx(self, inputs: PipelineGenerateInputs) -> NodeContext:
         """构建 Generator 的 context。"""
         extra = self._extra
         return NodeContext(
@@ -153,7 +152,7 @@ class WanContextBuilder(ContextBuilder):
             },
         )
 
-    def _build_decode_ctx(self, inputs: GenerateInputs) -> NodeContext:
+    def _build_decode_ctx(self, inputs: PipelineGenerateInputs) -> NodeContext:
         """构建 VAE Decode 的 context。"""
         extra = self._extra
         return NodeContext(
@@ -163,12 +162,14 @@ class WanContextBuilder(ContextBuilder):
             },
         )
 
-    def _build_save_ctx(self, inputs: GenerateInputs) -> NodeContext:
+    def _build_save_ctx(self, inputs: PipelineGenerateInputs) -> NodeContext:
         """构建 SaveNode 的 context — 包含保存路径和 fps。"""
+        from . import compute_save_path
+
         return NodeContext(
             metadata={
-                "save_path": _compute_save_path(inputs),
-                "fps": inputs.sample_config.fps,
+                "save_path": compute_save_path(inputs, prefix="wan", ext=".mp4"),
+                "fps": getattr(self._extra, "fps", 16),
             },
         )
 
@@ -184,12 +185,13 @@ class WanT2VContextBuilder(WanContextBuilder):
     """
 
     @dataclass
-    class Extra:
+    class ExtraPipelineGenerateInputs:
         """T2V 特有的中间数据。"""
 
         noise_shape: list[int]
+        fps: int = 16
 
-    def prepare_generate_inputs(self, base_inputs: GenerateInputs, **kwargs) -> None:
+    def prepare_generate_inputs(self, base_inputs: PipelineGenerateInputs, **kwargs) -> None:
         """计算 noise_shape 并存入 _extra。
 
         需要 kwargs 中的 ``_default_settings`` 来获取 VAE 参数。
@@ -212,9 +214,10 @@ class WanT2VContextBuilder(WanContextBuilder):
                 vae_patch=list(settings.diffusion.patch_size),
             )
         )
-        self._extra = self.Extra(noise_shape=noise_shape)
+        fps = getattr(settings.vae, "fps", 16)
+        self._extra = self.ExtraPipelineGenerateInputs(noise_shape=noise_shape, fps=fps)
 
-    def build_context(self, phase: InferPhase, inputs: GenerateInputs) -> NodeContext:
+    def build_context(self, phase: InferPhase, inputs: PipelineGenerateInputs) -> NodeContext:
         """按 node_type 分发构建 context。"""
         match phase.node_type:
             case NT.TEXT_ENCODE:
@@ -240,7 +243,7 @@ class WanI2VContextBuilder(WanContextBuilder):
     """
 
     @dataclass
-    class Extra:
+    class ExtraPipelineGenerateInputs:
         """I2V 特有的中间数据。"""
 
         start_img_path: list[str] | None
@@ -252,8 +255,9 @@ class WanI2VContextBuilder(WanContextBuilder):
         noise_shape: list[int] | None
         with_end_image: bool
         vace_video_control_config: VaceConfig | None
+        fps: int = 16
 
-    def prepare_generate_inputs(self, base_inputs: GenerateInputs, **kwargs) -> None:
+    def prepare_generate_inputs(self, base_inputs: PipelineGenerateInputs, **kwargs) -> None:
         """提取 I2V 特有输入：图片路径、VACE 配置、noise_shape。
 
         需要 kwargs 中的:
@@ -314,7 +318,8 @@ class WanI2VContextBuilder(WanContextBuilder):
             start_img_tensor = _load_image(start_img_path)
             end_img_tensor = _load_image(end_img_path) if end_img_path is not None else None
 
-        self._extra = self.Extra(
+        fps = getattr(settings.vae, "fps", 16)
+        self._extra = self.ExtraPipelineGenerateInputs(
             start_img_path=start_img_path,
             end_img_path=end_img_path,
             start_img_tensor=start_img_tensor,
@@ -324,9 +329,10 @@ class WanI2VContextBuilder(WanContextBuilder):
             noise_shape=noise_shape,
             with_end_image=with_end_image,
             vace_video_control_config=vace_video_control_config,
+            fps=fps,
         )
 
-    def build_context(self, phase: InferPhase, inputs: GenerateInputs) -> NodeContext:
+    def build_context(self, phase: InferPhase, inputs: PipelineGenerateInputs) -> NodeContext:
         """按 node_type 分发构建 context。"""
         extra = self._extra
         match phase.node_type:
@@ -349,7 +355,7 @@ class WanI2VContextBuilder(WanContextBuilder):
             case _:
                 raise ValueError(f"WanI2VContextBuilder: unexpected node_type {phase.node_type}")
 
-    def prepare_tensors(self, phase: InferPhase, inputs: GenerateInputs) -> dict[TensorKey, Any] | None:
+    def prepare_tensors(self, phase: InferPhase, inputs: PipelineGenerateInputs) -> dict[TensorKey, Any] | None:
         """为 VAE_ENCODE_SPATIAL 和 GENERATE 阶段准备 tensor。"""
         extra = self._extra
         if phase.node_type == NT.VAE_ENCODE_SPATIAL:
@@ -361,30 +367,12 @@ class WanI2VContextBuilder(WanContextBuilder):
             return {TensorKey.INPUT_LATENT: extra.input_latent}
         return None
 
-    def has_start_image(self, inputs: GenerateInputs) -> bool:
+    def has_start_image(self, inputs: PipelineGenerateInputs) -> bool:
         """条件方法：是否有起始图 — 用于 PipelineDef 的 .when("has_start_image")。"""
         return self._extra.start_img_path is not None
 
 
 # ── 辅助函数 ─────────────────────────────────────────────────────────────
-
-
-def _compute_save_path(inputs: GenerateInputs) -> str | None:
-    """从 runtime_config 计算保存路径。
-
-    如果 save_output=False，返回 None（SaveNode 会跳过保存）。
-    路径格式与 BasePipeline._save_outputs 保持一致。
-    """
-    rc = inputs.runtime_config
-    if not rc.save_output:
-        return None
-
-    formatted_time = datetime.now().strftime("%Y%m%d_%H%M%S")
-    prompt_text = inputs.prompt if isinstance(inputs.prompt, str) else inputs.prompt[0]
-    formatted_prompt = prompt_text.replace(" ", "_").replace("/", "_")[:30]
-    out_size = rc.size
-    filename = f"wan_w{out_size[0]}_h{out_size[1]}_{formatted_time}_{formatted_prompt}_0.mp4"
-    return os.path.join(rc.output_folder, filename)
 
 
 def _valid_images(img_path: str | list[str] | None, num_prompts: int) -> list[str] | None:

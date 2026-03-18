@@ -860,27 +860,27 @@ class ContextBuilder(ABC):
     3. post_process(output, inputs) — 输出后处理
     """
 
-    def prepare_generate_inputs(self, base_inputs: GenerateInputs, **kwargs) -> None:
+    def prepare_generate_inputs(self, base_inputs: PipelineGenerateInputs, **kwargs) -> None:
         """从 kwargs 提取 Pipeline 特有输入，存入 self._extra。"""
         pass
 
     @abstractmethod
-    def build_context(self, phase: InferPhase, inputs: GenerateInputs) -> NodeContext:
+    def build_context(self, phase: InferPhase, inputs: PipelineGenerateInputs) -> NodeContext:
         """按 phase.node_type 分支，构建该 Node 的 context。"""
         ...
 
-    def prepare_tensors(self, phase: InferPhase, inputs: GenerateInputs) -> dict | None:
+    def prepare_tensors(self, phase: InferPhase, inputs: PipelineGenerateInputs) -> dict | None:
         """返回需要 put 到 tensor_pool 的 tensor dict。默认 None。"""
         return None
 
-    def check_condition(self, condition_name: str, inputs: GenerateInputs) -> bool:
+    def check_condition(self, condition_name: str, inputs: PipelineGenerateInputs) -> bool:
         """查找 self 上的同名方法并调用。"""
         checker = getattr(self, condition_name, None)
         if checker is None:
             raise ValueError(f"Condition '{condition_name}' not found")
         return checker(inputs)
 
-    def post_process(self, output_tensor, inputs: GenerateInputs) -> any:
+    def post_process(self, output_tensor, inputs: PipelineGenerateInputs) -> any:
         """输出后处理。默认直接返回。"""
         return output_tensor
 ```
@@ -891,13 +891,13 @@ class ContextBuilder(ABC):
 - `prepare_tensors` — 每个 phase，"准备 tensor 到 pool"
 - 条件方法 — 在子类上定义，如 `has_start_image(self, inputs) -> bool`
 
-### GenerateInputs — 最小公共集
+### PipelineGenerateInputs — 最小公共集
 
 ```python
 # kdit/pipelines/generate_inputs.py
 
 @dataclass
-class GenerateInputs:
+class PipelineGenerateInputs:
     """所有 Pipeline 共有的输入。"""
     prompt: str | list[str]
     prompt_negative: str | list[str] | None
@@ -911,7 +911,7 @@ class GenerateInputs:
 **规则**:
 - 只包含**所有** Pipeline 都需要的字段
 - Pipeline 特有字段由 `ContextBuilder.prepare_generate_inputs()` 从 `**kwargs` 提取，存入 `self._extra`
-- `self._extra` 类型由子类自定义（推荐用内部 `@dataclass class Extra`）
+- `self._extra` 类型由子类自定义（推荐用内部 `@dataclass class ExtraPipelineGenerateInputs`）
 
 ### SaveNode — 输出保存作为 InferNode
 
@@ -942,7 +942,7 @@ class SaveImageNode(InferNode):
 ```python
 # Pipeline.generate() 伪代码
 def generate(self, prompt, *, sample_config, runtime_config, **kwargs):
-    inputs = GenerateInputs(prompt=prompt, ...)
+    inputs = PipelineGenerateInputs(prompt=prompt, ...)
     self._ctx_builder.prepare_generate_inputs(inputs, **kwargs)
 
     with self._engine.tensor_scope(keep=list(self._def.keep_tensors)):
@@ -978,7 +978,7 @@ def has_start_image(self, inputs) -> bool:
 
 **规则**:
 - `.when("name")` 的 `name` 必须是 ContextBuilder 子类上的方法名
-- 方法签名固定：`(self, inputs: GenerateInputs) -> bool`
+- 方法签名固定：`(self, inputs: PipelineGenerateInputs) -> bool`
 - `check_condition()` 通过 `getattr` 查找，找不到则 raise
 
 ### 文件结构
@@ -990,7 +990,7 @@ kdit/pipelines/
 ├── pipeline_def.py          # PipelineDef, LoadPhase, InferPhase, PipelineDefBuilder
 ├── pipeline_key.py          # PipelineKey 枚举（已有）
 ├── context_builder.py       # ContextBuilder 基类
-├── generate_inputs.py       # GenerateInputs 数据类
+├── generate_inputs.py       # PipelineGenerateInputs 数据类
 ├── context_builders/        # 各 Pipeline 的 ContextBuilder
 │   ├── __init__.py
 │   ├── wan.py               # WanContextBuilder, WanT2VContextBuilder, WanI2VContextBuilder
@@ -1007,7 +1007,7 @@ kdit/pipelines/
 
 - **禁止**在 `PipelineDef` 中放命令式逻辑（if/else/循环）
 - **禁止**在 `ContextBuilder.build_context()` 中直接操作 tensor_pool（通过 `prepare_tensors` 返回）
-- **禁止**在 `GenerateInputs` 中放 Pipeline 特有字段（用 `ContextBuilder._extra`）
+- **禁止**在 `PipelineGenerateInputs` 中放 Pipeline 特有字段（用 `ContextBuilder._extra`）
 - **禁止** `kdit/` 核心代码依赖 `kdit/adapter/`（方向：adapter → kdit）
 - SaveNode 的 `model_key` 参数**必须为 None**
 - **禁止**在 `Pipeline` 或公共函数中根据 `PipelineKey` / `ModelKey` 做 if/else 分支处理不同 Pipeline 的特例逻辑 — 所有 Pipeline 特有的输入处理、模型路径解析、LoRA 配置等**必须**放到对应的 `ContextBuilder` 子类中（通过覆盖 `resolve_model_paths()`、`resolve_lora_config()`、`build_loader_kwargs()` 等方法实现多态）
