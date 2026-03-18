@@ -121,7 +121,7 @@ class TestComputeLatentShape:
             target_w=720,
             vae_stride=[4, 8, 8],
             patch_size=[1, 2, 2],
-            img_shape=[1, 3, 360, 720],  # 宽高比 2:1
+            refer_image_shape=[1, 3, 360, 720],  # 宽高比 2:1
         )
         # 有 img_shape 时 lat_w 应该比 lat_h 大
         assert lat_w_ar > lat_h_ar
