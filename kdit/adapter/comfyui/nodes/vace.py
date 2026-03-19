@@ -135,7 +135,7 @@ class KsanaWanVaceToVideoNode:
     INPUT_TYPES = input_types  # Alias for ComfyUI compatibility
 
     RETURN_TYPES = (KSANA_VACE_EMBEDS, KSANA_VAE_ENCODE_OUTPUT)
-    RETURN_NAMES = ("vace_embeds", "image_embeds")
+    RETURN_NAMES = ("vace_embeds", "base_latent")
     OUTPUT_TOOLTIPS = (
         "VACE embeddings containing vace_context, vace_scale, and metadata.",
         "Latent tensor for the video.",
@@ -288,9 +288,9 @@ class KsanaWanVaceToVideoNode:
             device=get_intermediate_device(),
         )
         kdit_engine = get_engine()
-        kdit_engine.put_tensors(**{TensorKey.IMAGE_EMBEDS: latent})
+        kdit_engine.put_tensors(**{TensorKey.BASE_LATENT: latent})
         out_latent = KsanaNodeVAEEncodeOutput(
-            samples=TensorKey.IMAGE_EMBEDS,
+            samples=TensorKey.BASE_LATENT,
             with_end_image=False,
             batch_size_per_prompts=batch_size,
         )

@@ -653,7 +653,7 @@ def apply_bidirectional_sampling(
     combine_cond_uncond: bool,
     positive,
     negative,
-    image_embeds,
+    base_latent,
     step_vc: dict,
     exp_config,
     sample_scheduler_flipped,
@@ -675,7 +675,7 @@ def apply_bidirectional_sampling(
         cache=None,  # Don't use cache for flipped pass
         positive=positive,
         negative=negative,
-        image_embeds=image_embeds,
+        base_latent=base_latent,
         **step_vc,
     )
 

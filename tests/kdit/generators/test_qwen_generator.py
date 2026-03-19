@@ -286,7 +286,7 @@ class TestQwenPrepareModelForwardKargs(unittest.TestCase):
             "cache": None,
             "positive": (pos_embeds, pos_mask),
             "negative": (neg_embeds, neg_mask),
-            "image_embeds": None,
+            "base_latent": None,
         }
 
     def test_combine_mode(self):

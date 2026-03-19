@@ -153,7 +153,7 @@ class TestVaceFinalizeStep(unittest.TestCase):
             "combine_cond_uncond": True,
             "positive": torch.randn(2, 77, 768),
             "negative": torch.randn(2, 77, 768),
-            "image_embeds": None,
+            "base_latent": None,
             "step_kwargs": {},
             "sample_config": MagicMock(),
             "seed_g": MagicMock(),
@@ -214,7 +214,7 @@ class TestVacePrepareModelForwardKargs(unittest.TestCase):
             "cache": None,
             "positive": pos,
             "negative": neg,
-            "image_embeds": None,
+            "base_latent": None,
             "vace_context": vace_context,
             "vace_context_scale": 1.0,
         }

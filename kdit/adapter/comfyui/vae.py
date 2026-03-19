@@ -64,10 +64,10 @@ def vae_encode(
             )
         # 无 VAE 时也写入 pool，保持 key 模式一致
         kdit_engine = get_engine()
-        # IMAGE_EMBEDS always list
-        kdit_engine.put_tensors(**{TensorKey.IMAGE_EMBEDS: [latent]})
+        # BASE_LATENT always list
+        kdit_engine.put_tensors(**{TensorKey.BASE_LATENT: [latent]})
         return KsanaNodeVAEEncodeOutput(
-            samples=TensorKey.IMAGE_EMBEDS,
+            samples=TensorKey.BASE_LATENT,
             with_end_image=False,
             batch_size_per_prompts=batch_size,
         )
@@ -105,12 +105,12 @@ def vae_encode(
             "batch_size": batch_size,
         }
     )
-    with kdit_engine.tensor_scope(keep=[TensorKey.IMAGE_EMBEDS]):
+    with kdit_engine.tensor_scope(keep=[TensorKey.BASE_LATENT]):
         kdit_engine.put_tensors(**{TensorKey.START_IMG: start_image, TensorKey.END_IMG: end_image})
         kdit_engine.run_infer_node(InferNodeType.VAE_ENCODE_SPATIAL, vae, context)
 
     return KsanaNodeVAEEncodeOutput(
-        samples=TensorKey.IMAGE_EMBEDS,
+        samples=TensorKey.BASE_LATENT,
         with_end_image=with_end_image,
         batch_size_per_prompts=int(batch_size),
     )

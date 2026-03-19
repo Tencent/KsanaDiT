@@ -43,10 +43,10 @@ class TestDistributedGroupManager:
     def test_broadcast_list_tensor_noop_when_not_initialized(self):
         mgr = DistributedGroupManager()
         pool = TensorPool()
-        pool.put(TensorKey.IMAGE_EMBEDS, [torch.zeros(2, 3), torch.ones(4, 5)])
+        pool.put(TensorKey.BASE_LATENT, [torch.zeros(2, 3), torch.ones(4, 5)])
         # list[Tensor] 也不应抛异常，直接跳过
-        mgr.broadcast_tensors(tensor_pool=pool, keys=[TensorKey.IMAGE_EMBEDS], src_rank=0)
+        mgr.broadcast_tensors(tensor_pool=pool, keys=[TensorKey.BASE_LATENT], src_rank=0)
         # 验证 pool 中的值未被修改
-        tensor_value = pool.get(TensorKey.IMAGE_EMBEDS)
+        tensor_value = pool.get(TensorKey.BASE_LATENT)
         assert isinstance(tensor_value.data, list)
         assert len(tensor_value.data) == 2

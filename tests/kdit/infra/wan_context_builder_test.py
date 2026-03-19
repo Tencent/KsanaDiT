@@ -228,7 +228,7 @@ class TestWanI2VContextBuilder(unittest.TestCase):
         self.assertIn(TensorKey.START_IMG, tensors)
 
     def test_prepare_tensors_generate_no_latent(self):
-        """无 input_latent 时 prepare_tensors(GENERATE) 返回 None。"""
+        """无 aux_latent 时 prepare_tensors(GENERATE) 返回 None。"""
         from kdit.pipelines.context_builders.wan import WanI2VContextBuilder
 
         builder = WanI2VContextBuilder()

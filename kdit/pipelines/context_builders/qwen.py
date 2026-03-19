@@ -148,7 +148,7 @@ class QwenT2IContextBuilder(QwenContextBuilder):
 class QwenEditContextBuilder(QwenContextBuilder):
     """Qwen Edit — 图像编辑（参考图 + 文本指令）。
 
-    处理 img_path（参考图路径列表）和 input_latent。
+    处理 img_path（参考图路径列表）和 aux_latent。
     当有 img_path 时走 VAE_ENCODE_IMAGES 编码参考图。
     """
 
@@ -158,8 +158,8 @@ class QwenEditContextBuilder(QwenContextBuilder):
 
         img_path: list[list[str]] | None
         img_tensor: list[torch.Tensor] | torch.Tensor | None
-        input_latent: torch.Tensor | None
-        noise_shape: list[int]
+        aux_latent: torch.Tensor | None
+        noise_shape: list[int]  # TODO: TB remove
 
     def prepare_generate_inputs(self, base_inputs: PipelineGenerateInputs, **kwargs) -> None:
         """提取 Edit 特有输入：参考图路径、noise_shape。"""
@@ -195,7 +195,7 @@ class QwenEditContextBuilder(QwenContextBuilder):
         self._extra = self.ExtraPipelineGenerateInputs(
             img_path=img_path,
             img_tensor=img_tensor,
-            input_latent=kwargs.get("input_latent"),
+            aux_latent=kwargs.get("aux_latent"),
             noise_shape=noise_shape,
         )
 
@@ -222,8 +222,8 @@ class QwenEditContextBuilder(QwenContextBuilder):
         extra = self._extra
         if phase.node_type == NT.VAE_ENCODE_IMAGES and extra.img_tensor is not None:
             return {TensorKey.IMAGE: extra.img_tensor}
-        if phase.node_type == NT.GENERATE and extra.input_latent is not None:
-            return {TensorKey.INPUT_LATENT: extra.input_latent}
+        if phase.node_type == NT.GENERATE and extra.aux_latent is not None:
+            return {TensorKey.AUX_LATENT: extra.aux_latent}
         return None
 
     def has_ref_images(self, inputs: PipelineGenerateInputs) -> bool:

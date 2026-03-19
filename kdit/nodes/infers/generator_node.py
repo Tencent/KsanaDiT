@@ -14,12 +14,12 @@
 
 """GeneratorNode — 封装 Diffusion Generator Unit 的去噪推理。
 
-从 tensor_pool 读取 positive/negative/image_embeds，
+从 tensor_pool 读取 positive/negative/base_latent/aux_latent，
 调用 Generator Unit 执行去噪，将 latents 无条件写入 tensor_pool。
 """
 
 from kdit.generators import GeneratorFactory
-from kdit.generators.generator_context import GeneratorInferContext
+from kdit.generators.generator_context import AuxLatent, BaseLatent, GeneratorInferContext
 from kdit.models.model_key import ModelKey
 from kdit.tensor import TensorKey
 
@@ -45,25 +45,38 @@ class GeneratorNode(InferNode):
     input_tensor_keys = [
         TensorKey.POSITIVE,
         TensorKey.NEGATIVE,
-        TensorKey.IMAGE_EMBEDS,
-        TensorKey.INPUT_LATENT,
+        TensorKey.BASE_LATENT,
+        TensorKey.AUX_LATENT,
     ]
     output_tensor_keys = [TensorKey.LATENTS]
 
     def run(self, model_key, context, *, tensor_pool, model_pool, device_ctx):
-        image_embeds = self._get_data(tensor_pool, TensorKey.IMAGE_EMBEDS)  # list[Tensor] | None
+        base_latent_data = self._get_data(tensor_pool, TensorKey.BASE_LATENT)  # list[Tensor] | None
+        aux_latent_data = self._get_data(tensor_pool, TensorKey.AUX_LATENT)  # Tensor | list[Tensor] | None
         meta = context.metadata
 
+        # 从 base_latent_data 构建 BaseLatent 对象
+        base_latent = None
+        if base_latent_data is not None and len(base_latent_data) > 0:
+            latent = base_latent_data[0]
+            mask = base_latent_data[1] if len(base_latent_data) > 1 else None
+            base_latent = BaseLatent(latent=latent, mask=mask)
+
+        # 从 aux_latent_data 构建 AuxLatent 对象
+        aux_latent = None
+        if aux_latent_data is not None:
+            aux_latent = AuxLatent(latent=aux_latent_data)
+
         noise_shape = meta.get("noise_shape")
-        if noise_shape is None and image_embeds is not None and len(image_embeds) > 0:
-            noise_shape = list(image_embeds[0].shape[1:])
+        if noise_shape is None and base_latent is not None:
+            noise_shape = list(base_latent.latent.shape[1:])
 
         ctx = GeneratorInferContext(
             diffusion_model=model_pool.get_model(model_key),
             positive=self._get_data(tensor_pool, TensorKey.POSITIVE),
             negative=self._get_data(tensor_pool, TensorKey.NEGATIVE),
-            image_embeds=image_embeds,
-            input_latent=self._get_data(tensor_pool, TensorKey.INPUT_LATENT),
+            base_latent=base_latent,
+            aux_latent=aux_latent,
             noise_shape=noise_shape,
             device=device_ctx.device,
             offload_device=device_ctx.offload_device,

@@ -31,8 +31,8 @@ class TestGeneratorRunContext(unittest.TestCase):
         self.assertIsNone(ctx.diffusion_model)
         self.assertIsNone(ctx.positive)
         self.assertIsNone(ctx.negative)
-        self.assertIsNone(ctx.image_embeds)
-        self.assertIsNone(ctx.input_latent)
+        self.assertIsNone(ctx.base_latent)
+        self.assertIsNone(ctx.aux_latent)
         self.assertIsNone(ctx.noise_shape)
         self.assertIsNone(ctx.device)
         self.assertIsNone(ctx.offload_device)
@@ -54,8 +54,8 @@ class TestGeneratorRunContext(unittest.TestCase):
             diffusion_model=mock_model,
             positive=positive,
             negative=negative,
-            image_embeds=None,
-            input_latent=None,
+            base_latent=None,
+            aux_latent=None,
             noise_shape=[4, 16, 32, 32],
             device=torch.device("cpu"),
             offload_device=torch.device("cpu"),

@@ -53,7 +53,7 @@ class TestVAEEncodeSpatialNode(unittest.TestCase):
         self.model_pool = MagicMock()
         self.mock_vae = MagicMock()
         self.mock_vae.model_key = ModelKey.VAE_WAN2_2
-        self.mock_vae.forward_encode.return_value = torch.randn(1, 16, 16, 32, 32)
+        self.mock_vae.forward_encode.return_value = (torch.randn(1, 16, 16, 32, 32), None)
         self.model_pool.get_model.return_value = self.mock_vae
 
         self.device_ctx = NodeDeviceContext(
@@ -74,7 +74,7 @@ class TestVAEEncodeSpatialNode(unittest.TestCase):
         )
         self.mock_vae.forward_encode.assert_called_once()
 
-    def test_run_writes_image_embeds_as_list(self):
+    def test_run_writes_base_latent_as_list(self):
         context = NodeContext(metadata={"target_f": 16, "target_h": 480, "target_w": 832})
         self.node.run(
             model_key=ModelKey.VAE_WAN2_2,
@@ -85,11 +85,11 @@ class TestVAEEncodeSpatialNode(unittest.TestCase):
         )
         self.tensor_pool.put.assert_called_once()
         put_key, put_val = self.tensor_pool.put.call_args[0]
-        self.assertEqual(put_key, TensorKey.IMAGE_EMBEDS)
+        self.assertEqual(put_key, TensorKey.BASE_LATENT)
         self.assertIsInstance(put_val, list)
 
     def test_none_encode_result_not_written(self):
-        self.mock_vae.forward_encode.return_value = None
+        self.mock_vae.forward_encode.return_value = (None, None)
         context = NodeContext(metadata={"target_f": 16, "target_h": 480, "target_w": 832})
         self.node.run(
             model_key=ModelKey.VAE_WAN2_2,
@@ -106,7 +106,7 @@ class TestVAEEncodeSpatialNode(unittest.TestCase):
     def test_tensor_keys(self):
         self.assertIn(TensorKey.START_IMG, VAEEncodeSpatialNode.input_tensor_keys)
         self.assertIn(TensorKey.END_IMG, VAEEncodeSpatialNode.input_tensor_keys)
-        self.assertEqual(VAEEncodeSpatialNode.output_tensor_keys, [TensorKey.IMAGE_EMBEDS])
+        self.assertEqual(VAEEncodeSpatialNode.output_tensor_keys, [TensorKey.BASE_LATENT])
 
 
 class TestVAEEncodeImagesNode(unittest.TestCase):

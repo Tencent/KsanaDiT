@@ -39,7 +39,7 @@ class EmptyLatentNode:
         }
 
     RETURN_TYPES = (LATENT_OUTPUT,)
-    RETURN_NAMES = ("latent",)
+    RETURN_NAMES = ("base_latent",)
     FUNCTION = "run_func"
     CATEGORY = KDIT_CATEGORY_UTILS
 
@@ -77,6 +77,6 @@ class EmptyLatentNode:
         )
         with kdit_engine.tensor_scope(keep=[TensorKey.LATENTS]):
             kdit_engine.run_infer_node(InferNodeType.VAE_ENCODE_SPATIAL, vae, context)
-            kdit_engine.rename_tensor(TensorKey.IMAGE_EMBEDS, TensorKey.LATENTS)
+            kdit_engine.rename_tensor(TensorKey.BASE_LATENT, TensorKey.LATENTS)
 
         return (EmptyLatentOutput(samples=TensorKey.LATENTS),)

@@ -46,7 +46,7 @@ class TestPrint(unittest.TestCase):
 
     def test_print_recursive_obj_torch_float(self):
         obj = KsanaNodeVAEEncodeOutput(
-            samples=TensorKey.IMAGE_EMBEDS,
+            samples=TensorKey.BASE_LATENT,
             with_end_image=True,
             batch_size_per_prompts=1,
         )

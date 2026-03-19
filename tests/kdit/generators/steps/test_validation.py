@@ -22,9 +22,9 @@ import torch
 from kdit.config import RuntimeConfig, SampleConfig, SolverType
 from kdit.config.cache_config import HybridCacheConfig, StepCacheConfig
 from kdit.generators.steps.validation import (
+    valid_aux_latent,
     valid_cache_config,
     valid_diffusion_model,
-    valid_input_latent,
     valid_runtime_config,
     valid_sample_config,
 )
@@ -180,36 +180,36 @@ class TestValidRuntimeConfig(unittest.TestCase):
             valid_runtime_config(None, num_prompts=1)
 
 
-class TestValidInputLatent(unittest.TestCase):
-    """valid_input_latent 校验 input_latent 与 noise_shape 的维度一致性。"""
+class TestValidAuxLatent(unittest.TestCase):
+    """valid_aux_latent 校验 aux_latent 与 noise_shape 的维度一致性。"""
 
-    def test_none_input_latent_passes(self):
+    def test_none_aux_latent_passes(self):
         # 不应抛异常
-        valid_input_latent(None, (1, 4, 16, 32, 32))
+        valid_aux_latent(None, (1, 4, 16, 32, 32))
 
     def test_matching_shape_passes(self):
         latent = torch.zeros(1, 4, 16, 32, 32)
-        valid_input_latent(latent, (1, 4, 16, 32, 32))
+        valid_aux_latent(latent, (1, 4, 16, 32, 32))
 
     def test_different_frame_dim_passes(self):
         """frame 维度可以不同。"""
         latent = torch.zeros(1, 4, 8, 32, 32)
-        valid_input_latent(latent, (1, 4, 16, 32, 32))
+        valid_aux_latent(latent, (1, 4, 16, 32, 32))
 
     def test_mismatched_batch_raises(self):
         latent = torch.zeros(2, 4, 16, 32, 32)
         with self.assertRaises(ValueError):
-            valid_input_latent(latent, (1, 4, 16, 32, 32))
+            valid_aux_latent(latent, (1, 4, 16, 32, 32))
 
     def test_mismatched_spatial_raises(self):
         latent = torch.zeros(1, 4, 16, 64, 64)
         with self.assertRaises(ValueError):
-            valid_input_latent(latent, (1, 4, 16, 32, 32))
+            valid_aux_latent(latent, (1, 4, 16, 32, 32))
 
     def test_4d_tensor_raises(self):
         latent = torch.zeros(1, 4, 32, 32)
         with self.assertRaises(ValueError):
-            valid_input_latent(latent, (1, 4, 16, 32, 32))
+            valid_aux_latent(latent, (1, 4, 16, 32, 32))
 
 
 if __name__ == "__main__":

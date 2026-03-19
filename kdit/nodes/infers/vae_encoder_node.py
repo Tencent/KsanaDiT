@@ -35,13 +35,14 @@ from ..core.node_types import InferNodeType, NodeDispatchPolicy
 class VAEEncodeSpatialNode(InferNode):
     """VAE 时序条件编码 — rank 0 执行后 broadcast 到所有卡。
 
-    构建视频帧序列（首帧 + 零帧 + 尾帧）→ encode → 拼接 mask 通道。
+    构建视频帧序列（首帧 + 零帧 + 尾帧）→ encode → 返回 (latent, mask)。
     用于 I2V（首尾帧控制）、VACE（视频控制）等场景。
+    输出 BASE_LATENT: list[latent, mask] 或 list[latent]（无 mask 时）。
     """
 
     dispatch_policy = NodeDispatchPolicy.R0_R0_BCAST
     input_tensor_keys = [TensorKey.START_IMG, TensorKey.END_IMG]
-    output_tensor_keys = [TensorKey.IMAGE_EMBEDS]
+    output_tensor_keys = [TensorKey.BASE_LATENT]
 
     def run(self, model_key, context, *, tensor_pool, model_pool, device_ctx):
         vae_model = model_pool.get_model(model_key)
@@ -61,7 +62,7 @@ class VAEEncodeSpatialNode(InferNode):
             f"mask shape: {meta.get('mask').shape if meta.get('mask') is not None else None}"
         )
 
-        image_embeds = vae_model.forward_encode(
+        latent, mask = vae_model.forward_encode(
             meta.get("target_f"),
             meta.get("target_h"),
             meta.get("target_w"),
@@ -72,8 +73,9 @@ class VAEEncodeSpatialNode(InferNode):
             mask=meta.get("mask"),
         )
 
-        if image_embeds is not None:
-            tensor_pool.put(TensorKey.IMAGE_EMBEDS, image_embeds)
+        if latent is not None:
+            base_latent_data = [latent, mask] if mask is not None else [latent]
+            tensor_pool.put(TensorKey.BASE_LATENT, base_latent_data)
 
 
 @InferNodeFactory.register(

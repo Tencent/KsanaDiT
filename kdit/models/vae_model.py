@@ -132,7 +132,7 @@ class KsanaVAEModel(ModelBase):
         )
 
         if start_img is None:
-            return torch.zeros(target_batch_size, z_dim, lat_f, lat_h, lat_w, device="cpu")
+            return torch.zeros(target_batch_size, z_dim, lat_f, lat_h, lat_w, device="cpu"), None
 
         with_end_image = end_img is not None
 
@@ -184,13 +184,12 @@ class KsanaVAEModel(ModelBase):
         if mask is None:
             mask = self.get_img_mask(bs, lat_f, lat_h, lat_w, device, with_end_image, vae_stride)
 
-        y = torch.concat([mask, y], dim=1)
-
         if target_batch_size > bs:
             y = y.repeat(target_batch_size // bs, 1, 1, 1, 1)
+            mask = mask.repeat(target_batch_size // bs, 1, 1, 1, 1)
 
         log.info(f"image_latents shape {y.shape}, {y.device}, {y.dtype}, mask shape {mask.shape}")
-        return y
+        return y, mask
 
     @time_profile
     def forward_decode(self, latents, local_rank, device=None, with_end_image: bool = False) -> torch.Tensor:

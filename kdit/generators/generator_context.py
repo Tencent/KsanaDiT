@@ -25,7 +25,7 @@ from kdit.config.video_control_config import KsanaVideoControlConfig
 from kdit.models import KsanaDiffusionModel
 from kdit.utils.vace import VaceConfig
 
-# ── image_embeds 类型别名 ─────────────────────────────────────────────────
+# ── image_embeds 类型别名（AuxLatent 内部使用）──────────────────────────────
 # ImageEmbeds: 单个 Tensor，shape[0] = batch 维度。
 #   适用于 WAN I2V（单张首帧）、ComfyUI 单 prompt 等场景。
 ImageEmbeds = torch.Tensor
@@ -37,12 +37,36 @@ MultiPromptImageEmbeds = list[torch.Tensor]
 
 
 @dataclass
+class BaseLatent:
+    """主要的 latent，决定了输入和输出的计算 latent 大小（noise_shape）。
+
+    latent: 主 tensor，noise_shape 从此推导
+    mask: WAN I2V 专用的 mask tensor，其他场景为 None
+    """
+
+    latent: torch.Tensor
+    mask: torch.Tensor | None = None
+
+
+@dataclass
+class AuxLatent:
+    """辅助的 latent 输入信息，可根据不同模型场景为不同 shape。
+
+    在 Qwen 场景：image encoder 输出的 img_emb（ImageEmbeds 或 MultiPromptImageEmbeds）
+    在 WAN VACE：任何想参与计算的 tensor
+    在 WAN v2v：用于噪声混合的初始视频 latent
+    """
+
+    latent: ImageEmbeds | MultiPromptImageEmbeds | torch.Tensor
+
+
+@dataclass
 class GeneratorInferContext:
     """Generator.run() 的输入上下文，收敛 14 个参数为结构化数据。
 
     将原本散落在 run() 签名中的参数分为四组：
     - 模型：diffusion_model
-    - 输入 tensor：positive / negative / image_embeds / input_latent / noise_shape
+    - 输入 tensor：positive / negative / base_latent / aux_latent / noise_shape
     - 设备：device / offload_device
     - 配置：sample_config / runtime_config / cache_config / video_control / control_video_config / comfy_bar_callback
     """
@@ -53,9 +77,9 @@ class GeneratorInferContext:
     # 输入 tensor
     positive: torch.Tensor | tuple = None
     negative: torch.Tensor | tuple = None
-    image_embeds: ImageEmbeds | MultiPromptImageEmbeds | None = None
-    input_latent: torch.Tensor | None = None
-    noise_shape: list[int] | None = None
+    base_latent: BaseLatent | None = None
+    aux_latent: AuxLatent | None = None
+    noise_shape: list[int] | None = None  # TODO: remove me
 
     # 设备
     device: torch.device | None = None

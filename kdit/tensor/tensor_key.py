@@ -32,4 +32,8 @@ class TensorKey(str, Enum):
     IMAGE = "image"
     START_IMG = "start_img"
     END_IMG = "end_img"
-    INPUT_LATENT = "input_latent"
+
+    # 主 latent + 可选 mask（list 形式存储于 tensor_pool）
+    BASE_LATENT = "base_latent"
+    # 辅助 latent 输入（Qwen img_emb / WAN v2v 噪声混合 / VACE 等）
+    AUX_LATENT = "aux_latent"

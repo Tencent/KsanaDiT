@@ -245,7 +245,8 @@ tensor_pool.put("latents", latents)
 | `TensorKey.IMAGE` | `"image"` | Pipeline put_tensors | VAEEncodeNode |
 | `TensorKey.START_IMG` | `"start_img"` | Pipeline put_tensors | VAEEncodeNode |
 | `TensorKey.END_IMG` | `"end_img"` | Pipeline put_tensors | VAEEncodeNode |
-| `TensorKey.INPUT_LATENT` | `"input_latent"` | Pipeline put_tensors | GeneratorNode |
+| `TensorKey.BASE_LATENT` | `"base_latent"` | VAEEncodeSpatialNode / Pipeline put_tensors | GeneratorNode |
+| `TensorKey.AUX_LATENT` | `"aux_latent"` | Pipeline put_tensors | GeneratorNode |
 
 ### NodeContext 禁止 tensor
 
@@ -316,11 +317,11 @@ class TensorValue:
 `tensor_scope` 支持 `keep` 参数，声明哪些 key 在 scope 退出时保留：
 
 ```python
-# 分段调用：vae_encode 保留 IMAGE_EMBEDS
-with engine.tensor_scope(keep=[TensorKey.IMAGE_EMBEDS]):
+# 分段调用：vae_encode 保留 BASE_LATENT
+with engine.tensor_scope(keep=[TensorKey.BASE_LATENT]):
     engine.put_tensors(**{TensorKey.IMAGE: image})
-    engine.run_infer_node(InferNodeType.VAE_ENCODE_IMAGES, vae, context)
-# scope 退出：IMAGE 被 release，IMAGE_EMBEDS 保留在 pool 中
+    engine.run_infer_node(InferNodeType.VAE_ENCODE_SPATIAL, vae, context)
+# scope 退出：IMAGE 被 release，BASE_LATENT 保留在 pool 中
 
 # 最终步骤：vae_decode 不 keep，全部清理
 with engine.tensor_scope():
@@ -336,15 +337,15 @@ ComfyUI adapter 之间传递的是 `TensorKey`（而非裸 tensor），真正的
 ```python
 # vae_encode 返回 key
 def vae_encode_image(...):
-    with engine.tensor_scope(keep=[TensorKey.IMAGE_EMBEDS]):
+    with engine.tensor_scope(keep=[TensorKey.BASE_LATENT]):
         engine.put_tensors(...)
         engine.run_infer_node(...)
-    return KsanaNodeVAEEncodeOutput(samples=TensorKey.IMAGE_EMBEDS, ...)
+    return KsanaNodeVAEEncodeOutput(samples=TensorKey.BASE_LATENT, ...)
 
 # generate 收到 key，先检查存在性
 def generate(...):
-    if not engine.has_tensor(image_embeds_key):
-        raise RuntimeError(f"Tensor {image_embeds_key} not found in pool")
+    if not engine.has_tensor(base_latent_key):
+        raise RuntimeError(f"Tensor {base_latent_key} not found in pool")
     with engine.tensor_scope(keep=[TensorKey.LATENTS]):
         engine.run_infer_node(...)
     return KsanaNodeGeneratorOutput(samples=TensorKey.LATENTS, ...)
@@ -352,7 +353,7 @@ def generate(...):
 
 #### Pool 的 clear(exclude=[...])
 
-`KsanaTensorStorePool.clear(exclude)` 释放除 exclude 列表外的所有 tensor：
+`TensorPool.clear(exclude)` 释放除 exclude 列表外的所有 tensor：
 
 ```python
 def clear(self, exclude: list[TensorKey] | None = None) -> None:
@@ -388,7 +389,7 @@ Engine (singleton via get_default / 或多实例)
 
 KsanaExecutor (每卡一个实例)
  ├── owns: model_pool        — ModelPool (存储已加载的模型)
- ├── owns: tensor_pool       — KsanaTensorStorePool (存储推理中间 tensor)
+ ├── owns: tensor_pool       — TensorPool (存储推理中间 tensor)
  ├── owns: dist_group        — DistributedGroupManager (管理 torch.distributed)
  ├── owns: device_ctx        — NodeDeviceContext (frozen dataclass, 只读)
  ├── owns: device / offload_device / device_id (设备信息)
@@ -423,7 +424,7 @@ KsanaExecutor (每卡一个实例)
 | 属性 | 类型 | 生命周期 | 说明 |
 |------|------|---------|------|
 | `model_pool` | `ModelPool` | 与 Executor 同生命周期 | 存储所有已加载模型，按 `ModelKey` 索引 |
-| `tensor_pool` | `KsanaTensorStorePool` | 每次 `inference_session()` 结束时 clear | 存储推理中间 tensor，按 string key 索引 |
+| `tensor_pool` | `TensorPool` | 每次 `inference_session()` 结束时 clear | 存储推理中间 tensor，按 string key 索引 |
 | `dist_group` | `DistributedGroupManager` | 与 Executor 同生命周期 | 管理 broadcast 等分布式操作 |
 | `device_ctx` | `NodeDeviceContext` | 初始化后不变（frozen） | 只读设备上下文，传入 Node.run() |
 | `device` | `torch.device` | 不变 | 计算设备 (如 `cuda:0`) |
@@ -446,7 +447,7 @@ class NodeDeviceContext:
 - **传入 Node.run()** 作为只读参数
 - **frozen=True** 保证 Node 无法修改设备配置
 
-#### KsanaTensorStorePool (`kdit/tensor/tensor_store_pool.py`)
+#### TensorPool (`kdit/tensor/tensor_pool.py`)
 
 - **Owner**: Executor
 - **生命周期**: 每次 `engine.tensor_scope()` 退出（depth→0）时 `clear(exclude=keep)`
@@ -588,10 +589,10 @@ class MyNode(InferNode):
 | Node | dispatch_policy | input_tensor_keys | output_tensor_keys |
 |------|----------------|-------------------|-------------------|
 | `TextEncodeNode` | `ALL_ALL_ALL` | `[]` | `[POSITIVE, NEGATIVE]` |
-| `VAEEncodeSpatialNode` | `R0_R0_BCAST` | `[START_IMG, END_IMG]` | `[IMG_LATENTS]` |
-| `VAEEncodeImagesNode` | `R0_R0_BCAST` | `[IMAGE]` | `[IMG_LATENTS]` |
+| `VAEEncodeSpatialNode` | `R0_R0_BCAST` | `[START_IMG, END_IMG]` | `[BASE_LATENT]` |
+| `VAEEncodeImagesNode` | `R0_R0_BCAST` | `[IMAGE]` | `[IMAGE_EMBEDS]` |
 | `VAEDecodeNode` | `ALL_R0_R0` | `[LATENTS]` | `[VIDEO]` |
-| `GeneratorNode` | `ALL_ALL_ALL` | `[POSITIVE, NEGATIVE, IMG_LATENTS, INPUT_LATENT]` | `[LATENTS]` |
+| `GeneratorNode` | `ALL_ALL_ALL` | `[POSITIVE, NEGATIVE, BASE_LATENT, AUX_LATENT]` | `[LATENTS]` |
 
 ### Executor 同步机制
 
@@ -693,7 +694,6 @@ grep -rn "import kdit.adapter" kdit/ --include="*.py" | grep -v __pycache__ | gr
 | `KsanaBaseGenerator` | `BaseGenerator` | `kdit/generators/base_generator.py` |
 | `KsanaVaceGenerator` | `VaceGenerator` | `kdit/generators/vace_generator.py` |
 | `KsanaExecutor` | `Executor` | `kdit/executor/executor.py` |
-| `KsanaTensorStorePool` | `TensorStorePool` | `kdit/tensor/tensor_store_pool.py` |
 
 ### 保留 `Ksana` 前缀的类（comfyui 适配层）
 

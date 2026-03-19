@@ -62,8 +62,6 @@ def _ensure_pipeline_key_entries():
     global _PIPELINE_KEY_REGISTERED
     if _PIPELINE_KEY_REGISTERED:
         return
-    _PIPELINE_KEY_REGISTERED = True
-
     from ..pipelines.pipeline_key import PipelineKey
 
     _MODEL_KEY_TO_CONF_PATH_MAP.update(
@@ -85,6 +83,7 @@ def _ensure_pipeline_key_entries():
             PipelineKey.QwenImage_Edit: "qwen/modules/config/lora.yaml",
         }
     )
+    _PIPELINE_KEY_REGISTERED = True
 
 
 def load_default_settings(model_key, with_lora: bool = False):

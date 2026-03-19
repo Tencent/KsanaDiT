@@ -33,7 +33,7 @@ class WanGenerator(BaseGenerator):
     def valid_noise_shape(self, noise_shape: tuple[int] | list[int], diffusion_model: list[KsanaDiffusionModel]):
         noise_shape = super().valid_noise_shape(noise_shape, diffusion_model)
         if self.model_key == ModelKey.Wan2_2_I2V_14B:
-            # Note: i2v used image_embeds as noise_shape, so need change to shape[1] as right z_dim
+            # Note: i2v used base_latent as noise_shape, so need change to shape[1] as right z_dim
             #       and should have added z_dim to yaml settings
             default_settings = diffusion_model[0].default_settings
             if not hasattr(default_settings.vae, "z_dim"):
@@ -41,12 +41,10 @@ class WanGenerator(BaseGenerator):
             noise_shape[0] = default_settings.vae.z_dim
         return noise_shape
 
-    def cast_image_tensor_to(
-        self, image_embeds: list[torch.Tensor] | None, *, dtype: torch.dtype, device: torch.device
-    ):
+    def cast_base_latent_to(self, base_latent: list[torch.Tensor] | None, *, dtype: torch.dtype, device: torch.device):
         if self.model_key == ModelKey.Wan2_2_T2V_14B:
             return None
-        return super().cast_image_tensor_to(image_embeds, dtype=dtype, device=device)
+        return super().cast_base_latent_to(base_latent, dtype=dtype, device=device)
 
     def _get_model_boundary(self, diffusion_model: list[KsanaDiffusionModel]):
         if self.boundary is not None:
@@ -67,33 +65,31 @@ class WanGenerator(BaseGenerator):
             log.info(f"model boundary: {boundary}")
         return self.boundary
 
-    def _apply_input_latent(
+    def _apply_aux_latent(
         self,
         noise_latents: torch.Tensor,
-        input_latent: torch.Tensor,
+        aux_latent: torch.Tensor,
         sample_config: SampleConfig,
         timesteps: torch.Tensor,
         num_train_timesteps: int,
     ):
-        if input_latent is None:
+        if aux_latent is None:
             return noise_latents
 
         if noise_latents.dim() != 5:  # [bs, z_dim, f, h, w]
             raise ValueError(f"noise_latents {noise_latents.shape} must be 5D tensor")
 
-        input_latent = input_latent.to(noise_latents)
+        aux_latent = aux_latent.to(noise_latents)
         frame_dim = 2
-        if noise_latents.shape[frame_dim] < input_latent.shape[frame_dim]:
-            raise ValueError(
-                f"noise_latents {noise_latents.shape} frame dim must be >= input_latent {input_latent.shape}"
-            )
-        if input_latent.shape[frame_dim] != noise_latents.shape[frame_dim]:
-            input_latent = torch.cat(
+        if noise_latents.shape[frame_dim] < aux_latent.shape[frame_dim]:
+            raise ValueError(f"noise_latents {noise_latents.shape} frame dim must be >= aux_latent {aux_latent.shape}")
+        if aux_latent.shape[frame_dim] != noise_latents.shape[frame_dim]:
+            aux_latent = torch.cat(
                 [
-                    input_latent[:, :, :1].repeat(
-                        1, 1, noise_latents.shape[frame_dim] - input_latent.shape[frame_dim], 1, 1
+                    aux_latent[:, :, :1].repeat(
+                        1, 1, noise_latents.shape[frame_dim] - aux_latent.shape[frame_dim], 1, 1
                     ),
-                    input_latent,
+                    aux_latent,
                 ],
                 dim=frame_dim,
             )
@@ -102,10 +98,10 @@ class WanGenerator(BaseGenerator):
             latent_timestep = timesteps[:1].to(noise_latents)
             noise_latents = (
                 noise_latents * latent_timestep / num_train_timesteps
-                + (1 - latent_timestep / num_train_timesteps) * input_latent
+                + (1 - latent_timestep / num_train_timesteps) * aux_latent
             )
         else:
-            noise_latents = input_latent
+            noise_latents = aux_latent
 
         return noise_latents
 
@@ -173,13 +169,13 @@ class WanGenerator(BaseGenerator):
         cache,
         positive,
         negative,
-        image_embeds: list[torch.Tensor] | None,
+        base_latent: list[torch.Tensor] | None,
         **_,
     ) -> dict:
         base = {"cache": cache, "step_iter": step_iter}
 
-        # Wan I2V: image_embeds is list[Tensor] with single element; extract the Tensor for model "y" input
-        img_y = image_embeds[0] if image_embeds is not None and len(image_embeds) > 0 else None
+        # Wan I2V: base_latent is list[Tensor] with single element; extract the Tensor for model "y" input
+        img_y = base_latent[0] if base_latent is not None and len(base_latent) > 0 else None
 
         use_cfg = self._use_cfg(cfg_scale)
         if use_cfg and combine_cond_uncond:

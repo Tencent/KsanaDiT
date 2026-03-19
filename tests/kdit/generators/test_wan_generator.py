@@ -16,9 +16,9 @@
 
 测试覆盖:
 - valid_noise_shape (I2V z_dim 覆写)
-- cast_image_tensor_to (T2V 返回 None)
+- cast_base_latent_to (T2V 返回 None)
 - _get_model_boundary (双模型 boundary 计算)
-- _apply_input_latent (噪声混合 / add_noise_to_latent)
+- _apply_aux_latent (噪声混合 / add_noise_to_latent)
 - get_running_model (单模型 / 双模型 + boundary 切换)
 - get_running_cache (单缓存 / 双缓存 + boundary 切换)
 - get_running_cfg_scale (单值 / 双值 + boundary 切换)
@@ -102,18 +102,18 @@ class TestWanValidNoiseShape(unittest.TestCase):
             gen.valid_noise_shape([16, 8, 32, 32], [dm])
 
 
-class TestWanCastImageTensor(unittest.TestCase):
-    """测试 cast_image_tensor_to — T2V 返回 None。"""
+class TestWanCastBaseLatent(unittest.TestCase):
+    """测试 cast_base_latent_to — T2V 返回 None。"""
 
     def test_t2v_returns_none(self):
         gen = _make_wan_generator(ModelKey.Wan2_2_T2V_14B)
-        result = gen.cast_image_tensor_to([torch.randn(1, 4)], dtype=torch.float16, device=torch.device("cpu"))
+        result = gen.cast_base_latent_to([torch.randn(1, 4)], dtype=torch.float16, device=torch.device("cpu"))
         self.assertIsNone(result)
 
     def test_i2v_casts_tensors(self):
         gen = _make_wan_generator(ModelKey.Wan2_2_I2V_14B)
         embeds = [torch.randn(1, 4, dtype=torch.float32)]
-        result = gen.cast_image_tensor_to(embeds, dtype=torch.float16, device=torch.device("cpu"))
+        result = gen.cast_base_latent_to(embeds, dtype=torch.float16, device=torch.device("cpu"))
         self.assertIsNotNone(result)
         self.assertEqual(result[0].dtype, torch.float16)
 
@@ -150,8 +150,8 @@ class TestWanGetModelBoundary(unittest.TestCase):
         self.assertEqual(result, 42.0)
 
 
-class TestWanApplyInputLatent(unittest.TestCase):
-    """测试 _apply_input_latent — 噪声混合逻辑。"""
+class TestWanApplyAuxLatent(unittest.TestCase):
+    """测试 _apply_aux_latent — 噪声混合逻辑。"""
 
     def _make_sample_config(self, add_noise=True):
         sc = MagicMock()
@@ -161,14 +161,14 @@ class TestWanApplyInputLatent(unittest.TestCase):
     def test_none_input_returns_noise(self):
         gen = _make_wan_generator()
         noise = torch.randn(1, 16, 4, 8, 8)
-        result = gen._apply_input_latent(noise, None, self._make_sample_config(), torch.tensor([500]), 1000)
+        result = gen._apply_aux_latent(noise, None, self._make_sample_config(), torch.tensor([500]), 1000)
         self.assertTrue(torch.equal(result, noise))
 
     def test_non_5d_raises(self):
         gen = _make_wan_generator()
         noise = torch.randn(1, 16, 8, 8)  # 4D
         with self.assertRaises(ValueError, msg="must be 5D"):
-            gen._apply_input_latent(
+            gen._apply_aux_latent(
                 noise, torch.randn(1, 16, 8, 8), self._make_sample_config(), torch.tensor([500]), 1000
             )
 
@@ -177,7 +177,7 @@ class TestWanApplyInputLatent(unittest.TestCase):
         noise = torch.ones(1, 16, 4, 8, 8)
         input_lat = torch.zeros(1, 16, 4, 8, 8)
         timesteps = torch.tensor([500])
-        result = gen._apply_input_latent(noise, input_lat, self._make_sample_config(True), timesteps, 1000)
+        result = gen._apply_aux_latent(noise, input_lat, self._make_sample_config(True), timesteps, 1000)
         # result = noise * (t/T) + (1 - t/T) * input = 1 * 0.5 + 0 * 0.5 = 0.5
         self.assertTrue(torch.allclose(result, torch.full_like(result, 0.5)))
 
@@ -185,14 +185,14 @@ class TestWanApplyInputLatent(unittest.TestCase):
         gen = _make_wan_generator()
         noise = torch.ones(1, 16, 4, 8, 8)
         input_lat = torch.full((1, 16, 4, 8, 8), 2.0)
-        result = gen._apply_input_latent(noise, input_lat, self._make_sample_config(False), torch.tensor([500]), 1000)
+        result = gen._apply_aux_latent(noise, input_lat, self._make_sample_config(False), torch.tensor([500]), 1000)
         self.assertTrue(torch.equal(result, input_lat))
 
     def test_frame_padding(self):
         gen = _make_wan_generator()
         noise = torch.randn(1, 16, 8, 8, 8)  # 8 frames
         input_lat = torch.randn(1, 16, 4, 8, 8)  # 4 frames
-        result = gen._apply_input_latent(noise, input_lat, self._make_sample_config(False), torch.tensor([500]), 1000)
+        result = gen._apply_aux_latent(noise, input_lat, self._make_sample_config(False), torch.tensor([500]), 1000)
         self.assertEqual(result.shape, noise.shape)
 
 
@@ -303,7 +303,7 @@ class TestWanPrepareModelForwardKargs(unittest.TestCase):
             "cache": None,
             "positive": pos,
             "negative": neg,
-            "image_embeds": None,
+            "base_latent": None,
         }
 
     def test_combine_mode(self):
@@ -329,7 +329,7 @@ class TestWanPrepareModelForwardKargs(unittest.TestCase):
 
     def test_i2v_includes_y(self):
         gen, kwargs = self._make_args(cfg_scale=7.5, combine=True, model_key=ModelKey.Wan2_2_I2V_14B)
-        kwargs["image_embeds"] = [torch.randn(2, 256)]
+        kwargs["base_latent"] = [torch.randn(2, 256)]
         result = gen.prepare_model_forward_kargs(**kwargs)
         self.assertIn("y", result)
         self.assertEqual(result["y"].shape[0], 4)

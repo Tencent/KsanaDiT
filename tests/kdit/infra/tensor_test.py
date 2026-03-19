@@ -113,12 +113,12 @@ class TestTensorPool:
     def test_clear_with_exclude(self):
         pool = TensorPool()
         pool.put(TensorKey.POSITIVE, torch.zeros(1))
-        pool.put(TensorKey.IMAGE_EMBEDS, torch.zeros(2))
+        pool.put(TensorKey.BASE_LATENT, torch.zeros(2))
         pool.put(TensorKey.LATENTS, torch.zeros(3))
-        tv_keep = pool.get(TensorKey.IMAGE_EMBEDS)
-        pool.clear(exclude=[TensorKey.IMAGE_EMBEDS])
+        tv_keep = pool.get(TensorKey.BASE_LATENT)
+        pool.clear(exclude=[TensorKey.BASE_LATENT])
         assert len(pool) == 1
-        assert pool.has(TensorKey.IMAGE_EMBEDS)
+        assert pool.has(TensorKey.BASE_LATENT)
         assert not pool.has(TensorKey.POSITIVE)
         assert not pool.has(TensorKey.LATENTS)
         assert not tv_keep.is_released  # 保留的不被 release
@@ -147,9 +147,9 @@ class TestTensorPool:
     def test_put_get_list_tensor(self):
         pool = TensorPool()
         tensors = [torch.randn(2, 3), torch.randn(4, 5)]
-        pool.put(TensorKey.IMAGE_EMBEDS, tensors)
-        assert pool.has(TensorKey.IMAGE_EMBEDS)
-        tensor_value = pool.get(TensorKey.IMAGE_EMBEDS)
+        pool.put(TensorKey.BASE_LATENT, tensors)
+        assert pool.has(TensorKey.BASE_LATENT)
+        tensor_value = pool.get(TensorKey.BASE_LATENT)
         assert isinstance(tensor_value.data, list)
         assert len(tensor_value.data) == 2
         assert tensor_value.data[0] is tensors[0]
@@ -174,15 +174,15 @@ class TestTensorPool:
     def test_clear_with_list_tensors(self):
         pool = TensorPool()
         pool.put(TensorKey.POSITIVE, torch.zeros(1))
-        pool.put(TensorKey.IMAGE_EMBEDS, [torch.zeros(2), torch.ones(3)])
+        pool.put(TensorKey.BASE_LATENT, [torch.zeros(2), torch.ones(3)])
         assert len(pool) == 2
         pool.clear()
         assert len(pool) == 0
 
     def test_empty_list_tensor(self):
         pool = TensorPool()
-        pool.put(TensorKey.IMAGE_EMBEDS, [])
-        tensor_value = pool.get(TensorKey.IMAGE_EMBEDS)
+        pool.put(TensorKey.BASE_LATENT, [])
+        tensor_value = pool.get(TensorKey.BASE_LATENT)
         assert isinstance(tensor_value.data, list)
         assert len(tensor_value.data) == 0
 
@@ -190,18 +190,18 @@ class TestTensorPool:
         pool = TensorPool()
         t = torch.randn(3, 4)
         pool.put(TensorKey.LATENTS, t)
-        pool.rename(TensorKey.LATENTS, TensorKey.INPUT_LATENT)
+        pool.rename(TensorKey.LATENTS, TensorKey.AUX_LATENT)
         assert not pool.has(TensorKey.LATENTS)
-        assert pool.has(TensorKey.INPUT_LATENT)
-        assert torch.equal(pool.get(TensorKey.INPUT_LATENT).data, t)
+        assert pool.has(TensorKey.AUX_LATENT)
+        assert torch.equal(pool.get(TensorKey.AUX_LATENT).data, t)
 
     def test_rename_overwrites_existing(self):
         pool = TensorPool()
         pool.put(TensorKey.LATENTS, torch.tensor(1.0))
-        pool.put(TensorKey.INPUT_LATENT, torch.tensor(2.0))
-        pool.rename(TensorKey.LATENTS, TensorKey.INPUT_LATENT)
+        pool.put(TensorKey.AUX_LATENT, torch.tensor(2.0))
+        pool.rename(TensorKey.LATENTS, TensorKey.AUX_LATENT)
         assert not pool.has(TensorKey.LATENTS)
-        assert pool.get(TensorKey.INPUT_LATENT).data.item() == 1.0
+        assert pool.get(TensorKey.AUX_LATENT).data.item() == 1.0
 
     def test_rename_missing_key_raises(self):
         pool = TensorPool()
@@ -211,10 +211,10 @@ class TestTensorPool:
     def test_rename_preserves_list_tensor(self):
         pool = TensorPool()
         tensors = [torch.randn(2, 3), torch.randn(4, 5)]
-        pool.put(TensorKey.IMAGE_EMBEDS, tensors)
-        pool.rename(TensorKey.IMAGE_EMBEDS, TensorKey.INPUT_LATENT)
-        assert not pool.has(TensorKey.IMAGE_EMBEDS)
-        tv = pool.get(TensorKey.INPUT_LATENT)
+        pool.put(TensorKey.BASE_LATENT, tensors)
+        pool.rename(TensorKey.BASE_LATENT, TensorKey.AUX_LATENT)
+        assert not pool.has(TensorKey.BASE_LATENT)
+        tv = pool.get(TensorKey.AUX_LATENT)
         assert isinstance(tv.data, list)
         assert len(tv.data) == 2
         assert torch.equal(tv.data[0], tensors[0])

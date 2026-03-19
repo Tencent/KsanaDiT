@@ -60,49 +60,47 @@ class BaseGenerator:
             tensor = tensor.repeat_interleave(repeats, dim=0)
         return tensor
 
-    def _valid_image_to_total_prompts_size(
+    def _valid_base_latent_to_total_prompts_size(
         self,
-        image_embeds: ImageEmbeds | MultiPromptImageEmbeds | None,
+        base_latent: ImageEmbeds | MultiPromptImageEmbeds | None,
         num_prompts: int,
         batch_size_per_prompts: list[int],
     ) -> list[torch.Tensor] | None:
-        """按 batch_size_per_prompts 扩展 image_embeds，返回统一的 list[Tensor]。
+        """按 batch_size_per_prompts 扩展 base_latent，返回统一的 list[Tensor]。
 
         通过 isinstance 自动分发：
         - Tensor (ImageEmbeds): shape[0] 是 batch 维度 → _expand_single_latents
         - list[Tensor] (MultiPromptImageEmbeds): list 长度 = prompt 数 → _expand_list_latents
         """
-        if image_embeds is None:
+        if base_latent is None:
             return None
-        if isinstance(image_embeds, torch.Tensor):
-            return self._expand_single_latents(image_embeds, num_prompts, batch_size_per_prompts)
-        elif isinstance(image_embeds, list):
-            return self._expand_list_latents(image_embeds, num_prompts, batch_size_per_prompts)
+        if isinstance(base_latent, torch.Tensor):
+            return self._expand_single_latents(base_latent, num_prompts, batch_size_per_prompts)
+        elif isinstance(base_latent, list):
+            return self._expand_list_latents(base_latent, num_prompts, batch_size_per_prompts)
         else:
-            raise TypeError(f"image_embeds must be Tensor, list[Tensor] or None, got {type(image_embeds)}")
+            raise TypeError(f"base_latent must be Tensor, list[Tensor] or None, got {type(base_latent)}")
 
-    def _expand_list_latents(
-        self, image_embeds: list[torch.Tensor], num_prompts: int, batch_size_per_prompts: list[int]
-    ):
-        """将 list[Tensor] 格式的 image_embeds 按 batch_size_per_prompts 扩展"""
-        if len(image_embeds) != num_prompts:
-            raise ValueError(f"image_embeds list length ({len(image_embeds)}) must match num_prompts ({num_prompts})")
-        stacked = torch.stack(image_embeds)  # [num_prompts, num_refs, C, 1, H, W]
+    def _expand_list_latents(self, latents: list[torch.Tensor], num_prompts: int, batch_size_per_prompts: list[int]):
+        """将 list[Tensor] 格式的 latents 按 batch_size_per_prompts 扩展"""
+        if len(latents) != num_prompts:
+            raise ValueError(f"latents list length ({len(latents)}) must match num_prompts ({num_prompts})")
+        stacked = torch.stack(latents)  # [num_prompts, num_refs, C, 1, H, W]
         expanded = self._expand_to_total_prompts_size(
             stacked, batch_size_per_prompts
         )  # [total_batch, num_refs, C, 1, H, W]
         # 转置结构：[total_batch, num_refs, ...] -> list[num_refs] of [total_batch, ...]
         return list(expanded.transpose(0, 1))  # list[num_refs] of [total_batch, C, 1, H, W]
 
-    def _expand_single_latents(self, image_embeds: torch.Tensor, num_prompts: int, batch_size_per_prompts: list[int]):
+    def _expand_single_latents(self, latent: torch.Tensor, num_prompts: int, batch_size_per_prompts: list[int]):
         """处理单个tensor格式的latents"""
-        if num_prompts > image_embeds.shape[0]:
-            current_batch_size = image_embeds.shape[0]
+        if num_prompts > latent.shape[0]:
+            current_batch_size = latent.shape[0]
             repeats_num = num_prompts // current_batch_size
             if repeats_num * current_batch_size != num_prompts:
                 raise ValueError(f"Cannot evenly distribute {current_batch_size} images to {num_prompts} prompts")
-            image_embeds = image_embeds.repeat_interleave(repeats_num, dim=0)
-        return [self._expand_to_total_prompts_size(image_embeds, batch_size_per_prompts)]
+            latent = latent.repeat_interleave(repeats_num, dim=0)
+        return [self._expand_to_total_prompts_size(latent, batch_size_per_prompts)]
 
     def _valid_prompts_to_total_prompts_size(
         self,
@@ -129,8 +127,8 @@ class BaseGenerator:
             raise RuntimeError("num_train_timesteps should be set in yaml sample_config settings")
         return num_train_timesteps
 
-    def _apply_input_latent(self, *args, **kwargs):
-        raise NotImplementedError("subclass must implement _apply_input_latent method")
+    def _apply_aux_latent(self, *args, **kwargs):
+        raise NotImplementedError("subclass must implement _apply_aux_latent method")
 
     def _get_num_prompts(self, text_tensor: torch.Tensor | tuple):
         if isinstance(text_tensor, tuple):
@@ -169,7 +167,7 @@ class BaseGenerator:
         positive: torch.Tensor | tuple,
         negative: torch.Tensor | tuple,
         noise_latent: torch.Tensor,
-        image_embeds: list[torch.Tensor] | None,
+        base_latent: list[torch.Tensor] | None,
         process_info: list[int],
         sample_config: SampleConfig,
         runtime_config: RuntimeConfig,
@@ -220,7 +218,7 @@ class BaseGenerator:
                     cache=running_cache,
                     positive=positive,
                     negative=negative,
-                    image_embeds=image_embeds,
+                    base_latent=base_latent,
                     **step_kwargs,
                 )
                 if self._use_cfg(running_cfg_scale):
@@ -270,7 +268,7 @@ class BaseGenerator:
                     combine_cond_uncond=combine_cond_uncond,
                     positive=positive,
                     negative=negative,
-                    image_embeds=image_embeds,
+                    base_latent=base_latent,
                     step_kwargs=step_kwargs,
                     sample_config=sample_config,
                     seed_g=seed_g,
@@ -293,9 +291,9 @@ class BaseGenerator:
         noise_latents: torch.Tensor,
         positive: torch.Tensor,
         negative: torch.Tensor,
-        image_embeds: list[torch.Tensor] | None,
+        base_latent: list[torch.Tensor] | None,
         sample_config: RuntimeConfig,
-        input_latent: torch.Tensor,
+        aux_latent: torch.Tensor | None,
         run_steps_kwargs: dict,
     ):
         log.info(f"batch_strategy={batch_strategy}")
@@ -313,15 +311,15 @@ class BaseGenerator:
             batch_positive = tensor_ops.split_tensors(positive, strategy_item.start, strategy_item.end)
             batch_negative = tensor_ops.split_tensors(negative, strategy_item.start, strategy_item.end)
             batch_noise_latent = tensor_ops.split_tensors(noise_latents, strategy_item.start, strategy_item.end)
-            batch_image_embeds = tensor_ops.split_tensors(image_embeds, strategy_item.start, strategy_item.end)
-            batch_input_latent = tensor_ops.split_tensors(input_latent, strategy_item.start, strategy_item.end)
+            batch_base_latent = tensor_ops.split_tensors(base_latent, strategy_item.start, strategy_item.end)
+            batch_aux_latent = tensor_ops.split_tensors(aux_latent, strategy_item.start, strategy_item.end)
 
             device = run_steps_kwargs["device"]
             sample_scheduler, _, timesteps = get_sample_scheduler(
                 num_train_timesteps=num_train_timesteps, sample_config=sample_config, device=device
             )
-            batch_noise_latent = self._apply_input_latent(
-                batch_noise_latent, batch_input_latent, sample_config, timesteps, num_train_timesteps
+            batch_noise_latent = self._apply_aux_latent(
+                batch_noise_latent, batch_aux_latent, sample_config, timesteps, num_train_timesteps
             )
             with torch.no_grad():
                 processed_latents = self.run_one_batch(
@@ -331,7 +329,7 @@ class BaseGenerator:
                     positive=batch_positive,
                     negative=batch_negative,
                     noise_latent=batch_noise_latent,
-                    image_embeds=batch_image_embeds,
+                    base_latent=batch_base_latent,
                     timesteps=timesteps,
                     sample_scheduler_step_func=sample_scheduler.step,
                     sample_scheduler=sample_scheduler,  # Pass full scheduler for bidirectional sampling
@@ -359,8 +357,8 @@ class BaseGenerator:
         diffusion_model = ctx.diffusion_model
         positive = ctx.positive
         negative = ctx.negative
-        image_embeds = ctx.image_embeds
-        input_latent = ctx.input_latent
+        base_latent_obj = ctx.base_latent  # BaseLatent | None
+        aux_latent_obj = ctx.aux_latent  # AuxLatent | None
         noise_shape = ctx.noise_shape
         device = ctx.device
         offload_device = ctx.offload_device
@@ -371,10 +369,14 @@ class BaseGenerator:
         control_video_config = ctx.control_video_config
         comfy_bar_callback = ctx.comfy_bar_callback
 
+        # 从 BaseLatent/AuxLatent 对象中提取原始 tensor
+        base_latent_raw = base_latent_obj.latent if base_latent_obj is not None else None
+        aux_latent = aux_latent_obj.latent if aux_latent_obj is not None else None
+
         diffusion_model = validation.valid_diffusion_model(diffusion_model, self.model_key)
         positive = self.preprocess_text_conditioning(positive)
         negative = self.preprocess_text_conditioning(negative)
-        image_embeds = self.preprocess_image_embeds(image_embeds)
+        base_latent_raw = self.preprocess_base_latent(base_latent_raw)
         num_prompts = self._get_num_prompts(positive)
 
         sample_config = validation.valid_sample_config(sample_config, len(diffusion_model))
@@ -386,16 +388,16 @@ class BaseGenerator:
 
         self._apply_rope_function_to_models(diffusion_model, runtime_config.rope_function)
 
-        # expand image_embeds, positive and negative to total batch size supporting batch_size_per_prompts
-        image_embeds = self._valid_image_to_total_prompts_size(
-            image_embeds, num_prompts, runtime_config.batch_size_per_prompts
+        # expand base_latent, positive and negative to total batch size supporting batch_size_per_prompts
+        base_latent_expanded = self._valid_base_latent_to_total_prompts_size(
+            base_latent_raw, num_prompts, runtime_config.batch_size_per_prompts
         )
         positive, negative = self._valid_prompts_to_total_prompts_size(
             positive, negative, runtime_config.batch_size_per_prompts
         )
         run_dtype = diffusion_model[0].run_dtype
         positive, negative = self.cast_text_tensors_to(positive, negative, dtype=run_dtype, device=device)
-        image_embeds = self.cast_image_tensor_to(image_embeds, dtype=run_dtype, device=device)
+        base_latent_expanded = self.cast_base_latent_to(base_latent_expanded, dtype=run_dtype, device=device)
 
         # create noise latents and batch strategy
         total_samples_num = sum(runtime_config.batch_size_per_prompts)
@@ -405,13 +407,13 @@ class BaseGenerator:
         batch_strategy = self.batch_scheduler.build_batch_strategy(
             self.model_key, noise_latents.shape, total_samples_num, run_dtype, device
         )
-        validation.valid_input_latent(input_latent, noise_latents.shape)
+        validation.valid_aux_latent(aux_latent, noise_latents.shape)
         # Note: pack need after build strategy since strategy use noise_latents shape as 5D tensor
         patch_size = self._get_patch_size(diffusion_model)
         noise_latents = self.pack_noise_latents(noise_latents, patch_size)
 
-        if image_embeds is not None and len(image_embeds) > 0:
-            image_embeds = self.pack_ref_latents(image_embeds, patch_size)
+        if base_latent_expanded is not None and len(base_latent_expanded) > 0:
+            base_latent_expanded = self.pack_ref_latents(base_latent_expanded, patch_size)
 
         log.info(
             f"num_prompts: {num_prompts}, batch_size_per_prompts: {runtime_config.batch_size_per_prompts}, "
@@ -441,9 +443,9 @@ class BaseGenerator:
             noise_latents=noise_latents,
             positive=positive,
             negative=negative,
-            image_embeds=image_embeds,
+            base_latent=base_latent_expanded,
             sample_config=sample_config,
-            input_latent=input_latent,
+            aux_latent=aux_latent,
             run_steps_kwargs=run_steps_kwargs,
         )
         noise_latents = self.unpack_noise_latents(noise_latents, patch_size)
@@ -460,8 +462,8 @@ class BaseGenerator:
     # 子类可覆写的钩子方法
     # ------------------------------------------------------------------
 
-    def preprocess_image_embeds(self, image_embeds):
-        return image_embeds
+    def preprocess_base_latent(self, base_latent):
+        return base_latent
 
     def preprocess_text_conditioning(self, text_conditioning: torch.Tensor | tuple):
         return text_conditioning
@@ -496,12 +498,10 @@ class BaseGenerator:
         negative = tensor_ops.cast_to(negative, dtype=dtype, device=device)
         return positive, negative
 
-    def cast_image_tensor_to(
-        self, image_embeds: list[torch.Tensor] | None, *, dtype: torch.dtype, device: torch.device
-    ):
-        if image_embeds is None:
+    def cast_base_latent_to(self, base_latent: list[torch.Tensor] | None, *, dtype: torch.dtype, device: torch.device):
+        if base_latent is None:
             return None
-        return [tensor_ops.cast_to(embed, dtype=dtype, device=device) for embed in image_embeds]
+        return [tensor_ops.cast_to(embed, dtype=dtype, device=device) for embed in base_latent]
 
     def get_running_cfg_scale(self, cfg_scale: list[float], **kwargs):
         return cfg_scale[0] if isinstance(cfg_scale, (list, tuple)) else cfg_scale

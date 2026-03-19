@@ -20,9 +20,9 @@
 from .noise import create_cache, create_random_noise_latents
 from .tensor_ops import cast_to, split_tensors
 from .validation import (
+    valid_aux_latent,
     valid_cache_config,
     valid_diffusion_model,
-    valid_input_latent,
     valid_runtime_config,
     valid_sample_config,
 )
@@ -33,7 +33,7 @@ __all__ = [
     "valid_sample_config",
     "valid_cache_config",
     "valid_runtime_config",
-    "valid_input_latent",
+    "valid_aux_latent",
     # noise
     "create_random_noise_latents",
     "create_cache",

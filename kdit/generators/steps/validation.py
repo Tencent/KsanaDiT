@@ -120,19 +120,19 @@ def valid_runtime_config(runtime_config: RuntimeConfig, num_prompts: int) -> Run
     return runtime_config
 
 
-def valid_input_latent(input_latent: torch.Tensor, noise_shape: tuple[int]):
-    """校验 input_latent 与 noise_shape 的维度一致性。"""
-    if input_latent is None:
+def valid_aux_latent(aux_latent: torch.Tensor, noise_shape: tuple[int]):
+    """校验 aux_latent 与 noise_shape 的维度一致性。"""
+    if aux_latent is None:
         return
-    if input_latent.dim() != len(noise_shape) or len(noise_shape) != 5:  # [bs, z_dim, f, h, w]
+    if aux_latent.dim() != len(noise_shape) or len(noise_shape) != 5:  # [bs, z_dim, f, h, w]
         raise ValueError(
-            f"input_latent.dim() {input_latent.dim()} must be equal to noise_shape.len()"
+            f"aux_latent.dim() {aux_latent.dim()} must be equal to noise_shape.len()"
             f" {len(noise_shape)} and both must be 5"
         )
-    input_bs, input_z_dim, _, input_h, input_w = input_latent.shape
+    input_bs, input_z_dim, _, input_h, input_w = aux_latent.shape
     noise_bs, noise_z_dim, _, noise_h, noise_w = noise_shape
     if input_bs != noise_bs or input_z_dim != noise_z_dim or input_h != noise_h or input_w != noise_w:
         raise ValueError(
-            f"input_latent shape {input_latent.shape} must match "
+            f"aux_latent shape {aux_latent.shape} must match "
             f" noise_shape {noise_shape} in all dimensions except frame dimension"
         )

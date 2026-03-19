@@ -131,7 +131,7 @@ class QwenGenerator(BaseGenerator):
         combine_cond_uncond,
         step_iter,
         cache,
-        image_embeds,
+        base_latent,
         **_,
     ) -> dict | tuple[dict, dict]:
         if cache is not None:
@@ -148,7 +148,8 @@ class QwenGenerator(BaseGenerator):
         )
         use_cfg = self._use_cfg(cfg_scale)
 
-        ref_latents = image_embeds
+        # TODO: changeme , why use base_latent as ref_latents, should use aux_latent
+        ref_latents = base_latent
         if use_cfg and combine_cond_uncond:
             combine_x = torch.cat([noise_latent, noise_latent], dim=0)
             combine_t = torch.cat([timestep, timestep], dim=0)
@@ -197,19 +198,16 @@ class QwenGenerator(BaseGenerator):
         }
         return base | arg_cond, base | arg_uncond
 
-    def _apply_input_latent(
+    def _apply_aux_latent(
         self,
         noise_latents: torch.Tensor,
-        input_latent: torch.Tensor,
+        aux_latent: torch.Tensor,
         sample_config: SampleConfig,
         timesteps: torch.Tensor,
         num_train_timesteps: int,
     ):
-        # TODO: implement input_latent blending for image editing
-        log.warning(
-            "input_latent blending for image editing is not implemented yet. "
-            "Currently input_latent is not used for qwen, mainly for getting output shape"
-        )
+        # Qwen does not use aux_latent for noise blending; aux_latent (ref_latents) is consumed
+        # directly in prepare_model_forward_kargs via base_latent parameter.
         return noise_latents
 
     def _get_latent_img_shapes(self):

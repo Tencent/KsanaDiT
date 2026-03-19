@@ -238,7 +238,7 @@ class WanT2VContextBuilder(WanContextBuilder):
 class WanI2VContextBuilder(WanContextBuilder):
     """Wan I2V — 图生视频（含可选 VACE 控制）。
 
-    处理 start_img_path / end_img_path / input_latent / video_control_config。
+    处理 start_img_path / end_img_path / aux_latent / video_control_config。
     当有 start_img 时走 VAE_ENCODE_SPATIAL 编码图像；无图时退化为 T2V 行为。
     """
 
@@ -250,7 +250,7 @@ class WanI2VContextBuilder(WanContextBuilder):
         end_img_path: list[str] | None
         start_img_tensor: torch.Tensor | None
         end_img_tensor: torch.Tensor | None
-        input_latent: torch.Tensor | None
+        aux_latent: torch.Tensor | None
         target_frame_num: int
         noise_shape: list[int] | None
         with_end_image: bool
@@ -296,7 +296,7 @@ class WanI2VContextBuilder(WanContextBuilder):
             else rc.frame_num
         )
 
-        # noise_shape：有图时为 None（由 GeneratorNode 从 image_embeds 推导）
+        # noise_shape：有图时为 None（由 GeneratorNode 从 base_latent 推导）
         noise_shape = (
             None
             if start_img_path is not None
@@ -324,7 +324,7 @@ class WanI2VContextBuilder(WanContextBuilder):
             end_img_path=end_img_path,
             start_img_tensor=start_img_tensor,
             end_img_tensor=end_img_tensor,
-            input_latent=kwargs.get("input_latent"),
+            aux_latent=kwargs.get("aux_latent"),
             target_frame_num=target_frame_num,
             noise_shape=noise_shape,
             with_end_image=with_end_image,
@@ -363,8 +363,8 @@ class WanI2VContextBuilder(WanContextBuilder):
                 TensorKey.START_IMG: extra.start_img_tensor,
                 TensorKey.END_IMG: extra.end_img_tensor,
             }
-        if phase.node_type == NT.GENERATE and extra.input_latent is not None:
-            return {TensorKey.INPUT_LATENT: extra.input_latent}
+        if phase.node_type == NT.GENERATE and extra.aux_latent is not None:
+            return {TensorKey.AUX_LATENT: extra.aux_latent}
         return None
 
     def has_start_image(self, inputs: PipelineGenerateInputs) -> bool:
