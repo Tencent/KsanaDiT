@@ -62,24 +62,42 @@ class BaseGenerator:
 
     def _valid_base_latent_to_total_prompts_size(
         self,
-        base_latent: ImageEmbeds | MultiPromptImageEmbeds | None,
+        base_latents: list[torch.Tensor] | None,
         num_prompts: int,
         batch_size_per_prompts: list[int],
     ) -> list[torch.Tensor] | None:
-        """按 batch_size_per_prompts 扩展 base_latent，返回统一的 list[Tensor]。
+        """按 batch_size_per_prompts 扩展 base_latent list 中的每个 tensor。
+
+        base_latents 是 [latent] 或 [latent, mask] 形式的 list，
+        对每个元素逐个调用 _expand_single_latents。
+        """
+        if base_latents is None:
+            return None
+        expanded = []
+        for latent in base_latents:
+            expanded.extend(self._expand_single_latents(latent, num_prompts, batch_size_per_prompts))
+        return expanded
+
+    def _valid_aux_latent_to_total_prompts_size(
+        self,
+        aux_latent: ImageEmbeds | MultiPromptImageEmbeds | None,
+        num_prompts: int,
+        batch_size_per_prompts: list[int],
+    ) -> list[torch.Tensor] | None:
+        """按 batch_size_per_prompts 扩展 aux_latent，返回统一的 list[Tensor]。
 
         通过 isinstance 自动分发：
         - Tensor (ImageEmbeds): shape[0] 是 batch 维度 → _expand_single_latents
         - list[Tensor] (MultiPromptImageEmbeds): list 长度 = prompt 数 → _expand_list_latents
         """
-        if base_latent is None:
+        if aux_latent is None:
             return None
-        if isinstance(base_latent, torch.Tensor):
-            return self._expand_single_latents(base_latent, num_prompts, batch_size_per_prompts)
-        elif isinstance(base_latent, list):
-            return self._expand_list_latents(base_latent, num_prompts, batch_size_per_prompts)
+        if isinstance(aux_latent, torch.Tensor):
+            return self._expand_single_latents(aux_latent, num_prompts, batch_size_per_prompts)
+        elif isinstance(aux_latent, list):
+            return self._expand_list_latents(aux_latent, num_prompts, batch_size_per_prompts)
         else:
-            raise TypeError(f"base_latent must be Tensor, list[Tensor] or None, got {type(base_latent)}")
+            raise TypeError(f"aux_latent must be Tensor, list[Tensor] or None, got {type(aux_latent)}")
 
     def _expand_list_latents(self, latents: list[torch.Tensor], num_prompts: int, batch_size_per_prompts: list[int]):
         """将 list[Tensor] 格式的 latents 按 batch_size_per_prompts 扩展"""
@@ -182,6 +200,7 @@ class BaseGenerator:
         offload_device: torch.device = None,
         comfy_bar_callback=None,
         video_control_kwargs: dict | None = None,
+        aux_latent=None,
     ) -> torch.Tensor:
         log.info(f"timesteps:{timesteps}, combine_cond_uncond:{combine_cond_uncond}")
         dit_cache = noise_ops.create_cache(cache_config, self.model_key)
@@ -219,6 +238,7 @@ class BaseGenerator:
                     positive=positive,
                     negative=negative,
                     base_latent=base_latent,
+                    aux_latent=aux_latent,
                     **step_kwargs,
                 )
                 if self._use_cfg(running_cfg_scale):
@@ -334,6 +354,7 @@ class BaseGenerator:
                     sample_scheduler_step_func=sample_scheduler.step,
                     sample_scheduler=sample_scheduler,  # Pass full scheduler for bidirectional sampling
                     combine_cond_uncond=strategy_item.combine_cond_uncond,
+                    aux_latent=batch_aux_latent,
                     **run_steps_kwargs,
                 )
 
@@ -357,9 +378,8 @@ class BaseGenerator:
         diffusion_model = ctx.diffusion_model
         positive = ctx.positive
         negative = ctx.negative
-        base_latent_obj = ctx.base_latent  # BaseLatent | None
+        base_latent_obj = ctx.base_latent  # BaseLatent — 必须存在
         aux_latent_obj = ctx.aux_latent  # AuxLatent | None
-        noise_shape = ctx.noise_shape
         device = ctx.device
         offload_device = ctx.offload_device
         sample_config = ctx.sample_config
@@ -369,14 +389,21 @@ class BaseGenerator:
         control_video_config = ctx.control_video_config
         comfy_bar_callback = ctx.comfy_bar_callback
 
+        # base_latent 现在是必须的 — noise_shape 从 base_latent.latent.shape[1:] 推导
+        if base_latent_obj is None:
+            raise ValueError("base_latent is required — use VAE_COMPUTE_SHAPE or VAE_ENCODE_SPATIAL to create it")
+        noise_shape = list(base_latent_obj.latent.shape[1:])
+
         # 从 BaseLatent/AuxLatent 对象中提取原始 tensor
-        base_latent_raw = base_latent_obj.latent if base_latent_obj is not None else None
+        base_latent_list = [base_latent_obj.latent]
+        if base_latent_obj.mask is not None:
+            base_latent_list.append(base_latent_obj.mask)
         aux_latent = aux_latent_obj.latent if aux_latent_obj is not None else None
 
         diffusion_model = validation.valid_diffusion_model(diffusion_model, self.model_key)
         positive = self.preprocess_text_conditioning(positive)
         negative = self.preprocess_text_conditioning(negative)
-        base_latent_raw = self.preprocess_base_latent(base_latent_raw)
+        base_latent_list = [self.preprocess_base_latent(t) for t in base_latent_list]
         num_prompts = self._get_num_prompts(positive)
 
         sample_config = validation.valid_sample_config(sample_config, len(diffusion_model))
@@ -388,15 +415,19 @@ class BaseGenerator:
 
         self._apply_rope_function_to_models(diffusion_model, runtime_config.rope_function)
 
-        # expand base_latent, positive and negative to total batch size supporting batch_size_per_prompts
+        # expand base_latent, aux_latent, positive and negative to total batch size supporting batch_size_per_prompts
         base_latent_expanded = self._valid_base_latent_to_total_prompts_size(
-            base_latent_raw, num_prompts, runtime_config.batch_size_per_prompts
+            base_latent_list, num_prompts, runtime_config.batch_size_per_prompts
+        )
+        aux_latent_expanded = self._valid_aux_latent_to_total_prompts_size(
+            aux_latent, num_prompts, runtime_config.batch_size_per_prompts
         )
         positive, negative = self._valid_prompts_to_total_prompts_size(
             positive, negative, runtime_config.batch_size_per_prompts
         )
         run_dtype = diffusion_model[0].run_dtype
         positive, negative = self.cast_text_tensors_to(positive, negative, dtype=run_dtype, device=device)
+        # TODO：需要确认后续的aux和base是不是对的语义
         base_latent_expanded = self.cast_base_latent_to(base_latent_expanded, dtype=run_dtype, device=device)
 
         # create noise latents and batch strategy
@@ -445,7 +476,7 @@ class BaseGenerator:
             negative=negative,
             base_latent=base_latent_expanded,
             sample_config=sample_config,
-            aux_latent=aux_latent,
+            aux_latent=aux_latent_expanded,
             run_steps_kwargs=run_steps_kwargs,
         )
         noise_latents = self.unpack_noise_latents(noise_latents, patch_size)

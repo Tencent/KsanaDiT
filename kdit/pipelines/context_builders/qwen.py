@@ -25,7 +25,6 @@ import torch
 import torchvision.transforms.functional as tvtf
 from PIL import Image
 
-from kdit.models.latent_shape import compute_image_latent_shape
 from kdit.nodes.core.node_context import NodeContext
 from kdit.nodes.core.node_types import InferNodeType as NT
 from kdit.tensor import TensorKey
@@ -61,14 +60,11 @@ class QwenContextBuilder(ContextBuilder):
 
     def _build_gen_ctx(self, inputs: PipelineGenerateInputs) -> NodeContext:
         """构建 Generator 的 context。"""
-        extra = self._extra
         return NodeContext(
             sample_config=inputs.sample_config,
             runtime_config=inputs.runtime_config,
             cache_config=inputs.cache_config,
-            metadata={
-                "noise_shape": getattr(extra, "noise_shape", None),
-            },
+            metadata={},
         )
 
     def _build_decode_ctx(self, inputs: PipelineGenerateInputs) -> NodeContext:
@@ -104,10 +100,11 @@ class QwenT2IContextBuilder(QwenContextBuilder):
     class ExtraPipelineGenerateInputs:
         """T2I 特有的中间数据。"""
 
-        noise_shape: list[int]
+        target_h: int
+        target_w: int
 
     def prepare_generate_inputs(self, base_inputs: PipelineGenerateInputs, **kwargs) -> None:
-        """计算 noise_shape 并存入 _extra。"""
+        """保存目标尺寸，noise_shape 由 VAE_COMPUTE_SHAPE 节点计算。"""
         settings = kwargs.get("_default_settings")
         if settings is None:
             raise ValueError(
@@ -116,22 +113,25 @@ class QwenT2IContextBuilder(QwenContextBuilder):
             )
 
         rc = base_inputs.runtime_config
-        noise_shape = list(
-            compute_image_latent_shape(
-                z_dim=settings.vae.z_dim,
-                target_h=rc.size[1],
-                target_w=rc.size[0],
-                vae_stride=list(settings.vae.stride),
-                patch_size=settings.diffusion.patch_size,
-            )
+        self._extra = self.ExtraPipelineGenerateInputs(
+            target_h=rc.size[1],
+            target_w=rc.size[0],
         )
-        self._extra = self.ExtraPipelineGenerateInputs(noise_shape=noise_shape)
 
     def build_context(self, phase: InferPhase, inputs: PipelineGenerateInputs) -> NodeContext:
         """按 node_type 分发构建 context。"""
+        extra = self._extra
         match phase.node_type:
             case NT.TEXT_ENCODE:
                 return self._build_text_ctx(inputs)
+            case NT.VAE_COMPUTE_SHAPE:
+                return NodeContext(
+                    metadata={
+                        "target_f": 1,
+                        "target_h": extra.target_h,
+                        "target_w": extra.target_w,
+                    }
+                )
             case NT.GENERATE:
                 return self._build_gen_ctx(inputs)
             case NT.VAE_DECODE:
@@ -158,11 +158,11 @@ class QwenEditContextBuilder(QwenContextBuilder):
 
         img_path: list[list[str]] | None
         img_tensor: list[torch.Tensor] | torch.Tensor | None
-        aux_latent: torch.Tensor | None
-        noise_shape: list[int]  # TODO: TB remove
+        target_h: int
+        target_w: int
 
     def prepare_generate_inputs(self, base_inputs: PipelineGenerateInputs, **kwargs) -> None:
-        """提取 Edit 特有输入：参考图路径、noise_shape。"""
+        """提取 Edit 特有输入：参考图路径、目标尺寸。"""
         settings = kwargs.get("_default_settings")
         if settings is None:
             raise ValueError(
@@ -176,17 +176,6 @@ class QwenEditContextBuilder(QwenContextBuilder):
         # 校验参考图路径
         img_path = _valid_ref_images(kwargs.get("img_path"), num_prompts)
 
-        # 计算 noise_shape（Qwen 始终显式计算）
-        noise_shape = list(
-            compute_image_latent_shape(
-                z_dim=settings.vae.z_dim,
-                target_h=rc.size[1],
-                target_w=rc.size[0],
-                vae_stride=list(settings.vae.stride),
-                patch_size=settings.diffusion.patch_size,
-            )
-        )
-
         # 预加载参考图 tensor
         img_tensor = None
         if img_path is not None:
@@ -195,8 +184,8 @@ class QwenEditContextBuilder(QwenContextBuilder):
         self._extra = self.ExtraPipelineGenerateInputs(
             img_path=img_path,
             img_tensor=img_tensor,
-            aux_latent=kwargs.get("aux_latent"),
-            noise_shape=noise_shape,
+            target_h=rc.size[1],
+            target_w=rc.size[0],
         )
 
     def build_context(self, phase: InferPhase, inputs: PipelineGenerateInputs) -> NodeContext:
@@ -206,6 +195,14 @@ class QwenEditContextBuilder(QwenContextBuilder):
             case NT.TEXT_ENCODE:
                 # Edit 模式：传入 condition_image_path
                 return self._build_text_ctx(inputs, condition_image_path=extra.img_path)
+            case NT.VAE_COMPUTE_SHAPE:
+                return NodeContext(
+                    metadata={
+                        "target_f": 1,
+                        "target_h": extra.target_h,
+                        "target_w": extra.target_w,
+                    }
+                )
             case NT.VAE_ENCODE_IMAGES:
                 return NodeContext()
             case NT.GENERATE:
@@ -218,12 +215,10 @@ class QwenEditContextBuilder(QwenContextBuilder):
                 raise ValueError(f"QwenEditContextBuilder: unexpected node_type {phase.node_type}")
 
     def prepare_tensors(self, phase: InferPhase, inputs: PipelineGenerateInputs) -> dict[TensorKey, Any] | None:
-        """为 VAE_ENCODE_IMAGES 和 GENERATE 阶段准备 tensor。"""
+        """为 VAE_ENCODE_IMAGES 阶段准备 tensor。"""
         extra = self._extra
         if phase.node_type == NT.VAE_ENCODE_IMAGES and extra.img_tensor is not None:
             return {TensorKey.IMAGE: extra.img_tensor}
-        if phase.node_type == NT.GENERATE and extra.aux_latent is not None:
-            return {TensorKey.AUX_LATENT: extra.aux_latent}
         return None
 
     def has_ref_images(self, inputs: PipelineGenerateInputs) -> bool:

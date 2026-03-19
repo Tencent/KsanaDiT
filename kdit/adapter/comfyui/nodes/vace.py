@@ -21,19 +21,19 @@ from kdit.utils import common_upscale, get_intermediate_device
 from kdit.utils.logger import log
 from kdit.utils.vace import VAE_STRIDE, latent_process_out
 
-from .. import (
+from ..output_types import KsanaNodeVAEEncodeOutput
+from ..types import (
+    BASE_LATENT,
     KDIT_VAE_MODEL,
     KSANA_EXPERIMENTAL_ARGS,
     KSANA_FETA_ARGS,
     KSANA_SLG_ARGS,
     KSANA_VACE_EMBEDS,
-    KSANA_VAE_ENCODE_OUTPUT,
     KSANA_VIDEO_CONTROL_CONFIG,
     WANVIDEO_EXPERIMENTAL_ARGS,
     WANVIDEO_FETA_ARGS,
     WANVIDEO_SLG_ARGS,
 )
-from ..output_types import KsanaNodeVAEEncodeOutput
 
 
 class KsanaWanVaceToVideoNode:
@@ -134,7 +134,7 @@ class KsanaWanVaceToVideoNode:
 
     INPUT_TYPES = input_types  # Alias for ComfyUI compatibility
 
-    RETURN_TYPES = (KSANA_VACE_EMBEDS, KSANA_VAE_ENCODE_OUTPUT)
+    RETURN_TYPES = (KSANA_VACE_EMBEDS, BASE_LATENT)
     RETURN_NAMES = ("vace_embeds", "base_latent")
     OUTPUT_TOOLTIPS = (
         "VACE embeddings containing vace_context, vace_scale, and metadata.",
@@ -152,9 +152,9 @@ class KsanaWanVaceToVideoNode:
 
         kdit_engine = get_engine()
         context = NodeContext(metadata={"image": image})
-        with kdit_engine.tensor_scope(keep=TensorKey.IMAGE_EMBEDS):
+        with kdit_engine.tensor_scope(keep=TensorKey.AUX_LATENT):
             kdit_engine.run_infer_node(InferNodeType.VAE_ENCODE_IMAGES, vae_key, context)
-        tensor_value = kdit_engine.get_tensor(TensorKey.IMAGE_EMBEDS)
+        tensor_value = kdit_engine.get_tensor(TensorKey.AUX_LATENT)
         return tensor_value.data if tensor_value is not None else None
 
     def encode(

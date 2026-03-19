@@ -91,7 +91,7 @@ class VAEEncodeImagesNode(InferNode):
 
     dispatch_policy = NodeDispatchPolicy.R0_R0_BCAST
     input_tensor_keys = [TensorKey.IMAGE]
-    output_tensor_keys = [TensorKey.IMAGE_EMBEDS]
+    output_tensor_keys = [TensorKey.AUX_LATENT]
 
     def run(self, model_key, context, *, tensor_pool, model_pool, device_ctx):
         vae_model = model_pool.get_model(model_key)
@@ -112,4 +112,40 @@ class VAEEncodeImagesNode(InferNode):
         )
 
         if image_embeds is not None:
-            tensor_pool.put(TensorKey.IMAGE_EMBEDS, image_embeds)
+            tensor_pool.put(TensorKey.AUX_LATENT, image_embeds)
+
+
+@InferNodeFactory.register(
+    InferNodeType.VAE_COMPUTE_SHAPE,
+    [ModelKey.VAE_WAN2_1, ModelKey.VAE_WAN2_2, ModelKey.QwenImageVAE],
+)
+class VAEComputeShapeNode(InferNode):
+    """VAE 形状计算 — 根据目标尺寸创建全零 base_latent。
+
+    用于 T2V / T2I 等无图像输入的场景，替代在 metadata 中传递 noise_shape。
+    输出 BASE_LATENT: list[latent]（无 mask）。
+    """
+
+    dispatch_policy = NodeDispatchPolicy.R0_R0_BCAST
+    input_tensor_keys = []
+    output_tensor_keys = [TensorKey.BASE_LATENT]
+
+    def run(self, model_key, context, *, tensor_pool, model_pool, device_ctx):
+        vae_model = model_pool.get_model(model_key)
+        meta = context.metadata
+        target_f = meta.get("target_f", 1)
+        target_h = meta.get("target_h")
+        target_w = meta.get("target_w")
+        batch_size = meta.get("batch_size", 1)
+
+        if target_h is None or target_w is None:
+            raise ValueError("VAEComputeShapeNode requires 'target_h' and 'target_w' in metadata")
+
+        latent = vae_model.create_empty_latent(
+            target_f=target_f,
+            target_h=target_h,
+            target_w=target_w,
+            batch_size=batch_size,
+        )
+        log.info(f"VAEComputeShapeNode: created empty latent {latent.shape} for {model_key}")
+        tensor_pool.put(TensorKey.BASE_LATENT, [latent])

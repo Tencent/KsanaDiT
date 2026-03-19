@@ -32,6 +32,7 @@ QWEN_EDIT_DEF = register_pipeline_def(
     .load(ModelKey.QwenImage_Edit)
     .load(ModelKey.QwenImageVAE)
     .add_infer(InferNodeType.TEXT_ENCODE, ModelKey.Qwen2VLTextEncoderMultimodal)
+    .add_infer(InferNodeType.VAE_COMPUTE_SHAPE, ModelKey.QwenImageVAE)
     .add_infer(InferNodeType.VAE_ENCODE_IMAGES, ModelKey.QwenImageVAE)
     .when("has_ref_images")
     .add_infer(InferNodeType.GENERATE, ModelKey.QwenImage_Edit)

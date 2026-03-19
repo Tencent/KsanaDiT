@@ -19,7 +19,6 @@ from kdit.memory.estimator import (
     estimate_kdit_model_memory,
     get_available_memory,
 )
-from kdit.models.model_key import ModelKey
 from kdit.nodes.core.node_context import NodeContext
 from kdit.nodes.core.node_types import InferNodeType
 from kdit.tensor import TensorKey
@@ -53,21 +52,19 @@ def _prepare_memory_for_kdit_models(model_key, latent_shape, run_dtype, comfy_de
         raise RuntimeError(f"Failed to prepare memory for kDiT models: {e}")
 
 
-# TODO： remove _resolve_latent_shape, 需要修改json直接用shape的节点
-def _resolve_latent_shape(kdit_engine, image_embeds, latent, diffusion_model_key):
-    """从 image_embeds (ComfyUI VAE encode output) 或 latent 推导 latent_shape 和 base_latent_data。
+def _resolve_latent_shape_for_memory(kdit_engine, base_latent):
+    """从 base_latent 或 aux_latent 推导 latent_shape（仅用于内存预估）。
 
     Returns:
-        (noise_shape, base_latent_data, latent_shape)
-        - noise_shape: list[int] | None
-        - base_latent_data: Tensor | list[Tensor] | None — 保持原始类型，用于 put_tensors
-        - latent_shape: list[int] | None
+        latent_shape: list[int] | None
     """
-    noise_shape = None
-    base_latent_data = None
 
-    # image_embeds.samples 是 TensorKey — 从 pool 取裸 tensor
-    base_latent_key = image_embeds.samples
+    def _first_tensor_shape(data):
+        if isinstance(data, list):
+            return list(data[0].shape) if data else None
+        return list(data.shape) if data is not None else None
+
+    base_latent_key = base_latent.samples
     if not kdit_engine.has_tensor(base_latent_key):
         raise RuntimeError(
             f"generate: tensor key '{base_latent_key}' not found in pool. "
@@ -75,40 +72,7 @@ def _resolve_latent_shape(kdit_engine, image_embeds, latent, diffusion_model_key
         )
     tensor_value = kdit_engine.get_tensor(base_latent_key)
     raw_data = tensor_value.data if tensor_value is not None else None
-
-    # 保持原始类型：Tensor 或 list[Tensor]
-    base_latent_data = raw_data
-
-    def _first_tensor_shape(data):
-        """从 Tensor 或 list[Tensor] 中取第一个 Tensor 的 shape。"""
-        if isinstance(data, list):
-            return list(data[0].shape) if data else None
-        return list(data.shape) if data is not None else None
-
-    # latent shape 推导
-    if latent is not None:
-        latent_key = latent.samples  # TensorKey
-        tensor_value = kdit_engine.get_tensor(latent_key)
-        latent_raw = tensor_value.data if tensor_value is not None else None
-        latent_shape = _first_tensor_shape(latent_raw)
-    elif base_latent_data is not None:
-        latent_shape = _first_tensor_shape(base_latent_data)
-    else:
-        latent_shape = None
-
-    # Qwen Image Edit: latent 直接决定输出 shape
-    if latent is not None and diffusion_model_key == ModelKey.QwenImage_Edit:
-        tensor_value = kdit_engine.get_tensor(latent.samples)
-        latent_raw = tensor_value.data if tensor_value is not None else None
-        first_shape = _first_tensor_shape(latent_raw)
-        noise_shape = first_shape[1:] if first_shape is not None else None
-    elif diffusion_model_key == ModelKey.QwenImage_T2I:
-        # T2I: base_latent 仅用于提供输出 shape，不作为图像条件传入 generator
-        first_shape = _first_tensor_shape(base_latent_data)
-        noise_shape = first_shape[1:] if first_shape is not None else None
-        base_latent_data = None
-
-    return noise_shape, base_latent_data, latent_shape
+    return _first_tensor_shape(raw_data)
 
 
 @report("comfyui_generate")
@@ -116,10 +80,10 @@ def generate(  # noqa: C901
     model,
     positive,
     negative,
-    image_embeds,
+    base_latent,
     steps,
     seed,
-    latent=None,
+    aux_latent=None,
     add_noise_to_latent=False,
     scheduler="simple",
     solver_name=SolverType.UNI_PC,
@@ -160,11 +124,8 @@ def generate(  # noqa: C901
 
     MemoryProfiler.record_memory("before_kdit_engine_generate_with_tensors")
 
-    # 从 pool 中的 key 推导 shape 和裸 tensor
-    # TODO: remove this way, add way empty noise latent or shape
-    noise_shape, base_latent_data, latent_shape = _resolve_latent_shape(
-        kdit_engine, image_embeds, latent, diffusion_model_key
-    )
+    # 仅用于内存预估
+    latent_shape = _resolve_latent_shape_for_memory(kdit_engine, base_latent)
 
     if comfy_free_mem_func is not None and comfy_device is not None:
         _prepare_memory_for_kdit_models(
@@ -184,7 +145,7 @@ def generate(  # noqa: C901
     if cache_config is not None and not isinstance(cache_config, list):
         cache_config = [cache_config]
     num_prompts = positive[0][0].shape[0]
-    batch_size_per_prompts = image_embeds.batch_size_per_prompts
+    batch_size_per_prompts = base_latent.batch_size_per_prompts
     batch_size_per_prompts = [batch_size_per_prompts] * num_prompts
 
     if sample_shift is not None and float(sample_shift) < 0:
@@ -213,7 +174,6 @@ def generate(  # noqa: C901
         ),
         cache_config=cache_config,
         metadata={
-            "noise_shape": noise_shape,
             "video_control": video_control,
             "control_video_config": control_video_config,
             "comfy_bar_callback": comfy_bar_callback,
@@ -222,11 +182,10 @@ def generate(  # noqa: C901
 
     with kdit_engine.tensor_scope(keep=[TensorKey.LATENTS]):
         kdit_engine.put_tensors(**{TensorKey.POSITIVE: positive[0][0], TensorKey.NEGATIVE: negative[0][0]})
-        if base_latent_data is not None:
-            kdit_engine.put_tensors(**{TensorKey.BASE_LATENT: base_latent_data})
-        if latent is not None and latent.samples is not None:
-            # latent.samples 是 TensorKey — 重命名为 GeneratorNode 期望的 AUX_LATENT
-            kdit_engine.rename_tensor(latent.samples, TensorKey.AUX_LATENT)
+        # base_latent.samples 是 BASE_LATENT 或 AUX_LATENT — 已在 pool 中
+        if aux_latent is not None and aux_latent.samples is not None:
+            # aux_latent.samples 是 TensorKey — 重命名为 GeneratorNode 期望的 AUX_LATENT
+            kdit_engine.rename_tensor(aux_latent.samples, TensorKey.AUX_LATENT)
         kdit_engine.run_infer_node(InferNodeType.GENERATE, diffusion_model_key, context)
 
     MemoryProfiler.record_memory("after_kdit_engine_generate_with_tensors")
@@ -238,5 +197,5 @@ def generate(  # noqa: C901
 
     return KsanaNodeGeneratorOutput(
         samples=TensorKey.LATENTS,
-        with_end_image=image_embeds.with_end_image,
+        with_end_image=base_latent.with_end_image,
     )

@@ -22,8 +22,8 @@ from ..utils.logger import log
 from ..utils.media import calculate_aligned_dimensions
 from ..utils.profile import time_profile
 from ..utils.vace import init_latent_stats
-from .latent_shape import compute_image_latent_shape, compute_video_latent_shape
 from .model_base import ModelBase
+from .noise_latent_shape import compute_latent_shape, create_empty_noise_latent
 from .qwen.vae import KsanaQwenImageVAE
 from .wan import Wan2_1_VAE, Wan2_2_VAE
 
@@ -62,19 +62,6 @@ class KsanaVAEModel(ModelBase):
         msk = msk.view(bs, -1, vae_stride[0], lat_h, lat_w)
         msk = msk.transpose(1, 2)
         return msk
-
-    def create_video_latent_shape(
-        self, target_f: int, target_h: int, target_w: int, img_shape: list[int] = None, vae_stride=None, vae_patch=None
-    ):
-        return compute_video_latent_shape(
-            z_dim=self.z_dim,
-            target_f=target_f,
-            target_h=target_h,
-            target_w=target_w,
-            vae_stride=list(vae_stride or self.vae_stride_size),
-            vae_patch=list(vae_patch or self.vae_patch_size),
-            refer_image_shape=img_shape,
-        )
 
     def forward_encode_image(
         self,
@@ -122,7 +109,7 @@ class KsanaVAEModel(ModelBase):
                 f"start_img and end_img must have same shape, but got {start_img.shape} and {end_img.shape}"
             )
 
-        z_dim, lat_f, lat_h, lat_w = self.create_latent_shape(
+        z_dim, lat_f, lat_h, lat_w = self.create_noise_latent_shape(
             target_f=target_f,
             target_h=target_h,
             target_w=target_w,
@@ -132,7 +119,7 @@ class KsanaVAEModel(ModelBase):
         )
 
         if start_img is None:
-            return torch.zeros(target_batch_size, z_dim, lat_f, lat_h, lat_w, device="cpu"), None
+            return create_empty_noise_latent((z_dim, lat_f, lat_h, lat_w), target_batch_size), None
 
         with_end_image = end_img is not None
 
@@ -218,8 +205,7 @@ class KsanaVAEModel(ModelBase):
     def load(self, model_path: str, *, device: torch.device, dtype=torch.float, shard_fn=None):
         pass
 
-    @abstractmethod
-    def create_latent_shape(
+    def create_noise_latent_shape(
         self,
         *,
         target_h: int,
@@ -228,9 +214,41 @@ class KsanaVAEModel(ModelBase):
         img_shape: list[int] = None,
         vae_stride=None,
         vae_patch=None,
-    ) -> tuple[int]:
-        # should return [z_dim, lat_f, lat_h, lat_w]
-        pass
+    ) -> tuple[int, int, int, int]:
+        """根据 VAE 配置计算 latent 形状 ``(z_dim, lat_f, lat_h, lat_w)``。
+
+        子类 ``load()`` 中设置 ``self.z_dim``, ``self.vae_stride_size``,
+        ``self.vae_patch_size`` 即可，无需 override。
+        """
+        return compute_latent_shape(
+            z_dim=self.z_dim,
+            target_f=target_f if target_f is not None else 1,
+            target_h=target_h,
+            target_w=target_w,
+            vae_stride=list(vae_stride or self.vae_stride_size),
+            patch_size=vae_patch or self.vae_patch_size,
+            refer_image_shape=img_shape,
+        )
+
+    def create_empty_latent(
+        self,
+        *,
+        target_f: int,
+        target_h: int,
+        target_w: int,
+        batch_size: int = 1,
+    ) -> torch.Tensor:
+        """根据 VAE 参数计算 latent shape 并创建全零 tensor。
+
+        Returns:
+            shape ``(batch_size, z_dim, lat_f, lat_h, lat_w)``，device=cpu。
+        """
+        latent_shape = self.create_noise_latent_shape(
+            target_f=target_f,
+            target_h=target_h,
+            target_w=target_w,
+        )
+        return create_empty_noise_latent(latent_shape, batch_size)
 
 
 class KsanaWanVAEModel(KsanaVAEModel):
@@ -254,18 +272,6 @@ class KsanaWanVAEModel(KsanaVAEModel):
         self.vae_stride_size = getattr(self.default_settings.vae, "stride", (4, 8, 8))
         self.vae_patch_size = getattr(self.default_settings.diffusion, "patch_size", [1, 2, 2])
         log.info(f"z_dim {self.z_dim}, vae_stride {self.vae_stride_size}, vae_patch_size {self.vae_patch_size}")
-
-    def create_latent_shape(
-        self,
-        *,
-        target_h: int,
-        target_w: int,
-        target_f: int = None,
-        img_shape: list[int] = None,
-        vae_stride=None,
-        vae_patch=None,
-    ):
-        return self.create_video_latent_shape(target_f, target_h, target_w, img_shape, vae_stride, vae_patch)
 
 
 class KsanaQwenVAEModel(KsanaVAEModel):
@@ -328,21 +334,3 @@ class KsanaQwenVAEModel(KsanaVAEModel):
 
         log.info(f"image_latents: {len(results)} prompts, shapes {[r.shape for r in results]}")
         return results
-
-    def create_latent_shape(
-        self,
-        *,
-        target_h: int,
-        target_w: int,
-        target_f: int = None,
-        img_shape: list[int] = None,
-        vae_stride=None,
-        vae_patch=None,
-    ):
-        return compute_image_latent_shape(
-            z_dim=self.z_dim,
-            target_h=target_h,
-            target_w=target_w,
-            vae_stride=list(vae_stride or self.vae_stride_size),
-            patch_size=vae_patch or self.vae_patch_size,
-        )

@@ -62,13 +62,15 @@ class AuxLatent:
 
 @dataclass
 class GeneratorInferContext:
-    """Generator.run() 的输入上下文，收敛 14 个参数为结构化数据。
+    """Generator.run() 的输入上下文，收敛参数为结构化数据。
 
     将原本散落在 run() 签名中的参数分为四组：
     - 模型：diffusion_model
-    - 输入 tensor：positive / negative / base_latent / aux_latent / noise_shape
+    - 输入 tensor：positive / negative / base_latent / aux_latent
     - 设备：device / offload_device
     - 配置：sample_config / runtime_config / cache_config / video_control / control_video_config / comfy_bar_callback
+
+    noise_shape 已移除 — 由 base_latent.latent.shape[1:] 推导。
     """
 
     # 模型
@@ -79,7 +81,6 @@ class GeneratorInferContext:
     negative: torch.Tensor | tuple = None
     base_latent: BaseLatent | None = None
     aux_latent: AuxLatent | None = None
-    noise_shape: list[int] | None = None  # TODO: remove me
 
     # 设备
     device: torch.device | None = None

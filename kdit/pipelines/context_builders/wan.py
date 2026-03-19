@@ -29,7 +29,6 @@ from PIL import Image
 
 from kdit.config.lora_config import LoraConfig
 from kdit.engine import Engine
-from kdit.models.latent_shape import compute_video_latent_shape
 from kdit.models.model_key import ModelKey
 from kdit.nodes.core.node_context import NodeContext
 from kdit.nodes.core.node_types import InferNodeType as NT
@@ -147,7 +146,6 @@ class WanContextBuilder(ContextBuilder):
             runtime_config=inputs.runtime_config,
             cache_config=inputs.cache_config,
             metadata={
-                "noise_shape": getattr(extra, "noise_shape", None),
                 "control_video_config": getattr(extra, "vace_video_control_config", None),
             },
         )
@@ -188,13 +186,15 @@ class WanT2VContextBuilder(WanContextBuilder):
     class ExtraPipelineGenerateInputs:
         """T2V 特有的中间数据。"""
 
-        noise_shape: list[int]
+        target_f: int
+        target_h: int
+        target_w: int
         fps: int = 16
 
     def prepare_generate_inputs(self, base_inputs: PipelineGenerateInputs, **kwargs) -> None:
-        """计算 noise_shape 并存入 _extra。
+        """保存目标尺寸，noise_shape 由 VAE_COMPUTE_SHAPE 节点计算。
 
-        需要 kwargs 中的 ``_default_settings`` 来获取 VAE 参数。
+        需要 kwargs 中的 ``_default_settings`` 来获取 fps。
         """
         settings = kwargs.get("_default_settings")
         if settings is None:
@@ -204,24 +204,28 @@ class WanT2VContextBuilder(WanContextBuilder):
             )
 
         rc = base_inputs.runtime_config
-        noise_shape = list(
-            compute_video_latent_shape(
-                z_dim=settings.vae.z_dim,
-                target_f=rc.frame_num,
-                target_h=rc.size[1],
-                target_w=rc.size[0],
-                vae_stride=list(settings.vae.stride),
-                vae_patch=list(settings.diffusion.patch_size),
-            )
-        )
         fps = getattr(settings.vae, "fps", 16)
-        self._extra = self.ExtraPipelineGenerateInputs(noise_shape=noise_shape, fps=fps)
+        self._extra = self.ExtraPipelineGenerateInputs(
+            target_f=rc.frame_num,
+            target_h=rc.size[1],
+            target_w=rc.size[0],
+            fps=fps,
+        )
 
     def build_context(self, phase: InferPhase, inputs: PipelineGenerateInputs) -> NodeContext:
         """按 node_type 分发构建 context。"""
+        extra = self._extra
         match phase.node_type:
             case NT.TEXT_ENCODE:
                 return self._build_text_ctx(inputs)
+            case NT.VAE_COMPUTE_SHAPE:
+                return NodeContext(
+                    metadata={
+                        "target_f": extra.target_f,
+                        "target_h": extra.target_h,
+                        "target_w": extra.target_w,
+                    }
+                )
             case NT.GENERATE:
                 return self._build_gen_ctx(inputs)
             case NT.VAE_DECODE:
@@ -252,7 +256,6 @@ class WanI2VContextBuilder(WanContextBuilder):
         end_img_tensor: torch.Tensor | None
         aux_latent: torch.Tensor | None
         target_frame_num: int
-        noise_shape: list[int] | None
         with_end_image: bool
         vace_video_control_config: VaceConfig | None
         fps: int = 16
@@ -296,22 +299,6 @@ class WanI2VContextBuilder(WanContextBuilder):
             else rc.frame_num
         )
 
-        # noise_shape：有图时为 None（由 GeneratorNode 从 base_latent 推导）
-        noise_shape = (
-            None
-            if start_img_path is not None
-            else list(
-                compute_video_latent_shape(
-                    z_dim=settings.vae.z_dim,
-                    target_f=target_frame_num,
-                    target_h=rc.size[1],
-                    target_w=rc.size[0],
-                    vae_stride=list(settings.vae.stride),
-                    vae_patch=list(settings.diffusion.patch_size),
-                )
-            )
-        )
-
         # 预加载图片 tensor
         start_img_tensor, end_img_tensor = None, None
         if start_img_path is not None:
@@ -326,7 +313,6 @@ class WanI2VContextBuilder(WanContextBuilder):
             end_img_tensor=end_img_tensor,
             aux_latent=kwargs.get("aux_latent"),
             target_frame_num=target_frame_num,
-            noise_shape=noise_shape,
             with_end_image=with_end_image,
             vace_video_control_config=vace_video_control_config,
             fps=fps,
@@ -435,10 +421,10 @@ def _valid_video_control_config(
 
     def vae_encode_fn(frame: torch.Tensor) -> torch.Tensor:
         context = NodeContext()
-        with engine.tensor_scope(keep=[TensorKey.IMAGE_EMBEDS]):
+        with engine.tensor_scope(keep=[TensorKey.AUX_LATENT]):
             engine.put_tensors(**{TensorKey.IMAGE: frame})
             engine.run_infer_node(NT.VAE_ENCODE_IMAGES, vae_model_key, context)
-        tensor_value = engine.get_tensor(TensorKey.IMAGE_EMBEDS)
+        tensor_value = engine.get_tensor(TensorKey.AUX_LATENT)
         latents_list = tensor_value.data  # list[Tensor]
         return latent_process_out(latents_list[0])
 

@@ -15,7 +15,7 @@
 
 import torch
 
-# tensor_pool 中存储的原始值类型：单个 Tensor 或 list[Tensor]（如 BASE_LATENT / IMAGE_EMBEDS）
+# tensor_pool 中存储的原始值类型：单个 Tensor 或 list[Tensor]（如 BASE_LATENT / AUX_LATENT）
 TensorData = torch.Tensor | list[torch.Tensor]
 
 

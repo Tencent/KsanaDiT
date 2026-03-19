@@ -24,7 +24,6 @@ class TensorKey(str, Enum):
 
     POSITIVE = "positive"
     NEGATIVE = "negative"
-    IMAGE_EMBEDS = "image_embeds"
     LATENTS = "latents"
     VIDEO = "video"
 

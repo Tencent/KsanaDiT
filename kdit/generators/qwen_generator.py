@@ -132,6 +132,7 @@ class QwenGenerator(BaseGenerator):
         step_iter,
         cache,
         base_latent,
+        aux_latent=None,
         **_,
     ) -> dict | tuple[dict, dict]:
         if cache is not None:
@@ -148,8 +149,8 @@ class QwenGenerator(BaseGenerator):
         )
         use_cfg = self._use_cfg(cfg_scale)
 
-        # TODO: changeme , why use base_latent as ref_latents, should use aux_latent
-        ref_latents = base_latent
+        # aux_latent 是 VAE encode 的参考图 latent（Edit 模式），base_latent 是空 latent（T2I 模式）
+        ref_latents = aux_latent
         if use_cfg and combine_cond_uncond:
             combine_x = torch.cat([noise_latent, noise_latent], dim=0)
             combine_t = torch.cat([timestep, timestep], dim=0)
@@ -207,7 +208,7 @@ class QwenGenerator(BaseGenerator):
         num_train_timesteps: int,
     ):
         # Qwen does not use aux_latent for noise blending; aux_latent (ref_latents) is consumed
-        # directly in prepare_model_forward_kargs via base_latent parameter.
+        # directly in prepare_model_forward_kargs via aux_latent parameter.
         return noise_latents
 
     def _get_latent_img_shapes(self):

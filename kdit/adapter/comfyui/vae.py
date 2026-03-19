@@ -128,13 +128,13 @@ def vae_encode_image(
     log.info(f"encoder vae: {vae}")
 
     context = NodeContext(metadata={"batch_size": batch_size})
-    with kdit_engine.tensor_scope(keep=[TensorKey.IMAGE_EMBEDS]):
+    with kdit_engine.tensor_scope(keep=[TensorKey.AUX_LATENT]):
         kdit_engine.put_tensors(**{TensorKey.IMAGE: image})
         kdit_engine.run_infer_node(InferNodeType.VAE_ENCODE_IMAGES, vae, context)
 
     MemoryProfiler.record_memory("after vae_encode_image")
     return KsanaNodeVAEEncodeOutput(
-        samples=TensorKey.IMAGE_EMBEDS,
+        samples=TensorKey.AUX_LATENT,
         with_end_image=False,
         batch_size_per_prompts=int(batch_size),
     )
@@ -158,7 +158,7 @@ def vae_decode(vae, latent):
 
     context = NodeContext(metadata={"with_end_image": with_end_image})
     with kdit_engine.tensor_scope():
-        # latents_key 可能是 LATENTS 或 IMAGE_EMBEDS，VAEDecodeNode 读 LATENTS
+        # latents_key 可能是 LATENTS 或 AUX_LATENT，VAEDecodeNode 读 LATENTS
         if latents_key != TensorKey.LATENTS:
             tensor_value = kdit_engine.get_tensor(latents_key)
             kdit_engine.put_tensors(**{TensorKey.LATENTS: tensor_value.data})

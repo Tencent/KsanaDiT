@@ -75,8 +75,8 @@ class EmptyLatentNode:
                 "batch_size": batch_size,
             }
         )
-        with kdit_engine.tensor_scope(keep=[TensorKey.LATENTS]):
-            kdit_engine.run_infer_node(InferNodeType.VAE_ENCODE_SPATIAL, vae, context)
-            kdit_engine.rename_tensor(TensorKey.BASE_LATENT, TensorKey.LATENTS)
+        # VAE_COMPUTE_SHAPE 输出 BASE_LATENT，直接保留在 pool 中
+        with kdit_engine.tensor_scope(keep=[TensorKey.BASE_LATENT]):
+            kdit_engine.run_infer_node(InferNodeType.VAE_COMPUTE_SHAPE, vae, context)
 
-        return (EmptyLatentOutput(samples=TensorKey.LATENTS),)
+        return (EmptyLatentOutput(samples=TensorKey.BASE_LATENT),)

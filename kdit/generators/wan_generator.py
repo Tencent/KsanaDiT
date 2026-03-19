@@ -30,22 +30,6 @@ class WanGenerator(BaseGenerator):
         # TODO: maybe could remove boundary, use allow each model input steps instead
         self.boundary = None
 
-    def valid_noise_shape(self, noise_shape: tuple[int] | list[int], diffusion_model: list[KsanaDiffusionModel]):
-        noise_shape = super().valid_noise_shape(noise_shape, diffusion_model)
-        if self.model_key == ModelKey.Wan2_2_I2V_14B:
-            # Note: i2v used base_latent as noise_shape, so need change to shape[1] as right z_dim
-            #       and should have added z_dim to yaml settings
-            default_settings = diffusion_model[0].default_settings
-            if not hasattr(default_settings.vae, "z_dim"):
-                raise ValueError("vae.z_dim not found in default_model_settings.vae")
-            noise_shape[0] = default_settings.vae.z_dim
-        return noise_shape
-
-    def cast_base_latent_to(self, base_latent: list[torch.Tensor] | None, *, dtype: torch.dtype, device: torch.device):
-        if self.model_key == ModelKey.Wan2_2_T2V_14B:
-            return None
-        return super().cast_base_latent_to(base_latent, dtype=dtype, device=device)
-
     def _get_model_boundary(self, diffusion_model: list[KsanaDiffusionModel]):
         if self.boundary is not None:
             return self.boundary
@@ -170,6 +154,7 @@ class WanGenerator(BaseGenerator):
         positive,
         negative,
         base_latent: list[torch.Tensor] | None,
+        aux_latent=None,
         **_,
     ) -> dict:
         base = {"cache": cache, "step_iter": step_iter}

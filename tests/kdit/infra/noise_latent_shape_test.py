@@ -14,17 +14,14 @@
 
 """latent_shape 模块单元测试。
 
-验证 compute_latent_shape / compute_video_latent_shape / compute_image_latent_shape
-的正确性，以及 image 场景下 stride 方式与旧 scale_factor 方式结果一致。
+验证 compute_latent_shape 的正确性，以及 image 场景下 stride 方式与旧 scale_factor 方式结果一致。
 """
 
 import pytest
 
-from kdit.models.latent_shape import (
+from kdit.models.noise_latent_shape import (
     _normalize_to_3d,
-    compute_image_latent_shape,
     compute_latent_shape,
-    compute_video_latent_shape,
 )
 
 # ── _normalize_to_3d ─────────────────────────────────────────────────────
@@ -128,76 +125,31 @@ class TestComputeLatentShape:
         # 无 img_shape 时正方形
         assert lat_h_sq == lat_w_sq
 
-
-# ── compute_video_latent_shape ───────────────────────────────────────────
-
-
-class TestComputeVideoLatentShape:
-    """测试视频便捷函数，确保与 compute_latent_shape 一致。"""
-
-    def test_delegates_to_base(self):
-        """compute_video_latent_shape 应与 compute_latent_shape 结果完全一致。"""
-        args = dict(
-            z_dim=16,
-            target_f=81,
-            target_h=720,
-            target_w=1280,
-            vae_stride=[4, 8, 8],
-        )
-        result_video = compute_video_latent_shape(**args, vae_patch=[1, 2, 2])
-        result_base = compute_latent_shape(**args, patch_size=[1, 2, 2])
-        assert result_video == result_base
-
-    def test_wan_standard(self):
+    def test_wan_standard_video(self):
         """Wan 标准配置: stride=[4,8,8], patch=[1,2,2], 81帧 1280x720。"""
-        z_dim, lat_f, _, _ = compute_video_latent_shape(
+        z_dim, lat_f, _, _ = compute_latent_shape(
             z_dim=16,
             target_f=81,
             target_h=720,
             target_w=1280,
             vae_stride=[4, 8, 8],
-            vae_patch=[1, 2, 2],
+            patch_size=[1, 2, 2],
         )
         assert z_dim == 16
         assert lat_f == 21
 
-
-# ── compute_image_latent_shape ───────────────────────────────────────────
-
-
-class TestComputeImageLatentShape:
-    """测试图像便捷函数。"""
-
-    def test_delegates_to_base(self):
-        """compute_image_latent_shape 应与 compute_latent_shape(target_f=1) 结果完全一致。"""
-        result_image = compute_image_latent_shape(
-            z_dim=16,
-            target_h=1024,
-            target_w=1024,
-            vae_stride=[1, 8, 8],
-            patch_size=2,
-        )
-        result_base = compute_latent_shape(
-            z_dim=16,
-            target_f=1,
-            target_h=1024,
-            target_w=1024,
-            vae_stride=[1, 8, 8],
-            patch_size=2,
-        )
-        assert result_image == result_base
-
-    def test_lat_f_always_1(self):
-        """图像场景 lat_f 始终为 1。"""
-        _, lat_f, _, _ = compute_image_latent_shape(
-            z_dim=16, target_h=512, target_w=512, vae_stride=[1, 8, 8], patch_size=2
+    def test_image_lat_f_always_1(self):
+        """图像场景 (target_f=1) lat_f 始终为 1。"""
+        _, lat_f, _, _ = compute_latent_shape(
+            z_dim=16, target_f=1, target_h=512, target_w=512, vae_stride=[1, 8, 8], patch_size=2
         )
         assert lat_f == 1
 
     def test_qwen_1024x1024(self):
         """Qwen 标准配置: stride=[1,8,8], patch=2, 1024x1024。"""
-        z_dim, lat_f, lat_h, lat_w = compute_image_latent_shape(
+        z_dim, lat_f, lat_h, lat_w = compute_latent_shape(
             z_dim=16,
+            target_f=1,
             target_h=1024,
             target_w=1024,
             vae_stride=[1, 8, 8],
@@ -207,18 +159,18 @@ class TestComputeImageLatentShape:
 
     def test_qwen_non_square(self):
         """Qwen 非正方形: stride=[1,8,8], patch=2, 768x1024。"""
-        z_dim, lat_f, lat_h, lat_w = compute_image_latent_shape(
+        z_dim, lat_f, lat_h, lat_w = compute_latent_shape(
             z_dim=16,
+            target_f=1,
             target_h=768,
             target_w=1024,
             vae_stride=[1, 8, 8],
             patch_size=2,
         )
         # lat_h = round(sqrt(1024*768*(768/1024)) // 8 // 2 * 2)
-        # = round(sqrt(1024*768*0.75) // 8 // 2 * 2)
-        # = round(768 // 8 // 2 * 2) = round(96 // 2 * 2) = 96
+        # = round(768 // 8 // 2 * 2) = 96
         # lat_w = round(sqrt(1024*768*(1024/768)) // 8 // 2 * 2)
-        # = round(1024 // 8 // 2 * 2) = round(128 // 2 * 2) = 128
+        # = round(1024 // 8 // 2 * 2) = 128
         assert (z_dim, lat_f) == (16, 1)
         assert lat_h == 96
         assert lat_w == 128
@@ -282,8 +234,9 @@ class TestScaleFactorCompatibility:
             vae_scale_factor=self.QWEN_SCALE_FACTOR,
             patch_size=self.QWEN_PATCH_SIZE,
         )
-        new_result = compute_image_latent_shape(
+        new_result = compute_latent_shape(
             z_dim=16,
+            target_f=1,
             target_h=target_h,
             target_w=target_w,
             vae_stride=self.QWEN_STRIDE,
@@ -294,21 +247,22 @@ class TestScaleFactorCompatibility:
         )
 
     def test_image_is_special_case_of_video(self):
-        """验证 image latent shape 是 video latent shape 在 target_f=1 时的特殊情况。"""
-        image_result = compute_image_latent_shape(
-            z_dim=16,
-            target_h=1024,
-            target_w=1024,
-            vae_stride=self.QWEN_STRIDE,
-            patch_size=self.QWEN_PATCH_SIZE,
-        )
-        video_result = compute_video_latent_shape(
+        """验证 image latent shape (target_f=1) 与 video (target_f=1) 结果一致。"""
+        image_result = compute_latent_shape(
             z_dim=16,
             target_f=1,
             target_h=1024,
             target_w=1024,
             vae_stride=self.QWEN_STRIDE,
-            vae_patch=[1, self.QWEN_PATCH_SIZE, self.QWEN_PATCH_SIZE],
+            patch_size=self.QWEN_PATCH_SIZE,
+        )
+        video_result = compute_latent_shape(
+            z_dim=16,
+            target_f=1,
+            target_h=1024,
+            target_w=1024,
+            vae_stride=self.QWEN_STRIDE,
+            patch_size=[1, self.QWEN_PATCH_SIZE, self.QWEN_PATCH_SIZE],
         )
         assert image_result == video_result
 
@@ -321,23 +275,24 @@ class TestScaleFactorCompatibility:
             (1280, 720),
         ],
     )
-    def test_image_equals_video_f1(self, target_h: int, target_w: int):
-        """多种分辨率下验证 image == video(f=1)。"""
-        image_result = compute_image_latent_shape(
-            z_dim=16,
-            target_h=target_h,
-            target_w=target_w,
-            vae_stride=self.QWEN_STRIDE,
-            patch_size=self.QWEN_PATCH_SIZE,
-        )
-        video_result = compute_video_latent_shape(
+    def test_scalar_patch_equals_3d_patch_f1(self, target_h: int, target_w: int):
+        """多种分辨率下验证 patch_size=int 与 patch_size=[1,p,p] 在 target_f=1 时结果一致。"""
+        scalar_result = compute_latent_shape(
             z_dim=16,
             target_f=1,
             target_h=target_h,
             target_w=target_w,
             vae_stride=self.QWEN_STRIDE,
-            vae_patch=[1, self.QWEN_PATCH_SIZE, self.QWEN_PATCH_SIZE],
+            patch_size=self.QWEN_PATCH_SIZE,
+        )
+        list_result = compute_latent_shape(
+            z_dim=16,
+            target_f=1,
+            target_h=target_h,
+            target_w=target_w,
+            vae_stride=self.QWEN_STRIDE,
+            patch_size=[1, self.QWEN_PATCH_SIZE, self.QWEN_PATCH_SIZE],
         )
         assert (
-            image_result == video_result
-        ), f"Mismatch at {target_h}x{target_w}: image={image_result}, video(f=1)={video_result}"
+            scalar_result == list_result
+        ), f"Mismatch at {target_h}x{target_w}: scalar={scalar_result}, list={list_result}"

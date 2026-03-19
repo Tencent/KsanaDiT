@@ -31,6 +31,7 @@ WAN_T2V_14B_DEF = register_pipeline_def(
     .load(ModelKey.Wan2_2_T2V_14B)
     .load(ModelKey.VAE_WAN2_1)
     .add_infer(InferNodeType.TEXT_ENCODE, ModelKey.T5TextEncoder)
+    .add_infer(InferNodeType.VAE_COMPUTE_SHAPE, ModelKey.VAE_WAN2_1)
     .add_infer(InferNodeType.GENERATE, ModelKey.Wan2_2_T2V_14B)
     .add_infer(InferNodeType.VAE_DECODE, ModelKey.VAE_WAN2_1)
     .add_infer(InferNodeType.SAVE_VIDEO)

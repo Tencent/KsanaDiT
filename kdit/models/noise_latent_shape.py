@@ -15,12 +15,12 @@
 """Latent shape 计算工具。
 
 提供统一的 :func:`compute_latent_shape` 基础函数，
-:func:`compute_video_latent_shape` 和 :func:`compute_image_latent_shape`
-均基于它实现。
+以及 :func:`create_empty_noise_latent` 辅助函数。
 """
 
 
 import numpy as np
+import torch
 
 
 def _normalize_to_3d(value: int | list[int], name: str) -> list[int]:
@@ -96,63 +96,22 @@ def compute_latent_shape(
     return z_dim, lat_f, lat_h, lat_w
 
 
-def compute_video_latent_shape(
-    z_dim: int,
-    target_f: int,
-    target_h: int,
-    target_w: int,
-    vae_stride: list[int],
-    vae_patch: list[int],
-    refer_image_shape: list[int] | None = None,
-) -> tuple[int, int, int, int]:
-    """根据 VAE 配置计算视频 latent 形状 ``(z_dim, lat_f, lat_h, lat_w)``。
-
-    当提供 *refer_image_shape* ``[bs, 3, ih, iw]`` 时，会按图片宽高比修正 latent 尺寸，
-    使 latent 面积 ≈ ``target_h * target_w / (stride * patch)^2`` 但宽高比与图片一致。
-
-    这是 :func:`compute_latent_shape` 的视频场景便捷封装。
-    """
-    return compute_latent_shape(
-        z_dim=z_dim,
-        target_f=target_f,
-        target_h=target_h,
-        target_w=target_w,
-        vae_stride=vae_stride,
-        patch_size=vae_patch,
-        refer_image_shape=refer_image_shape,
-    )
-
-
-def compute_image_latent_shape(
-    z_dim: int,
-    target_h: int,
-    target_w: int,
-    vae_stride: list[int],
-    patch_size: int | list[int],
-) -> tuple[int, int, int, int]:
-    """根据 VAE 配置计算图像 latent 形状 ``(z_dim, 1, lat_h, lat_w)``。
-
-    这是 :func:`compute_latent_shape` 的图像场景便捷封装，
-    ``target_f=1``，不支持 ``refer_image_shape``。
+def create_empty_noise_latent(
+    latent_shape: tuple[int, int, int, int],
+    batch_size: int = 1,
+) -> torch.Tensor:
+    """根据 ``(z_dim, lat_f, lat_h, lat_w)`` 创建全零 latent tensor。
 
     Parameters
     ----------
-    z_dim:
-        latent 通道数。
-    target_h, target_w:
-        目标像素高/宽。
-    vae_stride:
-        VAE 下采样步长，``[stride_f, stride_h, stride_w]`` 三元素列表。
-        图像场景下 ``stride_f`` 通常为 1。
-    patch_size:
-        Patch 大小。可以是 ``int``（h/w 共享）或 ``[patch_f, patch_h, patch_w]`` 列表。
+    latent_shape:
+        ``(z_dim, lat_f, lat_h, lat_w)`` — 由 :func:`compute_latent_shape` 返回。
+    batch_size:
+        batch 维度大小，默认 1。
+
+    Returns
+    -------
+    torch.Tensor
+        shape ``(batch_size, z_dim, lat_f, lat_h, lat_w)``，device=cpu。
     """
-    return compute_latent_shape(
-        z_dim=z_dim,
-        target_f=1,
-        target_h=target_h,
-        target_w=target_w,
-        vae_stride=vae_stride,
-        patch_size=patch_size,
-        refer_image_shape=None,
-    )
+    return torch.zeros(batch_size, *latent_shape, device="cpu")

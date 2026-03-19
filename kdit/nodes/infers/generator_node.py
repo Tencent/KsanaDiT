@@ -55,21 +55,20 @@ class GeneratorNode(InferNode):
         aux_latent_data = self._get_data(tensor_pool, TensorKey.AUX_LATENT)  # Tensor | list[Tensor] | None
         meta = context.metadata
 
-        # 从 base_latent_data 构建 BaseLatent 对象
-        base_latent = None
-        if base_latent_data is not None and len(base_latent_data) > 0:
-            latent = base_latent_data[0]
-            mask = base_latent_data[1] if len(base_latent_data) > 1 else None
-            base_latent = BaseLatent(latent=latent, mask=mask)
+        # 从 base_latent_data 构建 BaseLatent 对象 — base_latent 现在是必须的
+        if base_latent_data is None or len(base_latent_data) == 0:
+            raise ValueError(
+                "GeneratorNode requires BASE_LATENT in tensor_pool. "
+                "Ensure VAE_COMPUTE_SHAPE or VAE_ENCODE_SPATIAL runs before GENERATE."
+            )
+        latent = base_latent_data[0]
+        mask = base_latent_data[1] if len(base_latent_data) > 1 else None
+        base_latent = BaseLatent(latent=latent, mask=mask)
 
         # 从 aux_latent_data 构建 AuxLatent 对象
         aux_latent = None
         if aux_latent_data is not None:
             aux_latent = AuxLatent(latent=aux_latent_data)
-
-        noise_shape = meta.get("noise_shape")
-        if noise_shape is None and base_latent is not None:
-            noise_shape = list(base_latent.latent.shape[1:])
 
         ctx = GeneratorInferContext(
             diffusion_model=model_pool.get_model(model_key),
@@ -77,7 +76,6 @@ class GeneratorNode(InferNode):
             negative=self._get_data(tensor_pool, TensorKey.NEGATIVE),
             base_latent=base_latent,
             aux_latent=aux_latent,
-            noise_shape=noise_shape,
             device=device_ctx.device,
             offload_device=device_ctx.offload_device,
             sample_config=context.sample_config,

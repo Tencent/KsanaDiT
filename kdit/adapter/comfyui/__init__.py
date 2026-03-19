@@ -33,6 +33,8 @@ from .lora import build_list_of_lora_config
 from .output_types import KsanaNodeGeneratorOutput, KsanaNodeModelLoaderOutput, KsanaNodeVAEEncodeOutput
 from .torch_compile import torch_compile_config
 from .types import (
+    AUX_LATENT,
+    BASE_LATENT,
     KDIT_CATEGORY_UTILS,
     KDIT_VAE_MODEL,
     KSANA_ATTENTION_CONFIG,
@@ -68,6 +70,8 @@ except Exception as e:  # pylint: disable=broad-except
     NODE_DISPLAY_NAME_MAPPINGS = {}
 
 __all__ = [
+    "AUX_LATENT",
+    "BASE_LATENT",
     "NODE_CLASS_MAPPINGS",
     "NODE_DISPLAY_NAME_MAPPINGS",
     "KSANA_DIFFUSION_MODEL",

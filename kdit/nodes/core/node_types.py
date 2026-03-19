@@ -39,6 +39,7 @@ class InferNodeType(Enum):
     """Infer Node 类型枚举，用于 InferNodeFactory 的二级注册键。"""
 
     TEXT_ENCODE = auto()
+    VAE_COMPUTE_SHAPE = auto()
     VAE_ENCODE_SPATIAL = auto()
     VAE_ENCODE_IMAGES = auto()
     VAE_DECODE = auto()

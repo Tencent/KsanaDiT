@@ -121,6 +121,7 @@ class VaceGenerator(WanGenerator):
         positive,
         negative,
         base_latent,
+        aux_latent=None,
         vace_context=None,
         vace_context_scale=1.0,
         slg_config=None,

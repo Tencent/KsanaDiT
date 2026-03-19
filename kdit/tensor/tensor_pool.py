@@ -61,6 +61,8 @@ class TensorPool:
         Raises:
             KeyError: old_key 不存在于 pool 中。
         """
+        if old_key == new_key:
+            return
         if old_key not in self._stores:
             raise KeyError(f"TensorPool.rename: old_key {old_key!r} not found. Available keys: {self.keys()}")
         self._stores[new_key] = self._stores.pop(old_key)

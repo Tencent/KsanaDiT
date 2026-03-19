@@ -31,6 +31,7 @@ QWEN_T2I_DEF = register_pipeline_def(
     .load(ModelKey.QwenImage_T2I)
     .load(ModelKey.QwenImageVAE)
     .add_infer(InferNodeType.TEXT_ENCODE, ModelKey.Qwen2VLTextEncoder)
+    .add_infer(InferNodeType.VAE_COMPUTE_SHAPE, ModelKey.QwenImageVAE)
     .add_infer(InferNodeType.GENERATE, ModelKey.QwenImage_T2I)
     .add_infer(InferNodeType.VAE_DECODE, ModelKey.QwenImageVAE)
     .add_infer(InferNodeType.SAVE_IMAGE)

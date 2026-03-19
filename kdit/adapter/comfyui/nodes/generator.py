@@ -20,12 +20,12 @@ import kdit.adapter.comfyui as nodes
 from kdit.config.sample_config import SolverType
 
 from ..types import (
+    BASE_LATENT,
     KSANA_CACHE_CONFIG,
     KSANA_DIFFUSION_MODEL,
     KSANA_GENERATE_OUTPUT,
     KSANA_TEXT_ENCODE_OUTPUT,
     KSANA_VACE_EMBEDS,
-    KSANA_VAE_ENCODE_OUTPUT,
     KSANA_VIDEO_CONTROL_CONFIG,
     LATENT_OUTPUT,
 )
@@ -48,7 +48,7 @@ class KsanaGeneratorNode:
                     KSANA_TEXT_ENCODE_OUTPUT,
                     {"tooltip": "The conditioning describing the attributes you want to exclude from the image."},
                 ),
-                "image_embeds": (KSANA_VAE_ENCODE_OUTPUT, {"tooltip": "The latent image to denoise."}),
+                "base_latent": (BASE_LATENT, {"tooltip": "The latent image to denoise."}),
                 "steps": (
                     "INT",
                     {
@@ -120,7 +120,7 @@ class KsanaGeneratorNode:
                 ),
             },
             "optional": {
-                "latent": (LATENT_OUTPUT, {"tooltip": "init Latents to use for video2video process"}),
+                "aux_latent": (LATENT_OUTPUT, {"tooltip": "init Latents to use for video2video process"}),
                 "rope_function": (
                     ["default", "comfy"],
                     {

@@ -16,7 +16,13 @@ import folder_paths
 
 import kdit.adapter.comfyui as nodes
 
-from .. import KDIT_VAE_MODEL, KSANA_CATEGORY_VAE, KSANA_GENERATE_OUTPUT, KSANA_VAE_ENCODE_OUTPUT
+from ..types import (
+    AUX_LATENT,
+    BASE_LATENT,
+    KDIT_VAE_MODEL,
+    KSANA_CATEGORY_VAE,
+    KSANA_GENERATE_OUTPUT,
+)
 
 
 class KsanaVAELoaderNode:
@@ -51,7 +57,7 @@ class KsanaVAEEncodeNode:
             },
         }
 
-    RETURN_TYPES = (KSANA_VAE_ENCODE_OUTPUT,)
+    RETURN_TYPES = (BASE_LATENT,)
     RETURN_NAMES = ("latent",)
     FUNCTION = "vae_encode"
     CATEGORY = KSANA_CATEGORY_VAE
@@ -71,7 +77,7 @@ class KsanaVAEImageEncodeNode:
             },
         }
 
-    RETURN_TYPES = (KSANA_VAE_ENCODE_OUTPUT,)
+    RETURN_TYPES = (AUX_LATENT,)
     RETURN_NAMES = ("latent",)
     FUNCTION = "vae_encode_image"
     CATEGORY = KSANA_CATEGORY_VAE
