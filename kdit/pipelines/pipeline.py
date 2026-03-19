@@ -136,6 +136,8 @@ class Pipeline:
         vae_checkpoint_dir=None,
         lora_config: LoraConfig | list[LoraConfig] | None = None,
     ):
+        # 先清理本 PipelineDef 声明的所有模型，保证全新加载
+        self._engine.clear_models()
         """按 PipelineDef.load_phases 加载所有模型。"""
         self._has_lora = lora_config is not None
         self._default_settings = load_default_settings(self._def.pipeline_key, with_lora=self._has_lora)

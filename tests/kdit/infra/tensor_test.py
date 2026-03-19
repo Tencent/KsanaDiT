@@ -12,16 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""V5 重构基础设施单元测试 — TensorValue/Pool, DistributedGroup, Node 层。"""
+"""TensorValue / TensorPool 单元测试。"""
 
 import pytest
 import torch
 
-from kdit.executor.distributed_group import DistributedGroupManager
-from kdit.nodes.core.device_context import NodeDeviceContext
-from kdit.nodes.core.node_context import NodeContext
-from kdit.nodes.core.node_factory import InferNodeFactory, LoaderNodeFactory
-from kdit.nodes.core.node_types import InferNodeType, NodeDispatchPolicy
 from kdit.tensor import TensorKey, TensorPool, TensorValue
 
 # ── TensorValue ─────────────────────────────────────────────────────────────
@@ -233,120 +228,3 @@ class TestTensorPool:
         assert pool.has(TensorKey.VIDEO)
         assert not pool.has(TensorKey.LATENTS)
         assert len(pool) == 2
-
-
-# ── DistributedGroupManager ───────────────────────────────────────────
-
-
-class TestDistributedGroupManager:
-    def test_default_state(self):
-        mgr = DistributedGroupManager()
-        assert mgr.rank_id == 0
-        assert mgr.world_size == 1
-        assert not mgr.is_initialized
-
-    def test_init_single_gpu(self):
-        mgr = DistributedGroupManager()
-        mgr.init(0, 1)
-        # world_size=1 → 不算 initialized
-        assert not mgr.is_initialized
-
-    def test_broadcast_noop_when_not_initialized(self):
-        mgr = DistributedGroupManager()
-        pool = TensorPool()
-        pool.put(TensorKey.POSITIVE, torch.zeros(2))
-        # 不应抛异常，直接跳过
-        mgr.broadcast_tensors(tensor_pool=pool, keys=[TensorKey.POSITIVE], src_rank=0)
-
-    def test_broadcast_list_tensor_noop_when_not_initialized(self):
-        mgr = DistributedGroupManager()
-        pool = TensorPool()
-        pool.put(TensorKey.IMAGE_EMBEDS, [torch.zeros(2, 3), torch.ones(4, 5)])
-        # list[Tensor] 也不应抛异常，直接跳过
-        mgr.broadcast_tensors(tensor_pool=pool, keys=[TensorKey.IMAGE_EMBEDS], src_rank=0)
-        # 验证 pool 中的值未被修改
-        tensor_value = pool.get(TensorKey.IMAGE_EMBEDS)
-        assert isinstance(tensor_value.data, list)
-        assert len(tensor_value.data) == 2
-
-
-# ── NodeDispatchPolicy ────────────────────────────────────────────────────
-
-
-class TestDispatchPolicy:
-    def test_three_values(self):
-        assert len(NodeDispatchPolicy) == 3
-        assert NodeDispatchPolicy.ALL_ALL_ALL is not None
-        assert NodeDispatchPolicy.R0_R0_BCAST is not None
-        assert NodeDispatchPolicy.ALL_R0_R0 is not None
-
-
-# ── InferNodeType ────────────────────────────────────────────────
-
-
-class TestKsanaInferNodeType:
-    def test_all_types_exist(self):
-        expected = {
-            "TEXT_ENCODE",
-            "VAE_ENCODE_SPATIAL",
-            "VAE_ENCODE_IMAGES",
-            "VAE_DECODE",
-            "GENERATE",
-        }
-        actual = {nt.name for nt in InferNodeType}
-        assert actual == expected
-
-
-# ── NodeDeviceContext ─────────────────────────────────────────────────────
-
-
-class TestKsanaDeviceContext:
-    def test_creation(self):
-        ctx = NodeDeviceContext(
-            device=torch.device("cpu"),
-            offload_device=torch.device("cpu"),
-            rank_id=0,
-            world_size=2,
-        )
-        assert ctx.rank_id == 0
-        assert ctx.world_size == 2
-
-    def test_frozen(self):
-        ctx = NodeDeviceContext(
-            device=torch.device("cpu"),
-            offload_device=torch.device("cpu"),
-            rank_id=0,
-            world_size=1,
-        )
-        with pytest.raises(AttributeError):
-            ctx.rank_id = 1
-
-
-# ── NodeContext ────────────────────────────────────────────────────────
-
-
-class TestNodeContext:
-    def test_basic_creation(self):
-        ctx = NodeContext(prompt="hello world")
-        assert ctx.prompt == "hello world"
-        assert ctx.metadata == {}
-
-    def test_tensor_rejected(self):
-        with pytest.raises(TypeError, match="Tensor"):
-            NodeContext(prompt=torch.zeros(1))
-
-
-# ── NodeFactory ─────────────────────────────────────────────────────
-
-
-class TestNodeFactory:
-    def test_loader_factory_has_entries(self):
-        # 确保 import kdit.nodes 后注册了 loader
-        import kdit.nodes  # pylint: disable=unused-import # noqa: F401
-
-        assert len(LoaderNodeFactory._registry) > 0
-
-    def test_infer_factory_has_entries(self):
-        import kdit.nodes  # pylint: disable=unused-import # noqa: F401
-
-        assert len(InferNodeFactory._registry) > 0

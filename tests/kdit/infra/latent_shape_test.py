@@ -92,7 +92,7 @@ class TestComputeLatentShape:
             compute_latent_shape(z_dim=16, target_f=1, target_h=512, target_w=512, vae_stride=[8, 8], patch_size=2)
 
     def test_img_shape_validation(self):
-        with pytest.raises(ValueError, match="img_shape must be 4D"):
+        with pytest.raises(ValueError, match="refer_image_shape must be 4D"):
             compute_latent_shape(
                 z_dim=16,
                 target_f=81,
@@ -100,7 +100,7 @@ class TestComputeLatentShape:
                 target_w=1280,
                 vae_stride=[4, 8, 8],
                 patch_size=[1, 2, 2],
-                img_shape=[1, 720, 1280],
+                refer_image_shape=[1, 720, 1280],
             )
 
     def test_with_img_shape(self):
