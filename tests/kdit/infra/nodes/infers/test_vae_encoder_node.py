@@ -144,7 +144,7 @@ class TestVAEEncodeImagesNode(unittest.TestCase):
         )
         self.mock_vae.forward_encode_image.assert_called_once()
 
-    def test_run_writes_image_embeds_as_list(self):
+    def test_run_writes_aux_latent(self):
         context = NodeContext(metadata={"batch_size": 1})
         self.node.run(
             model_key=ModelKey.VAE_WAN2_2,
@@ -154,16 +154,15 @@ class TestVAEEncodeImagesNode(unittest.TestCase):
             device_ctx=self.device_ctx,
         )
         self.tensor_pool.put.assert_called_once()
-        put_key, put_val = self.tensor_pool.put.call_args[0]
-        self.assertEqual(put_key, TensorKey.IMAGE_EMBEDS)
-        self.assertIsInstance(put_val, list)
+        put_key = self.tensor_pool.put.call_args[0][0]
+        self.assertEqual(put_key, TensorKey.AUX_LATENT)
 
     def test_dispatch_policy(self):
         self.assertEqual(VAEEncodeImagesNode.dispatch_policy, NodeDispatchPolicy.R0_R0_BCAST)
 
     def test_tensor_keys(self):
         self.assertEqual(VAEEncodeImagesNode.input_tensor_keys, [TensorKey.IMAGE])
-        self.assertEqual(VAEEncodeImagesNode.output_tensor_keys, [TensorKey.IMAGE_EMBEDS])
+        self.assertEqual(VAEEncodeImagesNode.output_tensor_keys, [TensorKey.AUX_LATENT])
 
 
 if __name__ == "__main__":

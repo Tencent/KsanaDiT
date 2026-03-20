@@ -79,7 +79,7 @@ def _make_diffusion_model(*, z_dim=None, num_train_timesteps=1000, boundary=None
 
 
 class TestWanValidNoiseShape(unittest.TestCase):
-    """测试 valid_noise_shape — I2V 模式下覆写 z_dim。"""
+    """测试 valid_noise_shape — 基类校验 noise_shape 格式。"""
 
     def test_t2v_keeps_original_shape(self):
         gen = _make_wan_generator(ModelKey.Wan2_2_T2V_14B)
@@ -87,35 +87,19 @@ class TestWanValidNoiseShape(unittest.TestCase):
         result = gen.valid_noise_shape([16, 8, 32, 32], [dm])
         self.assertEqual(result, [16, 8, 32, 32])
 
-    def test_i2v_overrides_z_dim(self):
+    def test_i2v_keeps_original_shape(self):
+        """I2V 模式下 valid_noise_shape 同样保持原始 shape（z_dim 由 base_latent 推导）。"""
         gen = _make_wan_generator(ModelKey.Wan2_2_I2V_14B)
         dm = _make_diffusion_model(z_dim=32)
         result = gen.valid_noise_shape([16, 8, 32, 32], [dm])
-        self.assertEqual(result[0], 32)
+        self.assertEqual(result, [16, 8, 32, 32])
 
-    def test_i2v_missing_z_dim_raises(self):
+    def test_invalid_dim_raises(self):
+        """noise_shape 维度不为 4 时应抛出 ValueError。"""
         gen = _make_wan_generator(ModelKey.Wan2_2_I2V_14B)
         dm = _make_diffusion_model()
-        # 用一个没有 z_dim 属性的空对象替换 vae
-        dm.default_settings.vae = type("_EmptyVAE", (), {})()
-        with self.assertRaises(ValueError, msg="vae.z_dim not found"):
-            gen.valid_noise_shape([16, 8, 32, 32], [dm])
-
-
-class TestWanCastBaseLatent(unittest.TestCase):
-    """测试 cast_base_latent_to — T2V 返回 None。"""
-
-    def test_t2v_returns_none(self):
-        gen = _make_wan_generator(ModelKey.Wan2_2_T2V_14B)
-        result = gen.cast_base_latent_to([torch.randn(1, 4)], dtype=torch.float16, device=torch.device("cpu"))
-        self.assertIsNone(result)
-
-    def test_i2v_casts_tensors(self):
-        gen = _make_wan_generator(ModelKey.Wan2_2_I2V_14B)
-        embeds = [torch.randn(1, 4, dtype=torch.float32)]
-        result = gen.cast_base_latent_to(embeds, dtype=torch.float16, device=torch.device("cpu"))
-        self.assertIsNotNone(result)
-        self.assertEqual(result[0].dtype, torch.float16)
+        with self.assertRaises(ValueError):
+            gen.valid_noise_shape([16, 8, 32], [dm])
 
 
 class TestWanGetModelBoundary(unittest.TestCase):

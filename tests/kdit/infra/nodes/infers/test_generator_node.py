@@ -102,7 +102,7 @@ class TestGeneratorNode(unittest.TestCase):
         ctx_arg = mock_generator.run.call_args[0][0]
         self.assertIsInstance(ctx_arg, GeneratorInferContext)
         self.assertIs(ctx_arg.diffusion_model, self.mock_diffusion_model)
-        self.assertEqual(ctx_arg.noise_shape, [4, 16, 32, 32])
+        self.assertIsNotNone(ctx_arg.base_latent)
         self.assertIs(ctx_arg.sample_config, self.sample_config)
         self.assertIs(ctx_arg.runtime_config, self.runtime_config)
 
@@ -112,8 +112,10 @@ class TestGeneratorNode(unittest.TestCase):
         self.assertEqual(put_args[0][0], TensorKey.LATENTS)
 
     @patch("kdit.nodes.infers.generator_node.GeneratorFactory")
-    def test_noise_shape_from_base_latent_when_metadata_missing(self, mock_factory):
-        """当 metadata 中没有 noise_shape 时，应从 base_latent 推导。"""
+    def test_base_latent_constructed_from_tensor_pool(self, mock_factory):
+        """base_latent 应从 tensor_pool 中的 BASE_LATENT 构造为 BaseLatent 对象。"""
+        from kdit.generators.generator_context import BaseLatent
+
         mock_generator = MagicMock()
         mock_generator.run.return_value = torch.randn(1, 4, 16, 32, 32)
         mock_factory.create.return_value = mock_generator
@@ -133,8 +135,9 @@ class TestGeneratorNode(unittest.TestCase):
         )
 
         ctx_arg = mock_generator.run.call_args[0][0]
-        # base_latent[0].shape = (1, 4, 16, 32, 32), shape[1:] = (4, 16, 32, 32)
-        self.assertEqual(ctx_arg.noise_shape, [4, 16, 32, 32])
+        self.assertIsInstance(ctx_arg.base_latent, BaseLatent)
+        # base_latent.latent 应为 tensor_pool 中 BASE_LATENT 的第一个元素
+        self.assertTrue(torch.equal(ctx_arg.base_latent.latent, self.base_latent[0]))
 
     def test_dispatch_policy(self):
         self.assertEqual(GeneratorNode.dispatch_policy, NodeDispatchPolicy.ALL_ALL_ALL)

@@ -33,7 +33,6 @@ class TestGeneratorRunContext(unittest.TestCase):
         self.assertIsNone(ctx.negative)
         self.assertIsNone(ctx.base_latent)
         self.assertIsNone(ctx.aux_latent)
-        self.assertIsNone(ctx.noise_shape)
         self.assertIsNone(ctx.device)
         self.assertIsNone(ctx.offload_device)
         self.assertIsNone(ctx.sample_config)
@@ -56,7 +55,6 @@ class TestGeneratorRunContext(unittest.TestCase):
             negative=negative,
             base_latent=None,
             aux_latent=None,
-            noise_shape=[4, 16, 32, 32],
             device=torch.device("cpu"),
             offload_device=torch.device("cpu"),
             sample_config=sample_cfg,
@@ -69,7 +67,6 @@ class TestGeneratorRunContext(unittest.TestCase):
 
         self.assertIs(ctx.diffusion_model, mock_model)
         self.assertTrue(torch.equal(ctx.positive, positive))
-        self.assertEqual(ctx.noise_shape, [4, 16, 32, 32])
         self.assertEqual(ctx.device, torch.device("cpu"))
         self.assertIs(ctx.sample_config, sample_cfg)
         self.assertIs(ctx.runtime_config, runtime_cfg)
