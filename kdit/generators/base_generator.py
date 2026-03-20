@@ -426,6 +426,7 @@ class BaseGenerator:
             if base_latent_expanded is not None
             else None
         )
+        aux_latent_expanded = self._cast_aux_latent(aux_latent_expanded, dtype=run_dtype, device=device)
 
         # create noise latents and batch strategy
         total_samples_num = sum(runtime_config.batch_size_per_prompts)
@@ -535,6 +536,22 @@ class BaseGenerator:
 
     def pack_aux_latent(self, ref_latent: torch.Tensor, patch_size: int) -> torch.Tensor:
         return ref_latent
+
+    def _cast_aux_latent(
+        self,
+        aux_latent: list[torch.Tensor] | torch.Tensor | None,
+        *,
+        dtype: torch.dtype,
+        device: torch.device,
+    ) -> list[torch.Tensor] | torch.Tensor | None:
+        """将 aux_latent 转换到目标 dtype 和 device，支持 Tensor 和 list[Tensor]。"""
+        if aux_latent is None:
+            return None
+        if isinstance(aux_latent, torch.Tensor):
+            return tensor_ops.cast_to(aux_latent, dtype=dtype, device=device)
+        if isinstance(aux_latent, list):
+            return [tensor_ops.cast_to(t, dtype=dtype, device=device) for t in aux_latent]
+        return aux_latent
 
     def unpack_noise_latents(self, noise_latents: torch.Tensor, patch_size) -> torch.Tensor:
         return noise_latents

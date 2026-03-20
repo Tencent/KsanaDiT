@@ -243,6 +243,12 @@ class QwenGenerator(BaseGenerator):
         log.info(f"{self.model_key} pack noise latents to shape {latents.shape}")
         return latents
 
+    def pack_aux_latent(self, aux_latent, patch_size):
+        """覆盖基类：对 list[Tensor] 格式的 ref_latents 做 patchify。"""
+        if isinstance(aux_latent, list):
+            return self.pack_ref_latents(aux_latent, patch_size)
+        return aux_latent
+
     def pack_ref_latents(self, ref_latents: list[torch.Tensor], patch_size: int) -> list[torch.Tensor]:
         packed_refs = []
         for ref in ref_latents:
