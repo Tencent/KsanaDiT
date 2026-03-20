@@ -32,7 +32,7 @@ from kdit.utils.logger import log
 
 from ..context_builder import ContextBuilder
 from ..generate_inputs import PipelineGenerateInputs
-from ..pipeline_def import InferPhase
+from ..pipeline_def import InferTask
 
 # ── 公共基类 ─────────────────────────────────────────────────────────────
 
@@ -118,7 +118,7 @@ class QwenT2IContextBuilder(QwenContextBuilder):
             target_w=rc.size[0],
         )
 
-    def build_context(self, phase: InferPhase, inputs: PipelineGenerateInputs) -> NodeContext:
+    def build_context(self, phase: InferTask, inputs: PipelineGenerateInputs) -> NodeContext:
         """按 node_type 分发构建 context。"""
         extra = self._extra
         match phase.node_type:
@@ -188,7 +188,7 @@ class QwenEditContextBuilder(QwenContextBuilder):
             target_w=rc.size[0],
         )
 
-    def build_context(self, phase: InferPhase, inputs: PipelineGenerateInputs) -> NodeContext:
+    def build_context(self, phase: InferTask, inputs: PipelineGenerateInputs) -> NodeContext:
         """按 node_type 分发构建 context。"""
         extra = self._extra
         match phase.node_type:
@@ -214,7 +214,7 @@ class QwenEditContextBuilder(QwenContextBuilder):
             case _:
                 raise ValueError(f"QwenEditContextBuilder: unexpected node_type {phase.node_type}")
 
-    def prepare_tensors(self, phase: InferPhase, inputs: PipelineGenerateInputs) -> dict[TensorKey, Any] | None:
+    def prepare_tensors(self, phase: InferTask, inputs: PipelineGenerateInputs) -> dict[TensorKey, Any] | None:
         """为 VAE_ENCODE_IMAGES 阶段准备 tensor。"""
         extra = self._extra
         if phase.node_type == NT.VAE_ENCODE_IMAGES and extra.img_tensor is not None:

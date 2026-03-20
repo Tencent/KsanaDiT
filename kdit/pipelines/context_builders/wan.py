@@ -39,7 +39,7 @@ from kdit.utils.vace import VaceConfig, build_vace_video_control_config, latent_
 
 from ..context_builder import ContextBuilder
 from ..generate_inputs import PipelineGenerateInputs
-from ..pipeline_def import InferPhase
+from ..pipeline_def import InferTask
 
 # ── 公共基类 ─────────────────────────────────────────────────────────────
 
@@ -212,7 +212,7 @@ class WanT2VContextBuilder(WanContextBuilder):
             fps=fps,
         )
 
-    def build_context(self, phase: InferPhase, inputs: PipelineGenerateInputs) -> NodeContext:
+    def build_context(self, phase: InferTask, inputs: PipelineGenerateInputs) -> NodeContext:
         """按 node_type 分发构建 context。"""
         extra = self._extra
         match phase.node_type:
@@ -318,7 +318,7 @@ class WanI2VContextBuilder(WanContextBuilder):
             fps=fps,
         )
 
-    def build_context(self, phase: InferPhase, inputs: PipelineGenerateInputs) -> NodeContext:
+    def build_context(self, phase: InferTask, inputs: PipelineGenerateInputs) -> NodeContext:
         """按 node_type 分发构建 context。"""
         extra = self._extra
         match phase.node_type:
@@ -341,7 +341,7 @@ class WanI2VContextBuilder(WanContextBuilder):
             case _:
                 raise ValueError(f"WanI2VContextBuilder: unexpected node_type {phase.node_type}")
 
-    def prepare_tensors(self, phase: InferPhase, inputs: PipelineGenerateInputs) -> dict[TensorKey, Any] | None:
+    def prepare_tensors(self, phase: InferTask, inputs: PipelineGenerateInputs) -> dict[TensorKey, Any] | None:
         """为 VAE_ENCODE_SPATIAL 和 GENERATE 阶段准备 tensor。"""
         extra = self._extra
         if phase.node_type == NT.VAE_ENCODE_SPATIAL:
@@ -352,10 +352,6 @@ class WanI2VContextBuilder(WanContextBuilder):
         if phase.node_type == NT.GENERATE and extra.aux_latent is not None:
             return {TensorKey.AUX_LATENT: extra.aux_latent}
         return None
-
-    def has_start_image(self, inputs: PipelineGenerateInputs) -> bool:
-        """条件方法：是否有起始图 — 用于 PipelineDef 的 .when("has_start_image")。"""
-        return self._extra.start_img_path is not None
 
 
 # ── 辅助函数 ─────────────────────────────────────────────────────────────

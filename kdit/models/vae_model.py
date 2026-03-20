@@ -101,6 +101,8 @@ class KsanaVAEModel(ModelBase):
         vae_stride: list[int] = None,
         vae_patch: list[int] = None,
     ):
+        if start_img is None:
+            raise ValueError("start_img must be provided when end_img is provided")
         vae_stride = vae_stride or self.vae_stride_size
         vae_patch_size = vae_patch or self.vae_patch_size
         img_shape = None if start_img is None else start_img.shape
@@ -109,7 +111,7 @@ class KsanaVAEModel(ModelBase):
                 f"start_img and end_img must have same shape, but got {start_img.shape} and {end_img.shape}"
             )
 
-        z_dim, lat_f, lat_h, lat_w = self.create_noise_latent_shape(
+        _, lat_f, lat_h, lat_w = self.create_noise_latent_shape(
             target_f=target_f,
             target_h=target_h,
             target_w=target_w,
@@ -117,9 +119,6 @@ class KsanaVAEModel(ModelBase):
             vae_stride=vae_stride,
             vae_patch=vae_patch_size,
         )
-
-        if start_img is None:
-            return create_empty_noise_latent((z_dim, lat_f, lat_h, lat_w), target_batch_size), None
 
         with_end_image = end_img is not None
 

@@ -22,7 +22,7 @@ from kdit.models.model_key import ModelKey
 from kdit.nodes.core.node_context import NodeContext
 from kdit.nodes.core.node_types import InferNodeType as NT
 from kdit.pipelines.generate_inputs import PipelineGenerateInputs
-from kdit.pipelines.pipeline_def import InferPhase
+from kdit.pipelines.pipeline_def import InferTask
 from kdit.tensor import TensorKey
 
 
@@ -96,7 +96,7 @@ class TestWanT2VContextBuilder(unittest.TestCase):
         inputs = _make_inputs(prompt="hello world")
         builder.prepare_generate_inputs(inputs, _default_settings=_make_wan_settings())
 
-        phase = InferPhase(node_type=NT.TEXT_ENCODE, model_key=ModelKey.T5TextEncoder)
+        phase = InferTask(node_type=NT.TEXT_ENCODE, model_key=ModelKey.T5TextEncoder)
         ctx = builder.build_context(phase, inputs)
 
         self.assertIsInstance(ctx, NodeContext)
@@ -110,7 +110,7 @@ class TestWanT2VContextBuilder(unittest.TestCase):
         inputs = _make_inputs()
         builder.prepare_generate_inputs(inputs, _default_settings=_make_wan_settings())
 
-        phase = InferPhase(node_type=NT.GENERATE, model_key=ModelKey.Wan2_2_T2V_14B)
+        phase = InferTask(node_type=NT.GENERATE, model_key=ModelKey.Wan2_2_T2V_14B)
         ctx = builder.build_context(phase, inputs)
 
         self.assertIn("noise_shape", ctx.metadata)
@@ -124,7 +124,7 @@ class TestWanT2VContextBuilder(unittest.TestCase):
         inputs = _make_inputs()
         builder.prepare_generate_inputs(inputs, _default_settings=_make_wan_settings())
 
-        phase = InferPhase(node_type=NT.VAE_ENCODE_IMAGES)
+        phase = InferTask(node_type=NT.VAE_ENCODE_IMAGES)
         with self.assertRaises(ValueError, msg="unexpected node_type"):
             builder.build_context(phase, inputs)
 
@@ -221,7 +221,7 @@ class TestWanI2VContextBuilder(unittest.TestCase):
             start_img_path="test.png",
         )
 
-        phase = InferPhase(node_type=NT.VAE_ENCODE_SPATIAL, model_key=ModelKey.VAE_WAN2_2)
+        phase = InferTask(node_type=NT.VAE_ENCODE_SPATIAL, model_key=ModelKey.VAE_WAN2_2)
         tensors = builder.prepare_tensors(phase, inputs)
 
         self.assertIsNotNone(tensors)
@@ -235,7 +235,7 @@ class TestWanI2VContextBuilder(unittest.TestCase):
         inputs = _make_inputs()
         builder.prepare_generate_inputs(inputs, _default_settings=_make_wan_settings())
 
-        phase = InferPhase(node_type=NT.GENERATE, model_key=ModelKey.Wan2_2_I2V_14B)
+        phase = InferTask(node_type=NT.GENERATE, model_key=ModelKey.Wan2_2_I2V_14B)
         tensors = builder.prepare_tensors(phase, inputs)
         self.assertIsNone(tensors)
 
@@ -247,7 +247,7 @@ class TestWanI2VContextBuilder(unittest.TestCase):
         inputs = _make_inputs()
         builder.prepare_generate_inputs(inputs, _default_settings=_make_wan_settings())
 
-        phase = InferPhase(node_type=NT.VAE_ENCODE_SPATIAL, model_key=ModelKey.VAE_WAN2_2)
+        phase = InferTask(node_type=NT.VAE_ENCODE_SPATIAL, model_key=ModelKey.VAE_WAN2_2)
         ctx = builder.build_context(phase, inputs)
 
         self.assertIn("target_f", ctx.metadata)

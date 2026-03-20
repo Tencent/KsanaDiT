@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Pipeline 声明式定义 — PipelineDef, LoadPhase, InferPhase, PipelineDefBuilder.
+"""Pipeline 声明式定义 — PipelineDef, LoadTask, InferTask, PipelineDefBuilder.
 
 PipelineDef 是不可变的数据结构，描述一条 Pipeline 的完整流程：
 - load_phases: 模型加载阶段列表
@@ -33,7 +33,7 @@ from kdit.utils import log
 
 from .context_builder import ContextBuilder
 from .pipeline_key import PipelineKey
-from .pipeline_phase import InferPhase, LoadPhase
+from .pipeline_phase import InferTask, LoadTask
 
 
 @dataclass(frozen=True)
@@ -49,8 +49,8 @@ class PipelineDef:
     """
 
     pipeline_key: PipelineKey
-    load_phases: tuple[LoadPhase, ...]
-    infer_phases: tuple[InferPhase, ...]
+    load_phases: tuple[LoadTask, ...]
+    infer_phases: tuple[InferTask, ...]
     context_builder_cls: type[ContextBuilder]
     keep_tensors: tuple[TensorKey, ...] = ()
 
@@ -80,25 +80,25 @@ class PipelineDefBuilder:
 
     def __init__(self, pipeline_key: PipelineKey):
         self._pipeline_key = pipeline_key
-        self._load_phases: list[LoadPhase] = []
-        self._infer_phases: list[InferPhase] = []
+        self._load_phases: list[LoadTask] = []
+        self._infer_phases: list[InferTask] = []
         self._context_builder_cls: type[ContextBuilder] | None = None
         self._keep_tensors: list[TensorKey] = []
 
     def load(self, model_key: ModelKey) -> PipelineDefBuilder:
         """添加一个模型加载阶段。"""
-        self._load_phases.append(LoadPhase(model_key=model_key))
+        self._load_phases.append(LoadTask(model_key=model_key))
         return self
 
     def add_infer(
         self,
         node_type: InferNodeType,
         model_key: ModelKey | None = None,
-    ) -> _InferPhaseChain:
+    ) -> _InferTaskChain:
         """添加一个推理阶段，返回链式对象以支持 .when() 条件。"""
-        phase = InferPhase(node_type=node_type, model_key=model_key)
+        phase = InferTask(node_type=node_type, model_key=model_key)
         self._infer_phases.append(phase)
-        return _InferPhaseChain(self, len(self._infer_phases) - 1)
+        return _InferTaskChain(self, len(self._infer_phases) - 1)
 
     def keep_tensors(self, *keys: TensorKey) -> PipelineDefBuilder:
         """声明 tensor_scope 中需要保留的 TensorKey。"""
@@ -124,8 +124,8 @@ class PipelineDefBuilder:
         for ip in self._infer_phases:
             if ip.model_key is not None and ip.model_key not in load_keys:
                 raise ValueError(
-                    f"InferPhase references model_key={ip.model_key!r} "
-                    f"which is not declared in any LoadPhase. "
+                    f"InferTask references model_key={ip.model_key!r} "
+                    f"which is not declared in any LoadTask. "
                     f"Available keys: {load_keys}"
                 )
 
@@ -138,7 +138,7 @@ class PipelineDefBuilder:
         )
 
 
-class _InferPhaseChain:
+class _InferTaskChain:
     """add_infer() 返回的链式对象，支持 .when() 条件设置。
 
     调用 .when() 后返回 PipelineDefBuilder 继续链式构建。
@@ -153,7 +153,7 @@ class _InferPhaseChain:
     def when(self, condition_name: str) -> PipelineDefBuilder:
         """设置条件执行 — condition_name 必须是 ContextBuilder 上的方法名。"""
         old = self._builder._infer_phases[self._phase_index]
-        self._builder._infer_phases[self._phase_index] = InferPhase(
+        self._builder._infer_phases[self._phase_index] = InferTask(
             node_type=old.node_type,
             model_key=old.model_key,
             condition=condition_name,

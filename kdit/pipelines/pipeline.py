@@ -15,7 +15,7 @@
 """Pipeline — 统一的声明式 Pipeline 类。
 
 通过 PipelineDef 驱动 Load 和 Generate 两个阶段，
-ContextBuilder 负责为每个 InferPhase 构建 NodeContext。
+ContextBuilder 负责为每个 InferTask 构建 NodeContext。
 
 用法::
 

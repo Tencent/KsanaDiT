@@ -166,12 +166,12 @@ Pipelines are defined as immutable `PipelineDef` data structures using `Pipeline
 
 ```python
 PipelineDefBuilder("wan_t2v") \
-    .load(LoadPhase.TEXT_ENCODER, ...) \
-    .load(LoadPhase.DIFFUSION_MODEL, ...) \
-    .load(LoadPhase.VAE, ...) \
-    .infer(InferPhase.TEXT_ENCODE, ...) \
-    .infer(InferPhase.GENERATE, ...) \
-    .infer(InferPhase.VAE_DECODE, ...) \
+    .load(LoadTask.TEXT_ENCODER, ...) \
+    .load(LoadTask.DIFFUSION_MODEL, ...) \
+    .load(LoadTask.VAE, ...) \
+    .infer(InferTask.TEXT_ENCODE, ...) \
+    .infer(InferTask.GENERATE, ...) \
+    .infer(InferTask.VAE_DECODE, ...) \
     .build()
 ```
 

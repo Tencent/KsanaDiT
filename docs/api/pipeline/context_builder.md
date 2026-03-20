@@ -1,5 +1,5 @@
 # ContextBuilder
 
-Strategy class that builds `NodeContext` for each `InferPhase`.
+Strategy class that builds `NodeContext` for each `InferTask`.
 
 ::: kdit.pipelines.ContextBuilder

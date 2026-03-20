@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Pipeline 声明式定义 — LoadPhase, InferPhase"""
+"""Pipeline 声明式定义 — LoadTask, InferTask"""
 
 
 from dataclasses import dataclass
@@ -22,7 +22,7 @@ from kdit.nodes.core.node_types import InferNodeType
 
 
 @dataclass(frozen=True)
-class LoadPhase:
+class LoadTask:
     """模型加载阶段 — 声明一个需要加载的模型。
 
     Attributes:
@@ -33,14 +33,14 @@ class LoadPhase:
 
 
 @dataclass(frozen=True)
-class InferPhase:
+class InferTask:
     """推理阶段 — 声明一个 InferNode 的执行。
 
     与 InferNodeFactory 的二级注册 (node_type, model_key) 对齐。
 
     Attributes:
         node_type: InferNode 类型枚举。
-        model_key: 关联的 ModelKey（与 LoadPhase 对应），
+        model_key: 关联的 ModelKey（与 LoadTask 对应），
                    SaveNode 等无模型 Node 为 None。
         condition: ContextBuilder 上的条件方法名，
                    为 None 时无条件执行。

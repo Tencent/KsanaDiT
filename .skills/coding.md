@@ -787,8 +787,8 @@ grep -rn 'metadata\.get' kdit/nodes/ --include="*.py" | grep -v __pycache__
 
 ```
 PipelineDefBuilder  ──build()──▶  PipelineDef (不可变)
-                                    ├── load_phases: list[LoadPhase]
-                                    ├── infer_phases: list[InferPhase]
+                                    ├── load_phases: list[LoadTask]
+                                    ├── infer_phases: list[InferTask]
                                     └── context_builder_cls: type[ContextBuilder]
 
 Pipeline.from_models(pipeline_key)  ──▶  Pipeline 实例
@@ -801,12 +801,12 @@ Pipeline.generate(prompt, ...)      ──▶  输出 tensor / 保存文件
 # kdit/pipelines/pipeline_def.py
 
 @dataclass(frozen=True)
-class LoadPhase:
+class LoadTask:
     model_role: str           # "text_encoder" / "diffusion" / "vae"
     model_key: ModelKey       # 具体模型 key
 
 @dataclass(frozen=True)
-class InferPhase:
+class InferTask:
     node_type: InferNodeType  # TEXT_ENCODE / GENERATE / VAE_DECODE / SAVE_VIDEO ...
     model_role: str | None    # 关联的 model_role，SaveNode 为 None
     condition: str | None     # ContextBuilder 上的条件方法名
@@ -814,8 +814,8 @@ class InferPhase:
 @dataclass(frozen=True)
 class PipelineDef:
     pipeline_key: PipelineKey
-    load_phases: tuple[LoadPhase, ...]
-    infer_phases: tuple[InferPhase, ...]
+    load_phases: tuple[LoadTask, ...]
+    infer_phases: tuple[InferTask, ...]
     context_builder_cls: type[ContextBuilder]
     keep_tensors: tuple[TensorKey, ...] = ()  # tensor_scope keep 列表
 ```
@@ -853,7 +853,7 @@ WAN_T2V_DEF = (
 class ContextBuilder(ABC):
     """生命周期：
     1. prepare_generate_inputs(base_inputs, **kwargs) — 一次性：提取 Pipeline 特有输入
-    2. 对每个 InferPhase:
+    2. 对每个 InferTask:
        a. check_condition(name, inputs) — 是否跳过
        b. prepare_tensors(phase, inputs) — 准备 tensor → put 到 pool
        c. build_context(phase, inputs) — 构建 NodeContext
@@ -865,11 +865,11 @@ class ContextBuilder(ABC):
         pass
 
     @abstractmethod
-    def build_context(self, phase: InferPhase, inputs: PipelineGenerateInputs) -> NodeContext:
+    def build_context(self, phase: InferTask, inputs: PipelineGenerateInputs) -> NodeContext:
         """按 phase.node_type 分支，构建该 Node 的 context。"""
         ...
 
-    def prepare_tensors(self, phase: InferPhase, inputs: PipelineGenerateInputs) -> dict | None:
+    def prepare_tensors(self, phase: InferTask, inputs: PipelineGenerateInputs) -> dict | None:
         """返回需要 put 到 tensor_pool 的 tensor dict。默认 None。"""
         return None
 
@@ -935,7 +935,7 @@ class SaveImageNode(InferNode):
 - SaveNode 注册时 `model_key=None`（不需要模型）
 - SaveNode 在 `kdit/nodes/infers/` 中，**不在** `kdit/adapter/comfyui/` 中
 - ComfyUI 模式下不使用 SaveNode（ComfyUI 有自己的输出机制）
-- `InferPhase` 中 `model_role=None` 表示 SaveNode
+- `InferTask` 中 `model_role=None` 表示 SaveNode
 
 ### Pipeline.generate() 核心循环
 
@@ -987,7 +987,7 @@ def has_start_image(self, inputs) -> bool:
 kdit/pipelines/
 ├── __init__.py
 ├── pipeline.py              # 统一的 Pipeline 类
-├── pipeline_def.py          # PipelineDef, LoadPhase, InferPhase, PipelineDefBuilder
+├── pipeline_def.py          # PipelineDef, LoadTask, InferTask, PipelineDefBuilder
 ├── pipeline_key.py          # PipelineKey 枚举（已有）
 ├── context_builder.py       # ContextBuilder 基类
 ├── generate_inputs.py       # PipelineGenerateInputs 数据类

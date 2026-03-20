@@ -21,11 +21,11 @@
 Load 阶段（新增）：
 1. resolve_model_paths(model_path, ...) — 解析模型路径
 2. resolve_lora_config(lora_config, ...) — 解析 LoRA 配置
-3. build_loader_kwargs(model_key, ...) — 为每个 LoadPhase 构建 kwargs
+3. build_loader_kwargs(model_key, ...) — 为每个 LoadTask 构建 kwargs
 
 Generate 阶段：
 1. prepare_generate_inputs(base_inputs, **kwargs) — 一次性：提取 Pipeline 特有输入
-2. 对每个 InferPhase:
+2. 对每个 InferTask:
    a. check_condition(name, inputs) — 是否跳过
    b. prepare_tensors(phase, inputs) — 准备 tensor -> put 到 pool
    c. build_context(phase, inputs) — 构建 NodeContext
@@ -45,7 +45,7 @@ from kdit.nodes.core.node_context import NodeContext
 from kdit.tensor import TensorKey
 
 from .generate_inputs import PipelineGenerateInputs
-from .pipeline_phase import InferPhase
+from .pipeline_phase import InferTask
 
 
 class ContextBuilder(ABC):
@@ -155,10 +155,10 @@ class ContextBuilder(ABC):
     @abstractmethod
     def build_context(
         self,
-        phase: InferPhase,
+        phase: InferTask,
         inputs: PipelineGenerateInputs,
     ) -> NodeContext:
-        """为指定的 InferPhase 构建 NodeContext。
+        """为指定的 InferTask 构建 NodeContext。
 
         内部通过 phase.node_type 分支，为不同 Node 构建不同的 context。
         可通过 self._extra 访问 prepare_generate_inputs() 阶段提取的特有输入。
@@ -167,10 +167,10 @@ class ContextBuilder(ABC):
 
     def prepare_tensors(
         self,
-        phase: InferPhase,
+        phase: InferTask,
         inputs: PipelineGenerateInputs,
     ) -> dict[TensorKey, Any] | None:
-        """为指定的 InferPhase 准备需要 put 到 tensor_pool 的 tensor。
+        """为指定的 InferTask 准备需要 put 到 tensor_pool 的 tensor。
 
         默认返回 None。子类按需覆盖。
         """

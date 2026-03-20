@@ -62,21 +62,15 @@ class BaseGenerator:
 
     def _valid_base_latent_to_total_prompts_size(
         self,
-        base_latents: list[torch.Tensor] | None,
+        base_latent: torch.Tensor | None,
         num_prompts: int,
         batch_size_per_prompts: list[int],
-    ) -> list[torch.Tensor] | None:
-        """按 batch_size_per_prompts 扩展 base_latent list 中的每个 tensor。
-
-        base_latents 是 [latent] 或 [latent, mask] 形式的 list，
-        对每个元素逐个调用 _expand_single_latents。
-        """
-        if base_latents is None:
+    ) -> torch.Tensor | None:
+        """按 batch_size_per_prompts 扩展 base_latent tensor。"""
+        if base_latent is None:
             return None
-        expanded = []
-        for latent in base_latents:
-            expanded.extend(self._expand_single_latents(latent, num_prompts, batch_size_per_prompts))
-        return expanded
+        expanded = self._expand_single_latents(base_latent, num_prompts, batch_size_per_prompts)
+        return expanded[0]
 
     def _valid_aux_latent_to_total_prompts_size(
         self,
@@ -185,7 +179,7 @@ class BaseGenerator:
         positive: torch.Tensor | tuple,
         negative: torch.Tensor | tuple,
         noise_latent: torch.Tensor,
-        base_latent: list[torch.Tensor] | None,
+        base_latent: torch.Tensor | None,
         process_info: list[int],
         sample_config: SampleConfig,
         runtime_config: RuntimeConfig,
@@ -311,7 +305,7 @@ class BaseGenerator:
         noise_latents: torch.Tensor,
         positive: torch.Tensor,
         negative: torch.Tensor,
-        base_latent: list[torch.Tensor] | None,
+        base_latent: torch.Tensor | None,
         sample_config: RuntimeConfig,
         aux_latent: torch.Tensor | None,
         run_steps_kwargs: dict,
@@ -403,7 +397,7 @@ class BaseGenerator:
         diffusion_model = validation.valid_diffusion_model(diffusion_model, self.model_key)
         positive = self.preprocess_text_conditioning(positive)
         negative = self.preprocess_text_conditioning(negative)
-        base_latent_list = [self.preprocess_base_latent(t) for t in base_latent_list]
+        base_latent = self.preprocess_base_latent(base_latent_list)
         num_prompts = self._get_num_prompts(positive)
 
         sample_config = validation.valid_sample_config(sample_config, len(diffusion_model))
@@ -417,7 +411,7 @@ class BaseGenerator:
 
         # expand base_latent, aux_latent, positive and negative to total batch size supporting batch_size_per_prompts
         base_latent_expanded = self._valid_base_latent_to_total_prompts_size(
-            base_latent_list, num_prompts, runtime_config.batch_size_per_prompts
+            base_latent, num_prompts, runtime_config.batch_size_per_prompts
         )
         aux_latent_expanded = self._valid_aux_latent_to_total_prompts_size(
             aux_latent, num_prompts, runtime_config.batch_size_per_prompts
@@ -427,8 +421,11 @@ class BaseGenerator:
         )
         run_dtype = diffusion_model[0].run_dtype
         positive, negative = self.cast_text_tensors_to(positive, negative, dtype=run_dtype, device=device)
-        # TODO：需要确认后续的aux和base是不是对的语义
-        base_latent_expanded = self.cast_base_latent_to(base_latent_expanded, dtype=run_dtype, device=device)
+        base_latent_expanded = (
+            tensor_ops.cast_to(base_latent_expanded, dtype=run_dtype, device=device)
+            if base_latent_expanded is not None
+            else None
+        )
 
         # create noise latents and batch strategy
         total_samples_num = sum(runtime_config.batch_size_per_prompts)
@@ -443,8 +440,8 @@ class BaseGenerator:
         patch_size = self._get_patch_size(diffusion_model)
         noise_latents = self.pack_noise_latents(noise_latents, patch_size)
 
-        if base_latent_expanded is not None and len(base_latent_expanded) > 0:
-            base_latent_expanded = self.pack_ref_latents(base_latent_expanded, patch_size)
+        if aux_latent_expanded is not None:
+            aux_latent_expanded = self.pack_aux_latent(aux_latent_expanded, patch_size)
 
         log.info(
             f"num_prompts: {num_prompts}, batch_size_per_prompts: {runtime_config.batch_size_per_prompts}, "
@@ -493,8 +490,17 @@ class BaseGenerator:
     # 子类可覆写的钩子方法
     # ------------------------------------------------------------------
 
-    def preprocess_base_latent(self, base_latent):
-        return base_latent
+    def preprocess_base_latent(self, base_latent_list: list[torch.Tensor]) -> torch.Tensor:
+        """预处理 base_latent list，返回单个 Tensor。
+
+        接收 [latent] 或 [latent, mask] 形式的 list，返回单个 Tensor。
+        基类默认取第一个元素（latent）。
+        子类可覆写此方法做模型特定的预处理，
+        例如 WanGenerator I2V 场景会将 [latent, mask] concat 为单个 tensor。
+        """
+        if len(base_latent_list) <= 0:
+            raise ValueError("base_latent_list must contain at least one element")
+        return base_latent_list[0]
 
     def preprocess_text_conditioning(self, text_conditioning: torch.Tensor | tuple):
         return text_conditioning
@@ -515,8 +521,8 @@ class BaseGenerator:
     def pack_noise_latents(self, noise_latents: torch.Tensor, patch_size) -> torch.Tensor:
         return noise_latents
 
-    def pack_ref_latents(self, ref_latents: list[torch.Tensor], patch_size: int) -> list[torch.Tensor]:
-        return ref_latents
+    def pack_aux_latent(self, ref_latent: torch.Tensor, patch_size: int) -> torch.Tensor:
+        return ref_latent
 
     def unpack_noise_latents(self, noise_latents: torch.Tensor, patch_size) -> torch.Tensor:
         return noise_latents
@@ -528,11 +534,6 @@ class BaseGenerator:
         positive = tensor_ops.cast_to(positive, dtype=dtype, device=device)
         negative = tensor_ops.cast_to(negative, dtype=dtype, device=device)
         return positive, negative
-
-    def cast_base_latent_to(self, base_latent: list[torch.Tensor] | None, *, dtype: torch.dtype, device: torch.device):
-        if base_latent is None:
-            return None
-        return [tensor_ops.cast_to(embed, dtype=dtype, device=device) for embed in base_latent]
 
     def get_running_cfg_scale(self, cfg_scale: list[float], **kwargs):
         return cfg_scale[0] if isinstance(cfg_scale, (list, tuple)) else cfg_scale

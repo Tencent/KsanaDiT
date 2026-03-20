@@ -22,7 +22,7 @@ from kdit.models.model_key import ModelKey
 from kdit.nodes.core.node_context import NodeContext
 from kdit.nodes.core.node_types import InferNodeType as NT
 from kdit.pipelines.generate_inputs import PipelineGenerateInputs
-from kdit.pipelines.pipeline_def import InferPhase
+from kdit.pipelines.pipeline_def import InferTask
 from kdit.tensor import TensorKey
 
 
@@ -89,7 +89,7 @@ class TestQwenT2IContextBuilder(unittest.TestCase):
         inputs.runtime_config.size = (1024, 1024)
         builder.prepare_generate_inputs(inputs, _default_settings=_make_qwen_settings())
 
-        phase = InferPhase(node_type=NT.TEXT_ENCODE, model_key=ModelKey.Qwen2VLTextEncoder)
+        phase = InferTask(node_type=NT.TEXT_ENCODE, model_key=ModelKey.Qwen2VLTextEncoder)
         ctx = builder.build_context(phase, inputs)
 
         self.assertEqual(ctx.prompt, "a cat")
@@ -105,7 +105,7 @@ class TestQwenT2IContextBuilder(unittest.TestCase):
         inputs.runtime_config.size = (1024, 1024)
         builder.prepare_generate_inputs(inputs, _default_settings=_make_qwen_settings())
 
-        phase = InferPhase(node_type=NT.SAVE_IMAGE)
+        phase = InferTask(node_type=NT.SAVE_IMAGE)
         ctx = builder.build_context(phase, inputs)
         self.assertIsInstance(ctx, NodeContext)
 
@@ -181,7 +181,7 @@ class TestQwenEditContextBuilder(unittest.TestCase):
             img_path="ref.png",
         )
 
-        phase = InferPhase(node_type=NT.TEXT_ENCODE, model_key=ModelKey.Qwen2VLTextEncoderMultimodal)
+        phase = InferTask(node_type=NT.TEXT_ENCODE, model_key=ModelKey.Qwen2VLTextEncoderMultimodal)
         ctx = builder.build_context(phase, inputs)
 
         self.assertIn("condition_image_path", ctx.metadata)
@@ -204,7 +204,7 @@ class TestQwenEditContextBuilder(unittest.TestCase):
             img_path="ref.png",
         )
 
-        phase = InferPhase(node_type=NT.VAE_ENCODE_IMAGES, model_key=ModelKey.QwenImageVAE)
+        phase = InferTask(node_type=NT.VAE_ENCODE_IMAGES, model_key=ModelKey.QwenImageVAE)
         tensors = builder.prepare_tensors(phase, inputs)
 
         self.assertIsNotNone(tensors)

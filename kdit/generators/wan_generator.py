@@ -142,6 +142,18 @@ class WanGenerator(BaseGenerator):
         else:
             return cfg_scale[0]
 
+    def preprocess_base_latent(self, base_latent_list: list[torch.Tensor]) -> torch.Tensor:
+        """Wan I2V: 将 [latent, mask] concat 为单个 tensor 作为模型的 y 输入。
+
+        原先 base_latent 是已经 concat 好的单个 tensor（latent + mask 在 channel 维度），
+        现在 BaseLatent 将 latent 和 mask 拆分存储，需要在此处重新 concat。
+        T2V 场景下 list 只有 [latent]（无 mask），直接取第一个元素。
+        """
+        if self.model_key == ModelKey.Wan2_2_I2V_14B and len(base_latent_list) == 2:
+            latent, mask = base_latent_list
+            return torch.cat([latent, mask], dim=1)
+        return base_latent_list[0]
+
     def prepare_model_forward_kargs(
         self,
         cfg_scale: float,
@@ -153,14 +165,11 @@ class WanGenerator(BaseGenerator):
         cache,
         positive,
         negative,
-        base_latent: list[torch.Tensor] | None,
+        base_latent: torch.Tensor | None,
         aux_latent=None,
         **_,
     ) -> dict:
         base = {"cache": cache, "step_iter": step_iter}
-
-        # Wan I2V: base_latent is list[Tensor] with single element; extract the Tensor for model "y" input
-        img_y = base_latent[0] if base_latent is not None and len(base_latent) > 0 else None
 
         use_cfg = self._use_cfg(cfg_scale)
         if use_cfg and combine_cond_uncond:
@@ -173,16 +182,16 @@ class WanGenerator(BaseGenerator):
                 "t": combine_t,
                 "context": combine_context,
             }
-            if self.model_key == ModelKey.Wan2_2_I2V_14B and img_y is not None:
-                combine_kargs["y"] = torch.cat([img_y, img_y], dim=0)
+            if self.model_key == ModelKey.Wan2_2_I2V_14B and base_latent is not None:
+                combine_kargs["y"] = torch.cat([base_latent, base_latent], dim=0)
             return base | combine_kargs
 
         base.update({"x": noise_latent, "t": timestep})
         arg_cond = {"phase": "cond", "context": positive}
         arg_uncond = {"phase": "uncond", "context": negative}
         if self.model_key == ModelKey.Wan2_2_I2V_14B:
-            arg_cond["y"] = img_y
-            arg_uncond["y"] = img_y
+            arg_cond["y"] = base_latent
+            arg_uncond["y"] = base_latent
         if use_cfg:
             return base | arg_cond, base | arg_uncond
         else:

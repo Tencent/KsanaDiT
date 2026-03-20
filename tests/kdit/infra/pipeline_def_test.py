@@ -23,7 +23,7 @@ from kdit.pipelines.context_builder import ContextBuilder
 from kdit.pipelines.pipeline_def import (
     PipelineDef,
     PipelineDefBuilder,
-    _InferPhaseChain,
+    _InferTaskChain,
     get_pipeline_def,
 )
 from kdit.pipelines.pipeline_key import PipelineKey
@@ -123,12 +123,12 @@ class TestPipelineDefBuilder(unittest.TestCase):
         builder = PipelineDefBuilder(PipelineKey.Wan2_2_I2V_14B)
         builder.load(ModelKey.VAE_WAN2_2)
         chain = builder.add_infer(NT.VAE_ENCODE_SPATIAL, ModelKey.VAE_WAN2_2)
-        self.assertIsInstance(chain, _InferPhaseChain)
+        self.assertIsInstance(chain, _InferTaskChain)
         result = chain.when("has_start_image")
         self.assertIs(result, builder)
 
     def test_chain_proxy_without_when(self):
-        """不调用 .when() 时，_InferPhaseChain 代理到 builder。"""
+        """不调用 .when() 时，_InferTaskChain 代理到 builder。"""
         pipeline_def = (
             PipelineDefBuilder(PipelineKey.Wan2_2_T2V_14B)
             .load(ModelKey.T5TextEncoder)
@@ -194,7 +194,7 @@ class TestPipelineDefBuilder(unittest.TestCase):
             .add_infer(NT.TEXT_ENCODE, ModelKey.T5TextEncoder)  # 未在 load 中声明
             .context_builder(_DummyContextBuilder)
         )
-        with self.assertRaises(ValueError, msg="not declared in any LoadPhase"):
+        with self.assertRaises(ValueError, msg="not declared in any LoadTask"):
             builder.build()
 
 

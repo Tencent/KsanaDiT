@@ -23,15 +23,15 @@ from .pipeline_def import (
     register_pipeline_def,
 )
 from .pipeline_key import PipelineKey, get_pipeline_key_from_path
-from .pipeline_phase import InferPhase, LoadPhase
+from .pipeline_phase import InferTask, LoadTask
 
 __all__ = [
     "Pipeline",
     "PipelineDef",
     "PipelineDefBuilder",
     "PipelineKey",
-    "LoadPhase",
-    "InferPhase",
+    "LoadTask",
+    "InferTask",
     "ContextBuilder",
     "PipelineGenerateInputs",
     "register_pipeline_def",

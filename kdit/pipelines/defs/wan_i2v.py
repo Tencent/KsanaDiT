@@ -15,7 +15,7 @@
 """Wan 2.2 I2V 14B — PipelineDef 声明。
 
 导入此模块即自动注册到全局 PipelineDef 注册表。
-I2V 流程：TextEncode → (VAE_ENCODE_SPATIAL when has_start_image) → Generate → VAE_DECODE → SaveVideo。
+I2V 流程：TextEncode → VAE_ENCODE_SPATIAL → Generate → VAE_DECODE → SaveVideo。
 """
 
 from kdit.models.model_key import ModelKey
@@ -33,7 +33,6 @@ WAN_I2V_14B_DEF = register_pipeline_def(
     .load(ModelKey.VAE_WAN2_1)
     .add_infer(InferNodeType.TEXT_ENCODE, ModelKey.T5TextEncoder)
     .add_infer(InferNodeType.VAE_ENCODE_SPATIAL, ModelKey.VAE_WAN2_1)
-    .when("has_start_image")
     .add_infer(InferNodeType.GENERATE, ModelKey.Wan2_2_I2V_14B)
     .add_infer(InferNodeType.VAE_DECODE, ModelKey.VAE_WAN2_1)
     .add_infer(InferNodeType.SAVE_VIDEO)
