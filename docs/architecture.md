@@ -188,3 +188,13 @@ Nodes declare their multi-GPU behavior via `NodeDispatchPolicy`:
 ### TensorPool
 
 All tensor data flows through `TensorPool` using `TensorKey` enums — never passed via function arguments or metadata.
+
+### Generator Latent Semantics
+
+Generator inputs are split into two categories:
+
+- **BaseLatent** — The primary latent that determines `noise_shape` (i.e., the output dimensions). For video generation, it controls resolution and duration; for image generation, it controls resolution. `noise_shape` is derived from `base_latent.latent.shape[1:]`. Most models use an empty latent (via `torch.zeros`) to define the shape; only WAN I2V and its derivative VACE pass a non-None `mask` alongside the latent.
+
+- **AuxLatent** — An optional auxiliary latent input. It can be any tensor or list of tensors, and each model subclass decides how to use it. For example, Qwen uses it as reference image embeddings (`ref_latents`), while WAN uses it for noise blending.
+
+See the [Generators API](api/generators/index.md) for details on per-model behavior.

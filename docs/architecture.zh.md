@@ -188,3 +188,13 @@ PipelineDefBuilder("wan_t2v") \
 ### TensorPool
 
 所有张量数据通过 `TensorPool` 使用 `TensorKey` 枚举流转 — 禁止通过函数参数或 metadata 传递张量。
+
+### Generator Latent 语义
+
+Generator 的输入 latent 分为两类：
+
+- **BaseLatent** — 主 latent，决定 `noise_shape`（即输出尺寸）。对于视频生成，控制分辨率和时长；对于图片生成，控制分辨率。`noise_shape` 从 `base_latent.latent.shape[1:]` 推导。大多数模型通过空 latent（`torch.zeros`）来定义 shape；只有 WAN I2V 及其衍生的 VACE 会在 latent 旁传入非 None 的 `mask`。
+
+- **AuxLatent** — 可选的辅助 latent 输入，可以是任意 tensor 或 list[tensor]，由模型子类自行决定如何使用。例如 Qwen 用作参考图片 embedding（`ref_latents`），WAN 用于噪声混合。
+
+详见 [生成器 API](api/generators/index.zh.md) 了解各模型的具体行为。
