@@ -132,10 +132,12 @@ class WanContextBuilder(ContextBuilder):
 
     def _build_text_ctx(self, inputs: PipelineGenerateInputs) -> NodeContext:
         """构建 TextEncode 的 context。"""
+        metadata = self._common_metadata(inputs)
+        metadata["text_run_device"] = torch.device("cpu")
         return NodeContext(
             prompt=inputs.prompt,
             negative_prompt=inputs.prompt_negative,
-            metadata=self._common_metadata(inputs),
+            metadata=metadata,
         )
 
     def _build_gen_ctx(self, inputs: PipelineGenerateInputs) -> NodeContext:

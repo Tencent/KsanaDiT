@@ -37,8 +37,6 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any
 
-import torch
-
 from kdit.config.lora_config import LoraConfig
 from kdit.models.model_key import DIFFUSION_KEYS, TEXT_ENCODER_KEYS, VAE_KEYS, ModelKey
 from kdit.nodes.core.node_context import NodeContext
@@ -194,8 +192,7 @@ class ContextBuilder(ABC):
 
     @staticmethod
     def _common_metadata(inputs: PipelineGenerateInputs) -> dict:
-        """构建通用 metadata（offload_model, text_run_device）。"""
+        """构建通用 metadata（offload_model）。"""
         return {
             "offload_model": inputs.runtime_config.offload_model,
-            "text_run_device": torch.device("cpu"),
         }
