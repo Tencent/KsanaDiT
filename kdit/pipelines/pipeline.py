@@ -25,6 +25,8 @@ ContextBuilder 负责为每个 InferTask 构建 NodeContext。
 
 
 import gc
+import time
+from contextlib import contextmanager
 from pathlib import Path
 
 import torch
@@ -47,6 +49,38 @@ from .context_builder import ContextBuilder
 from .generate_inputs import PipelineGenerateInputs
 from .pipeline_def import PipelineDef, get_pipeline_def
 from .pipeline_key import get_pipeline_key_from_path
+from .pipeline_phase import InferTask, LoadTask
+
+# ── 辅助：醒目的 phase 计时日志 ──────────────────────────────────────────
+
+_SEPARATOR = "=" * 60
+
+
+def _phase_display_name(phase: LoadTask | InferTask) -> str:
+    """根据 phase 类型构建醒目的显示名称。"""
+    if isinstance(phase, LoadTask):
+        return f"LOAD({phase.model_key.name})"
+    # InferTask: model_key 可能为 None（如 SaveNode）
+    node_name = phase.node_type.name
+    if phase.model_key is not None:
+        return f"{node_name}({phase.model_key.name})"
+    return node_name
+
+
+@contextmanager
+def _task_node_timer(phase: LoadTask | InferTask):
+    """为 load / infer phase 打印醒目的 START / FINISH 日志及耗时。"""
+    name = _phase_display_name(phase)
+    log.info(_SEPARATOR)
+    log.info(f"▶ START  {name}")
+    log.info(_SEPARATOR)
+    t0 = time.perf_counter()
+    yield
+    elapsed = time.perf_counter() - t0
+    log.info(_SEPARATOR)
+    log.info(f"✔ FINISH {name}  ⏱ {elapsed:.2f}s")
+    log.info(_SEPARATOR)
+
 
 # ── Pipeline 类 ─────────────────────────────────────────────────────────
 
@@ -159,8 +193,8 @@ class Pipeline:
                 lora_list=lora_list,
                 pipeline_settings=self._default_settings,
             )
-            log.info(f"Loading model {phase.model_key} with kwargs {kwargs}")
-            self._engine.run_loader_node(phase.model_key, **kwargs)
+            with _task_node_timer(phase):
+                self._engine.run_loader_node(phase.model_key, **kwargs)
 
     def clear(self):
         """清理所有已加载的模型。"""
@@ -240,8 +274,8 @@ class Pipeline:
                 node_ctx = self._ctx_builder.build_context(phase, inputs)
 
                 # 4. 执行
-                log.info(f"run_infer_node {phase.node_type} {phase.model_key} with ctx {node_ctx}")
-                self._engine.run_infer_node(phase.node_type, phase.model_key, node_ctx)
+                with _task_node_timer(phase):
+                    self._engine.run_infer_node(phase.node_type, phase.model_key, node_ctx)
 
             # 获取输出
             output_tv = self._engine.get_tensor(TensorKey.VIDEO)
