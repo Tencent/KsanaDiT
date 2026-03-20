@@ -154,7 +154,7 @@ def run_load_and_generate(model_path, image_latent_shape, text_shape, steps, **k
     base_latent = torch.zeros(*image_latent_shape, dtype=RUN_DTYPE, device="cpu")
     batch_size_per_prompts = kwargs.get("batch_size_per_prompts", 1)
     kdit_engine = get_engine()
-    kdit_engine.put_tensors(**{TensorKey.BASE_LATENT: base_latent})
+    kdit_engine.put_tensors({TensorKey.BASE_LATENT: base_latent})
     generate_output = generate(
         load_output,
         positive=[[positive_text_embeddings]],

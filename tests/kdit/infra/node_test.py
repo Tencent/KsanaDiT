@@ -40,6 +40,7 @@ class TestKsanaInferNodeType:
     def test_all_types_exist(self):
         expected = {
             "TEXT_ENCODE",
+            "VAE_COMPUTE_SHAPE",
             "VAE_ENCODE_SPATIAL",
             "VAE_ENCODE_IMAGES",
             "VAE_DECODE",

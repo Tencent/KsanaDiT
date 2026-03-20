@@ -270,10 +270,10 @@ class TestPipelineDefStructure(unittest.TestCase):
         import kdit.pipelines  # noqa: F401  # pylint: disable=unused-import — 触发自动注册
 
     def test_wan_t2v_structure(self):
-        """Wan T2V: 3 load + 4 infer, 无条件。"""
+        """Wan T2V: 3 load + 5 infer, 无条件。"""
         d = get_pipeline_def(PipelineKey.Wan2_2_T2V_14B)
         self.assertEqual(len(d.load_phases), 3)
-        self.assertEqual(len(d.infer_phases), 4)
+        self.assertEqual(len(d.infer_phases), 5)
         self.assertEqual(d.keep_tensors, (TensorKey.VIDEO,))
 
         # 所有 infer 无条件
@@ -282,18 +282,18 @@ class TestPipelineDefStructure(unittest.TestCase):
 
         # node_type 顺序
         types = [ip.node_type for ip in d.infer_phases]
-        self.assertEqual(types, [NT.TEXT_ENCODE, NT.GENERATE, NT.VAE_DECODE, NT.SAVE_VIDEO])
+        self.assertEqual(types, [NT.TEXT_ENCODE, NT.VAE_COMPUTE_SHAPE, NT.GENERATE, NT.VAE_DECODE, NT.SAVE_VIDEO])
 
     def test_wan_i2v_structure(self):
-        """Wan I2V: 3 load + 5 infer, VAE_ENCODE_SPATIAL 有条件。"""
+        """Wan I2V: 3 load + 5 infer, 无条件。"""
         d = get_pipeline_def(PipelineKey.Wan2_2_I2V_14B)
         self.assertEqual(len(d.load_phases), 3)
         self.assertEqual(len(d.infer_phases), 5)
 
-        # VAE_ENCODE_SPATIAL 有条件
+        # VAE_ENCODE_SPATIAL 无条件（I2V def 不再使用 .when）
         encode_phase = d.infer_phases[1]  # TEXT_ENCODE, VAE_ENCODE_SPATIAL, ...
         self.assertEqual(encode_phase.node_type, NT.VAE_ENCODE_SPATIAL)
-        self.assertEqual(encode_phase.condition, "has_start_image")
+        self.assertIsNone(encode_phase.condition)
 
     def test_wan_vace_structure(self):
         """Wan VACE: 与 I2V 结构相同，但使用不同的 model_key。"""
@@ -309,21 +309,21 @@ class TestPipelineDefStructure(unittest.TestCase):
         self.assertEqual(vae_phase.model_key, ModelKey.VAE_WAN2_1)
 
     def test_qwen_t2i_structure(self):
-        """Qwen T2I: 3 load + 4 infer, 无条件。"""
+        """Qwen T2I: 3 load + 5 infer, 无条件。"""
         d = get_pipeline_def(PipelineKey.QwenImage_T2I)
-        self.assertEqual(len(d.load_phases), 3)
-        self.assertEqual(len(d.infer_phases), 4)
-
-        types = [ip.node_type for ip in d.infer_phases]
-        self.assertEqual(types, [NT.TEXT_ENCODE, NT.GENERATE, NT.VAE_DECODE, NT.SAVE_IMAGE])
-
-    def test_qwen_edit_structure(self):
-        """Qwen Edit: 3 load + 5 infer, VAE_ENCODE_IMAGES 有条件。"""
-        d = get_pipeline_def(PipelineKey.QwenImage_Edit)
         self.assertEqual(len(d.load_phases), 3)
         self.assertEqual(len(d.infer_phases), 5)
 
-        encode_phase = d.infer_phases[1]
+        types = [ip.node_type for ip in d.infer_phases]
+        self.assertEqual(types, [NT.TEXT_ENCODE, NT.VAE_COMPUTE_SHAPE, NT.GENERATE, NT.VAE_DECODE, NT.SAVE_IMAGE])
+
+    def test_qwen_edit_structure(self):
+        """Qwen Edit: 3 load + 6 infer, VAE_ENCODE_IMAGES 有条件。"""
+        d = get_pipeline_def(PipelineKey.QwenImage_Edit)
+        self.assertEqual(len(d.load_phases), 3)
+        self.assertEqual(len(d.infer_phases), 6)
+
+        encode_phase = d.infer_phases[2]  # TEXT_ENCODE, VAE_COMPUTE_SHAPE, VAE_ENCODE_IMAGES, ...
         self.assertEqual(encode_phase.node_type, NT.VAE_ENCODE_IMAGES)
         self.assertEqual(encode_phase.condition, "has_ref_images")
 

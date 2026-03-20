@@ -331,16 +331,19 @@ class Engine:
         else:
             self.executors.clear_tensor_pool(exclude=exclude)
 
-    def put_tensors(self, **tensors):
+    def put_tensors(self, tensors: dict):
         """将 tensor 写入所有 Executor 的 tensor_pool。
 
         用于外部（如 ComfyUI adapter）向 Node 传递输入数据。
+
+        Args:
+            tensors: ``{TensorKey: tensor}`` 映射，value 为 None 的条目会被跳过。
         """
         tensors = {k: v for k, v in tensors.items() if v is not None}
         if not tensors:
             return
         if self.is_ray:
-            futures = [ex.put_tensors.remote(**tensors) for ex in self.executors]
+            futures = [ex.put_tensors.remote(tensors) for ex in self.executors]
             ray.get(futures)
         else:
             for key, tensor in tensors.items():

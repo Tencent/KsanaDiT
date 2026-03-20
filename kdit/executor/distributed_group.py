@@ -17,7 +17,7 @@ from __future__ import annotations
 import torch
 import torch.distributed as dist
 
-from ..tensor import TensorPool
+from ..tensor import TensorKey, TensorPool
 from ..utils.logger import log
 
 
@@ -47,7 +47,7 @@ class DistributedGroupManager:
     def broadcast_tensors(
         self,
         tensor_pool: TensorPool,
-        keys: list[str],
+        keys: list[TensorKey],
         src_rank: int = 0,
         device: torch.device | None = None,
     ) -> None:

@@ -181,7 +181,7 @@ def generate(  # noqa: C901
     )
 
     with kdit_engine.tensor_scope(keep=[TensorKey.LATENTS]):
-        kdit_engine.put_tensors(**{TensorKey.POSITIVE: positive[0][0], TensorKey.NEGATIVE: negative[0][0]})
+        kdit_engine.put_tensors({TensorKey.POSITIVE: positive[0][0], TensorKey.NEGATIVE: negative[0][0]})
         # base_latent.samples 是 BASE_LATENT 或 AUX_LATENT — 已在 pool 中
         if aux_latent is not None and aux_latent.samples is not None:
             # aux_latent.samples 是 TensorKey — 重命名为 GeneratorNode 期望的 AUX_LATENT

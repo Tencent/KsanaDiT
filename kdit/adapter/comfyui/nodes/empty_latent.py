@@ -62,7 +62,7 @@ class EmptyLatentNode:
                     [batch_size, 16, ((num_frames - 1) // 4) + 1, height // 8, width // 8], device=torch.device("cpu")
                 )
             kdit_engine = get_engine()
-            kdit_engine.put_tensors(**{TensorKey.LATENTS: latent})
+            kdit_engine.put_tensors({TensorKey.LATENTS: latent})
             return (EmptyLatentOutput(samples=TensorKey.LATENTS),)
 
         kdit_engine = get_engine()

@@ -288,7 +288,7 @@ class KsanaWanVaceToVideoNode:
             device=get_intermediate_device(),
         )
         kdit_engine = get_engine()
-        kdit_engine.put_tensors(**{TensorKey.BASE_LATENT: latent})
+        kdit_engine.put_tensors({TensorKey.BASE_LATENT: latent})
         out_latent = KsanaNodeVAEEncodeOutput(
             samples=TensorKey.BASE_LATENT,
             with_end_image=False,

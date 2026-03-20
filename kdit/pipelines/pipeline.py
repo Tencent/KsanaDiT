@@ -234,7 +234,7 @@ class Pipeline:
                 # 2. 准备 tensor
                 tensors = self._ctx_builder.prepare_tensors(phase, inputs)
                 if tensors:
-                    self._engine.put_tensors(**tensors)
+                    self._engine.put_tensors(tensors)
 
                 # 3. 构建 context
                 node_ctx = self._ctx_builder.build_context(phase, inputs)

@@ -329,10 +329,79 @@ class TestWanPrepareModelForwardKargs(unittest.TestCase):
 
     def test_i2v_includes_y(self):
         gen, kwargs = self._make_args(cfg_scale=7.5, combine=True, model_key=ModelKey.Wan2_2_I2V_14B)
-        kwargs["base_latent"] = [torch.randn(2, 256)]
+        kwargs["base_latent"] = torch.randn(2, 256)
         result = gen.prepare_model_forward_kargs(**kwargs)
         self.assertIn("y", result)
         self.assertEqual(result["y"].shape[0], 4)
+
+
+class TestWanPreprocessBaseLatent(unittest.TestCase):
+    """测试 preprocess_base_latent — I2V [latent, mask] concat 与 T2V 直通。
+
+    Wan I2V 场景下 base_latent_list 为 [latent, mask]，需要在 channel 维度 concat；
+    T2V 场景下 list 只有 [latent]，直接返回第一个元素。
+    使用真实的 Wan I2V latent shape (batch=1, z_dim=16, frames=21, h=30, w=52)
+    来验证 shape 正确性。
+    """
+
+    # -- I2V 场景 --
+
+    def test_i2v_concat_shape_realistic(self):
+        """I2V: [latent(1,16,21,30,52), mask(1,1,21,30,52)] → (1,17,21,30,52)"""
+        gen = _make_wan_generator(ModelKey.Wan2_2_I2V_14B)
+        latent = torch.randn(1, 16, 21, 30, 52)
+        mask = torch.randn(1, 1, 21, 30, 52)
+        result = gen.preprocess_base_latent([latent, mask])
+        self.assertEqual(result.shape, (1, 17, 21, 30, 52))
+
+    def test_i2v_concat_channel_order(self):
+        """I2V: concat 后前 16 通道是 latent，最后 1 通道是 mask。"""
+        gen = _make_wan_generator(ModelKey.Wan2_2_I2V_14B)
+        latent = torch.ones(1, 16, 4, 8, 8)
+        mask = torch.zeros(1, 1, 4, 8, 8)
+        result = gen.preprocess_base_latent([latent, mask])
+        self.assertTrue(torch.all(result[:, :16] == 1.0))
+        self.assertTrue(torch.all(result[:, 16:] == 0.0))
+
+    def test_i2v_batch_size_2(self):
+        """I2V: batch_size=2 时 shape 正确。"""
+        gen = _make_wan_generator(ModelKey.Wan2_2_I2V_14B)
+        latent = torch.randn(2, 16, 21, 30, 52)
+        mask = torch.randn(2, 1, 21, 30, 52)
+        result = gen.preprocess_base_latent([latent, mask])
+        self.assertEqual(result.shape, (2, 17, 21, 30, 52))
+
+    def test_i2v_single_element_returns_directly(self):
+        """I2V: 如果 list 只有一个元素（无 mask），直接返回。"""
+        gen = _make_wan_generator(ModelKey.Wan2_2_I2V_14B)
+        latent = torch.randn(1, 16, 21, 30, 52)
+        result = gen.preprocess_base_latent([latent])
+        self.assertTrue(torch.equal(result, latent))
+
+    # -- T2V 场景 --
+
+    def test_t2v_returns_first_element(self):
+        """T2V: list 只有 [latent]，直接返回第一个元素。"""
+        gen = _make_wan_generator(ModelKey.Wan2_2_T2V_14B)
+        latent = torch.randn(1, 16, 21, 30, 52)
+        result = gen.preprocess_base_latent([latent])
+        self.assertTrue(torch.equal(result, latent))
+
+    def test_t2v_with_two_elements_returns_first(self):
+        """T2V: 即使传入两个元素，T2V 不做 concat，返回第一个。"""
+        gen = _make_wan_generator(ModelKey.Wan2_2_T2V_14B)
+        latent = torch.randn(1, 16, 21, 30, 52)
+        mask = torch.randn(1, 1, 21, 30, 52)
+        result = gen.preprocess_base_latent([latent, mask])
+        self.assertTrue(torch.equal(result, latent))
+
+    # -- 边界 / 异常 --
+
+    def test_empty_list_raises(self):
+        """空 list 应抛出异常。"""
+        gen = _make_wan_generator(ModelKey.Wan2_2_I2V_14B)
+        with self.assertRaises((ValueError, IndexError)):
+            gen.preprocess_base_latent([])
 
 
 if __name__ == "__main__":

@@ -15,10 +15,9 @@
 from enum import Enum
 
 
-class TensorKey(str, Enum):
+class TensorKey(Enum):
     """tensor_pool 中所有合法的 key。
 
-    继承 str 使得枚举值可以直接用作 dict key / 字符串比较。
     新增 tensor 通道时必须在此注册。
     """
 

@@ -65,8 +65,8 @@ def _make_inputs(prompt="test", num_prompts=1, **overrides) -> PipelineGenerateI
 class TestQwenT2IContextBuilder(unittest.TestCase):
     """QwenT2IContextBuilder 的 prepare / build。"""
 
-    def test_prepare_computes_noise_shape(self):
-        """prepare_generate_inputs 计算 noise_shape。"""
+    def test_prepare_stores_target_dimensions(self):
+        """prepare_generate_inputs 保存目标尺寸（noise_shape 由 VAE_COMPUTE_SHAPE 节点计算）。"""
         from kdit.pipelines.context_builders.qwen import QwenT2IContextBuilder
 
         builder = QwenT2IContextBuilder()
@@ -77,8 +77,8 @@ class TestQwenT2IContextBuilder(unittest.TestCase):
         builder.prepare_generate_inputs(inputs, _default_settings=settings)
 
         self.assertIsNotNone(builder._extra)
-        self.assertIsInstance(builder._extra.noise_shape, list)
-        self.assertEqual(len(builder._extra.noise_shape), 4)
+        self.assertEqual(builder._extra.target_h, 1024)
+        self.assertEqual(builder._extra.target_w, 1024)
 
     def test_build_context_text_encode(self):
         """build_context(TEXT_ENCODE) 返回包含 prompt 的 context。"""
@@ -117,7 +117,7 @@ class TestQwenEditContextBuilder(unittest.TestCase):
     """QwenEditContextBuilder 的 prepare / build / condition / prepare_tensors。"""
 
     def test_prepare_with_no_image(self):
-        """无参考图时 img_path 为 None。"""
+        """无参考图时 img_path 为 None，target_h/w 有值。"""
         from kdit.pipelines.context_builders.qwen import QwenEditContextBuilder
 
         builder = QwenEditContextBuilder()
@@ -128,7 +128,8 @@ class TestQwenEditContextBuilder(unittest.TestCase):
         builder.prepare_generate_inputs(inputs, _default_settings=settings)
 
         self.assertIsNone(builder._extra.img_path)
-        self.assertIsNotNone(builder._extra.noise_shape)
+        self.assertEqual(builder._extra.target_h, 1024)
+        self.assertEqual(builder._extra.target_w, 1024)
 
     def test_has_ref_images_false_when_no_image(self):
         """无参考图时 has_ref_images 返回 False。"""

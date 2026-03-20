@@ -135,7 +135,7 @@ class TestTensorPool:
         pool = TensorPool()
         pool.put(TensorKey.POSITIVE, torch.zeros(1))
         pool.put(TensorKey.NEGATIVE, torch.zeros(1))
-        assert sorted(pool.keys()) == sorted([TensorKey.POSITIVE, TensorKey.NEGATIVE])
+        assert set(pool.keys()) == {TensorKey.POSITIVE, TensorKey.NEGATIVE}
 
     def test_repr_contains_keys(self):
         pool = TensorPool()

@@ -169,7 +169,7 @@ class KsanaExecutor(ABC):
                 device=self.device_ctx.device,
             )
 
-    def put_tensors(self, **tensors):
+    def put_tensors(self, tensors: dict):
         """将 tensor 写入 tensor_pool（由 Engine 桥接方法通过 Ray 调用）。"""
         for key, tensor in tensors.items():
             if tensor is not None:

@@ -65,8 +65,8 @@ def _make_inputs(prompt="test", num_prompts=1, **overrides) -> PipelineGenerateI
 class TestWanT2VContextBuilder(unittest.TestCase):
     """WanT2VContextBuilder 的 prepare / build。"""
 
-    def test_prepare_computes_noise_shape(self):
-        """prepare_generate_inputs 计算 noise_shape。"""
+    def test_prepare_stores_target_dimensions(self):
+        """prepare_generate_inputs 保存目标尺寸（noise_shape 由 VAE_COMPUTE_SHAPE 节点计算）。"""
         from kdit.pipelines.context_builders.wan import WanT2VContextBuilder
 
         builder = WanT2VContextBuilder()
@@ -76,8 +76,9 @@ class TestWanT2VContextBuilder(unittest.TestCase):
         builder.prepare_generate_inputs(inputs, _default_settings=settings)
 
         self.assertIsNotNone(builder._extra)
-        self.assertIsInstance(builder._extra.noise_shape, list)
-        self.assertEqual(len(builder._extra.noise_shape), 4)
+        self.assertEqual(builder._extra.target_f, 17)
+        self.assertEqual(builder._extra.target_h, 480)
+        self.assertEqual(builder._extra.target_w, 720)
 
     def test_prepare_missing_settings_raises(self):
         """缺少 _default_settings 时抛出 ValueError。"""
@@ -103,7 +104,7 @@ class TestWanT2VContextBuilder(unittest.TestCase):
         self.assertEqual(ctx.prompt, "hello world")
 
     def test_build_context_generate(self):
-        """build_context(GENERATE) 返回包含 noise_shape 的 context。"""
+        """build_context(GENERATE) 返回包含 sample_config 的 context。"""
         from kdit.pipelines.context_builders.wan import WanT2VContextBuilder
 
         builder = WanT2VContextBuilder()
@@ -113,8 +114,23 @@ class TestWanT2VContextBuilder(unittest.TestCase):
         phase = InferTask(node_type=NT.GENERATE, model_key=ModelKey.Wan2_2_T2V_14B)
         ctx = builder.build_context(phase, inputs)
 
-        self.assertIn("noise_shape", ctx.metadata)
-        self.assertIsNotNone(ctx.metadata["noise_shape"])
+        self.assertIsNotNone(ctx.sample_config)
+        self.assertIsNotNone(ctx.runtime_config)
+
+    def test_build_context_vae_compute_shape(self):
+        """build_context(VAE_COMPUTE_SHAPE) 返回包含 target_f/h/w 的 context。"""
+        from kdit.pipelines.context_builders.wan import WanT2VContextBuilder
+
+        builder = WanT2VContextBuilder()
+        inputs = _make_inputs()
+        builder.prepare_generate_inputs(inputs, _default_settings=_make_wan_settings())
+
+        phase = InferTask(node_type=NT.VAE_COMPUTE_SHAPE, model_key=ModelKey.VAE_WAN2_2)
+        ctx = builder.build_context(phase, inputs)
+
+        self.assertIn("target_f", ctx.metadata)
+        self.assertIn("target_h", ctx.metadata)
+        self.assertIn("target_w", ctx.metadata)
 
     def test_build_context_unexpected_type_raises(self):
         """build_context 遇到未知 node_type 时抛出 ValueError。"""
@@ -136,7 +152,7 @@ class TestWanI2VContextBuilder(unittest.TestCase):
     """WanI2VContextBuilder 的 prepare / build / condition / prepare_tensors。"""
 
     def test_prepare_with_no_image(self):
-        """无图时 noise_shape 不为 None，start_img_path 为 None。"""
+        """无图时 start_img_path 为 None，target_frame_num 有值。"""
         from kdit.pipelines.context_builders.wan import WanI2VContextBuilder
 
         builder = WanI2VContextBuilder()
@@ -146,22 +162,22 @@ class TestWanI2VContextBuilder(unittest.TestCase):
         builder.prepare_generate_inputs(inputs, _default_settings=settings)
 
         self.assertIsNone(builder._extra.start_img_path)
-        self.assertIsNotNone(builder._extra.noise_shape)
+        self.assertIsNotNone(builder._extra.target_frame_num)
         self.assertFalse(builder._extra.with_end_image)
 
-    def test_has_start_image_false_when_no_image(self):
-        """无图时 has_start_image 返回 False。"""
+    def test_no_image_start_img_tensor_is_none(self):
+        """无图时 start_img_tensor 为 None。"""
         from kdit.pipelines.context_builders.wan import WanI2VContextBuilder
 
         builder = WanI2VContextBuilder()
         inputs = _make_inputs()
         builder.prepare_generate_inputs(inputs, _default_settings=_make_wan_settings())
 
-        self.assertFalse(builder.has_start_image(inputs))
+        self.assertIsNone(builder._extra.start_img_tensor)
 
     @patch("kdit.pipelines.context_builders.wan._load_image")
     def test_prepare_with_image(self, mock_load):
-        """有图时 noise_shape 为 None，start_img_path 不为 None。"""
+        """有图时 start_img_path 不为 None，start_img_tensor 不为 None。"""
         import torch
 
         from kdit.pipelines.context_builders.wan import WanI2VContextBuilder
@@ -179,8 +195,7 @@ class TestWanI2VContextBuilder(unittest.TestCase):
         )
 
         self.assertIsNotNone(builder._extra.start_img_path)
-        self.assertIsNone(builder._extra.noise_shape)
-        self.assertTrue(builder.has_start_image(inputs))
+        self.assertIsNotNone(builder._extra.start_img_tensor)
 
     @patch("kdit.pipelines.context_builders.wan._load_image")
     def test_prepare_with_end_image(self, mock_load):

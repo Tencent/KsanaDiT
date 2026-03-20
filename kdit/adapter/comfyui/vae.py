@@ -65,7 +65,7 @@ def vae_encode(
         # 无 VAE 时也写入 pool，保持 key 模式一致
         kdit_engine = get_engine()
         # BASE_LATENT always list
-        kdit_engine.put_tensors(**{TensorKey.BASE_LATENT: [latent]})
+        kdit_engine.put_tensors({TensorKey.BASE_LATENT: [latent]})
         return KsanaNodeVAEEncodeOutput(
             samples=TensorKey.BASE_LATENT,
             with_end_image=False,
@@ -106,7 +106,7 @@ def vae_encode(
         }
     )
     with kdit_engine.tensor_scope(keep=[TensorKey.BASE_LATENT]):
-        kdit_engine.put_tensors(**{TensorKey.START_IMG: start_image, TensorKey.END_IMG: end_image})
+        kdit_engine.put_tensors({TensorKey.START_IMG: start_image, TensorKey.END_IMG: end_image})
         kdit_engine.run_infer_node(InferNodeType.VAE_ENCODE_SPATIAL, vae, context)
 
     return KsanaNodeVAEEncodeOutput(
@@ -129,7 +129,7 @@ def vae_encode_image(
 
     context = NodeContext(metadata={"batch_size": batch_size})
     with kdit_engine.tensor_scope(keep=[TensorKey.AUX_LATENT]):
-        kdit_engine.put_tensors(**{TensorKey.IMAGE: image})
+        kdit_engine.put_tensors({TensorKey.IMAGE: image})
         kdit_engine.run_infer_node(InferNodeType.VAE_ENCODE_IMAGES, vae, context)
 
     MemoryProfiler.record_memory("after vae_encode_image")
@@ -161,7 +161,7 @@ def vae_decode(vae, latent):
         # latents_key 可能是 LATENTS 或 AUX_LATENT，VAEDecodeNode 读 LATENTS
         if latents_key != TensorKey.LATENTS:
             tensor_value = kdit_engine.get_tensor(latents_key)
-            kdit_engine.put_tensors(**{TensorKey.LATENTS: tensor_value.data})
+            kdit_engine.put_tensors({TensorKey.LATENTS: tensor_value.data})
         kdit_engine.run_infer_node(InferNodeType.VAE_DECODE, vae, context)
         video_tv = kdit_engine.get_tensor(TensorKey.VIDEO)
         images = video_tv.data
