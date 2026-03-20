@@ -110,12 +110,12 @@ class SimpleNoNameX:
 
 
 # ──────────────────────────────────────────────────────────────────────
-# 模拟 GeneratorFactory 行为的 fixture
+# 模拟 SimpleFactory 一级注册行为的 fixture
 # ──────────────────────────────────────────────────────────────────────
 
 
 class MockGeneratorFactory(SimpleFactory):
-    """模拟 GeneratorFactory 的 create 行为（设置 model_key 属性）。"""
+    """模拟一级注册 Factory 的 create 行为（设置 model_key 属性）。"""
 
     _default_level_1 = "MockGenerator"
 
@@ -271,7 +271,7 @@ class TestSimpleFactory(unittest.TestCase):
 
 
 class TestMockGeneratorFactory(unittest.TestCase):
-    """模拟 GeneratorFactory 的 create 行为测试。"""
+    """模拟一级注册 Factory 的 create 行为测试。"""
 
     def test_create_sets_model_key(self):
         gen = MockGeneratorFactory.create("model_a")
@@ -307,7 +307,7 @@ class TestMockLoaderNodeFactory(unittest.TestCase):
             MockLoaderNodeFactory.create("missing")
 
     def test_isolation_from_generator(self):
-        """LoaderNodeFactory 和 GeneratorFactory 的 registry 互不干扰。"""
+        """LoaderNodeFactory 和 MockGeneratorFactory 的 registry 互不干扰。"""
         self.assertNotIn("model_a", MockLoaderNodeFactory.get_registered_keys())
         self.assertNotIn("loader_a", MockGeneratorFactory.get_registered_keys())
 

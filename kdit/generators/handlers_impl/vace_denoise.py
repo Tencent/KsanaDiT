@@ -12,11 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""VaceDenoiseHandler — VACE 模型的去噪循环钩子实现。
+
+继承 WanDenoiseHandler，添加 bidirectional sampling、video control、
+experimental CFG 和 vace_context 注入。
+"""
+
 import torch
 
 from kdit.config import SolverType
 from kdit.config.wan_experimental_config import KsanaExperimentalConfig, KsanaFETAConfig, KsanaSLGConfig
-from kdit.models import ModelKey
 from kdit.utils.vace import (
     apply_bidirectional_sampling,
     apply_experimental_cfg,
@@ -27,16 +32,13 @@ from kdit.utils.vace import (
     parse_video_control_kwargs,
 )
 
-from .generator_factory import GeneratorFactory
-from .steps import validation
-from .wan_generator import WanGenerator
+from .wan_denoise import WanDenoiseHandler
 
 
-@GeneratorFactory.register(ModelKey.Wan2_1_VACE_14B)
-class VaceGenerator(WanGenerator):
-    def valid_aux_latent(self, aux_latent, noise_shape):
-        """VACE 场景下 aux_latent 是 5D Tensor，需要校验 shape 与 noise 一致。"""
-        validation.valid_aux_latent(aux_latent, noise_shape)
+class VaceDenoiseHandler(WanDenoiseHandler):
+    """VACE 模型的去噪循环钩子，继承 Wan 的 boundary 切换，
+    添加 bidirectional sampling / video control / experimental CFG。
+    """
 
     def init_denoising_loop(self, video_control_kwargs, diffusion_model, sample_scheduler):
         return parse_video_control_kwargs(
@@ -125,7 +127,8 @@ class VaceGenerator(WanGenerator):
         cache,
         positive,
         negative,
-        base_latent,
+        base_latent: torch.Tensor | None,
+        model_key=None,
         aux_latent=None,
         vace_context=None,
         vace_context_scale=1.0,
@@ -133,7 +136,7 @@ class VaceGenerator(WanGenerator):
         feta_config=None,
         current_step_percent=0.0,
         **_,
-    ) -> dict:
+    ) -> dict | tuple[dict, dict]:
         base = {"cache": cache, "step_iter": step_iter}
 
         if slg_config is not None:
@@ -146,7 +149,7 @@ class VaceGenerator(WanGenerator):
             base["vace_context"] = vace_context
             base["vace_context_scale"] = vace_context_scale
 
-        use_cfg = self._use_cfg(cfg_scale)
+        use_cfg = abs(cfg_scale - 1.0) > 1e-6
         if use_cfg and combine_cond_uncond:
             combine_x = torch.cat([noise_latent, noise_latent], dim=0)
             combine_t = torch.cat([timestep, timestep], dim=0)
@@ -168,3 +171,7 @@ class VaceGenerator(WanGenerator):
             return base | arg_cond, base | arg_uncond
         else:
             return base | arg_cond
+
+    @staticmethod
+    def _use_cfg(cfg_scale: float, eps: float = 1e-6):
+        return abs(cfg_scale - 1.0) > eps

@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Generator tensor 操作函数 — 从 BaseGenerator 提取的无状态工具函数。"""
+"""Generator tensor 操作函数 — 无状态工具函数。"""
 
 import torch
 

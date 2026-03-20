@@ -16,12 +16,34 @@
 2. **修改功能**：如果修改了已有功能的行为，必须更新对应的测试用例以覆盖新行为
 3. **Bug 修复**：修复 bug 时应添加回归测试，防止问题复现
 
+### 测试文件命名规范
+
+测试文件**统一使用 `*_test.py` 后缀**（而非 `test_*.py` 前缀）。
+
+```
+✅  wan_generator_test.py
+✅  factory_test.py
+✅  context_builder_test.py
+❌  test_wan_generator.py    ← 禁止
+❌  test_factory.py          ← 禁止
+```
+
+验证命令：
+```bash
+# 检查是否存在违规的 test_*.py 文件
+find tests/kdit -name "test_*.py" -not -name "__*"
+# 预期输出为空
+```
+
+> **pytest 兼容性**：`pyproject.toml` 中 `python_files = ["*_test.py", "test_*.py"]` 两种模式均可被发现，
+> 但项目约定统一使用 `*_test.py`。
+
 ### 测试文件位置
 
 测试文件位于 `tests/kdit/`，镜像 `kdit/` 的目录结构：
 
 ```
-kdit/generators/base_generator.py    →  tests/kdit/generators/test_wan_generator.py
+kdit/generators/wan_generator.py     →  tests/kdit/infra/generators/wan_generator_test.py
 kdit/utils/factory.py                →  tests/kdit/utils/factory_test.py
 kdit/pipelines/pipeline.py           →  tests/kdit/pipelines/wan2_2_t2v_test.py
 ```
@@ -33,10 +55,10 @@ kdit/pipelines/pipeline.py           →  tests/kdit/pipelines/wan2_2_t2v_test.p
 pytest -s -v tests/kdit
 
 # 运行单个测试文件
-pytest -s -v tests/kdit/generators/test_wan_generator.py
+pytest -s -v tests/kdit/infra/generators/wan_generator_test.py
 
 # 运行单个测试方法
-pytest -s -v tests/kdit/generators/test_wan_generator.py::TestClassName::test_method
+pytest -s -v tests/kdit/infra/generators/wan_generator_test.py::TestClassName::test_method
 ```
 
 ---

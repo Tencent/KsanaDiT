@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# 导入子包（触发 @GeneratorFactory.register + @LoaderNodeFactory/@InferNodeFactory.register 注册）
+# 导入子包（触发 @LoaderNodeFactory/@InferNodeFactory.register 注册）
 from . import (  # noqa: F401  # pylint: disable=unused-import
     infers,
     loaders,

@@ -12,92 +12,53 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""WanDenoiseHandler — Wan 模型的去噪循环钩子实现。"""
+
 import torch
 
-from kdit.config import SampleConfig
-from kdit.models import KsanaDiffusionModel, ModelKey
+from kdit.models.diffusion_model import KsanaDiffusionModel
+from kdit.models.model_key import ModelKey
 from kdit.utils import log
 
-from .base_generator import BaseGenerator
-from .generator_factory import GeneratorFactory
+from ..handlers.denoise_handler import DenoiseHandler
 
 
-# TODO: need better abstract base implement for vace, vace can not invade base
-@GeneratorFactory.register([ModelKey.Wan2_2_T2V_14B, ModelKey.Wan2_2_I2V_14B])
-class WanGenerator(BaseGenerator):
+class WanDenoiseHandler(DenoiseHandler):
+    """Wan 模型的去噪循环钩子，支持双模型 boundary 切换。"""
+
     def __init__(self):
-        super().__init__()
-        # TODO: maybe could remove boundary, use allow each model input steps instead
-        self.boundary = None
+        self._boundary = None
 
     def _get_model_boundary(self, diffusion_model: list[KsanaDiffusionModel]):
-        if self.boundary is not None:
-            return self.boundary
+        if self._boundary is not None:
+            return self._boundary
         if len(diffusion_model) < 2:
             return None
 
         default_settings = diffusion_model[0].default_settings
         high_model, low_model = diffusion_model
-        self.boundary = None
+        self._boundary = None
         if low_model is not None:
             input_boundary = getattr(high_model.model_config, "boundary", None)
             default_boundary = getattr(default_settings.runtime_config, "boundary", None)
             boundary = input_boundary or default_boundary
             if boundary is None:
                 raise RuntimeError("boundary should be set when low_model is not None")
-            self.boundary = boundary * self._get_num_train_timesteps(default_settings)
+            num_train_timesteps = getattr(default_settings.sample_config, "num_train_timesteps", None)
+            if num_train_timesteps is None:
+                raise RuntimeError("num_train_timesteps should be set in yaml sample_config settings")
+            self._boundary = boundary * num_train_timesteps
             log.info(f"model boundary: {boundary}")
-        return self.boundary
+        return self._boundary
 
-    def valid_aux_latent(self, aux_latent, noise_shape):
-        """Wan T2V/I2V 不接受 aux_latent 输入，传入非 None 时报错。"""
-        if aux_latent is not None:
-            raise ValueError(
-                f"{self.model_key} does not support aux_latent input, "
-                f"but got aux_latent with type {type(aux_latent)}"
-            )
-
-    def _apply_aux_latent(
+    def get_running_model(
         self,
-        noise_latents: torch.Tensor,
-        aux_latent: torch.Tensor,
-        sample_config: SampleConfig,
-        timesteps: torch.Tensor,
-        num_train_timesteps: int,
+        diffusion_model: list[KsanaDiffusionModel],
+        *,
+        timestep_id: int,
+        device: torch.device,
+        offload_device: torch.device,
     ):
-        if aux_latent is None:
-            return noise_latents
-
-        if noise_latents.dim() != 5:  # [bs, z_dim, f, h, w]
-            raise ValueError(f"noise_latents {noise_latents.shape} must be 5D tensor")
-
-        aux_latent = aux_latent.to(noise_latents)
-        frame_dim = 2
-        if noise_latents.shape[frame_dim] < aux_latent.shape[frame_dim]:
-            raise ValueError(f"noise_latents {noise_latents.shape} frame dim must be >= aux_latent {aux_latent.shape}")
-        if aux_latent.shape[frame_dim] != noise_latents.shape[frame_dim]:
-            aux_latent = torch.cat(
-                [
-                    aux_latent[:, :, :1].repeat(
-                        1, 1, noise_latents.shape[frame_dim] - aux_latent.shape[frame_dim], 1, 1
-                    ),
-                    aux_latent,
-                ],
-                dim=frame_dim,
-            )
-
-        if sample_config.add_noise_to_latent:
-            latent_timestep = timesteps[:1].to(noise_latents)
-            noise_latents = (
-                noise_latents * latent_timestep / num_train_timesteps
-                + (1 - latent_timestep / num_train_timesteps) * aux_latent
-            )
-        else:
-            noise_latents = aux_latent
-
-        return noise_latents
-
-    def get_running_model(self, diffusion_model, timestep_id: int, device=None, offload_device=None):
         if device is None:
             raise ValueError("device must be provided")
         if not isinstance(diffusion_model, (list, tuple)):
@@ -121,7 +82,7 @@ class WanGenerator(BaseGenerator):
                 high_model.to(offload_device)
             return low_model
 
-    def get_running_cache(self, dit_cache, timestep_id):
+    def get_running_cache(self, dit_cache, *, timestep_id: int):
         if not isinstance(dit_cache, (list, tuple)):
             return dit_cache
         if len(dit_cache) == 1:
@@ -132,35 +93,23 @@ class WanGenerator(BaseGenerator):
         high_cache, low_cache = dit_cache
         if low_cache is None:
             return high_cache
-        if timestep_id >= self.boundary:
+        if timestep_id >= self._boundary:
             return high_cache
         else:
             high_cache.offload_to_cpu()
             return low_cache
 
-    def get_running_cfg_scale(self, cfg_scale: list[float], timestep_id: int):
+    def get_running_cfg_scale(self, cfg_scale: list[float], *, timestep_id: int):
         if not isinstance(cfg_scale, (list, tuple)):
             return cfg_scale
         if len(cfg_scale) == 1:
             return cfg_scale[0]
         if len(cfg_scale) != 2:
             raise ValueError(f"cfg_scales must be list of 1 or 2 float, but got {cfg_scale}")
-        if cfg_scale[1] is not None and self.boundary is not None and timestep_id < self.boundary:
+        if cfg_scale[1] is not None and self._boundary is not None and timestep_id < self._boundary:
             return cfg_scale[1]
         else:
             return cfg_scale[0]
-
-    def preprocess_base_latent(self, base_latent_list: list[torch.Tensor]) -> torch.Tensor:
-        """Wan I2V: 将 [latent, mask] concat 为单个 tensor 作为模型的 y 输入。
-
-        原先 base_latent 是已经 concat 好的单个 tensor（latent + mask 在 channel 维度），
-        现在 BaseLatent 将 latent 和 mask 拆分存储，需要在此处重新 concat。
-        T2V 场景下 list 只有 [latent]（无 mask），直接取第一个元素。
-        """
-        if self.model_key == ModelKey.Wan2_2_I2V_14B and len(base_latent_list) == 2:
-            latent, mask = base_latent_list
-            return torch.cat([latent, mask], dim=1)
-        return base_latent_list[0]
 
     def prepare_model_forward_kargs(
         self,
@@ -174,12 +123,13 @@ class WanGenerator(BaseGenerator):
         positive,
         negative,
         base_latent: torch.Tensor | None,
+        model_key: ModelKey,
         aux_latent=None,
         **_,
-    ) -> dict:
+    ) -> dict | tuple[dict, dict]:
         base = {"cache": cache, "step_iter": step_iter}
 
-        use_cfg = self._use_cfg(cfg_scale)
+        use_cfg = abs(cfg_scale - 1.0) > 1e-6
         if use_cfg and combine_cond_uncond:
             combine_x = torch.cat([noise_latent, noise_latent], dim=0)
             combine_t = torch.cat([timestep, timestep], dim=0)
@@ -190,14 +140,14 @@ class WanGenerator(BaseGenerator):
                 "t": combine_t,
                 "context": combine_context,
             }
-            if self.model_key == ModelKey.Wan2_2_I2V_14B and base_latent is not None:
+            if model_key == ModelKey.Wan2_2_I2V_14B and base_latent is not None:
                 combine_kargs["y"] = torch.cat([base_latent, base_latent], dim=0)
             return base | combine_kargs
 
         base.update({"x": noise_latent, "t": timestep})
         arg_cond = {"phase": "cond", "context": positive}
         arg_uncond = {"phase": "uncond", "context": negative}
-        if self.model_key == ModelKey.Wan2_2_I2V_14B:
+        if model_key == ModelKey.Wan2_2_I2V_14B:
             arg_cond["y"] = base_latent
             arg_uncond["y"] = base_latent
         if use_cfg:

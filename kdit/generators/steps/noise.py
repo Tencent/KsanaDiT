@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Generator 噪声与缓存创建函数 — 从 BaseGenerator 提取的无状态工具函数。"""
+"""Generator 噪声与缓存创建函数 — 无状态工具函数。"""
 
 import random
 import sys

@@ -33,7 +33,6 @@ WAN_VACE_14B_DEF = register_pipeline_def(
     .load(ModelKey.VAE_WAN2_1)
     .add_infer(InferNodeType.TEXT_ENCODE, ModelKey.T5TextEncoder)
     .add_infer(InferNodeType.VAE_ENCODE_SPATIAL, ModelKey.VAE_WAN2_1)
-    .when("has_start_image")
     .add_infer(InferNodeType.GENERATE, ModelKey.Wan2_1_VACE_14B)
     .add_infer(InferNodeType.VAE_DECODE, ModelKey.VAE_WAN2_1)
     .add_infer(InferNodeType.SAVE_VIDEO)

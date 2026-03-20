@@ -294,8 +294,13 @@ class MemoryProfiler:
 
 def _cuda_sync_if_needed():
     """在 KSANA_PROFILE_CUDA_SYNC 启用时执行 CUDA 同步。"""
-    if KSANA_PROFILE_CUDA_SYNC and torch.cuda.is_available():
-        torch.cuda.synchronize()
+    if KSANA_PROFILE_CUDA_SYNC:
+        try:
+            if torch.cuda.is_available():
+                torch.cuda.synchronize()
+        except (AssertionError, RuntimeError):
+            # macOS / CPU-only torch: is_available() 可能返回 True 但 synchronize() 失败
+            pass
 
 
 @dataclass

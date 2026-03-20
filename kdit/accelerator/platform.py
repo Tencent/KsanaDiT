@@ -33,6 +33,12 @@ def is_xpu() -> bool:
     return shutil.which("xpu-smi") is not None
 
 
+@cache
+def has_accelerator() -> bool:
+    """检测是否有任何加速器硬件（GPU/NPU/XPU）。"""
+    return is_gpu() or is_npu() or is_xpu()
+
+
 def empty_cache() -> None:
     """清空加速器显存缓存，自动适配 CUDA/NPU/XPU 平台。"""
     if is_gpu() or is_xpu():

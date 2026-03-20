@@ -260,11 +260,11 @@ def encode_vace_context(
     if reference_image is not None:
         reference_image = resize_fn(reference_image[:1], width, height)
         reference_image = reference_image.to(device=device, dtype=dtype)
-        ref_latent = vae_encode_fn(reference_image)
-        ref_zeros = latent_process_out(torch.zeros_like(ref_latent))
-        ref_latent = torch.cat([ref_latent, ref_zeros], dim=1)
-        control_video_latent = torch.cat((ref_latent, control_video_latent), dim=2)
-        trim_latent = ref_latent.shape[2]
+        aux_latent = vae_encode_fn(reference_image)
+        aux_zeros = latent_process_out(torch.zeros_like(aux_latent))
+        aux_latent = torch.cat([aux_latent, aux_zeros], dim=1)
+        control_video_latent = torch.cat((aux_latent, control_video_latent), dim=2)
+        trim_latent = aux_latent.shape[2]
 
     height_mask = height // VAE_STRIDE
     width_mask = width // VAE_STRIDE

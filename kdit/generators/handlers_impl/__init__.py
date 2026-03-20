@@ -11,17 +11,3 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-# 触发所有 GeneratorDef 注册
-from . import defs  # noqa: F401
-from .generator_context import GeneratorInferContext
-from .generator_def import GeneratorDef, get_generator_def, register_generator_def
-from .generator_runner import GeneratorRunner
-
-__all__ = [
-    "GeneratorDef",
-    "GeneratorInferContext",
-    "GeneratorRunner",
-    "get_generator_def",
-    "register_generator_def",
-]

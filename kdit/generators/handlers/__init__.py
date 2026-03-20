@@ -12,17 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from kdit.utils.factory import SimpleFactory
+from .denoise_handler import DenoiseHandler
+from .latent_handler import LatentHandler
+from .text_handler import TextHandler
 
-
-class GeneratorFactory(SimpleFactory):
-    """Generator 一级工厂 — 只按 model_key 注册。
-    - register(model_key_list): 注册 Generator 类
-    - create(model_key): 创建 Generator 实例，自动设置 model_key 属性
-    """
-
-    @classmethod
-    def create(cls, model_key, *args, **kwargs):
-        obj = super().create(model_key, *args, **kwargs)
-        setattr(obj, "model_key", model_key)
-        return obj
+__all__ = ["TextHandler", "LatentHandler", "DenoiseHandler"]

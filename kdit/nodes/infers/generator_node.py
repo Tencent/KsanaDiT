@@ -18,8 +18,9 @@
 调用 Generator Unit 执行去噪，将 latents 无条件写入 tensor_pool。
 """
 
-from kdit.generators import GeneratorFactory
 from kdit.generators.generator_context import AuxLatent, BaseLatent, GeneratorInferContext
+from kdit.generators.generator_def import get_generator_def
+from kdit.generators.generator_runner import GeneratorRunner
 from kdit.models.model_key import ModelKey
 from kdit.tensor import TensorKey
 
@@ -86,6 +87,7 @@ class GeneratorNode(InferNode):
             comfy_bar_callback=meta.get("comfy_bar_callback"),
         )
 
-        generator = GeneratorFactory.create(model_key)
-        latents = generator.run(ctx)
+        gen_def = get_generator_def(model_key)
+        runner = GeneratorRunner(gen_def)
+        latents = runner.run(ctx)
         tensor_pool.put(TensorKey.LATENTS, latents)

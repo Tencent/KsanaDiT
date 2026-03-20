@@ -33,6 +33,7 @@ class TestGeneratorRunContext(unittest.TestCase):
         self.assertIsNone(ctx.negative)
         self.assertIsNone(ctx.base_latent)
         self.assertIsNone(ctx.aux_latent)
+        # noise_shape 已移除 — 由 base_latent.latent.shape[1:] 推导
         self.assertIsNone(ctx.device)
         self.assertIsNone(ctx.offload_device)
         self.assertIsNone(ctx.sample_config)

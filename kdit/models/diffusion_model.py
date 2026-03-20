@@ -592,7 +592,7 @@ class KsanaQwenImageModel(KsanaDiffusionModel):
         **kwargs,
     ) -> torch.Tensor:
         timestep = t / 1000.0
-        ref_latents = kwargs.pop("ref_latents", None)
+        aux_latents = kwargs.pop("aux_latents", None)
 
         out = self.model(
             hidden_states=x,
@@ -601,7 +601,7 @@ class KsanaQwenImageModel(KsanaDiffusionModel):
             timestep=timestep,
             img_shapes=img_shapes,
             txt_seq_lens=txt_seq_lens,
-            ref_latents=ref_latents,
+            aux_latents=aux_latents,
             return_dict=False,
         )
 

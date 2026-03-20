@@ -53,7 +53,7 @@ class ModelKey(Enum):
 
     ModelPool 只接受此类型。用于：
       - LoaderNodeFactory / InferNodeFactory 按模型注册 Node
-      - GeneratorFactory 按模型注册 Generator
+      - GeneratorDef 按模型注册 Generator 定义
       - settings 配置映射
     """
 

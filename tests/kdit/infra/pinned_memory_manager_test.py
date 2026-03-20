@@ -16,6 +16,7 @@ import unittest
 
 import torch
 
+from kdit.accelerator.platform import has_accelerator
 from kdit.memory import PinnedMemoryManager
 
 
@@ -170,8 +171,14 @@ class TestPinnedMemoryManager(unittest.TestCase):
         self.assertEqual(block.size_bytes, int(1 * 1024**3))
         self.assertIsInstance(block.buffer, torch.Tensor)
         self.assertEqual(block.buffer.dtype, torch.uint8)
-        self.assertTrue(block.buffer.is_pinned())
         self.assertTrue(block.is_inuse)
+
+    @unittest.skipUnless(has_accelerator(), "pinned memory requires real accelerator (GPU/NPU/XPU)")
+    def test_block_buffer_is_pinned(self):
+        """pinned memory 仅在真实加速器环境下可用"""
+        blocks = self.manager.allocate_blocks(int(2 * 1024**3))
+        block = blocks[0]
+        self.assertTrue(block.buffer.is_pinned())
 
     def test_dtype_agnostic_buffer(self):
         """测试 dtype 无关的 buffer"""

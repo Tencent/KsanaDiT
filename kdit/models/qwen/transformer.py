@@ -319,12 +319,12 @@ class QwenImageTransformer2DModel(nn.Module):
     def device(self) -> torch.device:
         return next(self.parameters()).device
 
-    def _process_ref_latents(
+    def _process_aux_latents(
         self,
         hidden_states: torch.Tensor,
-        ref_latents: list[torch.Tensor],
+        aux_latents: list[torch.Tensor],
     ) -> torch.Tensor:
-        for ref_packed in ref_latents:
+        for ref_packed in aux_latents:
             ref_projected = self.img_in(ref_packed)
 
             hidden_states = torch.cat([hidden_states, ref_projected], dim=1)
@@ -346,21 +346,21 @@ class QwenImageTransformer2DModel(nn.Module):
         timestep: torch.Tensor = None,
         img_shapes: list[list[tuple[int, int, int]]] | None = None,
         txt_seq_lens: list[int] | None = None,
-        ref_latents: list[torch.Tensor] | None = None,
+        aux_latents: list[torch.Tensor] | None = None,
         **kwargs,
     ) -> torch.Tensor:
         batch_size = hidden_states.shape[0]
         hidden_states = self.img_in(hidden_states)
         original_seq_len = hidden_states.shape[1]
 
-        if ref_latents is not None and len(ref_latents) > 0:
-            hidden_states = self._process_ref_latents(hidden_states, ref_latents)
+        if aux_latents is not None and len(aux_latents) > 0:
+            hidden_states = self._process_aux_latents(hidden_states, aux_latents)
 
         encoder_hidden_states = self.txt_norm(encoder_hidden_states)
         encoder_hidden_states = self.txt_in(encoder_hidden_states)
 
         # --- zero_cond_t: dual-timestep conditioning ---
-        # For Qwen-Image-Edit-2511: noise latent uses real timestep, ref latents use zero timestep.
+        # For Qwen-Image-Edit-2511: noise latent uses real timestep, aux latents use zero timestep.
         modulate_index = None
         if self.zero_cond_t:
             # Concatenate [real_timestep, zero_timestep] for dual modulation
@@ -368,7 +368,7 @@ class QwenImageTransformer2DModel(nn.Module):
 
             # Build modulate_index: [batch, img_seq_len]
             # For each sample: first image (noise latent) gets index 0 (real timestep),
-            # subsequent images (ref latents) get index 1 (zero timestep).
+            # subsequent images (aux latents) get index 1 (zero timestep).
             modulate_index_list = []
             for b in range(batch_size):
                 sample_shapes = img_shapes[b]
@@ -428,7 +428,7 @@ class QwenImageTransformer2DModel(nn.Module):
                 output = output[:, :img_seq_len, :]
 
         # Note: Edit 模式下截断 output，只返回 noise latent 部分，去除参考图像部分
-        if ref_latents is not None and len(ref_latents) > 0:
+        if aux_latents is not None and len(aux_latents) > 0:
             output = output[:, :original_seq_len, :]
 
         return output

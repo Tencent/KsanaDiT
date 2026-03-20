@@ -84,3 +84,36 @@ def _enforce_cpu_memory_limit():
 
 
 _enforce_cpu_memory_limit()
+
+
+# ── CPU-only 环境兼容 ──
+# DistributedConfig 的默认 num_gpus = get_gpu_count()，在无 GPU 的 macOS/CI 上返回 0，
+# 导致 __post_init__ 抛 ValueError。
+# get_gpu_count() 在 distributed_config.py 模块级别被求值（作为 dataclass field default），
+# 因此必须在 kdit 包被导入之前 patch torch.cuda，使其在纯 CPU 环境下也返回 >= 1。
+def _patch_cuda_for_cpu_only():
+    """在纯 CPU 环境下 patch torch.cuda，使 get_gpu_count() 返回 1。"""
+    try:
+        import torch
+
+        if torch.cuda.is_available():
+            return  # 有 GPU，无需 patch
+
+        # Patch torch.cuda.device_count 返回 1，torch.cuda.is_available 返回 False 不变
+        # get_gpu_count() 检查 is_available() 后返回 0，所以需要同时 patch is_available
+        _orig_is_available = torch.cuda.is_available
+        _orig_device_count = torch.cuda.device_count
+
+        def _patched_is_available():
+            return True
+
+        def _patched_device_count():
+            return 1
+
+        torch.cuda.is_available = _patched_is_available
+        torch.cuda.device_count = _patched_device_count
+    except ImportError:
+        pass
+
+
+_patch_cuda_for_cpu_only()

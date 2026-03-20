@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Generator 验证函数 — 从 BaseGenerator 提取的无状态校验逻辑。"""
+"""Generator 验证函数 — 无状态校验逻辑。"""
 
 import torch
 

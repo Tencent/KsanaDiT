@@ -14,7 +14,7 @@
 
 """Tests for kdit.nodes.infers.generator_node — GeneratorNode.run()。
 
-使用 mock 替代 model_pool / tensor_pool / GeneratorFactory，不需要 GPU。
+使用 mock 替代 model_pool / tensor_pool / GeneratorRunner，不需要 GPU。
 """
 
 import unittest
@@ -82,12 +82,13 @@ class TestGeneratorNode(unittest.TestCase):
             metadata={"noise_shape": [4, 16, 32, 32]},
         )
 
-    @patch("kdit.nodes.infers.generator_node.GeneratorFactory")
-    def test_run_constructs_context_and_calls_generator(self, mock_factory):
-        """run() 应构造 GeneratorInferContext 并调用 generator.run(ctx)。"""
-        mock_generator = MagicMock()
-        mock_generator.run.return_value = torch.randn(1, 4, 16, 32, 32)
-        mock_factory.create.return_value = mock_generator
+    @patch("kdit.nodes.infers.generator_node.GeneratorRunner")
+    @patch("kdit.nodes.infers.generator_node.get_generator_def")
+    def test_run_constructs_context_and_calls_generator(self, mock_get_def, mock_runner_cls):
+        """run() 应构造 GeneratorInferContext 并调用 runner.run(ctx)。"""
+        mock_runner = MagicMock()
+        mock_runner.run.return_value = torch.randn(1, 4, 16, 32, 32)
+        mock_runner_cls.return_value = mock_runner
 
         self.node.run(
             model_key=ModelKey.Wan2_2_T2V_14B,
@@ -97,9 +98,13 @@ class TestGeneratorNode(unittest.TestCase):
             device_ctx=self.device_ctx,
         )
 
-        # 验证 generator.run 被调用且参数是 GeneratorInferContext
-        mock_generator.run.assert_called_once()
-        ctx_arg = mock_generator.run.call_args[0][0]
+        # 验证 get_generator_def 被调用
+        mock_get_def.assert_called_once_with(ModelKey.Wan2_2_T2V_14B)
+        # 验证 GeneratorRunner 被构造
+        mock_runner_cls.assert_called_once_with(mock_get_def.return_value)
+        # 验证 runner.run 被调用且参数是 GeneratorInferContext
+        mock_runner.run.assert_called_once()
+        ctx_arg = mock_runner.run.call_args[0][0]
         self.assertIsInstance(ctx_arg, GeneratorInferContext)
         self.assertIs(ctx_arg.diffusion_model, self.mock_diffusion_model)
         self.assertIsNotNone(ctx_arg.base_latent)
@@ -111,14 +116,15 @@ class TestGeneratorNode(unittest.TestCase):
         put_args = self.tensor_pool.put.call_args
         self.assertEqual(put_args[0][0], TensorKey.LATENTS)
 
-    @patch("kdit.nodes.infers.generator_node.GeneratorFactory")
-    def test_base_latent_constructed_from_tensor_pool(self, mock_factory):
+    @patch("kdit.nodes.infers.generator_node.GeneratorRunner")
+    @patch("kdit.nodes.infers.generator_node.get_generator_def")
+    def test_base_latent_constructed_from_tensor_pool(self, mock_get_def, mock_runner_cls):
         """base_latent 应从 tensor_pool 中的 BASE_LATENT 构造为 BaseLatent 对象。"""
         from kdit.generators.generator_context import BaseLatent
 
-        mock_generator = MagicMock()
-        mock_generator.run.return_value = torch.randn(1, 4, 16, 32, 32)
-        mock_factory.create.return_value = mock_generator
+        mock_runner = MagicMock()
+        mock_runner.run.return_value = torch.randn(1, 4, 16, 32, 32)
+        mock_runner_cls.return_value = mock_runner
 
         context_no_shape = NodeContext(
             sample_config=self.sample_config,
@@ -134,7 +140,7 @@ class TestGeneratorNode(unittest.TestCase):
             device_ctx=self.device_ctx,
         )
 
-        ctx_arg = mock_generator.run.call_args[0][0]
+        ctx_arg = mock_runner.run.call_args[0][0]
         self.assertIsInstance(ctx_arg.base_latent, BaseLatent)
         # base_latent.latent 应为 tensor_pool 中 BASE_LATENT 的第一个元素
         self.assertTrue(torch.equal(ctx_arg.base_latent.latent, self.base_latent[0]))

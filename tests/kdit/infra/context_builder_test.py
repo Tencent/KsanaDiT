@@ -76,12 +76,11 @@ class TestContextBuilderBase(unittest.TestCase):
         self.assertIs(result, sentinel)
 
     def test_common_metadata(self):
-        """_common_metadata 包含 offload_model 和 text_run_device。"""
+        """_common_metadata 包含 offload_model。"""
         inputs = self._make_inputs()
         inputs.runtime_config.offload_model = True
         meta = ContextBuilder._common_metadata(inputs)
         self.assertTrue(meta["offload_model"])
-        self.assertIn("text_run_device", meta)
 
 
 if __name__ == "__main__":

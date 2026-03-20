@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Generator 积木函数 — 从 BaseGenerator 提取的无状态工具函数。
+"""Generator 积木函数 — 无状态工具函数。
 
 这些函数不依赖 Generator 实例状态，可独立测试和复用。
 """
