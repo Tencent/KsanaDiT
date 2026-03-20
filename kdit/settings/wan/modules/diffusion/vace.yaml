@@ -18,3 +18,9 @@ diffusion:
   vace_layers: 8
   # vace_in_dim = in_dim (16) * 2 (inactive + reactive) + 64 (mask) = 96
   vace_in_dim: 96
+
+  # VACE 是单模型结构，不分 high/low noise，覆盖 common.yaml 中的默认值
+  high_noise_checkpoint: null
+  low_noise_checkpoint: null
+  high_noise_lora_checkpoint: null
+  low_noise_lora_checkpoint: null

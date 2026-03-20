@@ -412,7 +412,7 @@ bash scripts/ci_tests/ci_kdit_gpus.sh
 We welcome community contributions! Before submitting a PR, please ensure:
 
 1. Code passes all tests
-2. Follows project code style (using `black` and `ruff`)
+2. Follows project code style (using `git commit` hook)
 3. Includes necessary documentation and comments
 4. Updates relevant README and examples
 

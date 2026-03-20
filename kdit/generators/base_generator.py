@@ -435,7 +435,7 @@ class BaseGenerator:
         batch_strategy = self.batch_scheduler.build_batch_strategy(
             self.model_key, noise_latents.shape, total_samples_num, run_dtype, device
         )
-        validation.valid_aux_latent(aux_latent, noise_latents.shape)
+        self.valid_aux_latent(aux_latent, noise_latents.shape)
         # Note: pack need after build strategy since strategy use noise_latents shape as 5D tensor
         patch_size = self._get_patch_size(diffusion_model)
         noise_latents = self.pack_noise_latents(noise_latents, patch_size)
@@ -517,6 +517,18 @@ class BaseGenerator:
                 "be 4 like:[vae_z_dim:16, f, h, w], f==1 when generate image"
             )
         return noise_shape
+
+    def valid_aux_latent(self, aux_latent, noise_shape: tuple[int]):
+        """校验 aux_latent 与 noise_shape 的维度一致性。
+
+        默认实现适用于 VACE 场景：aux_latent 是单个 5D Tensor，
+        要求 bs/z_dim/h/w 与 noise_shape 一致（frame 维度可不同）。
+
+        子类可覆写：
+        - WanGenerator (T2V/I2V): aux_latent 为 None，无需校验
+        - QwenGenerator: aux_latent 为 list[Tensor]，shape 语义不同，不校验 shape 相等
+        """
+        validation.valid_aux_latent(aux_latent, noise_shape)
 
     def pack_noise_latents(self, noise_latents: torch.Tensor, patch_size) -> torch.Tensor:
         return noise_latents

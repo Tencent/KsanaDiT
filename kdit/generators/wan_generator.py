@@ -49,6 +49,14 @@ class WanGenerator(BaseGenerator):
             log.info(f"model boundary: {boundary}")
         return self.boundary
 
+    def valid_aux_latent(self, aux_latent, noise_shape):
+        """Wan T2V/I2V 不接受 aux_latent 输入，传入非 None 时报错。"""
+        if aux_latent is not None:
+            raise ValueError(
+                f"{self.model_key} does not support aux_latent input, "
+                f"but got aux_latent with type {type(aux_latent)}"
+            )
+
     def _apply_aux_latent(
         self,
         noise_latents: torch.Tensor,

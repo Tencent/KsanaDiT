@@ -45,7 +45,7 @@ pytest -s -v tests/kdit/generators/test_wan_generator.py::TestClassName::test_me
 
 ### 规则
 
-代码格式检查**不依赖**手动运行 `black`、`ruff` 等工具。格式检查通过 `pre-commit` git hooks 在 `git commit` 时**自动执行**。
+格式检查通过 `pre-commit` git hooks 在 `git commit` 时**自动执行**。**不依赖**手动运行 `black`、`ruff` 等工具。
 
 ### 设置方式
 

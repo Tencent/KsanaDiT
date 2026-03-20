@@ -199,6 +199,16 @@ class QwenGenerator(BaseGenerator):
         }
         return base | arg_cond, base | arg_uncond
 
+    def valid_aux_latent(self, aux_latent, noise_shape):
+        """Qwen 的 aux_latent 是 list[Tensor] (ref_latents)，shape 不需要与 noise_shape 相等。
+
+        仅校验非 None 时是 list 类型，不做 shape 一致性检查。
+        """
+        if aux_latent is None:
+            return
+        if not isinstance(aux_latent, list):
+            raise TypeError(f"Qwen aux_latent must be list[Tensor] or None, got {type(aux_latent)}")
+
     def _apply_aux_latent(
         self,
         noise_latents: torch.Tensor,

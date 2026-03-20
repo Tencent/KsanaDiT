@@ -28,11 +28,16 @@ from kdit.utils.vace import (
 )
 
 from .generator_factory import GeneratorFactory
+from .steps import validation
 from .wan_generator import WanGenerator
 
 
 @GeneratorFactory.register(ModelKey.Wan2_1_VACE_14B)
 class VaceGenerator(WanGenerator):
+    def valid_aux_latent(self, aux_latent, noise_shape):
+        """VACE 场景下 aux_latent 是 5D Tensor，需要校验 shape 与 noise 一致。"""
+        validation.valid_aux_latent(aux_latent, noise_shape)
+
     def init_denoising_loop(self, video_control_kwargs, diffusion_model, sample_scheduler):
         return parse_video_control_kwargs(
             video_control_kwargs,
