@@ -107,14 +107,14 @@ class TestPipelineDefBuilder(unittest.TestCase):
             PipelineDefBuilder(PipelineKey.Wan2_2_I2V_14B)
             .load(ModelKey.VAE_WAN2_2)
             .add_infer(NT.VAE_ENCODE_SPATIAL, ModelKey.VAE_WAN2_2)
-            .when("has_start_image")
+            .when("has_test_input")
             .add_infer(NT.SAVE_VIDEO)
             .context_builder(_DummyContextBuilder)
             .build()
         )
 
         # VAE_ENCODE_SPATIAL 有条件
-        self.assertEqual(pipeline_def.infer_phases[0].condition, "has_start_image")
+        self.assertEqual(pipeline_def.infer_phases[0].condition, "has_test_input")
         # SAVE_VIDEO 无条件
         self.assertIsNone(pipeline_def.infer_phases[1].condition)
 
@@ -124,7 +124,7 @@ class TestPipelineDefBuilder(unittest.TestCase):
         builder.load(ModelKey.VAE_WAN2_2)
         chain = builder.add_infer(NT.VAE_ENCODE_SPATIAL, ModelKey.VAE_WAN2_2)
         self.assertIsInstance(chain, _InferTaskChain)
-        result = chain.when("has_start_image")
+        result = chain.when("has_test_input")
         self.assertIs(result, builder)
 
     def test_chain_proxy_without_when(self):
