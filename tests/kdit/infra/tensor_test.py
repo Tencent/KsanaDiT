@@ -12,12 +12,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""TensorValue / TensorPool 单元测试。"""
+"""TensorValue / TensorPool 单元测试。
+
+所有 TensorPool 操作使用 TensorPoolKey（DAG 模式标准 key），
+避免裸 TensorKey 触发 DeprecationWarning。
+"""
 
 import pytest
 import torch
 
 from kdit.tensor import TensorKey, TensorPool, TensorValue
+from kdit.tensor.tensor_pool_key import TensorPoolKey
+
+# ── 辅助：构建 TensorPoolKey ────────────────────────────────────────────────
+
+# 使用固定 node_id 构造 TensorPoolKey，模拟 DAG 中不同节点的输出
+_K = lambda tk: TensorPoolKey(0, tk)  # noqa: E731
+
 
 # ── TensorValue ─────────────────────────────────────────────────────────────
 
@@ -83,21 +94,21 @@ class TestTensorPool:
     def test_put_get(self):
         pool = TensorPool()
         t = torch.randn(3, 4)
-        pool.put(TensorKey.LATENTS, t)
-        assert pool.has(TensorKey.LATENTS)
-        tensor_value = pool.get(TensorKey.LATENTS)
+        pool.put(_K(TensorKey.LATENTS), t)
+        assert pool.has(_K(TensorKey.LATENTS))
+        tensor_value = pool.get(_K(TensorKey.LATENTS))
         assert isinstance(tensor_value, TensorValue)
         assert tensor_value.data is t
 
     def test_get_missing_returns_none(self):
         pool = TensorPool()
-        assert pool.get(TensorKey.VIDEO) is None
+        assert pool.get(_K(TensorKey.VIDEO)) is None
 
     def test_clear(self):
         pool = TensorPool()
-        pool.put(TensorKey.POSITIVE, torch.zeros(1))
-        pool.put(TensorKey.NEGATIVE, torch.zeros(2))
-        pool.put(TensorKey.LATENTS, torch.zeros(3))
+        pool.put(_K(TensorKey.POSITIVE), torch.zeros(1))
+        pool.put(_K(TensorKey.NEGATIVE), torch.zeros(2))
+        pool.put(_K(TensorKey.LATENTS), torch.zeros(3))
         assert len(pool) == 3
         pool.clear()
         assert len(pool) == 0
@@ -105,41 +116,41 @@ class TestTensorPool:
 
     def test_clear_releases_tensor_values(self):
         pool = TensorPool()
-        pool.put(TensorKey.LATENTS, torch.zeros(4))
-        tensor_value = pool.get(TensorKey.LATENTS)
+        pool.put(_K(TensorKey.LATENTS), torch.zeros(4))
+        tensor_value = pool.get(_K(TensorKey.LATENTS))
         pool.clear()
         assert tensor_value.is_released
 
     def test_clear_with_exclude(self):
         pool = TensorPool()
-        pool.put(TensorKey.POSITIVE, torch.zeros(1))
-        pool.put(TensorKey.BASE_LATENT, torch.zeros(2))
-        pool.put(TensorKey.LATENTS, torch.zeros(3))
-        tv_keep = pool.get(TensorKey.BASE_LATENT)
-        pool.clear(exclude=[TensorKey.BASE_LATENT])
+        pool.put(_K(TensorKey.POSITIVE), torch.zeros(1))
+        pool.put(_K(TensorKey.BASE_LATENT), torch.zeros(2))
+        pool.put(_K(TensorKey.LATENTS), torch.zeros(3))
+        tv_keep = pool.get(_K(TensorKey.BASE_LATENT))
+        pool.clear(exclude=[_K(TensorKey.BASE_LATENT)])
         assert len(pool) == 1
-        assert pool.has(TensorKey.BASE_LATENT)
-        assert not pool.has(TensorKey.POSITIVE)
-        assert not pool.has(TensorKey.LATENTS)
+        assert pool.has(_K(TensorKey.BASE_LATENT))
+        assert not pool.has(_K(TensorKey.POSITIVE))
+        assert not pool.has(_K(TensorKey.LATENTS))
         assert not tv_keep.is_released  # 保留的不被 release
 
     def test_overwrite_releases_old(self):
         pool = TensorPool()
-        pool.put(TensorKey.LATENTS, torch.tensor(1.0))
-        pool.put(TensorKey.LATENTS, torch.tensor(2.0))
-        new_tv = pool.get(TensorKey.LATENTS)
+        pool.put(_K(TensorKey.LATENTS), torch.tensor(1.0))
+        pool.put(_K(TensorKey.LATENTS), torch.tensor(2.0))
+        new_tv = pool.get(_K(TensorKey.LATENTS))
         assert new_tv.data.item() == 2.0
         assert len(pool) == 1
 
     def test_keys(self):
         pool = TensorPool()
-        pool.put(TensorKey.POSITIVE, torch.zeros(1))
-        pool.put(TensorKey.NEGATIVE, torch.zeros(1))
-        assert set(pool.keys()) == {TensorKey.POSITIVE, TensorKey.NEGATIVE}
+        pool.put(_K(TensorKey.POSITIVE), torch.zeros(1))
+        pool.put(_K(TensorKey.NEGATIVE), torch.zeros(1))
+        assert set(pool.keys()) == {_K(TensorKey.POSITIVE), _K(TensorKey.NEGATIVE)}
 
     def test_repr_contains_keys(self):
         pool = TensorPool()
-        pool.put(TensorKey.LATENTS, torch.zeros(1))
+        pool.put(_K(TensorKey.LATENTS), torch.zeros(1))
         assert "latents" in repr(pool).lower()
 
     # ── list[Tensor] 支持 ──────────────────────────────────────────────
@@ -147,9 +158,9 @@ class TestTensorPool:
     def test_put_get_list_tensor(self):
         pool = TensorPool()
         tensors = [torch.randn(2, 3), torch.randn(4, 5)]
-        pool.put(TensorKey.BASE_LATENT, tensors)
-        assert pool.has(TensorKey.BASE_LATENT)
-        tensor_value = pool.get(TensorKey.BASE_LATENT)
+        pool.put(_K(TensorKey.BASE_LATENT), tensors)
+        assert pool.has(_K(TensorKey.BASE_LATENT))
+        tensor_value = pool.get(_K(TensorKey.BASE_LATENT))
         assert isinstance(tensor_value.data, list)
         assert len(tensor_value.data) == 2
         assert tensor_value.data[0] is tensors[0]
@@ -157,74 +168,74 @@ class TestTensorPool:
 
     def test_overwrite_tensor_with_list(self):
         pool = TensorPool()
-        pool.put(TensorKey.LATENTS, torch.tensor(1.0))
-        pool.put(TensorKey.LATENTS, [torch.tensor(2.0), torch.tensor(3.0)])
-        tensor_value = pool.get(TensorKey.LATENTS)
+        pool.put(_K(TensorKey.LATENTS), torch.tensor(1.0))
+        pool.put(_K(TensorKey.LATENTS), [torch.tensor(2.0), torch.tensor(3.0)])
+        tensor_value = pool.get(_K(TensorKey.LATENTS))
         assert isinstance(tensor_value.data, list)
         assert len(tensor_value.data) == 2
 
     def test_overwrite_list_with_tensor(self):
         pool = TensorPool()
-        pool.put(TensorKey.LATENTS, [torch.tensor(1.0), torch.tensor(2.0)])
-        pool.put(TensorKey.LATENTS, torch.tensor(3.0))
-        tensor_value = pool.get(TensorKey.LATENTS)
+        pool.put(_K(TensorKey.LATENTS), [torch.tensor(1.0), torch.tensor(2.0)])
+        pool.put(_K(TensorKey.LATENTS), torch.tensor(3.0))
+        tensor_value = pool.get(_K(TensorKey.LATENTS))
         assert isinstance(tensor_value.data, torch.Tensor)
         assert tensor_value.data.item() == 3.0
 
     def test_clear_with_list_tensors(self):
         pool = TensorPool()
-        pool.put(TensorKey.POSITIVE, torch.zeros(1))
-        pool.put(TensorKey.BASE_LATENT, [torch.zeros(2), torch.ones(3)])
+        pool.put(_K(TensorKey.POSITIVE), torch.zeros(1))
+        pool.put(_K(TensorKey.BASE_LATENT), [torch.zeros(2), torch.ones(3)])
         assert len(pool) == 2
         pool.clear()
         assert len(pool) == 0
 
     def test_empty_list_tensor(self):
         pool = TensorPool()
-        pool.put(TensorKey.BASE_LATENT, [])
-        tensor_value = pool.get(TensorKey.BASE_LATENT)
+        pool.put(_K(TensorKey.BASE_LATENT), [])
+        tensor_value = pool.get(_K(TensorKey.BASE_LATENT))
         assert isinstance(tensor_value.data, list)
         assert len(tensor_value.data) == 0
 
     def test_rename_basic(self):
         pool = TensorPool()
         t = torch.randn(3, 4)
-        pool.put(TensorKey.LATENTS, t)
-        pool.rename(TensorKey.LATENTS, TensorKey.AUX_LATENT)
-        assert not pool.has(TensorKey.LATENTS)
-        assert pool.has(TensorKey.AUX_LATENT)
-        assert torch.equal(pool.get(TensorKey.AUX_LATENT).data, t)
+        pool.put(_K(TensorKey.LATENTS), t)
+        pool.rename(_K(TensorKey.LATENTS), _K(TensorKey.AUX_LATENT))
+        assert not pool.has(_K(TensorKey.LATENTS))
+        assert pool.has(_K(TensorKey.AUX_LATENT))
+        assert torch.equal(pool.get(_K(TensorKey.AUX_LATENT)).data, t)
 
     def test_rename_overwrites_existing(self):
         pool = TensorPool()
-        pool.put(TensorKey.LATENTS, torch.tensor(1.0))
-        pool.put(TensorKey.AUX_LATENT, torch.tensor(2.0))
-        pool.rename(TensorKey.LATENTS, TensorKey.AUX_LATENT)
-        assert not pool.has(TensorKey.LATENTS)
-        assert pool.get(TensorKey.AUX_LATENT).data.item() == 1.0
+        pool.put(_K(TensorKey.LATENTS), torch.tensor(1.0))
+        pool.put(_K(TensorKey.AUX_LATENT), torch.tensor(2.0))
+        pool.rename(_K(TensorKey.LATENTS), _K(TensorKey.AUX_LATENT))
+        assert not pool.has(_K(TensorKey.LATENTS))
+        assert pool.get(_K(TensorKey.AUX_LATENT)).data.item() == 1.0
 
     def test_rename_missing_key_raises(self):
         pool = TensorPool()
         with pytest.raises(KeyError, match="old_key"):
-            pool.rename(TensorKey.LATENTS, TensorKey.VIDEO)
+            pool.rename(_K(TensorKey.LATENTS), _K(TensorKey.VIDEO))
 
     def test_rename_preserves_list_tensor(self):
         pool = TensorPool()
         tensors = [torch.randn(2, 3), torch.randn(4, 5)]
-        pool.put(TensorKey.BASE_LATENT, tensors)
-        pool.rename(TensorKey.BASE_LATENT, TensorKey.AUX_LATENT)
-        assert not pool.has(TensorKey.BASE_LATENT)
-        tv = pool.get(TensorKey.AUX_LATENT)
+        pool.put(_K(TensorKey.BASE_LATENT), tensors)
+        pool.rename(_K(TensorKey.BASE_LATENT), _K(TensorKey.AUX_LATENT))
+        assert not pool.has(_K(TensorKey.BASE_LATENT))
+        tv = pool.get(_K(TensorKey.AUX_LATENT))
         assert isinstance(tv.data, list)
         assert len(tv.data) == 2
         assert torch.equal(tv.data[0], tensors[0])
 
     def test_rename_does_not_affect_other_keys(self):
         pool = TensorPool()
-        pool.put(TensorKey.POSITIVE, torch.zeros(1))
-        pool.put(TensorKey.LATENTS, torch.ones(2))
-        pool.rename(TensorKey.LATENTS, TensorKey.VIDEO)
-        assert pool.has(TensorKey.POSITIVE)
-        assert pool.has(TensorKey.VIDEO)
-        assert not pool.has(TensorKey.LATENTS)
+        pool.put(_K(TensorKey.POSITIVE), torch.zeros(1))
+        pool.put(_K(TensorKey.LATENTS), torch.ones(2))
+        pool.rename(_K(TensorKey.LATENTS), _K(TensorKey.VIDEO))
+        assert pool.has(_K(TensorKey.POSITIVE))
+        assert pool.has(_K(TensorKey.VIDEO))
+        assert not pool.has(_K(TensorKey.LATENTS))
         assert len(pool) == 2

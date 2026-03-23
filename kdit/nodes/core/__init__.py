@@ -13,12 +13,14 @@
 # limitations under the License.
 
 from .base_node import InferNode, LoaderNode
-from .device_context import NodeDeviceContext
+from .device_context import DeviceInfo, NodeDeviceContext
 from .node_context import NodeContext
 from .node_factory import InferNodeFactory, LoaderNodeFactory
 from .node_types import InferNodeType, NodeDispatchPolicy
+from .pin_hub import PinHub
 
 __all__ = [
+    "DeviceInfo",
     "LoaderNode",
     "InferNode",
     "NodeDeviceContext",
@@ -27,4 +29,5 @@ __all__ = [
     "InferNodeFactory",
     "InferNodeType",
     "NodeDispatchPolicy",
+    "PinHub",
 ]

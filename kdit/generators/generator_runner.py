@@ -310,6 +310,7 @@ class GeneratorRunner:
                     negative=negative,
                     base_latent=base_latent,
                     aux_latent=aux_latent,
+                    model_key=self.model_key,  # why need, TODO: TB remove
                     **step_kwargs,
                 )
                 if self._use_cfg(running_cfg_scale):

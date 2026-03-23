@@ -13,8 +13,21 @@
 # limitations under the License.
 
 
+import warnings
+
 from .tensor_key import TensorKey
+from .tensor_pool_key import TensorPoolKey
 from .tensor_value import TensorData, TensorValue
+
+_TENSOR_KEY_DEPRECATION_MSG = (
+    "Passing TensorKey directly to TensorPool is deprecated, use TensorPoolKey instead. "
+    "This will be removed when legacy Node adapters are cleaned up."
+)
+
+
+def _warn_if_legacy_tensor_key(key: TensorKey | TensorPoolKey) -> None:
+    if isinstance(key, TensorKey):
+        warnings.warn(_TENSOR_KEY_DEPRECATION_MSG, DeprecationWarning, stacklevel=3)
 
 
 class TensorPool:
@@ -23,25 +36,30 @@ class TensorPool:
     Node 间通过 ``TensorKey`` 引用 tensor，避免 tensor 跨 Ray 边界序列化。
     生命周期由 ``Engine.tensor_scope()`` 管理，scope 结束时 ``clear(exclude=keep)``。
 
+    同时支持 ``TensorKey``（旧接口，已 deprecated）和 ``TensorPoolKey``（新 DAG 接口）作为 key。
+
     公开方法: ``put`` / ``get`` / ``clear`` / ``has`` / ``keys`` / ``__len__`` / ``__repr__``
     """
 
     def __init__(self):
-        self._stores: dict[TensorKey, TensorValue] = {}
+        self._stores: dict[TensorKey | TensorPoolKey, TensorValue] = {}
 
-    def put(self, key: TensorKey, data: TensorData) -> None:
+    def put(self, key: TensorKey | TensorPoolKey, data: TensorData) -> None:
         """存入 tensor（或 list[Tensor]），覆盖同名 key。"""
+        _warn_if_legacy_tensor_key(key)
         self._stores[key] = TensorValue(data)
 
-    def get(self, key: TensorKey) -> TensorValue | None:
+    def get(self, key: TensorKey | TensorPoolKey) -> TensorValue | None:
         """读取 TensorValue，不存在返回 None。"""
+        _warn_if_legacy_tensor_key(key)
         return self._stores.get(key)
 
-    def has(self, key: TensorKey) -> bool:
+    def has(self, key: TensorKey | TensorPoolKey) -> bool:
         """检查 key 是否存在于 pool 中。"""
+        _warn_if_legacy_tensor_key(key)
         return key in self._stores
 
-    def clear(self, exclude: list[TensorKey] | None = None) -> None:
+    def clear(self, exclude: list[TensorKey | TensorPoolKey] | None = None) -> None:
         """释放所有（或除 *exclude* 外的）tensor 引用并从池中移除。
 
         被排除的 key 保留在池中不被 release。
@@ -52,7 +70,11 @@ class TensorPool:
             self._stores[k].release()
             del self._stores[k]
 
-    def rename(self, old_key: TensorKey, new_key: TensorKey) -> None:
+    def rename(
+        self,
+        old_key: TensorKey | TensorPoolKey,
+        new_key: TensorKey | TensorPoolKey,
+    ) -> None:
         """将 old_key 重命名为 new_key，零拷贝。
 
         old_key 的 TensorValue 移到 new_key 下，old_key 从 pool 中删除。
@@ -61,13 +83,15 @@ class TensorPool:
         Raises:
             KeyError: old_key 不存在于 pool 中。
         """
+        _warn_if_legacy_tensor_key(old_key)
+        _warn_if_legacy_tensor_key(new_key)
         if old_key == new_key:
             return
         if old_key not in self._stores:
             raise KeyError(f"TensorPool.rename: old_key {old_key!r} not found. Available keys: {self.keys()}")
         self._stores[new_key] = self._stores.pop(old_key)
 
-    def keys(self) -> list[TensorKey]:
+    def keys(self) -> list[TensorKey | TensorPoolKey]:
         return list(self._stores.keys())
 
     def __len__(self) -> int:

@@ -43,17 +43,18 @@ class GeneratorNode(InferNode):
     """Diffusion 去噪 — 所有卡并行执行。"""
 
     dispatch_policy = NodeDispatchPolicy.ALL_ALL_ALL
-    input_tensor_keys = [
+    input_tensor_pins = [
         TensorKey.POSITIVE,
         TensorKey.NEGATIVE,
         TensorKey.BASE_LATENT,
         TensorKey.AUX_LATENT,
     ]
-    output_tensor_keys = [TensorKey.LATENTS]
+    output_tensor_pins = [TensorKey.LATENTS]
 
-    def run(self, model_key, context, *, tensor_pool, model_pool, device_ctx):
-        base_latent_data = self._get_data(tensor_pool, TensorKey.BASE_LATENT)  # list[Tensor] | None
-        aux_latent_data = self._get_data(tensor_pool, TensorKey.AUX_LATENT)  # Tensor | list[Tensor] | None
+    def run(self, pins, *, context):
+        model_key = self.input_model_pins[0]
+        base_latent_data = pins.get_tensor(TensorKey.BASE_LATENT)  # list[Tensor] | None
+        aux_latent_data = pins.get_tensor(TensorKey.AUX_LATENT)  # Tensor | list[Tensor] | None
         meta = context.metadata
 
         # 从 base_latent_data 构建 BaseLatent 对象 — base_latent 现在是必须的
@@ -72,13 +73,13 @@ class GeneratorNode(InferNode):
             aux_latent = AuxLatent(latent=aux_latent_data)
 
         ctx = GeneratorInferContext(
-            diffusion_model=model_pool.get_model(model_key),
-            positive=self._get_data(tensor_pool, TensorKey.POSITIVE),
-            negative=self._get_data(tensor_pool, TensorKey.NEGATIVE),
+            diffusion_model=pins.get_model(model_key),
+            positive=pins.get_tensor(TensorKey.POSITIVE),
+            negative=pins.get_tensor(TensorKey.NEGATIVE),
             base_latent=base_latent,
             aux_latent=aux_latent,
-            device=device_ctx.device,
-            offload_device=device_ctx.offload_device,
+            device=context.device.device,
+            offload_device=context.device.offload_device,
             sample_config=context.sample_config,
             runtime_config=context.runtime_config,
             cache_config=context.cache_config,
@@ -90,4 +91,4 @@ class GeneratorNode(InferNode):
         gen_def = get_generator_def(model_key)
         runner = GeneratorRunner(gen_def)
         latents = runner.run(ctx)
-        tensor_pool.put(TensorKey.LATENTS, latents)
+        pins.put_tensor(TensorKey.LATENTS, latents)

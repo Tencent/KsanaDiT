@@ -41,15 +41,15 @@ class VAEEncodeSpatialNode(InferNode):
     """
 
     dispatch_policy = NodeDispatchPolicy.R0_R0_BCAST
-    input_tensor_keys = [TensorKey.START_IMG, TensorKey.END_IMG]
-    output_tensor_keys = [TensorKey.BASE_LATENT]
+    input_tensor_pins = [TensorKey.START_IMG, TensorKey.END_IMG]
+    output_tensor_pins = [TensorKey.BASE_LATENT]
 
-    def run(self, model_key, context, *, tensor_pool, model_pool, device_ctx):
-        vae_model = model_pool.get_model(model_key)
+    def run(self, pins, *, context):
+        vae_model = pins.get_model(self.input_model_pins[0])
         meta = context.metadata
 
-        start_img = self._get_data(tensor_pool, TensorKey.START_IMG)
-        end_img = self._get_data(tensor_pool, TensorKey.END_IMG)
+        start_img = pins.get_tensor(TensorKey.START_IMG)
+        end_img = pins.get_tensor(TensorKey.END_IMG)
         batch_size = meta.get("batch_size", 1 if start_img is None else start_img.shape[0])
 
         if start_img is not None and batch_size % start_img.shape[0] != 0:
@@ -66,7 +66,7 @@ class VAEEncodeSpatialNode(InferNode):
             meta.get("target_f"),
             meta.get("target_h"),
             meta.get("target_w"),
-            device=device_ctx.device,
+            device=context.device.device,
             target_batch_size=batch_size,
             start_img=start_img,
             end_img=end_img,
@@ -75,7 +75,7 @@ class VAEEncodeSpatialNode(InferNode):
 
         if latent is not None:
             base_latent_data = [latent, mask] if mask is not None else [latent]
-            tensor_pool.put(TensorKey.BASE_LATENT, base_latent_data)
+            pins.put_tensor(TensorKey.BASE_LATENT, base_latent_data)
 
 
 @InferNodeFactory.register(
@@ -90,14 +90,14 @@ class VAEEncodeImagesNode(InferNode):
     """
 
     dispatch_policy = NodeDispatchPolicy.R0_R0_BCAST
-    input_tensor_keys = [TensorKey.IMAGE]
-    output_tensor_keys = [TensorKey.AUX_LATENT]
+    input_tensor_pins = [TensorKey.IMAGE]
+    output_tensor_pins = [TensorKey.AUX_LATENT]
 
-    def run(self, model_key, context, *, tensor_pool, model_pool, device_ctx):
-        vae_model = model_pool.get_model(model_key)
+    def run(self, pins, *, context):
+        vae_model = pins.get_model(self.input_model_pins[0])
         meta = context.metadata
 
-        image = self._get_data(tensor_pool, TensorKey.IMAGE)
+        image = pins.get_tensor(TensorKey.IMAGE)
         batch_size = meta.get("batch_size", 1)
 
         log.info(
@@ -107,12 +107,12 @@ class VAEEncodeImagesNode(InferNode):
 
         image_embeds = vae_model.forward_encode_image(
             image=image,
-            device=device_ctx.device,
+            device=context.device.device,
             target_batch_size=batch_size,
         )
 
         if image_embeds is not None:
-            tensor_pool.put(TensorKey.AUX_LATENT, image_embeds)
+            pins.put_tensor(TensorKey.AUX_LATENT, image_embeds)
 
 
 @InferNodeFactory.register(
@@ -127,11 +127,12 @@ class VAEComputeShapeNode(InferNode):
     """
 
     dispatch_policy = NodeDispatchPolicy.R0_R0_BCAST
-    input_tensor_keys = []
-    output_tensor_keys = [TensorKey.BASE_LATENT]
+    input_tensor_pins = []
+    output_tensor_pins = [TensorKey.BASE_LATENT]
 
-    def run(self, model_key, context, *, tensor_pool, model_pool, device_ctx):
-        vae_model = model_pool.get_model(model_key)
+    def run(self, pins, *, context):
+        model_key = self.input_model_pins[0]
+        vae_model = pins.get_model(model_key)
         meta = context.metadata
         target_f = meta.get("target_f", 1)
         target_h = meta.get("target_h")
@@ -148,4 +149,4 @@ class VAEComputeShapeNode(InferNode):
             batch_size=batch_size,
         )
         log.info(f"VAEComputeShapeNode: created empty latent {latent.shape} for {model_key}")
-        tensor_pool.put(TensorKey.BASE_LATENT, [latent])
+        pins.put_tensor(TensorKey.BASE_LATENT, [latent])

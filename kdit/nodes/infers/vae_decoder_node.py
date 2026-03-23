@@ -35,23 +35,23 @@ class VAEDecodeNode(InferNode):
     """VAE 解码 — 只在 rank 0 执行，不广播。"""
 
     dispatch_policy = NodeDispatchPolicy.ALL_R0_R0
-    input_tensor_keys = [TensorKey.LATENTS]
-    output_tensor_keys = [TensorKey.VIDEO]
+    input_tensor_pins = [TensorKey.LATENTS]
+    output_tensor_pins = [TensorKey.VIDEO]
 
-    def run(self, model_key, context, *, tensor_pool, model_pool, device_ctx):
-        latents = self._get_data(tensor_pool, TensorKey.LATENTS)
-        vae_model = model_pool.get_model(model_key)
+    def run(self, pins, *, context):
+        latents = pins.get_tensor(TensorKey.LATENTS)
+        vae_model = pins.get_model(self.input_model_pins[0])
         meta = context.metadata
 
         video = vae_model.forward_decode(
             latents=latents,
             local_rank=0,
-            device=device_ctx.device,
+            device=context.device.device,
             with_end_image=meta.get("with_end_image", False),
         )
 
-        if meta.get("offload_model", False) and device_ctx.offload_device is not None:
-            vae_model.to(device_ctx.offload_device)
+        if meta.get("offload_model", False) and context.device.offload_device is not None:
+            vae_model.to(context.device.offload_device)
 
         log.info(f"decoder output shape: {video.shape}")
-        tensor_pool.put(TensorKey.VIDEO, video)
+        pins.put_tensor(TensorKey.VIDEO, video)

@@ -14,7 +14,7 @@
 
 """Tests for kdit.nodes.infers.generator_node — GeneratorNode.run()。
 
-使用 mock 替代 model_pool / tensor_pool / GeneratorRunner，不需要 GPU。
+使用 mock 替代 PinHub 内部的 pool / GeneratorRunner，不需要 GPU。
 """
 
 import unittest
@@ -25,48 +25,44 @@ import torch
 from kdit.config import RuntimeConfig, SampleConfig, SolverType
 from kdit.generators.generator_context import GeneratorInferContext
 from kdit.models.model_key import ModelKey
-from kdit.nodes.core.device_context import NodeDeviceContext
+from kdit.models.model_pool_key import ModelPoolKey
+from kdit.nodes.core.device_context import DeviceInfo
 from kdit.nodes.core.node_context import NodeContext
 from kdit.nodes.core.node_types import NodeDispatchPolicy
+from kdit.nodes.core.pin_hub import PinHub
 from kdit.nodes.infers.generator_node import GeneratorNode
 from kdit.tensor import TensorKey
-from kdit.tensor.tensor_value import TensorValue
+from kdit.tensor.tensor_pool import TensorPool
+from kdit.tensor.tensor_pool_key import TensorPoolKey
 
 
 class TestGeneratorNode(unittest.TestCase):
-    """GeneratorNode 从 tensor_pool 读取数据，构造 GeneratorInferContext 并调用 generator.run()。"""
+    """GeneratorNode 从 PinHub 读取数据，构造 GeneratorInferContext 并调用 generator.run()。"""
 
     def setUp(self):
         self.node = GeneratorNode()
+        self.node.input_model_pins = [ModelKey.Wan2_2_T2V_14B]
 
-        # mock tensor_pool
-        self.tensor_pool = MagicMock()
+        # 真实 TensorPool + 预填充数据
+        self.tensor_pool = TensorPool()
         self.positive = torch.randn(1, 77, 768)
         self.negative = torch.randn(1, 77, 768)
         self.base_latent = [torch.randn(1, 4, 16, 32, 32)]
         self.aux_latent = torch.randn(1, 4, 16, 32, 32)
 
-        def _get_side_effect(key):
-            """返回 TensorValue 包装，与 _get_data() 中 v.data 配合。"""
-            mapping = {
-                TensorKey.POSITIVE: self.positive,
-                TensorKey.NEGATIVE: self.negative,
-                TensorKey.BASE_LATENT: self.base_latent,
-                TensorKey.AUX_LATENT: self.aux_latent,
-            }
-            raw = mapping.get(key)
-            return TensorValue(raw) if raw is not None else None
-
-        self.tensor_pool.get.side_effect = _get_side_effect
-        self.tensor_pool.peek.side_effect = _get_side_effect
+        # 用上游 node_id=10 写入 tensor
+        self.tensor_pool.put(TensorPoolKey(10, TensorKey.POSITIVE), self.positive)
+        self.tensor_pool.put(TensorPoolKey(10, TensorKey.NEGATIVE), self.negative)
+        self.tensor_pool.put(TensorPoolKey(20, TensorKey.BASE_LATENT), self.base_latent)
+        self.tensor_pool.put(TensorPoolKey(20, TensorKey.AUX_LATENT), self.aux_latent)
 
         # mock model_pool
         self.model_pool = MagicMock()
         self.mock_diffusion_model = MagicMock()
         self.model_pool.get_model.return_value = self.mock_diffusion_model
 
-        # mock device_ctx
-        self.device_ctx = NodeDeviceContext(
+        # device_info
+        self.device_info = DeviceInfo(
             device=torch.device("cpu"),
             offload_device=torch.device("cpu"),
             rank_id=0,
@@ -79,7 +75,27 @@ class TestGeneratorNode(unittest.TestCase):
         self.context = NodeContext(
             sample_config=self.sample_config,
             runtime_config=self.runtime_config,
+            device=self.device_info,
             metadata={"noise_shape": [4, 16, 32, 32]},
+        )
+
+        # pins_mapping: 映射上游 tensor/model
+        self.pins_mapping = {
+            "model": {ModelKey.Wan2_2_T2V_14B: ModelPoolKey(99, ModelKey.Wan2_2_T2V_14B)},
+            "tensor": {
+                TensorKey.POSITIVE: TensorPoolKey(10, TensorKey.POSITIVE),
+                TensorKey.NEGATIVE: TensorPoolKey(10, TensorKey.NEGATIVE),
+                TensorKey.BASE_LATENT: TensorPoolKey(20, TensorKey.BASE_LATENT),
+                TensorKey.AUX_LATENT: TensorPoolKey(20, TensorKey.AUX_LATENT),
+            },
+        }
+
+    def _make_pins(self, pins_mapping=None):
+        return PinHub(
+            node_id=30,
+            pins_mapping=pins_mapping or self.pins_mapping,
+            tensor_pool=self.tensor_pool,
+            model_pool=self.model_pool,
         )
 
     @patch("kdit.nodes.infers.generator_node.GeneratorRunner")
@@ -90,13 +106,8 @@ class TestGeneratorNode(unittest.TestCase):
         mock_runner.run.return_value = torch.randn(1, 4, 16, 32, 32)
         mock_runner_cls.return_value = mock_runner
 
-        self.node.run(
-            model_key=ModelKey.Wan2_2_T2V_14B,
-            context=self.context,
-            tensor_pool=self.tensor_pool,
-            model_pool=self.model_pool,
-            device_ctx=self.device_ctx,
-        )
+        pins = self._make_pins()
+        self.node.run(pins, context=self.context)
 
         # 验证 get_generator_def 被调用
         mock_get_def.assert_called_once_with(ModelKey.Wan2_2_T2V_14B)
@@ -111,15 +122,14 @@ class TestGeneratorNode(unittest.TestCase):
         self.assertIs(ctx_arg.sample_config, self.sample_config)
         self.assertIs(ctx_arg.runtime_config, self.runtime_config)
 
-        # 验证 latents 写入 tensor_pool
-        self.tensor_pool.put.assert_called_once()
-        put_args = self.tensor_pool.put.call_args
-        self.assertEqual(put_args[0][0], TensorKey.LATENTS)
+        # 验证 latents 写入 tensor_pool（通过 PinHub → TensorPoolKey(30, LATENTS)）
+        tv = self.tensor_pool.get(TensorPoolKey(30, TensorKey.LATENTS))
+        self.assertIsNotNone(tv)
 
     @patch("kdit.nodes.infers.generator_node.GeneratorRunner")
     @patch("kdit.nodes.infers.generator_node.get_generator_def")
     def test_base_latent_constructed_from_tensor_pool(self, mock_get_def, mock_runner_cls):
-        """base_latent 应从 tensor_pool 中的 BASE_LATENT 构造为 BaseLatent 对象。"""
+        """base_latent 应从 PinHub 中的 BASE_LATENT 构造为 BaseLatent 对象。"""
         from kdit.generators.generator_context import BaseLatent
 
         mock_runner = MagicMock()
@@ -129,16 +139,12 @@ class TestGeneratorNode(unittest.TestCase):
         context_no_shape = NodeContext(
             sample_config=self.sample_config,
             runtime_config=self.runtime_config,
+            device=self.device_info,
             metadata={},
         )
 
-        self.node.run(
-            model_key=ModelKey.Wan2_2_T2V_14B,
-            context=context_no_shape,
-            tensor_pool=self.tensor_pool,
-            model_pool=self.model_pool,
-            device_ctx=self.device_ctx,
-        )
+        pins = self._make_pins()
+        self.node.run(pins, context=context_no_shape)
 
         ctx_arg = mock_runner.run.call_args[0][0]
         self.assertIsInstance(ctx_arg.base_latent, BaseLatent)
@@ -148,12 +154,12 @@ class TestGeneratorNode(unittest.TestCase):
     def test_dispatch_policy(self):
         self.assertEqual(GeneratorNode.dispatch_policy, NodeDispatchPolicy.ALL_ALL_ALL)
 
-    def test_tensor_keys(self):
-        self.assertIn(TensorKey.POSITIVE, GeneratorNode.input_tensor_keys)
-        self.assertIn(TensorKey.NEGATIVE, GeneratorNode.input_tensor_keys)
-        self.assertIn(TensorKey.BASE_LATENT, GeneratorNode.input_tensor_keys)
-        self.assertIn(TensorKey.AUX_LATENT, GeneratorNode.input_tensor_keys)
-        self.assertEqual(GeneratorNode.output_tensor_keys, [TensorKey.LATENTS])
+    def test_tensor_pins(self):
+        self.assertIn(TensorKey.POSITIVE, GeneratorNode.input_tensor_pins)
+        self.assertIn(TensorKey.NEGATIVE, GeneratorNode.input_tensor_pins)
+        self.assertIn(TensorKey.BASE_LATENT, GeneratorNode.input_tensor_pins)
+        self.assertIn(TensorKey.AUX_LATENT, GeneratorNode.input_tensor_pins)
+        self.assertEqual(GeneratorNode.output_tensor_pins, [TensorKey.LATENTS])
 
 
 if __name__ == "__main__":

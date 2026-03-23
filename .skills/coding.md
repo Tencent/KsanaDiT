@@ -11,7 +11,7 @@
 | [`coding/imports-and-types.md`](coding/imports-and-types.md) | §1, §2, §11 | Import 风格、类型注解、Lint 抑制注释 |
 | [`coding/key-system.md`](coding/key-system.md) | §3 | Key 类型体系（ModelKey / PipelineKey / InferNodeType） |
 | [`coding/node-and-tensor.md`](coding/node-and-tensor.md) | §4, §5, §6 | Node / Tensor API、Ownership 关系、InferNode 开发规范 |
-| [`coding/architecture.md`](coding/architecture.md) | §7, §8, §9, §10 | Adapter 依赖方向、类命名规范、Metadata 重构、Pipeline 声明式架构 |
+| [`architecture.md`](architecture.md) | §5–§8 | Adapter 依赖方向、类命名规范、Metadata 重构、Pipeline 声明式架构、Settings YAML |
 | [`coding/generator.md`](coding/generator.md) | §12 | BaseLatent 与 AuxLatent 语义规范 |
 | [`coding/workflow.md`](coding/workflow.md) | §13, §14, §15 | 单元测试同步、代码格式检查、文档同步 |
 
@@ -27,10 +27,10 @@
 | 4 | V5 Node / Tensor API 规范 | [`node-and-tensor.md`](coding/node-and-tensor.md) |
 | 5 | Ownership 与状态关系图 | [`node-and-tensor.md`](coding/node-and-tensor.md) |
 | 6 | InferNode 开发规范 | [`node-and-tensor.md`](coding/node-and-tensor.md) |
-| 7 | Adapter 依赖方向规则 | [`architecture.md`](coding/architecture.md) |
-| 8 | 类命名规范：去除 `Ksana` 前缀 | [`architecture.md`](coding/architecture.md) |
-| 9 | NodeContext metadata 重构（TODO） | [`architecture.md`](coding/architecture.md) |
-| 10 | Pipeline 声明式架构（V4 设计规范） | [`architecture.md`](coding/architecture.md) |
+| 7 | Adapter 依赖方向规则 | [`architecture.md`](architecture.md) §5 |
+| 8 | 类命名规范：去除 `Ksana` 前缀 | [`architecture.md`](architecture.md) §6 |
+| 9 | NodeContext metadata 重构（TODO） | [`architecture.md`](architecture.md) §7 |
+| 10 | Pipeline 声明式架构 | [`architecture.md`](architecture.md) §3 |
 | 11 | Lint 抑制注释规范 | [`imports-and-types.md`](coding/imports-and-types.md) |
 | 12 | BaseLatent 与 AuxLatent 语义规范 | [`generator.md`](coding/generator.md) |
 | 13 | 新增功能必须同步单元测试 | [`workflow.md`](coding/workflow.md) |

@@ -34,11 +34,11 @@ class SaveVideoNode(InferNode):
     """保存视频 — 只在 rank 0 执行，不广播。"""
 
     dispatch_policy = NodeDispatchPolicy.ALL_R0_R0
-    input_tensor_keys = [TensorKey.VIDEO]
-    output_tensor_keys = []
+    input_tensor_pins = [TensorKey.VIDEO]
+    output_tensor_pins = []
 
-    def run(self, model_key, context, *, tensor_pool, model_pool, device_ctx):
-        video = self._get_data(tensor_pool, TensorKey.VIDEO)
+    def run(self, pins, *, context):
+        video = pins.get_tensor(TensorKey.VIDEO)
         if video is None:
             log.warning("SaveVideoNode: no VIDEO tensor found in pool, skipping save.")
             return
@@ -67,11 +67,11 @@ class SaveImageNode(InferNode):
     """保存图像 — 只在 rank 0 执行，不广播。"""
 
     dispatch_policy = NodeDispatchPolicy.ALL_R0_R0
-    input_tensor_keys = [TensorKey.VIDEO]  # 复用 VIDEO key（图像也存在此 key）
-    output_tensor_keys = []
+    input_tensor_pins = [TensorKey.VIDEO]  # 复用 VIDEO key（图像也存在此 key）
+    output_tensor_pins = []
 
-    def run(self, model_key, context, *, tensor_pool, model_pool, device_ctx):
-        image = self._get_data(tensor_pool, TensorKey.VIDEO)
+    def run(self, pins, *, context):
+        image = pins.get_tensor(TensorKey.VIDEO)
         if image is None:
             log.warning("SaveImageNode: no VIDEO tensor found in pool, skipping save.")
             return

@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import dataclasses
 from abc import ABC
 from functools import partial
 
@@ -23,6 +24,7 @@ from ..distributed import shard_model
 from ..models.model_key import ModelKey
 from ..models.model_pool import ModelPool
 from ..nodes.core.device_context import NodeDeviceContext
+from ..nodes.core.pin_hub import PinHub
 from ..tensor import TensorPool
 from ..utils import log
 from ..utils.logger import reset_logging
@@ -33,7 +35,7 @@ if platform.is_npu():
     from torch_npu.contrib import transfer_to_npu  # noqa: F401  # pylint: disable=unused-import
 
 
-class KsanaExecutor(ABC):
+class Executor(ABC):
     """
     Base class for all Ksana executors.
     和模型有关的配置信息不放在Executor中，而是放在ModelBase中
@@ -59,6 +61,9 @@ class KsanaExecutor(ABC):
         self.tensor_pool = TensorPool()
         self.dist_group = DistributedGroupManager()
         self.device_ctx = self._build_device_ctx(self.device, self.offload_device, self.rank_id, self.world_size)
+
+        # DAG 模式：Node 实例缓存（按 node_id 缓存，避免重复创建）
+        self._node_cache: dict[int, object] = {}
 
         log.info(f"create executor with device_id {self.device_id}, offload_device {self.offload_device}")
         reset_logging()
@@ -102,50 +107,99 @@ class KsanaExecutor(ABC):
         """构建 KsanaDeviceContext。"""
         return NodeDeviceContext(device=device, offload_device=offload_device, rank_id=rank_id, world_size=world_size)
 
-    def run_loader_node(self, model_key, **kwargs):
-        """统一的模型加载入口 — 根据 NodeDispatchPolicy 决定是否执行。
+    # ── DAG Node 执行入口 ─────────────────────────────────────────────
 
-        自动注入 Executor 级别的 dist_config 和 shard_fn（Node 无需关心来源）。
+    def _get_or_create_node(self, node_def):
+        """根据 NodeDef 获取或创建 Node 实例（缓存在 _node_cache 中）。
+
+        LoaderNode 通过 LoaderNodeFactory.create(model_key) 创建；
+        InferNode 通过 InferNodeFactory.create(node_type, model_key) 创建。
         """
-        from ..nodes.core.node_factory import LoaderNodeFactory
+        from ..nodes.core.node_factory import InferNodeFactory, LoaderNodeFactory
+
+        node_id = node_def.node_id
+        if node_id in self._node_cache:
+            return self._node_cache[node_id]
+
+        if node_def.is_loader:
+            node = LoaderNodeFactory.create(node_def.model_key)
+        else:
+            node = InferNodeFactory.create(node_def.node_type, node_def.model_key)
+
+        self._node_cache[node_id] = node
+        return node
+
+    def _build_pin_hub(self, node_def, pins_mapping) -> PinHub:
+        """根据 node_def 和 pins_mapping 构建 PinHub。"""
+        return PinHub(
+            node_id=node_def.node_id,
+            pins_mapping=pins_mapping,
+            tensor_pool=self.tensor_pool,
+            model_pool=self.model_pool,
+        )
+
+    def _inject_context_defaults(self, node_def, context):
+        """注入 Executor 层的默认值到 context — DeviceInfo。"""
+        if context is None:
+            return context
+        if context.device is None:
+            context = dataclasses.replace(context, device=self.device_ctx)
+        return context
+
+    def run_loader_node(self, node_def, pins_mapping, context):
+        """LoaderNode 执行入口 — 构建 PinHub 并执行 Node。
+
+        自动注入 DeviceInfo / dist_config / shard_fn 到 context，
+        构建 PinHub 绑定本地 pool，调用 node.run(pins, context=context)。
+
+        Args:
+            node_def: ``NodeDef`` — Loader 节点定义（is_loader=True）。
+            pins_mapping: ``dict`` — 由 ``compute_pins_mapping()`` 生成的 pin 映射。
+            context: ``NodeContext`` — metadata 中存放 build_loader_kwargs() 的结果。
+        """
         from ..nodes.core.node_types import NodeDispatchPolicy
 
-        kwargs.setdefault("dist_config", self.dist_config)
-        kwargs.setdefault("shard_fn", self.shard_fn)
+        context = self._inject_context_defaults(node_def, context)
 
-        node = LoaderNodeFactory.create(model_key)
+        # 注入 dist_config / shard_fn 到 metadata
+        if context is not None and context.metadata is not None:
+            context.metadata.setdefault("dist_config", self.dist_config)
+            context.metadata.setdefault("shard_fn", self.shard_fn)
+
+        node = self._get_or_create_node(node_def)
         policy = node.dispatch_policy
 
-        if policy == NodeDispatchPolicy.ALL_ALL_ALL or self.device_ctx.rank_id == 0:
-            node.run(model_key, model_pool=self.model_pool, device_ctx=self.device_ctx, **kwargs)
+        is_active = policy == NodeDispatchPolicy.ALL_ALL_ALL or self.device_ctx.rank_id == 0
+        if is_active:
+            pins = self._build_pin_hub(node_def, pins_mapping)
+            node.run(pins, context=context)
 
-    def run_infer_node(self, infer_node_type, model_key, context):
-        """统一的前向推理入口 — 根据 NodeDispatchPolicy 决定执行 + 同步。
+    def run_infer_node(self, node_def, pins_mapping, context):
+        """InferNode 执行入口 — 构建 PinHub 并执行 Node。
 
-        结果写入 tensor_pool，不返回值。外部通过 engine.get_tensor() 获取输出。
+        自动注入 DeviceInfo 到 context，构建 PinHub 绑定本地 pool，
+        管理 pre/post tensor 同步。
+
+        Args:
+            node_def: ``NodeDef`` — Infer 节点定义（is_loader=False）。
+            pins_mapping: ``dict`` — 由 ``compute_pins_mapping()`` 生成的 pin 映射。
+            context: ``NodeContext`` — 可序列化的上下文（device 字段由此方法注入）。
         """
-        from ..nodes.core.node_factory import InferNodeFactory
         from ..nodes.core.node_types import NodeDispatchPolicy
 
-        node = InferNodeFactory.create(infer_node_type, model_key)
+        context = self._inject_context_defaults(node_def, context)
+
+        node = self._get_or_create_node(node_def)
         policy = node.dispatch_policy
 
-        # TODO: 根据 policy 的输入维度，executor 在执行前自动管理输入 tensor 的同步
-        # 例如 R0 输入 → 自动 broadcast input_tensor_keys 到所有卡
-        # 这样 Node 内部不需要感知多卡，executor 负责 tensor 的 pre-sync 和 post-sync
         self._pre_sync_tensors(node, policy)
 
-        is_active_rank = policy == NodeDispatchPolicy.ALL_ALL_ALL or self.device_ctx.rank_id == 0
-        if is_active_rank:
-            node.run(
-                model_key,
-                context,
-                tensor_pool=self.tensor_pool,
-                model_pool=self.model_pool,
-                device_ctx=self.device_ctx,
-            )
+        is_active = policy == NodeDispatchPolicy.ALL_ALL_ALL or self.device_ctx.rank_id == 0
+        if is_active:
+            pins = self._build_pin_hub(node_def, pins_mapping)
+            node.run(pins, context=context)
 
-        self._post_sync_tensors(node, policy)
+        self._post_sync_tensors(node, node_def, policy)
 
     def _pre_sync_tensors(self, node, policy):
         """执行前的 tensor 同步（预留接口）。
@@ -154,17 +208,20 @@ class KsanaExecutor(ABC):
         """
         pass
 
-    def _post_sync_tensors(self, node, policy):
+    def _post_sync_tensors(self, node, node_def, policy):
         """执行后的 tensor 同步。
 
-        当前实现：R0_R0_BCAST 时 broadcast output_tensor_keys 到所有卡。
+        当前实现：R0_R0_BCAST 时 broadcast output_tensor_pins 到所有卡。
+        使用 TensorPoolKey(node_id, pin) 确保与 PinHub 写入的 key 一致。
         """
         from ..nodes.core.node_types import NodeDispatchPolicy
+        from ..tensor.tensor_pool_key import TensorPoolKey
 
         if policy == NodeDispatchPolicy.R0_R0_BCAST and self.device_ctx.world_size > 1:
+            pool_keys = [TensorPoolKey(node_def.node_id, pin) for pin in node.output_tensor_pins]
             self.dist_group.broadcast_tensors(
                 tensor_pool=self.tensor_pool,
-                keys=node.output_tensor_keys,
+                keys=pool_keys,
                 src_rank=0,
                 device=self.device_ctx.device,
             )

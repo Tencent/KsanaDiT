@@ -221,7 +221,7 @@ def load_files_to_state_dict(file_list, device=None):
     # 多文件时使用线程池并行读取（safetensors 的加载主要是 IO 密集型）
     log.info(f"Loading {len(file_list)} files in parallel...")
     state_dict = {}
-    with ThreadPoolExecutor(max_workers=min(len(file_list), 4)) as executor:
+    with ThreadPoolExecutor(max_workers=min(len(file_list), 2)) as executor:
         futures = {
             executor.submit(load_file_to_state_dict, str(file_path), device): file_path for file_path in file_list
         }

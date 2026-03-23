@@ -22,7 +22,7 @@ import torch.distributed as dist
 
 from ..accelerator import platform
 from ..config import DistributedConfig
-from ..executor import KsanaExecutor, RayKsanaExecutor
+from ..executor import Executor, RayExecutor
 from ..utils import log
 from ..utils.distribute import get_gpu_count, get_torchrun_env, is_launched_by_torchrun
 from ..utils.profile import time_profile
@@ -120,7 +120,7 @@ class Engine:
 
     def init_executors(self, dist_config: DistributedConfig = None, offload_device=None):
         if dist_config.num_gpus == 1:
-            self.executors = KsanaExecutor(0, offload_device=offload_device)
+            self.executors = Executor(0, offload_device=offload_device)
             return
         if dist_config.num_gpus > get_gpu_count():
             raise ValueError(f"num_gpus({dist_config.num_gpus}) must be less than or equal to {get_gpu_count()}")
@@ -129,7 +129,7 @@ class Engine:
             world_size, rank_id, local_rank_id, _ = get_torchrun_env()
             if world_size != dist_config.num_gpus:
                 raise ValueError(f"world_size({world_size}) must be equal to num_gpus({dist_config.num_gpus})")
-            self.executors = KsanaExecutor(device_id=local_rank_id, offload_device=offload_device)
+            self.executors = Executor(device_id=local_rank_id, offload_device=offload_device)
             self.executors.init_torch_dist_group(rank_id, dist_config=dist_config)
         else:
             # ray local device id always be 0
@@ -158,14 +158,14 @@ class Engine:
                         placement_group=pg,
                         placement_group_bundle_index=i,
                     )
-                    executor = RayKsanaExecutor.options(
+                    executor = RayExecutor.options(
                         scheduling_strategy=strategy,
                     ).remote(local_rank_id, offload_device)
                     self.executors.append(executor)
             else:
                 ray.init(num_gpus=dist_config.num_gpus)
                 self.executors = [
-                    RayKsanaExecutor.remote(local_rank_id, offload_device) for _ in range(dist_config.num_gpus)
+                    RayExecutor.remote(local_rank_id, offload_device) for _ in range(dist_config.num_gpus)
                 ]
             init_futures = []
             # executors is sorted by rank_id
@@ -267,23 +267,36 @@ class Engine:
 
     # ── V5 Node 架构：统一入口 ──────────────────────────────────────────
 
-    def run_loader_node(self, model_key, **kwargs):
-        """统一的模型加载入口 — 分发到所有 Executor。"""
+    def run_loader_node(self, node_def, pins_mapping, context):
+        """LoaderNode 执行入口 — 分发到所有 Executor。
+
+        Args:
+            node_def: ``NodeDef`` — Loader 节点定义（is_loader=True）。
+            pins_mapping: ``dict`` — 由 ``compute_pins_mapping()`` 生成的 pin 映射。
+            context: ``NodeContext`` — metadata 中存放 build_loader_kwargs() 的结果。
+        """
         # 自动按 model_key 生成 profile label
-        node_label = "load_unknown"
-        if model_key is not None:
-            model_name = model_key.name if hasattr(model_key, "name") else str(model_key)
+        if node_def.model_key is not None:
+            model_name = node_def.model_key.name if hasattr(node_def.model_key, "name") else str(node_def.model_key)
             node_label = f"load_[{model_name}]"
+        else:
+            node_label = f"load_node_{node_def.node_id}"
+
         with time_profile(node_label):
             if self.is_ray:
-                ray.get([ex.run_loader_node.remote(model_key, **kwargs) for ex in self.executors])
+                ray.get([ex.run_loader_node.remote(node_def, pins_mapping, context) for ex in self.executors])
             else:
-                self.executors.run_loader_node(model_key, **kwargs)
+                self.executors.run_loader_node(node_def, pins_mapping, context)
 
-    def run_infer_node(self, infer_node_type, model_key, context):
-        """统一的前向推理入口 — 分发到所有 Executor，结果写入各自 tensor_pool。
+    def run_infer_node(self, node_def, pins_mapping, context):
+        """InferNode 执行入口 — 分发到所有 Executor，结果写入各自 tensor_pool。
 
         必须在 tensor_scope() 内调用，否则抛出 RuntimeError。
+
+        Args:
+            node_def: ``NodeDef`` — Infer 节点定义（is_loader=False）。
+            pins_mapping: ``dict`` — 由 ``compute_pins_mapping()`` 生成的 pin 映射。
+            context: ``NodeContext`` — 可序列化的上下文（device 字段由 Executor 注入）。
         """
         if self._tensor_scope_depth <= 0:
             raise RuntimeError(
@@ -292,17 +305,17 @@ class Engine:
                 "tensors are auto-cleared and GPU memory is not leaked."
             )
         # 自动按 node_type + model_key 生成 profile label
-        node_label = infer_node_type.name if infer_node_type is not None else "UNKNOWN"
-        if model_key is not None:
-            model_name = model_key.name if hasattr(model_key, "name") else str(model_key)
+        node_label = node_def.node_type.name if node_def.node_type is not None else f"node_{node_def.node_id}"
+        if node_def.model_key is not None:
+            model_name = node_def.model_key.name if hasattr(node_def.model_key, "name") else str(node_def.model_key)
             node_label = f"{node_label}[{model_name}]"
 
         with time_profile(node_label):
             if self.is_ray:
-                futures = [ex.run_infer_node.remote(infer_node_type, model_key, context) for ex in self.executors]
+                futures = [ex.run_infer_node.remote(node_def, pins_mapping, context) for ex in self.executors]
                 ray.get(futures)
             else:
-                self.executors.run_infer_node(infer_node_type, model_key, context)
+                self.executors.run_infer_node(node_def, pins_mapping, context)
 
     @contextmanager
     def tensor_scope(self, keep=None):

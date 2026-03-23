@@ -1,3 +1,3 @@
 # Executor
 
-::: kdit.executor.KsanaExecutor
+::: kdit.executor.Executor

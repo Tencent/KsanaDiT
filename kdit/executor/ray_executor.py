@@ -18,7 +18,7 @@ import ray
 
 from ..accelerator import platform
 from ..config import DistributedConfig
-from .executor import KsanaExecutor
+from .executor import Executor
 
 if platform.is_npu():
     _ray_options = {"num_cpus": 0, "resources": {"NPU": 1}}
@@ -27,7 +27,7 @@ else:
 
 
 @ray.remote(**_ray_options)
-class RayKsanaExecutor(KsanaExecutor):
+class RayExecutor(Executor):
 
     def init_torch_dist_group(self, rank_id, dist_config: DistributedConfig):
         """

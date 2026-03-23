@@ -1,3 +1,3 @@
 # RayExecutor
 
-::: kdit.executor.RayKsanaExecutor
+::: kdit.executor.RayExecutor

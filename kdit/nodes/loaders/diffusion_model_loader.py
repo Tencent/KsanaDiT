@@ -44,7 +44,7 @@ from ..core.node_types import NodeDispatchPolicy
 class DiffusionLoaderNode(LoaderNode):
     """加载 Diffusion 模型。
 
-    kwargs 由 Executor.run_loader_node() 自动注入 dist_config / shard_fn，
+    context.metadata 由 Executor.run_loader_node() 自动注入 dist_config / shard_fn，
     Pipeline 只需传 model_path / model_config / lora_config。
     ComfyUI 适配层可额外传 model_patch_path 用于合并补丁权重（如 VACE）。
     """
@@ -154,17 +154,19 @@ class DiffusionLoaderNode(LoaderNode):
 
     @time_profile
     # TODO(test): 需要添加一个本地测试用例来验证 model_patch_path 的加载功能
-    def run(self, model_key, *, model_pool, device_ctx, **kwargs):
-        model_path = kwargs.pop("model_path")
-        model_patch_path = kwargs.pop("model_patch_path", None)
-        model_config: ModelConfig = kwargs.pop("model_config", None)
-        lora_config = kwargs.pop("lora_config", None)
-        dist_config = kwargs.pop("dist_config", None)
-        shard_fn = kwargs.pop("shard_fn", None)
-        comfy_bar_callback = kwargs.pop("comfy_bar_callback", None)
+    def run(self, pins, *, context):
+        meta = context.metadata
+        model_key = self.output_model_pins[0]
+        model_path = meta.pop("model_path")
+        model_patch_path = meta.pop("model_patch_path", None)
+        model_config: ModelConfig = meta.pop("model_config", None)
+        lora_config = meta.pop("lora_config", None)
+        dist_config = meta.pop("dist_config", None)
+        shard_fn = meta.pop("shard_fn", None)
+        comfy_bar_callback = meta.pop("comfy_bar_callback", None)
 
-        device = device_ctx.offload_device
-        offload_device = device_ctx.offload_device
+        device = context.device.offload_device
+        offload_device = context.device.offload_device
 
         log.info(f"{model_key} loading diffusion model from: {model_path}")
         load_model_path_or_files = self._valid_input_model_path(model_path)
@@ -238,4 +240,4 @@ class DiffusionLoaderNode(LoaderNode):
                 comfy_bar_callback()
 
         loaded_model = res[0] if len(res) == 1 else res
-        model_pool.update_model_with_key(model_key, loaded_model)
+        pins.put_model(model_key, loaded_model)

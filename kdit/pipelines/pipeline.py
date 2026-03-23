@@ -47,7 +47,7 @@ from kdit.utils.types import evolve_with_recommend
 
 from .context_builder import ContextBuilder
 from .generate_inputs import PipelineGenerateInputs
-from .pipeline_def import PipelineDef, get_pipeline_def
+from .pipeline_def import NodeDef, PipelineDef, get_pipeline_def
 from .pipeline_key import get_pipeline_key_from_path
 from .pipeline_phase import InferTask, LoadTask
 
@@ -56,8 +56,10 @@ from .pipeline_phase import InferTask, LoadTask
 _SEPARATOR = "=" * 60
 
 
-def _phase_display_name(phase: LoadTask | InferTask) -> str:
+def _phase_display_name(phase: LoadTask | InferTask | NodeDef) -> str:
     """根据 phase 类型构建醒目的显示名称。"""
+    if isinstance(phase, NodeDef):
+        return _node_def_display_name(phase)
     if isinstance(phase, LoadTask):
         return f"LOAD({phase.model_key.name})"
     # InferTask: model_key 可能为 None（如 SaveNode）
@@ -67,8 +69,19 @@ def _phase_display_name(phase: LoadTask | InferTask) -> str:
     return node_name
 
 
+def _node_def_display_name(node_def: NodeDef) -> str:
+    """为 DAG 模式的 NodeDef 构建醒目的显示名称。"""
+    if node_def.is_loader:
+        model_name = node_def.model_key.name if node_def.model_key else "UNKNOWN"
+        return f"LOAD({model_name})"
+    node_name = node_def.node_type.name if node_def.node_type else f"node_{node_def.node_id}"
+    if node_def.model_key is not None:
+        return f"{node_name}({node_def.model_key.name})"
+    return node_name
+
+
 @contextmanager
-def _task_node_timer(phase: LoadTask | InferTask):
+def _task_node_timer(phase: LoadTask | InferTask | NodeDef):
     """为 load / infer phase 打印醒目的 START / FINISH 日志及耗时。"""
     name = _phase_display_name(phase)
     log.info(_SEPARATOR)
@@ -170,9 +183,9 @@ class Pipeline:
         vae_checkpoint_dir=None,
         lora_config: LoraConfig | list[LoraConfig] | None = None,
     ):
+        """按 PipelineDef 加载所有模型。"""
         # 先清理本 PipelineDef 声明的所有模型，保证全新加载
         self._engine.clear_models()
-        """按 PipelineDef.load_phases 加载所有模型。"""
         self._has_lora = lora_config is not None
         self._default_settings = load_default_settings(self._def.pipeline_key, with_lora=self._has_lora)
 
@@ -182,10 +195,19 @@ class Pipeline:
         )
         lora_list = self._ctx_builder.resolve_lora_config(lora_config, self._default_settings) if lora_config else None
 
-        # 按 load_phases 顺序加载
-        for phase in self._def.load_phases:
-            kwargs = self._ctx_builder.build_loader_kwargs(
-                phase.model_key,
+        # DAG 模式：按拓扑序遍历 Loader 节点
+        from kdit.nodes.core.node_context import NodeContext
+
+        from .dag import compute_pins_mapping, topo_sort
+
+        sorted_nodes = topo_sort(self._def.nodes, self._def.edges)
+        for node_def in sorted_nodes:
+            if not node_def.is_loader:
+                continue
+            pins_mapping = compute_pins_mapping(node_def, self._def.edges)
+            # 构建 loader context — metadata 中放 build_loader_kwargs() 的结果
+            loader_kwargs = self._ctx_builder.build_loader_kwargs(
+                node_def.model_key,
                 load_model_path,
                 text_checkpoint_dir,
                 vae_checkpoint_dir,
@@ -193,12 +215,13 @@ class Pipeline:
                 lora_list=lora_list,
                 pipeline_settings=self._default_settings,
             )
-            with _task_node_timer(phase):
-                self._engine.run_loader_node(phase.model_key, **kwargs)
+            context = NodeContext(metadata=loader_kwargs)
+            with _task_node_timer(node_def):
+                self._engine.run_loader_node(node_def, pins_mapping, context)
 
     def clear(self):
         """清理所有已加载的模型。"""
-        load_keys = [lp.model_key for lp in self._def.load_phases]
+        load_keys = [n.model_key for n in self._def.nodes if n.is_loader and n.model_key is not None]
         if load_keys:
             self._engine.cleanup_distributed()
 
@@ -215,7 +238,7 @@ class Pipeline:
         cache_config: list[CacheConfig | HybridCacheConfig] | None = None,
         **kwargs,
     ):
-        """按 PipelineDef.infer_phases 执行推理 — 100% 兼容旧 API。
+        """按 PipelineDef 执行推理。
 
         公共参数在此校验，Pipeline 特有参数通过 **kwargs 传给 ContextBuilder。
         """
@@ -248,7 +271,7 @@ class Pipeline:
         )
 
         # ContextBuilder 提取特有输入（注入内部引用供 noise_shape / VACE 等计算）
-        vae_model_key = next((lp.model_key for lp in self._def.load_phases if lp.model_key in VAE_KEYS), None)
+        vae_model_key = self._find_vae_model_key()
         self._ctx_builder.prepare_generate_inputs(
             inputs,
             _default_settings=self._default_settings,
@@ -260,22 +283,7 @@ class Pipeline:
         # 执行 infer phases
         keep = list(self._def.keep_tensors)
         with self._engine.tensor_scope(keep=keep):
-            for phase in self._def.infer_phases:
-                # 1. 条件检查
-                if phase.condition and not self._ctx_builder.check_condition(phase.condition, inputs):
-                    continue
-
-                # 2. 准备 tensor
-                tensors = self._ctx_builder.prepare_tensors(phase, inputs)
-                if tensors:
-                    self._engine.put_tensors(tensors)
-
-                # 3. 构建 context
-                node_ctx = self._ctx_builder.build_context(phase, inputs)
-
-                # 4. 执行
-                with _task_node_timer(phase):
-                    self._engine.run_infer_node(phase.node_type, phase.model_key, node_ctx)
+            self._generate_dag(inputs)
 
             # 获取输出
             output_tv = self._engine.get_tensor(TensorKey.VIDEO)
@@ -295,6 +303,46 @@ class Pipeline:
             _profiler.print_summary()
 
         return output if runtime_config.return_frames else None
+
+    def _find_vae_model_key(self):
+        """从 DAG nodes 中查找 VAE ModelKey。"""
+        return next(
+            (n.model_key for n in self._def.nodes if n.is_loader and n.model_key in VAE_KEYS),
+            None,
+        )
+
+    def _generate_dag(self, inputs: PipelineGenerateInputs):
+        """按拓扑序遍历 Infer 节点，通过 engine.run_infer_node() 执行。"""
+        from .dag import compute_pins_mapping, topo_sort
+
+        sorted_nodes = topo_sort(self._def.nodes, self._def.edges)
+        for node_def in sorted_nodes:
+            if node_def.is_loader:
+                continue
+
+            # 1. 条件检查
+            if node_def.condition and not self._ctx_builder.check_condition(node_def.condition, inputs):
+                continue
+
+            # 2. 构建等价的 InferTask 供 ContextBuilder 使用
+            phase = InferTask(
+                node_type=node_def.node_type,
+                model_key=node_def.model_key,
+                condition=node_def.condition,
+            )
+
+            # 3. 准备 tensor
+            tensors = self._ctx_builder.prepare_tensors(phase, inputs)
+            if tensors:
+                self._engine.put_tensors(tensors)
+
+            # 4. 构建 context
+            node_ctx = self._ctx_builder.build_context(phase, inputs)
+
+            # 5. 计算 pins_mapping 并执行
+            pins_mapping = compute_pins_mapping(node_def, self._def.edges)
+            with _task_node_timer(node_def):
+                self._engine.run_infer_node(node_def, pins_mapping, node_ctx)
 
 
 # ── 辅助函数 ─────────────────────────────────────────────────────────────

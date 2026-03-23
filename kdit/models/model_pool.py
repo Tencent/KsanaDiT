@@ -12,24 +12,44 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import annotations
+
 import gc
+import warnings
 
 from ..accelerator.platform import empty_cache
 from ..utils.logger import log
 from .model_base import ModelBase
 from .model_key import ModelKey
+from .model_pool_key import ModelPoolKey
+
+_MODEL_KEY_DEPRECATION_MSG = (
+    "Passing ModelKey directly to ModelPool is deprecated, use ModelPoolKey instead. "
+    "This will be removed when legacy Node adapters are cleaned up."
+)
+
+
+def _warn_if_legacy_model_key(key: ModelKey | ModelPoolKey) -> None:
+    if isinstance(key, ModelKey):
+        warnings.warn(_MODEL_KEY_DEPRECATION_MSG, DeprecationWarning, stacklevel=3)
 
 
 class ModelPool:
     def __init__(self):
-        self.loaded_models: dict[ModelKey, ModelBase] = {}
+        self.loaded_models: dict[ModelKey | ModelPoolKey, ModelBase] = {}
 
     def update_model(self, model: ModelBase, allow_exist=False):
         model_key = model.model_key
         self.update_model_with_key(model_key=model_key, model=model, allow_exist=allow_exist)
 
-    def update_model_with_key(self, model_key: ModelKey, model: ModelBase | list[ModelBase], allow_exist=False):
+    def update_model_with_key(
+        self,
+        model_key: ModelKey | ModelPoolKey,
+        model: ModelBase | list[ModelBase],
+        allow_exist=False,
+    ):
         """update model with specific key"""
+        _warn_if_legacy_model_key(model_key)
         if model_key in self.loaded_models:
             log.warning(f"model_key {model_key} has been loaded")
             if not allow_exist:
@@ -43,7 +63,8 @@ class ModelPool:
         for model in model_list:
             self.update_model(model, allow_exist)
 
-    def get_model(self, model_key: ModelKey) -> ModelBase:
+    def get_model(self, model_key: ModelKey | ModelPoolKey) -> ModelBase:
+        _warn_if_legacy_model_key(model_key)
         if model_key is None:
             return None
         if model_key not in self.loaded_models:
@@ -69,7 +90,7 @@ class ModelPool:
         if hasattr(model, "release_pinned_memory") and callable(model.release_pinned_memory):
             model.release_pinned_memory()
 
-    def clear_models(self, model_keys: list[ModelKey] | ModelKey = None):
+    def clear_models(self, model_keys: list[ModelKey | ModelPoolKey] | ModelKey | ModelPoolKey = None):
         """clear models loaded by this executor
         clear all if model_keys is None
         """

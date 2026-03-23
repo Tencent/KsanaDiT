@@ -210,13 +210,13 @@ def clear(self, exclude: list[TensorKey] | None = None) -> None:
 ```
 Engine (singleton via get_default / 或多实例)
  ├── owns: executors
- │    ├── 单卡模式: 1 个 KsanaExecutor 实例
- │    └── 多卡模式: N 个 RayKsanaExecutor (Ray Actor)
+ │    ├── 单卡模式: 1 个 Executor 实例
+ │    └── 多卡模式: N 个 RayExecutor (Ray Actor)
  ├── owns: num_gpus, _is_ray, _cleaned_up (引擎级元数据)
  ├── NOT own: model_pool, tensor_pool, device 信息 (这些属于 Executor)
  └── NOT own: 任何 Node 实例 (Node 由 AdvancedFactory 按需创建，用完即弃)
 
-KsanaExecutor (每卡一个实例)
+Executor (每卡一个实例)
  ├── owns: model_pool        — ModelPool (存储已加载的模型)
  ├── owns: tensor_pool       — TensorPool (存储推理中间 tensor)
  ├── owns: dist_group        — DistributedGroupManager (管理 torch.distributed)
@@ -234,7 +234,7 @@ KsanaExecutor (每卡一个实例)
 
 | 属性 | 类型 | 说明 |
 |------|------|------|
-| `executors` | `KsanaExecutor` 或 `list[RayKsanaExecutor]` | **唯一核心持有物**。单卡时是一个实例，多卡时是 Ray Actor 列表 |
+| `executors` | `Executor` 或 `list[RayExecutor]` | **唯一核心持有物**。单卡时是一个实例，多卡时是 Ray Actor 列表 |
 | `num_gpus` | `int` | GPU 数量，从 dist_config 复制 |
 | `_is_ray` | `bool` | 是否使用 Ray 分布式 |
 | `_cleaned_up` | `bool` | 清理标记，防止重复清理 |
@@ -248,7 +248,7 @@ KsanaExecutor (每卡一个实例)
 - `get_tensor()` → 从 rank 0 Executor 的 tensor_pool 读取
 - `inference_session()` → 管理所有 Executor 的 tensor_pool 生命周期
 
-#### KsanaExecutor (`kdit/executor/executor.py`)
+#### Executor (`kdit/executor/executor.py`)
 
 | 属性 | 类型 | 生命周期 | 说明 |
 |------|------|---------|------|
@@ -425,7 +425,7 @@ class MyNode(InferNode):
 
 ### Executor 同步机制
 
-`KsanaExecutor.run_infer_node()` 负责：
+`Executor.run_infer_node()` 负责：
 
 1. **`_pre_sync_tensors()`**: 执行前的 tensor 同步（预留接口，未来可自动 broadcast 输入）
 2. **`is_active_rank`**: 根据 policy 判断当前卡是否执行 `run()`

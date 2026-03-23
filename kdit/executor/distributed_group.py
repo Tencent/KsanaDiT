@@ -18,6 +18,7 @@ import torch
 import torch.distributed as dist
 
 from ..tensor import TensorKey, TensorPool
+from ..tensor.tensor_pool_key import TensorPoolKey
 from ..utils.logger import log
 
 
@@ -47,7 +48,7 @@ class DistributedGroupManager:
     def broadcast_tensors(
         self,
         tensor_pool: TensorPool,
-        keys: list[TensorKey],
+        keys: list[TensorKey | TensorPoolKey],
         src_rank: int = 0,
         device: torch.device | None = None,
     ) -> None:
@@ -57,6 +58,7 @@ class DistributedGroupManager:
         非 src_rank 先接收 meta（shape + dtype），创建空 tensor，再接收数据并写入 tensor_pool。
 
         支持 ``list[torch.Tensor]``：先广播 list 长度，再逐个广播每个 tensor。
+        keys 可以是 ``TensorKey`` 或 ``TensorPoolKey``。
         """
         if not self._initialized or self.world_size <= 1:
             return

@@ -14,72 +14,63 @@
 
 from abc import ABC, abstractmethod
 
-from kdit.models.model_pool import ModelPool
-from kdit.tensor import TensorKey, TensorPool
+from kdit.models.model_key import ModelKey
+from kdit.tensor import TensorKey
 
-from .device_context import NodeDeviceContext
 from .node_context import NodeContext
 from .node_types import NodeDispatchPolicy
+from .pin_hub import PinHub
 
 
 class LoaderNode(ABC):
-    """加载模型的 Node — 写入 model_pool。
+    """加载模型的 Node — 通过 PinHub 写入 ModelPool。
 
     子类覆写 run() 实现具体加载逻辑。
     dispatch_policy 默认 ALL_ALL_ALL（每卡独立加载），子类可覆写。
+
+    run() 签名统一为 ``(self, pins: PinHub, *, context: NodeContext)``：
+    - ``pins.put_model(model_key, model)`` 写入加载好的模型
+    - ``context.metadata`` 获取加载参数（model_path / model_config 等）
+    - ``context.device`` 获取设备信息（由 Executor 注入）
     """
 
     dispatch_policy: NodeDispatchPolicy = NodeDispatchPolicy.ALL_ALL_ALL
 
+    # output_model_pins 由 Factory 注册时的 ModelKey 自动填充，不需要手动写
+    output_model_pins: list[ModelKey] = []
+
     @abstractmethod
-    def run(
-        self,
-        model_key,
-        *,
-        model_pool: ModelPool,
-        device_ctx: NodeDeviceContext,
-        **kwargs,
-    ) -> None:
-        """加载模型到 model_pool。"""
+    def run(self, pins: PinHub, *, context: NodeContext) -> None:
+        """加载模型 — 通过 pins.put_model() 写入，加载参数从 context.metadata 获取。"""
 
 
 class InferNode(ABC):
-    """前向推理的 Node — 读写 tensor_pool。
+    """前向推理的 Node — 通过 PinHub 读写数据。
 
     子类覆写 run() 实现具体推理逻辑。
-    所有结果必须写入 tensor_pool，run() 统一返回 None。
+    所有结果必须通过 pins.put_tensor() 写入，run() 统一返回 None。
     外部通过 engine.get_tensor(key) 从 rank 0 的 tensor_pool 获取最终输出。
 
-    约束：
-    - run() 签名固定，禁止添加额外参数或 **kwargs
-    - 输入 tensor 只能通过 tensor_pool.get()/peek() 获取
-    - 输出 tensor 只能通过 tensor_pool.put() 写入
-    - 额外配置通过 context.metadata 传递
+    run() 签名统一为 ``(self, pins: PinHub, *, context: NodeContext)``：
+    - ``pins.get_model(model_key)`` 读取模型
+    - ``pins.get_tensor(tensor_key)`` 读取输入 tensor
+    - ``pins.put_tensor(tensor_key, data)`` 写入输出 tensor
+    - ``context.device`` 获取设备信息（由 Executor 注入）
+    - ``context.metadata`` 获取额外配置
 
-    input_tensor_keys / output_tensor_keys 用于：
-    - 声明 Node 的 tensor 输入/输出契约
-    - R0_R0_BCAST 时 output_tensor_keys 指定需要 broadcast 的 key
-    - 未来 executor 可据此做输入校验和 DAG 构建
+    Pin 声明：
+    - ``input_model_pins``: 由 Factory.create() 自动注入，Node 内通过 ``self.input_model_pins[0]`` 获取
+    - ``input_tensor_pins`` / ``output_tensor_pins``: 子类声明 tensor 输入/输出端口
+    - R0_R0_BCAST 时 ``output_tensor_pins`` 指定需要 broadcast 的 key
     """
 
     dispatch_policy: NodeDispatchPolicy = NodeDispatchPolicy.ALL_ALL_ALL
-    input_tensor_keys: list[str] = []
-    output_tensor_keys: list[str] = []
 
-    @staticmethod
-    def _get_data(tensor_pool: TensorPool, key: TensorKey):
-        """从 pool 取 TensorValue 并返回 .data，不存在返回 None。"""
-        v = tensor_pool.get(key)
-        return v.data if v is not None else None
+    # input_model_pins 由 Factory.create() 自动注入，不需要手动写
+    input_model_pins: list[ModelKey] = []
+    input_tensor_pins: list[TensorKey] = []
+    output_tensor_pins: list[TensorKey] = []
 
     @abstractmethod
-    def run(
-        self,
-        model_key,
-        context: NodeContext,
-        *,
-        tensor_pool: TensorPool,
-        model_pool: ModelPool,
-        device_ctx: NodeDeviceContext,
-    ) -> None:
-        """前向推理 — 结果写入 tensor_pool，不返回值。"""
+    def run(self, pins: PinHub, *, context: NodeContext) -> None:
+        """前向推理 — 通过 pins 读写数据，通过 context 获取配置和设备信息。"""

@@ -18,13 +18,17 @@ import torch
 
 
 @dataclass(frozen=True)
-class NodeDeviceContext:
-    """运行时设备信息，由 Executor 创建并传入 Node.run()。
+class DeviceInfo:
+    """设备信息 — 由 Executor 创建，注入到 NodeContext.device。
 
-    frozen=True 保证 Node 无法篡改设备配置。
+    替代原 NodeDeviceContext，名字更短。frozen=True 保证 Node 无法篡改。
     """
 
     device: torch.device
     offload_device: torch.device
     rank_id: int
     world_size: int
+
+
+# 向后兼容别名 — Phase 5 移除
+NodeDeviceContext = DeviceInfo

@@ -13,11 +13,11 @@
 # limitations under the License.
 
 from .distributed_group import DistributedGroupManager
-from .executor import KsanaExecutor
-from .ray_executor import RayKsanaExecutor
+from .executor import Executor
+from .ray_executor import RayExecutor
 
 __all__ = [
     "DistributedGroupManager",
-    "KsanaExecutor",
-    "RayKsanaExecutor",
+    "Executor",
+    "RayExecutor",
 ]

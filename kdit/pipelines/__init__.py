@@ -13,10 +13,14 @@
 # limitations under the License.
 
 from .context_builder import ContextBuilder
+from .dag import compute_pins_mapping, topo_sort
 from .defs import *  # noqa: F403
 from .generate_inputs import PipelineGenerateInputs
+from .pin_ref import NodeRef, PinRef
 from .pipeline import Pipeline
 from .pipeline_def import (
+    Edge,
+    NodeDef,
     PipelineDef,
     PipelineDefBuilder,
     get_pipeline_def,
@@ -37,4 +41,11 @@ __all__ = [
     "register_pipeline_def",
     "get_pipeline_def",
     "get_pipeline_key_from_path",
+    # Phase 2: DAG
+    "NodeDef",
+    "Edge",
+    "NodeRef",
+    "PinRef",
+    "topo_sort",
+    "compute_pins_mapping",
 ]

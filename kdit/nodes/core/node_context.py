@@ -18,6 +18,8 @@ import torch
 
 from kdit.config import RuntimeConfig, SampleConfig
 
+from .device_context import DeviceInfo
+
 
 @dataclass
 class NodeContext:
@@ -41,6 +43,9 @@ class NodeContext:
 
     # 元数据（如 noise_shape、vace_config 等由上游 Node 或 Pipeline 写入）
     metadata: dict = field(default_factory=dict)
+
+    # 设备信息 — Pipeline 层构建时为 None，Executor 在调用 Node 前注入
+    device: DeviceInfo = None
 
     def __post_init__(self):
         """强制校验：不允许包含 tensor（包括 metadata dict 内部）。"""

@@ -1,4 +1,4 @@
-# Copyright 2025 Tencent
+# Copyright 2026 Tencent
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,15 +12,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .tensor_key import TensorKey
-from .tensor_pool import TensorPool
-from .tensor_pool_key import TensorPoolKey
-from .tensor_value import TensorData, TensorValue
+from dataclasses import dataclass
 
-__all__ = [
-    "TensorKey",
-    "TensorPool",
-    "TensorPoolKey",
-    "TensorData",
-    "TensorValue",
-]
+from .model_key import ModelKey
+
+
+@dataclass(frozen=True)
+class ModelPoolKey:
+    """ModelPool 中的唯一 key = node_id + ModelKey 枚举。
+
+    frozen dataclass 自动生成 __hash__ 和 __eq__，可直接用作 dict key。
+    """
+
+    node_id: int
+    pin: ModelKey  # 直接用枚举，不用 .value
+
+    @property
+    def uid(self) -> str:
+        return f"model:{self.node_id}:{self.pin.name}"

@@ -64,13 +64,13 @@ class T5TextEncodeNode(InferNode):
     """T5 文本编码 — forward 后 pad + chunk 拆分 pos/neg。"""
 
     dispatch_policy = NodeDispatchPolicy.ALL_ALL_ALL
-    input_tensor_keys = []
-    output_tensor_keys = [TensorKey.POSITIVE, TensorKey.NEGATIVE]
+    input_tensor_pins = []
+    output_tensor_pins = [TensorKey.POSITIVE, TensorKey.NEGATIVE]
 
     @time_profile
-    def run(self, model_key, context, *, tensor_pool, model_pool, device_ctx):
-        model = model_pool.get_model(model_key)
-        device = context.metadata.get("text_run_device", device_ctx.device)
+    def run(self, pins, *, context):
+        model = pins.get_model(self.input_model_pins[0])
+        device = context.metadata.get("text_run_device", context.device.device)
         meta = context.metadata
 
         prompts_positive_list, prompts_negative_list = _validate_prompts(
@@ -93,12 +93,12 @@ class T5TextEncodeNode(InferNode):
         _offload_model_if_needed(
             model,
             offload_model=meta.get("offload_model", False),
-            offload_device=device_ctx.offload_device,
+            offload_device=context.device.offload_device,
             current_device=device,
         )
 
-        tensor_pool.put(TensorKey.POSITIVE, positive)
-        tensor_pool.put(TensorKey.NEGATIVE, negative)
+        pins.put_tensor(TensorKey.POSITIVE, positive)
+        pins.put_tensor(TensorKey.NEGATIVE, negative)
 
 
 @InferNodeFactory.register(
@@ -109,13 +109,13 @@ class QwenTextEncodeNode(InferNode):
     """Qwen VL 文本编码 — 分别 forward pos/neg，返回 (embeds, mask)。"""
 
     dispatch_policy = NodeDispatchPolicy.ALL_ALL_ALL
-    input_tensor_keys = []
-    output_tensor_keys = [TensorKey.POSITIVE, TensorKey.NEGATIVE]
+    input_tensor_pins = []
+    output_tensor_pins = [TensorKey.POSITIVE, TensorKey.NEGATIVE]
 
     @time_profile
-    def run(self, model_key, context, *, tensor_pool, model_pool, device_ctx):
-        model = model_pool.get_model(model_key)
-        device = context.metadata.get("text_run_device", device_ctx.device)
+    def run(self, pins, *, context):
+        model = pins.get_model(self.input_model_pins[0])
+        device = context.metadata.get("text_run_device", context.device.device)
         meta = context.metadata
         images = meta.get("condition_image_path")
 
@@ -136,9 +136,9 @@ class QwenTextEncodeNode(InferNode):
         _offload_model_if_needed(
             model,
             offload_model=meta.get("offload_model", False),
-            offload_device=device_ctx.offload_device,
+            offload_device=context.device.offload_device,
             current_device=device,
         )
 
-        tensor_pool.put(TensorKey.POSITIVE, (positive_embeds, positive_mask))
-        tensor_pool.put(TensorKey.NEGATIVE, (negative_embeds, negative_mask))
+        pins.put_tensor(TensorKey.POSITIVE, (positive_embeds, positive_mask))
+        pins.put_tensor(TensorKey.NEGATIVE, (negative_embeds, negative_mask))

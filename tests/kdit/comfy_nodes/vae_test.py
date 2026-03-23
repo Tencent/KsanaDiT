@@ -74,7 +74,7 @@ class TestWan21VAENodeParallel(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.dtype = torch.bfloat16
-        # Note: 必须先调用 load()，其内部 get_engine() → KsanaExecutor(device_id=local_rank_id)
+        # Note: 必须先调用 load()，其内部 get_engine() → Executor(device_id=local_rank_id)
         # 会执行 torch.cuda.set_device()，之后 current_device() 才能返回正确的设备 ID
         cls.vae_model_key = KsanaNodeVAELoader.load(vae_path=VAE_MODEL_PATH)
         cls.device = torch.cuda.current_device()

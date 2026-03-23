@@ -34,8 +34,10 @@ class TextEncoderLoaderNode(LoaderNode):
     dispatch_policy = NodeDispatchPolicy.ALL_ALL_ALL
 
     @time_profile
-    def run(self, model_key, *, model_pool, device_ctx, **kwargs):
-        checkpoint_dir = kwargs["model_path"]
+    def run(self, pins, *, context):
+        meta = context.metadata
+        model_key = self.output_model_pins[0]
+        checkpoint_dir = meta["model_path"]
         log.info(f"{model_key} loading text model")
         if not os.path.exists(checkpoint_dir) or not Path(checkpoint_dir).is_dir():
             raise ValueError(f"checkpoint_dir {checkpoint_dir} should be a directory")
@@ -45,7 +47,7 @@ class TextEncoderLoaderNode(LoaderNode):
             model_key,
             default_settings=default_settings.text_encoder,
             checkpoint_dir=checkpoint_dir,
-            device=device_ctx.offload_device,
+            device=context.device.offload_device,
             dtype=None,
         )
-        model_pool.update_model_with_key(model_key, model)
+        pins.put_model(model_key, model)

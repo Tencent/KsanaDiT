@@ -20,6 +20,7 @@ from kdit.models.model_key import ModelKey
 from kdit.nodes.core.node_context import NodeContext
 from kdit.nodes.core.node_types import InferNodeType as NT
 from kdit.pipelines.context_builder import ContextBuilder
+from kdit.pipelines.pin_ref import NodeRef
 from kdit.pipelines.pipeline_def import (
     PipelineDef,
     PipelineDefBuilder,
@@ -39,11 +40,11 @@ class _DummyContextBuilder(ContextBuilder):
         return NodeContext()
 
 
-# ── PipelineDefBuilder 测试 ──────────────────────────────────────────────
+# ── PipelineDefBuilder 旧模式测试 ────────────────────────────────────────
 
 
 class TestPipelineDefBuilder(unittest.TestCase):
-    """PipelineDefBuilder 链式构建与校验。"""
+    """PipelineDefBuilder 链式构建与校验（旧线性模式）。"""
 
     def test_basic_build(self):
         """基本构建 — 3 个 load + 4 个 infer + context_builder。"""
@@ -196,6 +197,230 @@ class TestPipelineDefBuilder(unittest.TestCase):
         )
         with self.assertRaises(ValueError, msg="not declared in any LoadTask"):
             builder.build()
+
+
+# ── PipelineDefBuilder DAG 模式测试 ──────────────────────────────────────
+
+
+class TestPipelineDefBuilderDAG(unittest.TestCase):
+    """PipelineDefBuilder DAG 模式构建与校验。"""
+
+    def test_add_loader_returns_node_ref(self):
+        """add_loader() 返回 NodeRef，node_id 从 0 开始自增。"""
+        builder = PipelineDefBuilder(PipelineKey.Wan2_2_T2V_14B)
+        ref0 = builder.add_loader(ModelKey.T5TextEncoder)
+        ref1 = builder.add_loader(ModelKey.Wan2_2_T2V_14B)
+
+        self.assertIsInstance(ref0, NodeRef)
+        self.assertIsInstance(ref1, NodeRef)
+        self.assertEqual(ref0.node_id, 0)
+        self.assertEqual(ref1.node_id, 1)
+
+    def test_add_infer_dag_mode_returns_node_ref(self):
+        """add_infer() 在 DAG 模式下返回 NodeRef。"""
+        builder = PipelineDefBuilder(PipelineKey.Wan2_2_T2V_14B)
+        builder.add_loader(ModelKey.T5TextEncoder)  # 切换到 DAG 模式
+        ref = builder.add_infer(NT.TEXT_ENCODE, ModelKey.T5TextEncoder)
+
+        self.assertIsInstance(ref, NodeRef)
+        self.assertEqual(ref.node_id, 1)
+
+    def test_alloc_node_id_increments(self):
+        """_alloc_node_id() 从 0 开始递增。"""
+        builder = PipelineDefBuilder(PipelineKey.Wan2_2_T2V_14B)
+        self.assertEqual(builder._alloc_node_id(), 0)
+        self.assertEqual(builder._alloc_node_id(), 1)
+        self.assertEqual(builder._alloc_node_id(), 2)
+
+    def test_connect_format2_pinref(self):
+        """connect() 格式 2（PinRef 引用）正确添加 Edge。"""
+        builder = PipelineDefBuilder(PipelineKey.Wan2_2_T2V_14B)
+        t5 = builder.add_loader(ModelKey.T5TextEncoder)
+        enc = builder.add_infer(NT.TEXT_ENCODE, ModelKey.T5TextEncoder)
+
+        builder.connect(
+            (t5.T5TextEncoder, enc.T5TextEncoder),
+        )
+
+        pipeline_def = builder.context_builder(_DummyContextBuilder).build()
+        self.assertEqual(len(pipeline_def.edges), 1)
+
+        edge = pipeline_def.edges[0]
+        self.assertEqual(edge.src_node_id, 0)
+        self.assertEqual(edge.src_pin, ModelKey.T5TextEncoder)
+        self.assertEqual(edge.dst_node_id, 1)
+        self.assertEqual(edge.dst_pin, ModelKey.T5TextEncoder)
+        self.assertEqual(edge.edge_type, "model")
+
+    def test_connect_format1_infer_node_type(self):
+        """connect() 格式 1（InferNodeType 引用）正确添加 Edge。"""
+        builder = PipelineDefBuilder(PipelineKey.Wan2_2_T2V_14B)
+        builder.add_loader(ModelKey.T5TextEncoder)
+        builder.add_infer(NT.TEXT_ENCODE, ModelKey.T5TextEncoder)
+        builder.add_infer(NT.GENERATE, ModelKey.Wan2_2_T2V_14B)
+
+        builder.connect(
+            (NT.TEXT_ENCODE, TensorKey.POSITIVE, NT.GENERATE, TensorKey.POSITIVE),
+        )
+
+        pipeline_def = builder.context_builder(_DummyContextBuilder).build()
+        self.assertEqual(len(pipeline_def.edges), 1)
+
+        edge = pipeline_def.edges[0]
+        self.assertEqual(edge.src_pin, TensorKey.POSITIVE)
+        self.assertEqual(edge.dst_pin, TensorKey.POSITIVE)
+        self.assertEqual(edge.edge_type, "tensor")
+
+    def test_connect_one_to_many(self):
+        """connect() 一对多 (src, [dst1, dst2]) 生成多条 Edge。"""
+        builder = PipelineDefBuilder(PipelineKey.Wan2_2_T2V_14B)
+        builder.add_loader(ModelKey.T5TextEncoder)  # 切换到 DAG 模式
+        enc = builder.add_infer(NT.TEXT_ENCODE)
+        gen = builder.add_infer(NT.GENERATE)
+        dec = builder.add_infer(NT.VAE_DECODE)
+
+        builder.connect(
+            (enc.POSITIVE, [gen.POSITIVE, dec.POSITIVE]),
+        )
+
+        pipeline_def = builder.context_builder(_DummyContextBuilder).build()
+        self.assertEqual(len(pipeline_def.edges), 2)
+
+        # 第一条边: enc → gen (node_id 1 → 2, 因为 loader 是 0)
+        self.assertEqual(pipeline_def.edges[0].src_node_id, 1)
+        self.assertEqual(pipeline_def.edges[0].dst_node_id, 2)
+        # 第二条边: enc → dec (node_id 1 → 3)
+        self.assertEqual(pipeline_def.edges[1].src_node_id, 1)
+        self.assertEqual(pipeline_def.edges[1].dst_node_id, 3)
+
+    def test_build_dag_returns_frozen_pipeline_def(self):
+        """build() 返回 frozen PipelineDef，nodes 和 edges 正确。"""
+        builder = PipelineDefBuilder(PipelineKey.Wan2_2_T2V_14B)
+        t5 = builder.add_loader(ModelKey.T5TextEncoder)
+        enc = builder.add_infer(NT.TEXT_ENCODE, ModelKey.T5TextEncoder)
+        save = builder.add_infer(NT.SAVE_VIDEO)
+
+        builder.connect(
+            (t5.T5TextEncoder, enc.T5TextEncoder),
+            (enc.VIDEO, save.VIDEO),
+        )
+
+        pipeline_def = builder.keep_tensors(TensorKey.VIDEO).context_builder(_DummyContextBuilder).build()
+
+        self.assertIsInstance(pipeline_def, PipelineDef)
+        self.assertEqual(pipeline_def.pipeline_key, PipelineKey.Wan2_2_T2V_14B)
+        self.assertEqual(len(pipeline_def.nodes), 3)
+        self.assertEqual(len(pipeline_def.edges), 2)
+        self.assertEqual(pipeline_def.keep_tensors, (TensorKey.VIDEO,))
+        self.assertIs(pipeline_def.context_builder_cls, _DummyContextBuilder)
+
+        # DAG 模式下旧字段为空
+        self.assertEqual(pipeline_def.load_phases, ())
+        self.assertEqual(pipeline_def.infer_phases, ())
+
+        # frozen
+        with self.assertRaises(AttributeError):
+            pipeline_def.pipeline_key = PipelineKey.QwenImage_T2I
+
+    def test_legacy_mode_still_works(self):
+        """旧模式 .load() + .add_infer() 仍然可用（向后兼容）。"""
+        pipeline_def = (
+            PipelineDefBuilder(PipelineKey.Wan2_2_T2V_14B)
+            .load(ModelKey.T5TextEncoder)
+            .load(ModelKey.Wan2_2_T2V_14B)
+            .load(ModelKey.VAE_WAN2_2)
+            .add_infer(NT.TEXT_ENCODE, ModelKey.T5TextEncoder)
+            .add_infer(NT.GENERATE, ModelKey.Wan2_2_T2V_14B)
+            .add_infer(NT.VAE_DECODE, ModelKey.VAE_WAN2_2)
+            .add_infer(NT.SAVE_VIDEO)
+            .keep_tensors(TensorKey.VIDEO)
+            .context_builder(_DummyContextBuilder)
+            .build()
+        )
+
+        # 旧模式字段有值
+        self.assertEqual(len(pipeline_def.load_phases), 3)
+        self.assertEqual(len(pipeline_def.infer_phases), 4)
+        # DAG 字段为空
+        self.assertEqual(pipeline_def.nodes, ())
+        self.assertEqual(pipeline_def.edges, ())
+
+    def test_node_defs_structure(self):
+        """NodeDef 结构正确 — loader 和 infer 的字段。"""
+        builder = PipelineDefBuilder(PipelineKey.Wan2_2_T2V_14B)
+        builder.add_loader(ModelKey.T5TextEncoder)
+        builder.add_infer(NT.TEXT_ENCODE, ModelKey.T5TextEncoder)
+        builder.add_infer(NT.SAVE_VIDEO)
+
+        pipeline_def = builder.context_builder(_DummyContextBuilder).build()
+
+        # Loader node
+        loader = pipeline_def.nodes[0]
+        self.assertTrue(loader.is_loader)
+        self.assertEqual(loader.model_key, ModelKey.T5TextEncoder)
+        self.assertIsNone(loader.node_type)
+
+        # Infer node with model
+        infer = pipeline_def.nodes[1]
+        self.assertFalse(infer.is_loader)
+        self.assertEqual(infer.node_type, NT.TEXT_ENCODE)
+        self.assertEqual(infer.model_key, ModelKey.T5TextEncoder)
+
+        # Infer node without model
+        save = pipeline_def.nodes[2]
+        self.assertFalse(save.is_loader)
+        self.assertEqual(save.node_type, NT.SAVE_VIDEO)
+        self.assertIsNone(save.model_key)
+
+    # ── DAG 校验错误 ──
+
+    def test_type_mismatch_raises(self):
+        """TensorKey 连 ModelKey 时 connect() 抛出 TypeError。"""
+        builder = PipelineDefBuilder(PipelineKey.Wan2_2_T2V_14B)
+        builder.add_loader(ModelKey.T5TextEncoder)  # 切换到 DAG 模式
+        enc = builder.add_infer(NT.TEXT_ENCODE)
+        gen = builder.add_infer(NT.GENERATE)
+
+        with self.assertRaises(TypeError, msg="type mismatch"):
+            builder.connect(
+                (enc.POSITIVE, gen.T5TextEncoder),  # TensorKey → ModelKey
+            )
+
+    def test_duplicate_input_raises(self):
+        """同一 dst pin 有两条入边时 build() 抛出 ValueError。"""
+        builder = PipelineDefBuilder(PipelineKey.Wan2_2_T2V_14B)
+        builder.add_loader(ModelKey.T5TextEncoder)  # 切换到 DAG 模式
+        enc1 = builder.add_infer(NT.TEXT_ENCODE)
+        enc2 = builder.add_infer(NT.VAE_DECODE)
+        gen = builder.add_infer(NT.GENERATE)
+
+        builder.connect(
+            (enc1.POSITIVE, gen.POSITIVE),
+            (enc2.POSITIVE, gen.POSITIVE),  # 重复输入
+        )
+
+        with self.assertRaises(ValueError, msg="Duplicate input"):
+            builder.context_builder(_DummyContextBuilder).build()
+
+    def test_format1_uniqueness_raises(self):
+        """格式 1 唯一性检测 — 同类型多实例用格式 1 时报错。"""
+        builder = PipelineDefBuilder(PipelineKey.Wan2_2_T2V_14B)
+        builder.add_infer(NT.TEXT_ENCODE)
+        builder.add_infer(NT.TEXT_ENCODE)  # 同类型两个实例
+
+        with self.assertRaises(ValueError, msg="must be unique"):
+            builder.connect(
+                (NT.TEXT_ENCODE, TensorKey.POSITIVE, NT.TEXT_ENCODE, TensorKey.POSITIVE),
+            )
+
+    def test_duplicate_loader_model_key_raises(self):
+        """两个 loader 加载同一 ModelKey 时 build() 报错。"""
+        builder = PipelineDefBuilder(PipelineKey.Wan2_2_T2V_14B)
+        builder.add_loader(ModelKey.T5TextEncoder)
+        builder.add_loader(ModelKey.T5TextEncoder)  # 重复
+
+        with self.assertRaises(ValueError, msg="Duplicate loader ModelKey"):
+            builder.context_builder(_DummyContextBuilder).build()
 
 
 # ── PipelineDef 注册表测试 ───────────────────────────────────────────────

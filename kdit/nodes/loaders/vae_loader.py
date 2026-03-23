@@ -37,8 +37,10 @@ class VAELoaderNode(LoaderNode):
     }
 
     @time_profile
-    def run(self, model_key, *, model_pool, device_ctx, **kwargs):
-        model_path = kwargs["model_path"]
+    def run(self, pins, *, context):
+        meta = context.metadata
+        model_key = self.output_model_pins[0]
+        model_path = meta["model_path"]
         log.info(f"{model_key} loading vae model")
         if not os.path.exists(model_path) or not is_file_or_dir(model_path):
             raise ValueError(f"model_path {model_path} does not exist or is not a file")
@@ -48,6 +50,8 @@ class VAELoaderNode(LoaderNode):
         if model_class is None:
             raise NotImplementedError(f"load vae model {model_key} not supported yet")
 
-        model = model_class(model_key=model_key, default_settings=default_settings, device=device_ctx.offload_device)
-        model.load(model_path, shard_fn=kwargs.get("shard_fn"))
-        model_pool.update_model_with_key(model_key, model)
+        model = model_class(
+            model_key=model_key, default_settings=default_settings, device=context.device.offload_device
+        )
+        model.load(model_path, shard_fn=meta.get("shard_fn"))
+        pins.put_model(model_key, model)

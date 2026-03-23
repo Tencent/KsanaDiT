@@ -19,8 +19,14 @@ class LoaderNodeFactory(SimpleFactory):
     """Loader Node 工厂，按 model_key 一级注册。
 
     - register(model_key_list): 注册 LoaderNode 类
-    - create(model_key): 创建 LoaderNode 实例
+    - create(model_key): 创建 LoaderNode 实例，自动注入 output_model_pins
     """
+
+    @classmethod
+    def create(cls, model_key, *args, **kwargs):
+        node = super().create(model_key, *args, **kwargs)
+        node.output_model_pins = [model_key] if model_key else []
+        return node
 
 
 class InferNodeFactory(AdvancedFactory):
@@ -28,9 +34,11 @@ class InferNodeFactory(AdvancedFactory):
 
     复用 AdvancedFactory 的 register() / create() 机制：
     - register(infer_node_type, model_key_list): 注册 InferNode 类
-    - create(infer_node_type, model_key): 创建 InferNode 实例
+    - create(infer_node_type, model_key): 创建 InferNode 实例，自动注入 input_model_pins
     """
 
     @classmethod
     def create(cls, infer_node_type, model_key, *args, **kwargs):
-        return super().create(infer_node_type, model_key, *args, **kwargs)
+        node = super().create(infer_node_type, model_key, *args, **kwargs)
+        node.input_model_pins = [model_key] if model_key else []
+        return node
