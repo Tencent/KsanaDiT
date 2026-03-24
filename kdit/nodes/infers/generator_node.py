@@ -48,6 +48,7 @@ class GeneratorNode(InferNode):
         TensorKey.NEGATIVE,
         TensorKey.BASE_LATENT,
         TensorKey.AUX_LATENT,
+        TensorKey.VACE_CONTEXT,
     ]
     output_tensor_pins = [TensorKey.LATENTS]
 
@@ -55,6 +56,7 @@ class GeneratorNode(InferNode):
         model_key = self.input_model_pins[0]
         base_latent_data = pins.get_tensor(TensorKey.BASE_LATENT)  # list[Tensor] | None
         aux_latent_data = pins.get_tensor(TensorKey.AUX_LATENT)  # Tensor | list[Tensor] | None
+        vace_context_data = pins.get_tensor(TensorKey.VACE_CONTEXT)  # Tensor | None
         meta = context.metadata
 
         # 从 base_latent_data 构建 BaseLatent 对象 — base_latent 现在是必须的
@@ -72,6 +74,9 @@ class GeneratorNode(InferNode):
         if aux_latent_data is not None:
             aux_latent = AuxLatent(latent=aux_latent_data)
 
+        # VACE_CONTEXT pin 优先于 metadata 中的 control_video_config
+        control_video_config = vace_context_data if vace_context_data is not None else meta.get("control_video_config")
+
         ctx = GeneratorInferContext(
             diffusion_model=pins.get_model(model_key),
             positive=pins.get_tensor(TensorKey.POSITIVE),
@@ -84,7 +89,7 @@ class GeneratorNode(InferNode):
             runtime_config=context.runtime_config,
             cache_config=context.cache_config,
             video_control=meta.get("video_control"),
-            control_video_config=meta.get("control_video_config"),
+            control_video_config=control_video_config,
             comfy_bar_callback=meta.get("comfy_bar_callback"),
         )
 

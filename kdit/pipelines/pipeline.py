@@ -15,7 +15,7 @@
 """Pipeline — 统一的声明式 Pipeline 类。
 
 通过 PipelineDef 驱动 Load 和 Generate 两个阶段，
-ContextBuilder 负责为每个 InferTask 构建 NodeContext。
+ContextBuilder 负责为每个 NodeDef 构建 NodeContext。
 
 用法::
 
@@ -46,27 +46,24 @@ from kdit.utils.profile import TimeProfiler
 from kdit.utils.types import evolve_with_recommend
 
 from .context_builder import ContextBuilder
+from .extra_inputs import ExtraInputs
 from .generate_inputs import PipelineGenerateInputs
 from .pipeline_def import NodeDef, PipelineDef, get_pipeline_def
 from .pipeline_key import get_pipeline_key_from_path
-from .pipeline_phase import InferTask, LoadTask
+from .pipeline_phase import LoadTask
 
 # ── 辅助：醒目的 phase 计时日志 ──────────────────────────────────────────
 
 _SEPARATOR = "=" * 60
 
 
-def _phase_display_name(phase: LoadTask | InferTask | NodeDef) -> str:
+def _phase_display_name(phase: LoadTask | NodeDef) -> str:
     """根据 phase 类型构建醒目的显示名称。"""
     if isinstance(phase, NodeDef):
         return _node_def_display_name(phase)
     if isinstance(phase, LoadTask):
         return f"LOAD({phase.model_key.name})"
-    # InferTask: model_key 可能为 None（如 SaveNode）
-    node_name = phase.node_type.name
-    if phase.model_key is not None:
-        return f"{node_name}({phase.model_key.name})"
-    return node_name
+    return str(phase)
 
 
 def _node_def_display_name(node_def: NodeDef) -> str:
@@ -81,7 +78,7 @@ def _node_def_display_name(node_def: NodeDef) -> str:
 
 
 @contextmanager
-def _task_node_timer(phase: LoadTask | InferTask | NodeDef):
+def _task_node_timer(phase: LoadTask | NodeDef):
     """为 load / infer phase 打印醒目的 START / FINISH 日志及耗时。"""
     name = _phase_display_name(phase)
     log.info(_SEPARATOR)
@@ -102,10 +99,8 @@ class Pipeline:
     """统一的声明式 Pipeline — 由 PipelineDef 驱动。
 
     Pipeline 有两个阶段：
-    1. Load（from_models / load_models）：按 PipelineDef.load_phases 加载模型
-    2. Generate（generate）：按 PipelineDef.infer_phases 执行推理
-
-    100% 向后兼容 BasePipeline.from_models() 和 pipeline.generate() 的调用方式。
+    1. Load（from_models / load_models）：按 PipelineDef.nodes 加载模型
+    2. Generate（generate）：按 PipelineDef.nodes 执行推理
     """
 
     def __init__(self, pipeline_def: PipelineDef, engine: Engine, offload_device: str = "cpu"):
@@ -113,6 +108,8 @@ class Pipeline:
         self._engine = engine
         self._offload_device = offload_device
         self._ctx_builder: ContextBuilder = pipeline_def.context_builder_cls()
+        # 注入 pipeline_def 引用到 ContextBuilder（用于 edges 查询）
+        self._ctx_builder._pipeline_def = pipeline_def
 
         # 从 settings 加载的默认配置
         self._default_settings = None
@@ -236,11 +233,11 @@ class Pipeline:
         sample_config: SampleConfig = None,
         runtime_config: RuntimeConfig = None,
         cache_config: list[CacheConfig | HybridCacheConfig] | None = None,
-        **kwargs,
+        extra_inputs: ExtraInputs | None = None,
     ):
         """按 PipelineDef 执行推理。
 
-        公共参数在此校验，Pipeline 特有参数通过 **kwargs 传给 ContextBuilder。
+        公共参数在此校验，Pipeline 特有参数通过 extra_inputs 传给 ContextBuilder。
         """
         # 校验公共输入
         num_prompts = _get_num_prompts(prompt)
@@ -270,14 +267,14 @@ class Pipeline:
             has_lora=self._has_lora,
         )
 
-        # ContextBuilder 提取特有输入（注入内部引用供 noise_shape / VACE 等计算）
+        # ContextBuilder 提取特有输入
         vae_model_key = self._find_vae_model_key()
         self._ctx_builder.prepare_generate_inputs(
             inputs,
+            extra_inputs,
             _default_settings=self._default_settings,
             _engine=self._engine,
             _vae_model_key=vae_model_key,
-            **kwargs,
         )
 
         # 执行 infer phases
@@ -324,22 +321,10 @@ class Pipeline:
             if node_def.condition and not self._ctx_builder.check_condition(node_def.condition, inputs):
                 continue
 
-            # 2. 构建等价的 InferTask 供 ContextBuilder 使用
-            phase = InferTask(
-                node_type=node_def.node_type,
-                model_key=node_def.model_key,
-                condition=node_def.condition,
-            )
+            # 2. 构建 context — 直接传 NodeDef
+            node_ctx = self._ctx_builder.build_context(node_def, inputs)
 
-            # 3. 准备 tensor
-            tensors = self._ctx_builder.prepare_tensors(phase, inputs)
-            if tensors:
-                self._engine.put_tensors(tensors)
-
-            # 4. 构建 context
-            node_ctx = self._ctx_builder.build_context(phase, inputs)
-
-            # 5. 计算 pins_mapping 并执行
+            # 3. 计算 pins_mapping 并执行
             pins_mapping = compute_pins_mapping(node_def, self._def.edges)
             with _task_node_timer(node_def):
                 self._engine.run_infer_node(node_def, pins_mapping, node_ctx)

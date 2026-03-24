@@ -14,8 +14,9 @@
 
 """TensorValue / TensorPool 单元测试。
 
-所有 TensorPool 操作使用 TensorPoolKey（DAG 模式标准 key），
-避免裸 TensorKey 触发 DeprecationWarning。
+TensorPool 同时支持 TensorPoolKey（DAG 模式标准 key）和裸 TensorKey。
+裸 TensorKey 会被 _normalize_key() 自动转换为 TensorPoolKey(0, key)，
+node_id=0 是"外部注入"约定，与 DAG 节点的 node_id >= 1 不冲突。
 """
 
 import pytest
@@ -239,3 +240,80 @@ class TestTensorPool:
         assert pool.has(_K(TensorKey.VIDEO))
         assert not pool.has(_K(TensorKey.LATENTS))
         assert len(pool) == 2
+
+
+# ── 裸 TensorKey 自动转换 ──────────────────────────────────────────────────
+
+
+class TestBareTensorKeyAutoNormalize:
+    """裸 TensorKey 传入 TensorPool 时自动转换为 TensorPoolKey(0, key)。
+
+    验证 ComfyUI adapter 等外部调用者无需手动包装 TensorPoolKey。
+    """
+
+    def test_put_with_bare_key_get_with_pool_key(self):
+        """裸 TensorKey put → TensorPoolKey(0, key) get：同一条目。"""
+        pool = TensorPool()
+        t = torch.randn(3, 4)
+        pool.put(TensorKey.LATENTS, t)  # 裸 key
+        tv = pool.get(_K(TensorKey.LATENTS))  # TensorPoolKey
+        assert tv is not None
+        assert tv.data is t
+
+    def test_put_with_pool_key_get_with_bare_key(self):
+        """TensorPoolKey put → 裸 TensorKey get：同一条目。"""
+        pool = TensorPool()
+        t = torch.randn(2, 5)
+        pool.put(_K(TensorKey.POSITIVE), t)
+        tv = pool.get(TensorKey.POSITIVE)  # 裸 key
+        assert tv is not None
+        assert tv.data is t
+
+    def test_has_with_bare_key(self):
+        pool = TensorPool()
+        pool.put(TensorKey.VIDEO, torch.zeros(1))
+        assert pool.has(TensorKey.VIDEO)
+        assert pool.has(_K(TensorKey.VIDEO))
+
+    def test_clear_exclude_bare_key(self):
+        """clear(exclude=[裸 TensorKey]) 正确保留对应条目。"""
+        pool = TensorPool()
+        pool.put(TensorKey.POSITIVE, torch.zeros(1))
+        pool.put(TensorKey.LATENTS, torch.zeros(2))
+        pool.clear(exclude=[TensorKey.LATENTS])  # 裸 key 作为 exclude
+        assert len(pool) == 1
+        assert pool.has(TensorKey.LATENTS)
+        assert not pool.has(TensorKey.POSITIVE)
+
+    def test_rename_bare_keys(self):
+        """rename(裸 old, 裸 new) 正常工作。"""
+        pool = TensorPool()
+        t = torch.randn(4)
+        pool.put(TensorKey.LATENTS, t)
+        pool.rename(TensorKey.LATENTS, TensorKey.VIDEO)
+        assert not pool.has(TensorKey.LATENTS)
+        assert pool.has(TensorKey.VIDEO)
+        assert pool.get(TensorKey.VIDEO).data is t
+
+    def test_rename_mixed_keys(self):
+        """rename(裸 old, TensorPoolKey new) 正常工作。"""
+        pool = TensorPool()
+        t = torch.randn(4)
+        pool.put(TensorKey.LATENTS, t)
+        pool.rename(TensorKey.LATENTS, _K(TensorKey.AUX_LATENT))
+        assert not pool.has(TensorKey.LATENTS)
+        assert pool.has(_K(TensorKey.AUX_LATENT))
+
+    def test_no_deprecation_warning(self):
+        """裸 TensorKey 不再触发 DeprecationWarning。"""
+        import warnings
+
+        pool = TensorPool()
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", DeprecationWarning)
+            pool.put(TensorKey.LATENTS, torch.zeros(1))
+            pool.get(TensorKey.LATENTS)
+            pool.has(TensorKey.LATENTS)
+            pool.clear(exclude=[TensorKey.LATENTS])
+            pool.rename(TensorKey.LATENTS, TensorKey.VIDEO)
+            pool.clear()

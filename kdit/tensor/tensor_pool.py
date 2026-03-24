@@ -13,21 +13,21 @@
 # limitations under the License.
 
 
-import warnings
-
 from .tensor_key import TensorKey
 from .tensor_pool_key import TensorPoolKey
 from .tensor_value import TensorData, TensorValue
 
-_TENSOR_KEY_DEPRECATION_MSG = (
-    "Passing TensorKey directly to TensorPool is deprecated, use TensorPoolKey instead. "
-    "This will be removed when legacy Node adapters are cleaned up."
-)
+#: 外部直接操作 TensorPool 时（如 ComfyUI adapter 通过 Engine 桥接方法），
+#: 裸 TensorKey 自动包装为 TensorPoolKey(node_id=0, ...)。
+#: node_id=0 是约定的"外部注入"标识，与 DAG 节点的 node_id >= 1 不冲突。
+_EXTERNAL_NODE_ID = 0
 
 
-def _warn_if_legacy_tensor_key(key: TensorKey | TensorPoolKey) -> None:
+def _normalize_key(key: TensorKey | TensorPoolKey) -> TensorPoolKey:
+    """裸 TensorKey 自动转换为 TensorPoolKey(0, key)，TensorPoolKey 原样返回。"""
     if isinstance(key, TensorKey):
-        warnings.warn(_TENSOR_KEY_DEPRECATION_MSG, DeprecationWarning, stacklevel=3)
+        return TensorPoolKey(_EXTERNAL_NODE_ID, key)
+    return key
 
 
 class TensorPool:
@@ -46,17 +46,17 @@ class TensorPool:
 
     def put(self, key: TensorKey | TensorPoolKey, data: TensorData) -> None:
         """存入 tensor（或 list[Tensor]），覆盖同名 key。"""
-        _warn_if_legacy_tensor_key(key)
+        key = _normalize_key(key)
         self._stores[key] = TensorValue(data)
 
     def get(self, key: TensorKey | TensorPoolKey) -> TensorValue | None:
         """读取 TensorValue，不存在返回 None。"""
-        _warn_if_legacy_tensor_key(key)
+        key = _normalize_key(key)
         return self._stores.get(key)
 
     def has(self, key: TensorKey | TensorPoolKey) -> bool:
         """检查 key 是否存在于 pool 中。"""
-        _warn_if_legacy_tensor_key(key)
+        key = _normalize_key(key)
         return key in self._stores
 
     def clear(self, exclude: list[TensorKey | TensorPoolKey] | None = None) -> None:
@@ -64,7 +64,7 @@ class TensorPool:
 
         被排除的 key 保留在池中不被 release。
         """
-        exclude_set = set(exclude) if exclude else set()
+        exclude_set = {_normalize_key(k) for k in exclude} if exclude else set()
         keys_to_remove = [k for k in self._stores if k not in exclude_set]
         for k in keys_to_remove:
             self._stores[k].release()
@@ -83,8 +83,8 @@ class TensorPool:
         Raises:
             KeyError: old_key 不存在于 pool 中。
         """
-        _warn_if_legacy_tensor_key(old_key)
-        _warn_if_legacy_tensor_key(new_key)
+        old_key = _normalize_key(old_key)
+        new_key = _normalize_key(new_key)
         if old_key == new_key:
             return
         if old_key not in self._stores:

@@ -16,14 +16,14 @@
 
 import unittest
 from types import SimpleNamespace
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 from kdit.models.model_key import ModelKey
 from kdit.nodes.core.node_context import NodeContext
 from kdit.nodes.core.node_types import InferNodeType as NT
+from kdit.pipelines.context_builders.qwen import QwenEditExtraInputs
 from kdit.pipelines.generate_inputs import PipelineGenerateInputs
-from kdit.pipelines.pipeline_def import InferTask
-from kdit.tensor import TensorKey
+from kdit.pipelines.pipeline_def import NodeDef
 
 
 def _make_qwen_settings():
@@ -59,6 +59,11 @@ def _make_inputs(prompt="test", num_prompts=1, **overrides) -> PipelineGenerateI
     return PipelineGenerateInputs(**defaults)
 
 
+def _node_def(node_type, model_key=None, node_id=1):
+    """创建 InferNode 的 NodeDef。"""
+    return NodeDef(node_id=node_id, is_loader=False, node_type=node_type, model_key=model_key)
+
+
 # ── QwenT2IContextBuilder ────────────────────────────────────────────────
 
 
@@ -66,7 +71,7 @@ class TestQwenT2IContextBuilder(unittest.TestCase):
     """QwenT2IContextBuilder 的 prepare / build。"""
 
     def test_prepare_stores_target_dimensions(self):
-        """prepare_generate_inputs 保存目标尺寸（noise_shape 由 VAE_COMPUTE_SHAPE 节点计算）。"""
+        """prepare_generate_inputs 保存目标尺寸。"""
         from kdit.pipelines.context_builders.qwen import QwenT2IContextBuilder
 
         builder = QwenT2IContextBuilder()
@@ -74,7 +79,13 @@ class TestQwenT2IContextBuilder(unittest.TestCase):
         inputs.runtime_config.size = (1024, 1024)
         settings = _make_qwen_settings()
 
-        builder.prepare_generate_inputs(inputs, _default_settings=settings)
+        builder.prepare_generate_inputs(
+            inputs,
+            None,
+            _default_settings=settings,
+            _engine=MagicMock(),
+            _vae_model_key=None,
+        )
 
         self.assertIsNotNone(builder._extra)
         self.assertEqual(builder._extra.target_h, 1024)
@@ -87,10 +98,16 @@ class TestQwenT2IContextBuilder(unittest.TestCase):
         builder = QwenT2IContextBuilder()
         inputs = _make_inputs(prompt="a cat")
         inputs.runtime_config.size = (1024, 1024)
-        builder.prepare_generate_inputs(inputs, _default_settings=_make_qwen_settings())
+        builder.prepare_generate_inputs(
+            inputs,
+            None,
+            _default_settings=_make_qwen_settings(),
+            _engine=MagicMock(),
+            _vae_model_key=None,
+        )
 
-        phase = InferTask(node_type=NT.TEXT_ENCODE, model_key=ModelKey.Qwen2VLTextEncoder)
-        ctx = builder.build_context(phase, inputs)
+        nd = _node_def(NT.TEXT_ENCODE, ModelKey.Qwen2VLTextEncoder)
+        ctx = builder.build_context(nd, inputs)
 
         self.assertEqual(ctx.prompt, "a cat")
         # T2I 不传 condition_image_path
@@ -103,10 +120,16 @@ class TestQwenT2IContextBuilder(unittest.TestCase):
         builder = QwenT2IContextBuilder()
         inputs = _make_inputs()
         inputs.runtime_config.size = (1024, 1024)
-        builder.prepare_generate_inputs(inputs, _default_settings=_make_qwen_settings())
+        builder.prepare_generate_inputs(
+            inputs,
+            None,
+            _default_settings=_make_qwen_settings(),
+            _engine=MagicMock(),
+            _vae_model_key=None,
+        )
 
-        phase = InferTask(node_type=NT.SAVE_IMAGE)
-        ctx = builder.build_context(phase, inputs)
+        nd = _node_def(NT.SAVE_IMAGE)
+        ctx = builder.build_context(nd, inputs)
         self.assertIsInstance(ctx, NodeContext)
 
 
@@ -114,18 +137,28 @@ class TestQwenT2IContextBuilder(unittest.TestCase):
 
 
 class TestQwenEditContextBuilder(unittest.TestCase):
-    """QwenEditContextBuilder 的 prepare / build / condition / prepare_tensors。"""
+    """QwenEditContextBuilder 的 prepare / build / condition。"""
 
-    def test_prepare_with_no_image(self):
-        """无参考图时 img_path 为 None，target_h/w 有值。"""
+    def _prepare(self, extra_inputs=None):
+        """辅助方法：创建 builder 并调用 prepare_generate_inputs。"""
         from kdit.pipelines.context_builders.qwen import QwenEditContextBuilder
 
         builder = QwenEditContextBuilder()
         inputs = _make_inputs()
         inputs.runtime_config.size = (1024, 1024)
         settings = _make_qwen_settings()
+        builder.prepare_generate_inputs(
+            inputs,
+            extra_inputs,
+            _default_settings=settings,
+            _engine=MagicMock(),
+            _vae_model_key=ModelKey.QwenImageVAE,
+        )
+        return builder, inputs
 
-        builder.prepare_generate_inputs(inputs, _default_settings=settings)
+    def test_prepare_with_no_image(self):
+        """无参考图时 img_path 为 None，target_h/w 有值。"""
+        builder, _ = self._prepare()
 
         self.assertIsNone(builder._extra.img_path)
         self.assertEqual(builder._extra.target_h, 1024)
@@ -133,83 +166,55 @@ class TestQwenEditContextBuilder(unittest.TestCase):
 
     def test_has_ref_images_false_when_no_image(self):
         """无参考图时 has_ref_images 返回 False。"""
-        from kdit.pipelines.context_builders.qwen import QwenEditContextBuilder
-
-        builder = QwenEditContextBuilder()
-        inputs = _make_inputs()
-        inputs.runtime_config.size = (1024, 1024)
-        builder.prepare_generate_inputs(inputs, _default_settings=_make_qwen_settings())
+        builder, inputs = self._prepare()
 
         self.assertFalse(builder.has_ref_images(inputs))
 
-    @patch("kdit.pipelines.context_builders.qwen._load_ref_images")
-    def test_prepare_with_ref_images(self, mock_load):
+    def test_prepare_with_ref_images(self):
         """有参考图时 img_path 不为 None。"""
-        import torch
-
-        from kdit.pipelines.context_builders.qwen import QwenEditContextBuilder
-
-        mock_load.return_value = [torch.zeros(1, 3, 1024, 1024)]
-
-        builder = QwenEditContextBuilder()
-        inputs = _make_inputs()
-        inputs.runtime_config.size = (1024, 1024)
-
-        builder.prepare_generate_inputs(
-            inputs,
-            _default_settings=_make_qwen_settings(),
-            img_path="ref.png",
-        )
+        extra = QwenEditExtraInputs(img_path="ref.png")
+        builder, inputs = self._prepare(extra_inputs=extra)
 
         self.assertIsNotNone(builder._extra.img_path)
         self.assertTrue(builder.has_ref_images(inputs))
 
-    @patch("kdit.pipelines.context_builders.qwen._load_ref_images")
-    def test_build_context_text_encode_with_condition_image(self, mock_load):
+    def test_build_context_text_encode_with_condition_image(self):
         """Edit 模式 build_context(TEXT_ENCODE) 包含 condition_image_path。"""
-        import torch
+        extra = QwenEditExtraInputs(img_path="ref.png")
+        builder, inputs = self._prepare(extra_inputs=extra)
 
-        from kdit.pipelines.context_builders.qwen import QwenEditContextBuilder
-
-        mock_load.return_value = [torch.zeros(1, 3, 1024, 1024)]
-
-        builder = QwenEditContextBuilder()
-        inputs = _make_inputs()
-        inputs.runtime_config.size = (1024, 1024)
-        builder.prepare_generate_inputs(
-            inputs,
-            _default_settings=_make_qwen_settings(),
-            img_path="ref.png",
-        )
-
-        phase = InferTask(node_type=NT.TEXT_ENCODE, model_key=ModelKey.Qwen2VLTextEncoderMultimodal)
-        ctx = builder.build_context(phase, inputs)
+        nd = _node_def(NT.TEXT_ENCODE, ModelKey.Qwen2VLTextEncoderMultimodal)
+        ctx = builder.build_context(nd, inputs)
 
         self.assertIn("condition_image_path", ctx.metadata)
 
-    @patch("kdit.pipelines.context_builders.qwen._load_ref_images")
-    def test_prepare_tensors_vae_encode_images(self, mock_load):
-        """prepare_tensors(VAE_ENCODE_IMAGES) 返回 IMAGE tensor。"""
-        import torch
+    def test_build_context_read_image(self):
+        """build_context(READ_IMAGE) 返回包含 img_paths 的 context。"""
+        extra = QwenEditExtraInputs(img_path="ref.png")
+        builder, inputs = self._prepare(extra_inputs=extra)
 
-        from kdit.pipelines.context_builders.qwen import QwenEditContextBuilder
+        nd = _node_def(NT.READ_IMAGE, node_id=10)
+        ctx = builder.build_context(nd, inputs)
 
-        mock_load.return_value = [torch.zeros(1, 3, 1024, 1024)]
+        self.assertIn("img_paths", ctx.metadata)
 
-        builder = QwenEditContextBuilder()
-        inputs = _make_inputs()
-        inputs.runtime_config.size = (1024, 1024)
-        builder.prepare_generate_inputs(
-            inputs,
-            _default_settings=_make_qwen_settings(),
-            img_path="ref.png",
-        )
+    def test_build_context_vae_encode_images(self):
+        """build_context(VAE_ENCODE_IMAGES) 返回空 context。"""
+        extra = QwenEditExtraInputs(img_path="ref.png")
+        builder, inputs = self._prepare(extra_inputs=extra)
 
-        phase = InferTask(node_type=NT.VAE_ENCODE_IMAGES, model_key=ModelKey.QwenImageVAE)
-        tensors = builder.prepare_tensors(phase, inputs)
+        nd = _node_def(NT.VAE_ENCODE_IMAGES, ModelKey.QwenImageVAE)
+        ctx = builder.build_context(nd, inputs)
 
-        self.assertIsNotNone(tensors)
-        self.assertIn(TensorKey.IMAGE, tensors)
+        self.assertIsInstance(ctx, NodeContext)
+
+    def test_build_context_unexpected_type_raises(self):
+        """build_context 遇到未知 node_type 时抛出 ValueError。"""
+        builder, inputs = self._prepare()
+
+        nd = _node_def(NT.VAE_ENCODE_SPATIAL)
+        with self.assertRaises(ValueError, msg="unexpected node_type"):
+            builder.build_context(nd, inputs)
 
 
 # ── Qwen 辅助函数 ────────────────────────────────────────────────────────

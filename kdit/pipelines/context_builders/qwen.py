@@ -21,18 +21,32 @@ QwenT2IContextBuilder 和 QwenEditContextBuilder 分别处理纯文生图和编�
 from dataclasses import dataclass
 from typing import Any
 
-import torch
-import torchvision.transforms.functional as tvtf
-from PIL import Image
-
+from kdit.models.model_key import ModelKey
 from kdit.nodes.core.node_context import NodeContext
 from kdit.nodes.core.node_types import InferNodeType as NT
-from kdit.tensor import TensorKey
-from kdit.utils.logger import log
 
 from ..context_builder import ContextBuilder
+from ..extra_inputs import ExtraInputs
 from ..generate_inputs import PipelineGenerateInputs
-from ..pipeline_def import InferTask
+from ..pipeline_def import NodeDef
+
+# ── ExtraInputs 子类 ─────────────────────────────────────────────────────
+
+
+@dataclass
+class QwenEditExtraInputs(ExtraInputs):
+    """Qwen Edit 的模型特有输入。
+
+    用法::
+
+        pipeline.generate(
+            prompt,
+            extra_inputs=QwenEditExtraInputs(img_path=["ref.jpg"]),
+        )
+    """
+
+    img_path: str | list[str] | list[list[str]] | None = None
+
 
 # ── 公共基类 ─────────────────────────────────────────────────────────────
 
@@ -97,31 +111,32 @@ class QwenT2IContextBuilder(QwenContextBuilder):
     """
 
     @dataclass
-    class ExtraPipelineGenerateInputs:
+    class _Extra:
         """T2I 特有的中间数据。"""
 
         target_h: int
         target_w: int
 
-    def prepare_generate_inputs(self, base_inputs: PipelineGenerateInputs, **kwargs) -> None:
+    def prepare_generate_inputs(
+        self,
+        base_inputs: PipelineGenerateInputs,
+        extra_inputs: ExtraInputs | None,
+        *,
+        _default_settings: Any,
+        _engine: Any,
+        _vae_model_key: ModelKey | None,
+    ) -> None:
         """保存目标尺寸，noise_shape 由 VAE_COMPUTE_SHAPE 节点计算。"""
-        settings = kwargs.get("_default_settings")
-        if settings is None:
-            raise ValueError(
-                "QwenT2IContextBuilder requires '_default_settings' in kwargs. "
-                "This should be injected by Pipeline.generate()."
-            )
-
         rc = base_inputs.runtime_config
-        self._extra = self.ExtraPipelineGenerateInputs(
+        self._extra = self._Extra(
             target_h=rc.size[1],
             target_w=rc.size[0],
         )
 
-    def build_context(self, phase: InferTask, inputs: PipelineGenerateInputs) -> NodeContext:
+    def build_context(self, node_def: NodeDef, inputs: PipelineGenerateInputs) -> NodeContext:
         """按 node_type 分发构建 context。"""
         extra = self._extra
-        match phase.node_type:
+        match node_def.node_type:
             case NT.TEXT_ENCODE:
                 return self._build_text_ctx(inputs)
             case NT.VAE_COMPUTE_SHAPE:
@@ -139,7 +154,7 @@ class QwenT2IContextBuilder(QwenContextBuilder):
             case NT.SAVE_IMAGE:
                 return self._build_save_ctx(inputs)
             case _:
-                raise ValueError(f"QwenT2IContextBuilder: unexpected node_type {phase.node_type}")
+                raise ValueError(f"QwenT2IContextBuilder: unexpected node_type {node_def.node_type}")
 
 
 # ── Edit ─────────────────────────────────────────────────────────────────
@@ -148,53 +163,54 @@ class QwenT2IContextBuilder(QwenContextBuilder):
 class QwenEditContextBuilder(QwenContextBuilder):
     """Qwen Edit — 图像编辑（参考图 + 文本指令）。
 
-    处理 img_path（参考图路径列表）和 aux_latent。
-    当有 img_path 时走 VAE_ENCODE_IMAGES 编码参考图。
+    处理 img_path（参考图路径列表）。
+    当有 img_path 时走 ReadImageNode → VAE_ENCODE_IMAGES 编码参考图。
+    图片加载由 ReadImageNode 在 DAG 中完成，不再在 prepare_generate_inputs 中预加载。
     """
 
     @dataclass
-    class ExtraPipelineGenerateInputs:
-        """Edit 特有的中间数据。"""
+    class _Extra:
+        """Edit 特有的中间数据（从 ExtraInputs + settings 计算得出）。"""
 
         img_path: list[list[str]] | None
-        img_tensor: list[torch.Tensor] | torch.Tensor | None
         target_h: int
         target_w: int
 
-    def prepare_generate_inputs(self, base_inputs: PipelineGenerateInputs, **kwargs) -> None:
+    def prepare_generate_inputs(
+        self,
+        base_inputs: PipelineGenerateInputs,
+        extra_inputs: ExtraInputs | None,
+        *,
+        _default_settings: Any,
+        _engine: Any,
+        _vae_model_key: ModelKey | None,
+    ) -> None:
         """提取 Edit 特有输入：参考图路径、目标尺寸。"""
-        settings = kwargs.get("_default_settings")
-        if settings is None:
-            raise ValueError(
-                "QwenEditContextBuilder requires '_default_settings' in kwargs. "
-                "This should be injected by Pipeline.generate()."
-            )
-
         rc = base_inputs.runtime_config
         num_prompts = base_inputs.num_prompts
 
+        # 从 ExtraInputs 提取
+        ei = extra_inputs if isinstance(extra_inputs, QwenEditExtraInputs) else QwenEditExtraInputs()
+
         # 校验参考图路径
-        img_path = _valid_ref_images(kwargs.get("img_path"), num_prompts)
+        img_path = _valid_ref_images(ei.img_path, num_prompts)
 
-        # 预加载参考图 tensor
-        img_tensor = None
-        if img_path is not None:
-            img_tensor = _load_ref_images(img_path)
-
-        self._extra = self.ExtraPipelineGenerateInputs(
+        self._extra = self._Extra(
             img_path=img_path,
-            img_tensor=img_tensor,
             target_h=rc.size[1],
             target_w=rc.size[0],
         )
 
-    def build_context(self, phase: InferTask, inputs: PipelineGenerateInputs) -> NodeContext:
+    def build_context(self, node_def: NodeDef, inputs: PipelineGenerateInputs) -> NodeContext:
         """按 node_type 分发构建 context。"""
         extra = self._extra
-        match phase.node_type:
+        match node_def.node_type:
             case NT.TEXT_ENCODE:
                 # Edit 模式：传入 condition_image_path
                 return self._build_text_ctx(inputs, condition_image_path=extra.img_path)
+            case NT.READ_IMAGE:
+                # ReadImageNode: 传入参考图路径
+                return NodeContext(metadata={"img_paths": extra.img_path})
             case NT.VAE_COMPUTE_SHAPE:
                 return NodeContext(
                     metadata={
@@ -212,14 +228,7 @@ class QwenEditContextBuilder(QwenContextBuilder):
             case NT.SAVE_IMAGE:
                 return self._build_save_ctx(inputs)
             case _:
-                raise ValueError(f"QwenEditContextBuilder: unexpected node_type {phase.node_type}")
-
-    def prepare_tensors(self, phase: InferTask, inputs: PipelineGenerateInputs) -> dict[TensorKey, Any] | None:
-        """为 VAE_ENCODE_IMAGES 阶段准备 tensor。"""
-        extra = self._extra
-        if phase.node_type == NT.VAE_ENCODE_IMAGES and extra.img_tensor is not None:
-            return {TensorKey.IMAGE: extra.img_tensor}
-        return None
+                raise ValueError(f"QwenEditContextBuilder: unexpected node_type {node_def.node_type}")
 
     def has_ref_images(self, inputs: PipelineGenerateInputs) -> bool:
         """条件方法：是否有参考图 — 用于 PipelineDef 的 .when("has_ref_images")。"""
@@ -248,29 +257,3 @@ def _valid_ref_images(
             f"img_path length ({len(img_path)}) must match prompt list length ({num_prompts}) or only one group"
         )
     return img_path
-
-
-def _load_image(img_paths: list[str], device: str = "cpu") -> torch.Tensor:
-    """加载图片列表为 tensor — [B, C, H, W]，归一化到 [-1, 1]。"""
-    log.info(f"load input image: {img_paths}")
-    imgs = []
-    shape = None
-    for one_path in img_paths:
-        img = Image.open(one_path).convert("RGB")
-        if shape is None:
-            shape = img.size
-        elif img.size != shape:
-            raise ValueError(f"all images {img_paths} should have the same shape, but got {img.size} and {shape}")
-        img = tvtf.to_tensor(img).sub_(0.5).div_(0.5).to(device)
-        imgs.append(img.unsqueeze(0))
-    if len(imgs) == 1:
-        return imgs[0]
-    return torch.cat(imgs, dim=0)
-
-
-def _load_ref_images(
-    img_path: list[list[str]],
-    device: str = "cpu",
-) -> list[torch.Tensor] | torch.Tensor:
-    """加载参考图 — 二维列表返回 list[Tensor]，每个 Tensor 是一组参考图。"""
-    return [_load_image(paths, device=device) for paths in img_path]

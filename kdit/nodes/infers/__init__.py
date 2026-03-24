@@ -14,8 +14,10 @@
 
 from . import (  # noqa: F401  # pylint: disable=unused-import — 触发 @InferNodeFactory.register
     generator_node,
+    read_image_node,
     save_node,
     text_encoder_node,
+    vace_preprocess_node,
     vae_decoder_node,
     vae_encoder_node,
 )

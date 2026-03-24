@@ -24,10 +24,20 @@ class PinRef:
 
     只有两个字段：node_id + pin 枚举。
     pin 的类型（TensorKey 或 ModelKey）隐含了是 tensor 连线还是 model 连线。
+
+    支持 ``>>`` 操作符用于声明连线::
+
+        src_node.POSITIVE >> dst_node.POSITIVE
     """
 
     node_id: int
     pin: TensorKey | ModelKey
+
+    def __rshift__(self, other: "PinRef") -> tuple["PinRef", "PinRef"]:
+        """``src >> dst`` — 返回 (src, dst) 元组，供 connect() 使用。"""
+        if not isinstance(other, PinRef):
+            return NotImplemented
+        return (self, other)
 
 
 class NodeRef:

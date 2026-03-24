@@ -20,7 +20,8 @@ Pipeline（编排层）→ Engine（分发层）→ Executor（执行层）→ N
 
 - Node 的入参和出参**不直接传输 tensor 和 model**，这两者都通过 Pool 存储，通过 PoolKey 引用。避免多卡 Ray 场景下耗时的序列化操作。
 - 其他入参只能包含简单的 config 内容（通过 `NodeContext`），不允许存在 tensor 或 model 直接传输。
-- 每个 Node 实例有唯一的 `node_id`（int），由 `PipelineDefBuilder` 自动分配，用户不感知。
+- 每个 Node 实例有唯一的 `node_id`（int），由 `NodeDef` 创建时通过模块级全局计数器（`itertools.count(1)`）自动分配，用户不感知。
+- DAG 中未连接的输入 pin 代表"不输入"，Node 收到 `None`。Node **必须**自行处理 `None` 输入。
 
 ### Pin 声明
 
@@ -204,6 +205,10 @@ builder.connect((vae_a.BASE_LATENT, gen.BASE_LATENT))
 - Pipeline 层负责 DAG 拓扑排序、条件检查、构建 NodeContext
 - Pipeline 层计算 `pins_mapping`（纯数据），传给 Engine → Executor
 - Executor 只执行单个 Node，不感知 DAG
+- `Pipeline.generate()` 接收 `extra_inputs: ExtraInputs | None` 传递模型特有输入，**禁止** `**kwargs`
+- `ContextBuilder` 是 Pipeline 和 Node 之间的桥梁，负责 `prepare_generate_inputs()` + `build_context()`
+
+详见 [`.skills/coding/pipeline-and-context.md`](pipeline-and-context.md)
 
 ---
 

@@ -52,7 +52,7 @@ class SaveVideoNode(InferNode):
         fps = meta.get("fps", 30)
         os.makedirs(os.path.dirname(save_path), exist_ok=True)
         save_video(
-            tensor=video[None],
+            tensor=video,
             save_file=save_path,
             fps=fps,
             nrow=1,

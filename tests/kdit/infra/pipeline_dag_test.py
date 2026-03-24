@@ -20,6 +20,7 @@
 - generate() 调用 engine.run_infer_node()
 - pins_mapping 正确传递
 - 条件跳过（check_condition）的行为
+- build_context 接收 NodeDef（非 InferTask）
 """
 
 from unittest.mock import MagicMock, patch
@@ -28,10 +29,13 @@ from kdit.models.model_key import ModelKey
 from kdit.models.model_pool_key import ModelPoolKey
 from kdit.nodes.core.node_context import NodeContext
 from kdit.nodes.core.node_types import InferNodeType as NT
-from kdit.pipelines.pipeline import Pipeline, _node_def_display_name, _phase_display_name
+from kdit.pipelines.pipeline import (
+    Pipeline,
+    _node_def_display_name,
+    _phase_display_name,
+)
 from kdit.pipelines.pipeline_def import Edge, NodeDef, PipelineDef
 from kdit.pipelines.pipeline_key import PipelineKey
-from kdit.pipelines.pipeline_phase import InferTask
 from kdit.tensor import TensorKey
 from kdit.tensor.tensor_pool_key import TensorPoolKey
 
@@ -57,7 +61,6 @@ def _make_mock_ctx_builder():
     ctx_builder = MagicMock()
     ctx_builder.build_loader_kwargs.return_value = {"model_path": "/fake/path"}
     ctx_builder.build_context.return_value = NodeContext(prompt="test")
-    ctx_builder.prepare_tensors.return_value = None
     ctx_builder.check_condition.return_value = True
     ctx_builder.post_process.side_effect = lambda output, inputs: output
     ctx_builder.prepare_generate_inputs.return_value = None
@@ -82,7 +85,12 @@ def _make_dag_pipeline_def(*, with_condition=False):
         NodeDef(node_id=0, is_loader=True, model_key=ModelKey.T5TextEncoder),
         NodeDef(node_id=1, is_loader=True, model_key=ModelKey.Wan2_2_T2V_14B),
         NodeDef(node_id=2, is_loader=True, model_key=ModelKey.VAE_WAN2_2),
-        NodeDef(node_id=3, is_loader=False, node_type=NT.TEXT_ENCODE, model_key=ModelKey.T5TextEncoder),
+        NodeDef(
+            node_id=3,
+            is_loader=False,
+            node_type=NT.TEXT_ENCODE,
+            model_key=ModelKey.T5TextEncoder,
+        ),
         NodeDef(
             node_id=4,
             is_loader=False,
@@ -90,7 +98,12 @@ def _make_dag_pipeline_def(*, with_condition=False):
             model_key=ModelKey.Wan2_2_T2V_14B,
             condition="should_generate" if with_condition else None,
         ),
-        NodeDef(node_id=5, is_loader=False, node_type=NT.VAE_DECODE, model_key=ModelKey.VAE_WAN2_2),
+        NodeDef(
+            node_id=5,
+            is_loader=False,
+            node_type=NT.VAE_DECODE,
+            model_key=ModelKey.VAE_WAN2_2,
+        ),
         NodeDef(node_id=6, is_loader=False, node_type=NT.SAVE_VIDEO),
     )
     edges = (
@@ -156,7 +169,12 @@ class TestNodeDefDisplayName:
 
     def test_infer_node_def_with_model(self):
         """Infer NodeDef 有 model_key 时显示 TYPE(model_name)。"""
-        nd = NodeDef(node_id=1, is_loader=False, node_type=NT.GENERATE, model_key=ModelKey.Wan2_2_T2V_14B)
+        nd = NodeDef(
+            node_id=1,
+            is_loader=False,
+            node_type=NT.GENERATE,
+            model_key=ModelKey.Wan2_2_T2V_14B,
+        )
         assert _node_def_display_name(nd) == "GENERATE(Wan2_2_T2V_14B)"
 
     def test_infer_node_def_no_model(self):
@@ -261,7 +279,11 @@ class TestLoadModels:
         assert ctx_builder.build_loader_kwargs.call_count == 3
         # 验证 model_key 参数
         called_keys = [c.args[0] for c in ctx_builder.build_loader_kwargs.call_args_list]
-        assert called_keys == [ModelKey.T5TextEncoder, ModelKey.Wan2_2_T2V_14B, ModelKey.VAE_WAN2_2]
+        assert called_keys == [
+            ModelKey.T5TextEncoder,
+            ModelKey.Wan2_2_T2V_14B,
+            ModelKey.VAE_WAN2_2,
+        ]
 
 
 # ── generate() 测试 ───────────────────────────────────────────────────────
@@ -313,7 +335,7 @@ class TestGenerate:
         assert pm_text["model"] == {ModelKey.T5TextEncoder: ModelPoolKey(0, ModelKey.T5TextEncoder)}
         assert pm_text["tensor"] == {}
 
-        # gen(4): 入边 = loader_dit(1) → model, text_enc(3) → POSITIVE, text_enc(3) → NEGATIVE
+        # gen(4): 入边 = loader_dit(1)→model, text_enc(3)→POSITIVE/NEGATIVE
         pm_gen = calls[1].args[1]
         assert pm_gen["model"] == {ModelKey.Wan2_2_T2V_14B: ModelPoolKey(1, ModelKey.Wan2_2_T2V_14B)}
         assert pm_gen["tensor"] == {
@@ -331,8 +353,8 @@ class TestGenerate:
         assert pm_save["model"] == {}
         assert pm_save["tensor"] == {TensorKey.VIDEO: TensorPoolKey(5, TensorKey.VIDEO)}
 
-    def test_generate_build_context_receives_infer_task(self):
-        """build_context() 接收等价的 InferTask。"""
+    def test_generate_build_context_receives_node_def(self):
+        """build_context() 接收 NodeDef 实例。"""
         pipeline, _, ctx_builder = self._setup_pipeline_for_generate()
 
         pipeline.generate("test prompt")
@@ -340,11 +362,11 @@ class TestGenerate:
         # build_context 应该被调用 4 次
         assert ctx_builder.build_context.call_count == 4
 
-        # 验证第一个调用的 phase 参数是 InferTask
-        first_phase = ctx_builder.build_context.call_args_list[0].args[0]
-        assert isinstance(first_phase, InferTask)
-        assert first_phase.node_type == NT.TEXT_ENCODE
-        assert first_phase.model_key == ModelKey.T5TextEncoder
+        # 验证第一个调用的参数是 NodeDef
+        first_arg = ctx_builder.build_context.call_args_list[0].args[0]
+        assert isinstance(first_arg, NodeDef)
+        assert first_arg.node_type == NT.TEXT_ENCODE
+        assert first_arg.model_key == ModelKey.T5TextEncoder
 
     def test_generate_tensor_scope_used(self):
         """generate() 在 tensor_scope 内执行。"""
@@ -354,24 +376,18 @@ class TestGenerate:
 
         engine.tensor_scope.assert_called_once_with(keep=[TensorKey.VIDEO])
 
-    def test_generate_prepare_tensors_called(self):
-        """prepare_tensors() 为每个 infer 节点调用。"""
+    def test_generate_extra_inputs_passed_to_prepare(self):
+        """extra_inputs 参数传递给 prepare_generate_inputs()。"""
         pipeline, _, ctx_builder = self._setup_pipeline_for_generate()
 
-        pipeline.generate("test prompt")
+        from kdit.pipelines.extra_inputs import ExtraInputs
 
-        assert ctx_builder.prepare_tensors.call_count == 4
+        extra = ExtraInputs()
+        pipeline.generate("test prompt", extra_inputs=extra)
 
-    def test_generate_put_tensors_when_available(self):
-        """prepare_tensors() 返回非 None 时调用 put_tensors()。"""
-        pipeline, engine, ctx_builder = self._setup_pipeline_for_generate()
-        # 第一个 infer 节点返回 tensor
-        fake_tensors = {TensorKey.POSITIVE: "fake_tensor"}
-        ctx_builder.prepare_tensors.side_effect = [fake_tensors, None, None, None]
-
-        pipeline.generate("test prompt")
-
-        engine.put_tensors.assert_called_once_with(fake_tensors)
+        # prepare_generate_inputs 的第二个参数应该是 extra_inputs
+        call_args = ctx_builder.prepare_generate_inputs.call_args
+        assert call_args.args[1] is extra
 
 
 # ── 条件跳过测试 ──────────────────────────────────────────────────────────

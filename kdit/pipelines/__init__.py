@@ -15,6 +15,7 @@
 from .context_builder import ContextBuilder
 from .dag import compute_pins_mapping, topo_sort
 from .defs import *  # noqa: F403
+from .extra_inputs import ExtraInputs
 from .generate_inputs import PipelineGenerateInputs
 from .pin_ref import NodeRef, PinRef
 from .pipeline import Pipeline
@@ -27,7 +28,7 @@ from .pipeline_def import (
     register_pipeline_def,
 )
 from .pipeline_key import PipelineKey, get_pipeline_key_from_path
-from .pipeline_phase import InferTask, LoadTask
+from .pipeline_phase import LoadTask
 
 __all__ = [
     "Pipeline",
@@ -35,8 +36,8 @@ __all__ = [
     "PipelineDefBuilder",
     "PipelineKey",
     "LoadTask",
-    "InferTask",
     "ContextBuilder",
+    "ExtraInputs",
     "PipelineGenerateInputs",
     "register_pipeline_def",
     "get_pipeline_def",

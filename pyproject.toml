@@ -69,3 +69,7 @@ zip-safe = false  # 禁止以 zip 形式安装
 pythonpath = [".", "tests/kdit"]  # "." 确保 import kdit 正确；"tests/kdit" 让 helper 模块可直接导入
 testpaths = ["tests"]
 python_files = ["*_test.py"]  # 统一使用 *_test.py 后缀，禁止 test_*.py 前缀
+filterwarnings = [
+    "ignore:builtin type Swig.*has no __module__ attribute:DeprecationWarning",
+    "ignore:builtin type swigvarlink has no __module__ attribute:DeprecationWarning",
+]

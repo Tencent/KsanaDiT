@@ -62,12 +62,6 @@ class TestContextBuilderBase(unittest.TestCase):
         with self.assertRaises(ValueError, msg="Condition 'nonexistent' not found"):
             builder.check_condition("nonexistent", inputs)
 
-    def test_prepare_tensors_default_none(self):
-        """默认 prepare_tensors 返回 None。"""
-        builder = _DummyContextBuilder()
-        result = builder.prepare_tensors(MagicMock(), self._make_inputs())
-        self.assertIsNone(result)
-
     def test_post_process_default_passthrough(self):
         """默认 post_process 直接返回输入。"""
         builder = _DummyContextBuilder()

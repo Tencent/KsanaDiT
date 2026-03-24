@@ -46,3 +46,5 @@ class InferNodeType(Enum):
     GENERATE = auto()
     SAVE_VIDEO = auto()
     SAVE_IMAGE = auto()
+    READ_IMAGE = auto()
+    VACE_PREPROCESS = auto()

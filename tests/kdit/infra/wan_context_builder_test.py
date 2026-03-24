@@ -16,14 +16,14 @@
 
 import unittest
 from types import SimpleNamespace
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 from kdit.models.model_key import ModelKey
 from kdit.nodes.core.node_context import NodeContext
 from kdit.nodes.core.node_types import InferNodeType as NT
+from kdit.pipelines.context_builders.wan import WanI2VExtraInputs
 from kdit.pipelines.generate_inputs import PipelineGenerateInputs
-from kdit.pipelines.pipeline_def import InferTask
-from kdit.tensor import TensorKey
+from kdit.pipelines.pipeline_def import NodeDef
 
 
 def _make_wan_settings():
@@ -59,6 +59,11 @@ def _make_inputs(prompt="test", num_prompts=1, **overrides) -> PipelineGenerateI
     return PipelineGenerateInputs(**defaults)
 
 
+def _node_def(node_type, model_key=None, node_id=1):
+    """创建 InferNode 的 NodeDef。"""
+    return NodeDef(node_id=node_id, is_loader=False, node_type=node_type, model_key=model_key)
+
+
 # ── WanT2VContextBuilder ─────────────────────────────────────────────────
 
 
@@ -66,14 +71,20 @@ class TestWanT2VContextBuilder(unittest.TestCase):
     """WanT2VContextBuilder 的 prepare / build。"""
 
     def test_prepare_stores_target_dimensions(self):
-        """prepare_generate_inputs 保存目标尺寸（noise_shape 由 VAE_COMPUTE_SHAPE 节点计算）。"""
+        """prepare_generate_inputs 保存目标尺寸。"""
         from kdit.pipelines.context_builders.wan import WanT2VContextBuilder
 
         builder = WanT2VContextBuilder()
         inputs = _make_inputs()
         settings = _make_wan_settings()
 
-        builder.prepare_generate_inputs(inputs, _default_settings=settings)
+        builder.prepare_generate_inputs(
+            inputs,
+            None,
+            _default_settings=settings,
+            _engine=MagicMock(),
+            _vae_model_key=None,
+        )
 
         self.assertIsNotNone(builder._extra)
         self.assertEqual(builder._extra.target_f, 17)
@@ -81,13 +92,13 @@ class TestWanT2VContextBuilder(unittest.TestCase):
         self.assertEqual(builder._extra.target_w, 720)
 
     def test_prepare_missing_settings_raises(self):
-        """缺少 _default_settings 时抛出 ValueError。"""
+        """缺少 _default_settings 时抛出 TypeError。"""
         from kdit.pipelines.context_builders.wan import WanT2VContextBuilder
 
         builder = WanT2VContextBuilder()
         inputs = _make_inputs()
-        with self.assertRaises(ValueError, msg="_default_settings"):
-            builder.prepare_generate_inputs(inputs)
+        with self.assertRaises(TypeError):
+            builder.prepare_generate_inputs(inputs, None)
 
     def test_build_context_text_encode(self):
         """build_context(TEXT_ENCODE) 返回包含 prompt 的 context。"""
@@ -95,10 +106,16 @@ class TestWanT2VContextBuilder(unittest.TestCase):
 
         builder = WanT2VContextBuilder()
         inputs = _make_inputs(prompt="hello world")
-        builder.prepare_generate_inputs(inputs, _default_settings=_make_wan_settings())
+        builder.prepare_generate_inputs(
+            inputs,
+            None,
+            _default_settings=_make_wan_settings(),
+            _engine=MagicMock(),
+            _vae_model_key=None,
+        )
 
-        phase = InferTask(node_type=NT.TEXT_ENCODE, model_key=ModelKey.T5TextEncoder)
-        ctx = builder.build_context(phase, inputs)
+        nd = _node_def(NT.TEXT_ENCODE, ModelKey.T5TextEncoder)
+        ctx = builder.build_context(nd, inputs)
 
         self.assertIsInstance(ctx, NodeContext)
         self.assertEqual(ctx.prompt, "hello world")
@@ -109,10 +126,16 @@ class TestWanT2VContextBuilder(unittest.TestCase):
 
         builder = WanT2VContextBuilder()
         inputs = _make_inputs()
-        builder.prepare_generate_inputs(inputs, _default_settings=_make_wan_settings())
+        builder.prepare_generate_inputs(
+            inputs,
+            None,
+            _default_settings=_make_wan_settings(),
+            _engine=MagicMock(),
+            _vae_model_key=None,
+        )
 
-        phase = InferTask(node_type=NT.GENERATE, model_key=ModelKey.Wan2_2_T2V_14B)
-        ctx = builder.build_context(phase, inputs)
+        nd = _node_def(NT.GENERATE, ModelKey.Wan2_2_T2V_14B)
+        ctx = builder.build_context(nd, inputs)
 
         self.assertIsNotNone(ctx.sample_config)
         self.assertIsNotNone(ctx.runtime_config)
@@ -123,10 +146,16 @@ class TestWanT2VContextBuilder(unittest.TestCase):
 
         builder = WanT2VContextBuilder()
         inputs = _make_inputs()
-        builder.prepare_generate_inputs(inputs, _default_settings=_make_wan_settings())
+        builder.prepare_generate_inputs(
+            inputs,
+            None,
+            _default_settings=_make_wan_settings(),
+            _engine=MagicMock(),
+            _vae_model_key=None,
+        )
 
-        phase = InferTask(node_type=NT.VAE_COMPUTE_SHAPE, model_key=ModelKey.VAE_WAN2_2)
-        ctx = builder.build_context(phase, inputs)
+        nd = _node_def(NT.VAE_COMPUTE_SHAPE, ModelKey.VAE_WAN2_2)
+        ctx = builder.build_context(nd, inputs)
 
         self.assertIn("target_f", ctx.metadata)
         self.assertIn("target_h", ctx.metadata)
@@ -138,136 +167,115 @@ class TestWanT2VContextBuilder(unittest.TestCase):
 
         builder = WanT2VContextBuilder()
         inputs = _make_inputs()
-        builder.prepare_generate_inputs(inputs, _default_settings=_make_wan_settings())
+        builder.prepare_generate_inputs(
+            inputs,
+            None,
+            _default_settings=_make_wan_settings(),
+            _engine=MagicMock(),
+            _vae_model_key=None,
+        )
 
-        phase = InferTask(node_type=NT.VAE_ENCODE_IMAGES)
+        nd = _node_def(NT.VAE_ENCODE_IMAGES)
         with self.assertRaises(ValueError, msg="unexpected node_type"):
-            builder.build_context(phase, inputs)
+            builder.build_context(nd, inputs)
 
 
 # ── WanI2VContextBuilder ─────────────────────────────────────────────────
 
 
 class TestWanI2VContextBuilder(unittest.TestCase):
-    """WanI2VContextBuilder 的 prepare / build / condition / prepare_tensors。"""
+    """WanI2VContextBuilder 的 prepare / build / condition。"""
 
-    def test_prepare_with_no_image(self):
-        """无图时 start_img_path 为 None，target_frame_num 有值。"""
+    def _prepare(self, extra_inputs=None):
+        """辅助方法：创建 builder 并调用 prepare_generate_inputs。"""
         from kdit.pipelines.context_builders.wan import WanI2VContextBuilder
 
         builder = WanI2VContextBuilder()
         inputs = _make_inputs()
         settings = _make_wan_settings()
+        builder.prepare_generate_inputs(
+            inputs,
+            extra_inputs,
+            _default_settings=settings,
+            _engine=MagicMock(),
+            _vae_model_key=ModelKey.VAE_WAN2_2,
+        )
+        return builder, inputs
 
-        builder.prepare_generate_inputs(inputs, _default_settings=settings)
+    def test_prepare_with_no_image(self):
+        """无图时 start_img_path 为 None，target_frame_num 有值。"""
+        builder, _ = self._prepare()
 
         self.assertIsNone(builder._extra.start_img_path)
         self.assertIsNotNone(builder._extra.target_frame_num)
         self.assertFalse(builder._extra.with_end_image)
 
-    def test_no_image_start_img_tensor_is_none(self):
-        """无图时 start_img_tensor 为 None。"""
-        from kdit.pipelines.context_builders.wan import WanI2VContextBuilder
-
-        builder = WanI2VContextBuilder()
-        inputs = _make_inputs()
-        builder.prepare_generate_inputs(inputs, _default_settings=_make_wan_settings())
-
-        self.assertIsNone(builder._extra.start_img_tensor)
-
-    @patch("kdit.pipelines.context_builders.wan._load_image")
-    def test_prepare_with_image(self, mock_load):
-        """有图时 start_img_path 不为 None，start_img_tensor 不为 None。"""
-        import torch
-
-        from kdit.pipelines.context_builders.wan import WanI2VContextBuilder
-
-        mock_load.return_value = torch.zeros(1, 3, 480, 720)
-
-        builder = WanI2VContextBuilder()
-        inputs = _make_inputs()
-        settings = _make_wan_settings()
-
-        builder.prepare_generate_inputs(
-            inputs,
-            _default_settings=settings,
-            start_img_path="test.png",
-        )
+    def test_prepare_with_start_image(self):
+        """有 start_img 时 start_img_path 不为 None。"""
+        extra = WanI2VExtraInputs(start_img_path="test.png")
+        builder, _ = self._prepare(extra_inputs=extra)
 
         self.assertIsNotNone(builder._extra.start_img_path)
-        self.assertIsNotNone(builder._extra.start_img_tensor)
+        self.assertEqual(builder._extra.start_img_path, ["test.png"])
 
-    @patch("kdit.pipelines.context_builders.wan._load_image")
-    def test_prepare_with_end_image(self, mock_load):
+    def test_prepare_with_end_image(self):
         """有 end_img 时 with_end_image 为 True。"""
-        import torch
-
-        from kdit.pipelines.context_builders.wan import WanI2VContextBuilder
-
-        mock_load.return_value = torch.zeros(1, 3, 480, 720)
-
-        builder = WanI2VContextBuilder()
-        inputs = _make_inputs()
-        settings = _make_wan_settings()
-
-        builder.prepare_generate_inputs(
-            inputs,
-            _default_settings=settings,
-            start_img_path="start.png",
-            end_img_path="end.png",
-        )
+        extra = WanI2VExtraInputs(start_img_path="start.png", end_img_path="end.png")
+        builder, _ = self._prepare(extra_inputs=extra)
 
         self.assertTrue(builder._extra.with_end_image)
 
-    @patch("kdit.pipelines.context_builders.wan._load_image")
-    def test_prepare_tensors_vae_encode(self, mock_load):
-        """prepare_tensors(VAE_ENCODE_SPATIAL) 返回 START_IMG 和 END_IMG。"""
-        import torch
+    def test_condition_has_start_image_true(self):
+        """有 start_img 时 has_start_image 返回 True。"""
+        extra = WanI2VExtraInputs(start_img_path="test.png")
+        builder, inputs = self._prepare(extra_inputs=extra)
 
-        from kdit.pipelines.context_builders.wan import WanI2VContextBuilder
+        self.assertTrue(builder.has_start_image(inputs))
 
-        mock_load.return_value = torch.zeros(1, 3, 480, 720)
+    def test_condition_has_start_image_false(self):
+        """无 start_img 时 has_start_image 返回 False。"""
+        builder, inputs = self._prepare()
 
-        builder = WanI2VContextBuilder()
-        inputs = _make_inputs()
-        builder.prepare_generate_inputs(
-            inputs,
-            _default_settings=_make_wan_settings(),
-            start_img_path="test.png",
-        )
+        self.assertFalse(builder.has_start_image(inputs))
 
-        phase = InferTask(node_type=NT.VAE_ENCODE_SPATIAL, model_key=ModelKey.VAE_WAN2_2)
-        tensors = builder.prepare_tensors(phase, inputs)
+    def test_build_context_text_encode(self):
+        """build_context(TEXT_ENCODE) 返回包含 prompt 的 context。"""
+        builder, inputs = self._prepare()
 
-        self.assertIsNotNone(tensors)
-        self.assertIn(TensorKey.START_IMG, tensors)
+        nd = _node_def(NT.TEXT_ENCODE, ModelKey.T5TextEncoder)
+        ctx = builder.build_context(nd, inputs)
 
-    def test_prepare_tensors_generate_no_latent(self):
-        """无 aux_latent 时 prepare_tensors(GENERATE) 返回 None。"""
-        from kdit.pipelines.context_builders.wan import WanI2VContextBuilder
+        self.assertIsInstance(ctx, NodeContext)
+        self.assertEqual(ctx.prompt, "test")
 
-        builder = WanI2VContextBuilder()
-        inputs = _make_inputs()
-        builder.prepare_generate_inputs(inputs, _default_settings=_make_wan_settings())
+    def test_build_context_read_image(self):
+        """build_context(READ_IMAGE) 返回包含 img_paths 的 context。"""
+        extra = WanI2VExtraInputs(start_img_path="test.png")
+        builder, inputs = self._prepare(extra_inputs=extra)
 
-        phase = InferTask(node_type=NT.GENERATE, model_key=ModelKey.Wan2_2_I2V_14B)
-        tensors = builder.prepare_tensors(phase, inputs)
-        self.assertIsNone(tensors)
+        nd = _node_def(NT.READ_IMAGE, node_id=10)
+        ctx = builder.build_context(nd, inputs)
+
+        self.assertIn("img_paths", ctx.metadata)
 
     def test_build_context_vae_encode_spatial(self):
         """build_context(VAE_ENCODE_SPATIAL) 返回包含 target_f/h/w 的 context。"""
-        from kdit.pipelines.context_builders.wan import WanI2VContextBuilder
+        builder, inputs = self._prepare()
 
-        builder = WanI2VContextBuilder()
-        inputs = _make_inputs()
-        builder.prepare_generate_inputs(inputs, _default_settings=_make_wan_settings())
-
-        phase = InferTask(node_type=NT.VAE_ENCODE_SPATIAL, model_key=ModelKey.VAE_WAN2_2)
-        ctx = builder.build_context(phase, inputs)
+        nd = _node_def(NT.VAE_ENCODE_SPATIAL, ModelKey.VAE_WAN2_2)
+        ctx = builder.build_context(nd, inputs)
 
         self.assertIn("target_f", ctx.metadata)
         self.assertIn("target_h", ctx.metadata)
         self.assertIn("target_w", ctx.metadata)
+
+    def test_build_context_unexpected_type_raises(self):
+        """build_context 遇到未知 node_type 时抛出 ValueError。"""
+        builder, inputs = self._prepare()
+
+        nd = _node_def(NT.VAE_ENCODE_IMAGES)
+        with self.assertRaises(ValueError, msg="unexpected node_type"):
+            builder.build_context(nd, inputs)
 
 
 # ── Wan 辅助函数 ─────────────────────────────────────────────────────────

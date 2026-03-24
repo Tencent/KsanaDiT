@@ -18,17 +18,16 @@
 
 生命周期：
 
-Load 阶段（新增）：
+Load 阶段：
 1. resolve_model_paths(model_path, ...) — 解析模型路径
 2. resolve_lora_config(lora_config, ...) — 解析 LoRA 配置
 3. build_loader_kwargs(model_key, ...) — 为每个 LoadTask 构建 kwargs
 
 Generate 阶段：
-1. prepare_generate_inputs(base_inputs, **kwargs) — 一次性：提取 Pipeline 特有输入
-2. 对每个 InferTask:
+1. prepare_generate_inputs(base_inputs, extra_inputs, ...) — 一次性：提取 Pipeline 特有输入
+2. 对每个 NodeDef:
    a. check_condition(name, inputs) — 是否跳过
-   b. prepare_tensors(phase, inputs) — 准备 tensor -> put 到 pool
-   c. build_context(phase, inputs) — 构建 NodeContext
+   b. build_context(node_def, inputs) — 构建 NodeContext
 3. post_process(output, inputs) — 输出后处理
 """
 
@@ -40,10 +39,9 @@ from typing import Any
 from kdit.config.lora_config import LoraConfig
 from kdit.models.model_key import DIFFUSION_KEYS, TEXT_ENCODER_KEYS, VAE_KEYS, ModelKey
 from kdit.nodes.core.node_context import NodeContext
-from kdit.tensor import TensorKey
 
+from .extra_inputs import ExtraInputs
 from .generate_inputs import PipelineGenerateInputs
-from .pipeline_phase import InferTask
 
 
 class ContextBuilder(ABC):
@@ -54,6 +52,7 @@ class ContextBuilder(ABC):
 
     def __init__(self):
         self._extra: Any = None  # prepare_generate_inputs() 的结果，子类特有输入
+        self._pipeline_def: Any = None  # Pipeline 注入的 PipelineDef 引用（用于 edges 查询）
 
     # ── Load 阶段 ──
 
@@ -143,36 +142,44 @@ class ContextBuilder(ABC):
 
     # ── Generate 阶段 ──
 
-    def prepare_generate_inputs(self, base_inputs: PipelineGenerateInputs, **kwargs) -> None:
-        """从 kwargs 中提取并校验 Pipeline 特有的输入。
+    def prepare_generate_inputs(
+        self,
+        base_inputs: PipelineGenerateInputs,
+        extra_inputs: ExtraInputs | None,
+        *,
+        _default_settings: Any,
+        _engine: Any,
+        _vae_model_key: ModelKey | None,
+    ) -> None:
+        """从 extra_inputs 中提取并校验 Pipeline 特有的输入。
 
         子类覆盖此方法，将结果存入 self._extra。
         默认无特有输入。
+
+        Args:
+            base_inputs: 公共输入（prompt, config 等）。
+            extra_inputs: 模型特有输入（ExtraInputs 子类实例或 None）。
+            _default_settings: Pipeline 默认配置（由 Pipeline 注入）。
+            _engine: Engine 引用（由 Pipeline 注入）。
+            _vae_model_key: VAE ModelKey（由 Pipeline 注入）。
         """
 
     @abstractmethod
     def build_context(
         self,
-        phase: InferTask,
+        node_def: Any,
         inputs: PipelineGenerateInputs,
     ) -> NodeContext:
-        """为指定的 InferTask 构建 NodeContext。
+        """为指定的 NodeDef 构建 NodeContext。
 
-        内部通过 phase.node_type 分支，为不同 Node 构建不同的 context。
+        内部通过 node_def.node_type 分支，为不同 Node 构建不同的 context。
         可通过 self._extra 访问 prepare_generate_inputs() 阶段提取的特有输入。
+
+        Args:
+            node_def: NodeDef 实例（DAG 中的节点定义）。
+            inputs: 公共输入。
         """
         ...
-
-    def prepare_tensors(
-        self,
-        phase: InferTask,
-        inputs: PipelineGenerateInputs,
-    ) -> dict[TensorKey, Any] | None:
-        """为指定的 InferTask 准备需要 put 到 tensor_pool 的 tensor。
-
-        默认返回 None。子类按需覆盖。
-        """
-        return None
 
     def check_condition(self, condition_name: str, inputs: PipelineGenerateInputs) -> bool:
         """检查条件是否满足 — 查找 self 上的同名方法。"""

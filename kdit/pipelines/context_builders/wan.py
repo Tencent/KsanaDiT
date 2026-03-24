@@ -28,7 +28,6 @@ import torchvision.transforms.functional as tvtf
 from PIL import Image
 
 from kdit.config.lora_config import LoraConfig
-from kdit.engine import Engine
 from kdit.models.model_key import ModelKey
 from kdit.nodes.core.node_context import NodeContext
 from kdit.nodes.core.node_types import InferNodeType as NT
@@ -38,8 +37,30 @@ from kdit.utils.types import str_to_list
 from kdit.utils.vace import VaceConfig, build_vace_video_control_config, latent_process_out
 
 from ..context_builder import ContextBuilder
+from ..extra_inputs import ExtraInputs
 from ..generate_inputs import PipelineGenerateInputs
-from ..pipeline_def import InferTask
+from ..pipeline_def import NodeDef
+
+# ── ExtraInputs 子类 ─────────────────────────────────────────────────────
+
+
+@dataclass
+class WanI2VExtraInputs(ExtraInputs):
+    """Wan I2V / VACE 的模型特有输入。
+
+    用法::
+
+        pipeline.generate(
+            prompt,
+            extra_inputs=WanI2VExtraInputs(start_img_path="a.jpg"),
+        )
+    """
+
+    start_img_path: str | list[str] | None = None
+    end_img_path: str | list[str] | None = None
+    video_control_config: VaceConfig | None = None
+    aux_latent: torch.Tensor | None = None
+
 
 # ── 公共基类 ─────────────────────────────────────────────────────────────
 
@@ -185,7 +206,7 @@ class WanT2VContextBuilder(WanContextBuilder):
     """
 
     @dataclass
-    class ExtraPipelineGenerateInputs:
+    class _Extra:
         """T2V 特有的中间数据。"""
 
         target_f: int
@@ -193,31 +214,29 @@ class WanT2VContextBuilder(WanContextBuilder):
         target_w: int
         fps: int = 16
 
-    def prepare_generate_inputs(self, base_inputs: PipelineGenerateInputs, **kwargs) -> None:
-        """保存目标尺寸，noise_shape 由 VAE_COMPUTE_SHAPE 节点计算。
-
-        需要 kwargs 中的 ``_default_settings`` 来获取 fps。
-        """
-        settings = kwargs.get("_default_settings")
-        if settings is None:
-            raise ValueError(
-                "WanT2VContextBuilder requires '_default_settings' in kwargs. "
-                "This should be injected by Pipeline.generate()."
-            )
-
+    def prepare_generate_inputs(
+        self,
+        base_inputs: PipelineGenerateInputs,
+        extra_inputs: ExtraInputs | None,
+        *,
+        _default_settings: Any,
+        _engine: Any,
+        _vae_model_key: ModelKey | None,
+    ) -> None:
+        """保存目标尺寸，noise_shape 由 VAE_COMPUTE_SHAPE 节点计算。"""
         rc = base_inputs.runtime_config
-        fps = getattr(settings.vae, "fps", 16)
-        self._extra = self.ExtraPipelineGenerateInputs(
+        fps = getattr(_default_settings.vae, "fps", 16)
+        self._extra = self._Extra(
             target_f=rc.frame_num,
             target_h=rc.size[1],
             target_w=rc.size[0],
             fps=fps,
         )
 
-    def build_context(self, phase: InferTask, inputs: PipelineGenerateInputs) -> NodeContext:
+    def build_context(self, node_def: NodeDef, inputs: PipelineGenerateInputs) -> NodeContext:
         """按 node_type 分发构建 context。"""
         extra = self._extra
-        match phase.node_type:
+        match node_def.node_type:
             case NT.TEXT_ENCODE:
                 return self._build_text_ctx(inputs)
             case NT.VAE_COMPUTE_SHAPE:
@@ -235,7 +254,7 @@ class WanT2VContextBuilder(WanContextBuilder):
             case NT.SAVE_VIDEO:
                 return self._build_save_ctx(inputs)
             case _:
-                raise ValueError(f"WanT2VContextBuilder: unexpected node_type {phase.node_type}")
+                raise ValueError(f"WanT2VContextBuilder: unexpected node_type {node_def.node_type}")
 
 
 # ── I2V ──────────────────────────────────────────────────────────────────
@@ -249,48 +268,44 @@ class WanI2VContextBuilder(WanContextBuilder):
     """
 
     @dataclass
-    class ExtraPipelineGenerateInputs:
-        """I2V 特有的中间数据。"""
+    class _Extra:
+        """I2V 特有的中间数据（从 ExtraInputs + settings 计算得出）。"""
 
         start_img_path: list[str] | None
         end_img_path: list[str] | None
-        start_img_tensor: torch.Tensor | None
-        end_img_tensor: torch.Tensor | None
-        aux_latent: torch.Tensor | None
         target_frame_num: int
         with_end_image: bool
         vace_video_control_config: VaceConfig | None
         fps: int = 16
 
-    def prepare_generate_inputs(self, base_inputs: PipelineGenerateInputs, **kwargs) -> None:
-        """提取 I2V 特有输入：图片路径、VACE 配置、noise_shape。
-
-        需要 kwargs 中的:
-        - ``_default_settings``: VAE 参数
-        - ``_engine``: Engine 实例（VACE 的 vae_encode_fn 需要）
-        - ``_vae_model_key``: VAE 模型 key（VACE 的 vae_encode_fn 需要）
-        """
-        settings = kwargs.get("_default_settings")
-        if settings is None:
-            raise ValueError(
-                "WanI2VContextBuilder requires '_default_settings' in kwargs. "
-                "This should be injected by Pipeline.generate()."
-            )
-
+    def prepare_generate_inputs(
+        self,
+        base_inputs: PipelineGenerateInputs,
+        extra_inputs: ExtraInputs | None,
+        *,
+        _default_settings: Any,
+        _engine: Any,
+        _vae_model_key: ModelKey | None,
+    ) -> None:
+        """提取 I2V 特有输入：图片路径、VACE 配置、noise_shape。"""
+        settings = _default_settings
         rc = base_inputs.runtime_config
         num_prompts = base_inputs.num_prompts
 
+        # 从 ExtraInputs 提取
+        ei = extra_inputs if isinstance(extra_inputs, WanI2VExtraInputs) else WanI2VExtraInputs()
+
         # 校验图片路径
-        start_img_path = _valid_images(kwargs.get("start_img_path"), num_prompts)
-        end_img_path = _valid_images(kwargs.get("end_img_path"), num_prompts)
+        start_img_path = _valid_images(ei.start_img_path, num_prompts)
+        end_img_path = _valid_images(ei.end_img_path, num_prompts)
         with_end_image = end_img_path is not None
 
         # VACE 配置
         vace_video_control_config = _valid_video_control_config(
-            video_control_config=kwargs.get("video_control_config"),
+            video_control_config=ei.video_control_config,
             runtime_config=rc,
-            engine=kwargs.get("_engine"),
-            vae_model_key=kwargs.get("_vae_model_key"),
+            engine=_engine,
+            vae_model_key=_vae_model_key,
             vae_stride=getattr(settings.vae, "stride", None),
         )
 
@@ -301,31 +316,26 @@ class WanI2VContextBuilder(WanContextBuilder):
             else rc.frame_num
         )
 
-        # 预加载图片 tensor
-        start_img_tensor, end_img_tensor = None, None
-        if start_img_path is not None:
-            start_img_tensor = _load_image(start_img_path)
-            end_img_tensor = _load_image(end_img_path) if end_img_path is not None else None
-
         fps = getattr(settings.vae, "fps", 16)
-        self._extra = self.ExtraPipelineGenerateInputs(
+        self._extra = self._Extra(
             start_img_path=start_img_path,
             end_img_path=end_img_path,
-            start_img_tensor=start_img_tensor,
-            end_img_tensor=end_img_tensor,
-            aux_latent=kwargs.get("aux_latent"),
             target_frame_num=target_frame_num,
             with_end_image=with_end_image,
             vace_video_control_config=vace_video_control_config,
             fps=fps,
         )
 
-    def build_context(self, phase: InferTask, inputs: PipelineGenerateInputs) -> NodeContext:
+    def build_context(self, node_def: NodeDef, inputs: PipelineGenerateInputs) -> NodeContext:
         """按 node_type 分发构建 context。"""
         extra = self._extra
-        match phase.node_type:
+        match node_def.node_type:
             case NT.TEXT_ENCODE:
                 return self._build_text_ctx(inputs)
+            case NT.READ_IMAGE:
+                # ReadImageNode: 通过 edges 区分 start/end image
+                img_paths = self._resolve_read_image_paths(node_def)
+                return NodeContext(metadata={"img_paths": img_paths})
             case NT.VAE_ENCODE_SPATIAL:
                 return NodeContext(
                     metadata={
@@ -334,6 +344,10 @@ class WanI2VContextBuilder(WanContextBuilder):
                         "target_w": inputs.runtime_config.size[0],
                     }
                 )
+            case NT.VACE_PREPROCESS:
+                return NodeContext(
+                    metadata={"vace_config": extra.vace_video_control_config},
+                )
             case NT.GENERATE:
                 return self._build_gen_ctx(inputs)
             case NT.VAE_DECODE:
@@ -341,19 +355,35 @@ class WanI2VContextBuilder(WanContextBuilder):
             case NT.SAVE_VIDEO:
                 return self._build_save_ctx(inputs)
             case _:
-                raise ValueError(f"WanI2VContextBuilder: unexpected node_type {phase.node_type}")
+                raise ValueError(f"WanI2VContextBuilder: unexpected node_type {node_def.node_type}")
 
-    def prepare_tensors(self, phase: InferTask, inputs: PipelineGenerateInputs) -> dict[TensorKey, Any] | None:
-        """为 VAE_ENCODE_SPATIAL 和 GENERATE 阶段准备 tensor。"""
+    def _resolve_read_image_paths(self, node_def: NodeDef) -> list[str] | None:
+        """通过 DAG edges 区分多个 ReadImageNode 实例。
+
+        查看 node_def 的出边连接到哪个 dst_pin：
+        - 连接到 START_IMG → 返回 start_img_path
+        - 连接到 END_IMG → 返回 end_img_path
+        """
         extra = self._extra
-        if phase.node_type == NT.VAE_ENCODE_SPATIAL:
-            return {
-                TensorKey.START_IMG: extra.start_img_tensor,
-                TensorKey.END_IMG: extra.end_img_tensor,
-            }
-        if phase.node_type == NT.GENERATE and extra.aux_latent is not None:
-            return {TensorKey.AUX_LATENT: extra.aux_latent}
-        return None
+        if self._pipeline_def is None:
+            # 无 pipeline_def 时回退到 start_img_path
+            return extra.start_img_path
+
+        for edge in self._pipeline_def.edges:
+            if edge.src_node_id == node_def.node_id and edge.edge_type == "tensor":
+                if edge.dst_pin == TensorKey.START_IMG:
+                    return extra.start_img_path
+                if edge.dst_pin == TensorKey.END_IMG:
+                    return extra.end_img_path
+        return extra.start_img_path
+
+    def has_start_image(self, inputs: PipelineGenerateInputs) -> bool:
+        """条件方法：是否有起始图 — 用于 PipelineDef 的 .when("has_start_image")。"""
+        return self._extra.start_img_path is not None
+
+    def has_vace(self, inputs: PipelineGenerateInputs) -> bool:
+        """条件方法：是否有 VACE 配置 — 用于 PipelineDef 的 .when("has_vace")。"""
+        return self._extra.vace_video_control_config is not None
 
 
 # ── 辅助函数 ─────────────────────────────────────────────────────────────
@@ -398,7 +428,7 @@ def _load_image(img_paths: list[str] | None, device: str = "cpu") -> torch.Tenso
 def _valid_video_control_config(
     video_control_config: VaceConfig | None,
     runtime_config: Any,
-    engine: Engine | None,
+    engine: Any | None,
     vae_model_key: ModelKey | None,
     vae_stride: Any | None,
 ) -> VaceConfig | None:

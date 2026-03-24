@@ -68,14 +68,15 @@ tensor_pool.put("latents", latents)
 |------|-----|--------|--------|
 | `TensorKey.POSITIVE` | `"positive"` | TextEncodeNode | GeneratorNode |
 | `TensorKey.NEGATIVE` | `"negative"` | TextEncodeNode | GeneratorNode |
-| `TensorKey.IMG_LATENTS` | `"img_latents"` | VAEEncodeNode | GeneratorNode |
+| `TensorKey.IMG_LATENTS` | `"img_latents"` | VAEEncodeImagesNode | GeneratorNode |
 | `TensorKey.LATENTS` | `"latents"` | GeneratorNode | VAEDecodeNode |
-| `TensorKey.VIDEO` | `"video"` | VAEDecodeNode | Pipeline/ComfyUI |
-| `TensorKey.IMAGE` | `"image"` | Pipeline put_tensors | VAEEncodeNode |
-| `TensorKey.START_IMG` | `"start_img"` | Pipeline put_tensors | VAEEncodeNode |
-| `TensorKey.END_IMG` | `"end_img"` | Pipeline put_tensors | VAEEncodeNode |
-| `TensorKey.BASE_LATENT` | `"base_latent"` | VAEEncodeSpatialNode / Pipeline put_tensors | GeneratorNode |
-| `TensorKey.AUX_LATENT` | `"aux_latent"` | Pipeline put_tensors | GeneratorNode |
+| `TensorKey.VIDEO` | `"video"` | VAEDecodeNode | SaveVideoNode |
+| `TensorKey.IMAGE` | `"image"` | ReadImageNode | VAEEncodeSpatialNode / VAEEncodeImagesNode（通过 cross-pin connect） |
+| `TensorKey.START_IMG` | `"start_img"` | ReadImageNode（cross-pin） | VAEEncodeSpatialNode |
+| `TensorKey.END_IMG` | `"end_img"` | ReadImageNode（cross-pin） | VAEEncodeSpatialNode |
+| `TensorKey.BASE_LATENT` | `"base_latent"` | VAEEncodeSpatialNode / VAEComputeShapeNode | GeneratorNode |
+| `TensorKey.AUX_LATENT` | `"aux_latent"` | VACEPreprocessNode | GeneratorNode |
+| `TensorKey.VACE_CONTEXT` | `"vace_context"` | VACEPreprocessNode | GeneratorNode |
 
 ### NodeContext 禁止 tensor
 
@@ -370,32 +371,35 @@ Node 实例是**临时对象**，用完即弃。Executor 不持有 Node 引用�
 `InferNode.run()` 签名是固定的：
 
 ```python
-def run(self, model_key, context, *, tensor_pool, model_pool, device_ctx) -> None:
+def run(self, pins: PinHub, *, context: NodeContext) -> None:
 ```
 
+- `pins` 是 `PinHub` 实例，提供 `get_model()` / `get_tensor()` / `put_tensor()` 等方法
+- `context` 是 `NodeContext` 实例，包含 metadata 和 device_info
 - **禁止** 添加 `**kwargs` 或任何额外参数
 - **禁止** 返回值（必须返回 `None`）
 - 如需传递额外配置，使用 `context.metadata` 字典
 
-### Tensor 只能通过 tensor_pool 流转
+### Tensor 只能通过 PinHub 流转
 
-- **输入 tensor**: 只能通过 `tensor_pool.get(key)` 或 `tensor_pool.peek(key)` 获取
-- **输出 tensor**: 只能通过 `tensor_pool.put(key, tensor)` 写入
+- **输入 tensor**: 只能通过 `pins.get_tensor(key)` 或 `pins.peek_tensor(key)` 获取
+- **输出 tensor**: 只能通过 `pins.put_tensor(key, tensor)` 写入
+- **输入 model**: 只能通过 `pins.get_model(key)` 获取
 - **禁止** 在 `run()` 参数中传递 tensor
 - **禁止** 在 `context.metadata` 中放 tensor（`NodeContext.__post_init__` 会校验）
 
 ### 声明 tensor 契约
 
-每个 Node 必须声明 `input_tensor_keys` 和 `output_tensor_keys`：
+每个 Node 必须声明 `input_tensor_pins` 和 `output_tensor_pins`：
 
 ```python
 class MyNode(InferNode):
-    input_tensor_keys = [TensorKey.POSITIVE, TensorKey.NEGATIVE]
-    output_tensor_keys = [TensorKey.LATENTS]
+    input_tensor_pins = [TensorKey.POSITIVE, TensorKey.NEGATIVE]
+    output_tensor_pins = [TensorKey.LATENTS]
 ```
 
-- `input_tensor_keys` 可以为空列表 `[]`（如 TextEncodeNode 不依赖其他 tensor）
-- `output_tensor_keys` 用于 `R0_R0_BCAST` 策略时指定需要 broadcast 的 key
+- `input_tensor_pins` 可以为空列表 `[]`（如 TextEncodeNode 不依赖其他 tensor）
+- `output_tensor_pins` 用于 `R0_R0_BCAST` 策略时指定需要 broadcast 的 key
 
 ### dispatch_policy 三维度命名
 
@@ -411,17 +415,22 @@ class MyNode(InferNode):
 
 - 使用 `@InferNodeFactory.register()` 装饰器注册
 - 注册键为 `(InferNodeType, [ModelKey, ...])`
-- `InferNodeType` 枚举值：`TEXT_ENCODE`, `VAE_ENCODE_SPATIAL`, `VAE_ENCODE_IMAGES`, `VAE_DECODE`, `GENERATE`
+- `InferNodeType` 枚举值：`TEXT_ENCODE`, `VAE_ENCODE_SPATIAL`, `VAE_ENCODE_IMAGES`, `VAE_COMPUTE_SHAPE`, `VAE_DECODE`, `GENERATE`, `SAVE_VIDEO`, `SAVE_IMAGE`, `READ_IMAGE`, `VACE_PREPROCESS`
 
 ### 现有 Node 参考
 
-| Node | dispatch_policy | input_tensor_keys | output_tensor_keys |
+| Node | dispatch_policy | input_tensor_pins | output_tensor_pins |
 |------|----------------|-------------------|-------------------|
 | `TextEncodeNode` | `ALL_ALL_ALL` | `[]` | `[POSITIVE, NEGATIVE]` |
 | `VAEEncodeSpatialNode` | `R0_R0_BCAST` | `[START_IMG, END_IMG]` | `[BASE_LATENT]` |
-| `VAEEncodeImagesNode` | `R0_R0_BCAST` | `[IMAGE]` | `[IMAGE_EMBEDS]` |
+| `VAEEncodeImagesNode` | `R0_R0_BCAST` | `[IMAGE]` | `[IMG_LATENTS]` |
+| `VAEComputeShapeNode` | `R0_R0_BCAST` | `[]` | `[BASE_LATENT]` |
 | `VAEDecodeNode` | `ALL_R0_R0` | `[LATENTS]` | `[VIDEO]` |
-| `GeneratorNode` | `ALL_ALL_ALL` | `[POSITIVE, NEGATIVE, BASE_LATENT, AUX_LATENT]` | `[LATENTS]` |
+| `GeneratorNode` | `ALL_ALL_ALL` | `[POSITIVE, NEGATIVE, BASE_LATENT, AUX_LATENT, VACE_CONTEXT]` | `[LATENTS]` |
+| `SaveVideoNode` | `ALL_R0_R0` | `[VIDEO]` | `[]` |
+| `SaveImageNode` | `ALL_R0_R0` | `[VIDEO]` | `[]` |
+| `ReadImageNode` | `R0_R0_BCAST` | `[]` | `[IMAGE]` |
+| `VACEPreprocessNode` | `R0_R0_BCAST` | `[START_IMG, END_IMG]` | `[AUX_LATENT, VACE_CONTEXT]` |
 
 ### Executor 同步机制
 

@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Node 层单元测试 — NodeDispatchPolicy, InferNodeType, NodeDeviceContext, NodeContext, NodeFactory。"""
+"""Node 层单元测试 — NodeDispatchPolicy, InferNodeType 等。"""
 
 import pytest
 import torch
@@ -45,6 +45,8 @@ class TestKsanaInferNodeType:
             "VAE_ENCODE_IMAGES",
             "VAE_DECODE",
             "GENERATE",
+            "READ_IMAGE",
+            "VACE_PREPROCESS",
             "SAVE_VIDEO",
             "SAVE_IMAGE",
         }
