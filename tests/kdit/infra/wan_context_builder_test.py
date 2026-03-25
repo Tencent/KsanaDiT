@@ -61,7 +61,7 @@ def _make_inputs(prompt="test", num_prompts=1, **overrides) -> PipelineGenerateI
 
 def _node_def(node_type, model_key=None, node_id=1):
     """创建 InferNode 的 NodeDef。"""
-    return NodeDef(node_id=node_id, is_loader=False, node_type=node_type, model_key=model_key)
+    return NodeDef(node_id=node_id, node_type=node_type, model_key=model_key)
 
 
 # ── WanT2VContextBuilder ─────────────────────────────────────────────────

@@ -19,13 +19,13 @@ from kdit.models.model_key import ModelKey
 from kdit.settings import load_default_settings
 from kdit.utils import is_file_or_dir, log, time_profile
 
-from ..core.base_node import LoaderNode
+from ..core.base_node import IONode
 from ..core.node_factory import LoaderNodeFactory
 from ..core.node_types import NodeDispatchPolicy
 
 
 @LoaderNodeFactory.register([ModelKey.VAE_WAN2_1, ModelKey.VAE_WAN2_2, ModelKey.QwenImageVAE])
-class VAELoaderNode(LoaderNode):
+class VAELoaderNode(IONode):
     """加载 VAE 模型。"""
 
     dispatch_policy = NodeDispatchPolicy.ALL_ALL_ALL
@@ -39,7 +39,7 @@ class VAELoaderNode(LoaderNode):
     @time_profile
     def run(self, pins, *, context):
         meta = context.metadata
-        model_key = self.output_model_pins[0]
+        model_key = self._factory_model_key
         model_path = meta["model_path"]
         log.info(f"{model_key} loading vae model")
         if not os.path.exists(model_path) or not is_file_or_dir(model_path):

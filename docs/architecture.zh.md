@@ -19,7 +19,7 @@ graph TB
 
     subgraph "Layer 3: Unit"
         C1[InferNode]
-        C2[LoaderNode]
+        C2[IONode]
         C3[Generator]
     end
 
@@ -92,7 +92,7 @@ graph TB
 | 组件 | 说明 |
 |------|------|
 | [`InferNode`](api/nodes/core.md) | 推理节点基类。固定 `run()` 签名；数据通过 `TensorPool` 流转 |
-| [`LoaderNode`](api/nodes/loaders.md) | 负责加载模型（扩散模型、文本编码器、VAE）的节点 |
+| [`IONode`](api/nodes/loaders.md) | 负责加载模型（扩散模型、文本编码器、VAE）的节点 |
 | [`Generator`](api/generators/index.md) | 去噪循环实现（Wan、Qwen、VACE） |
 
 ### 第 4 层：缓存层 (Cache)
@@ -135,7 +135,7 @@ sequenceDiagram
     participant Pipeline
     participant Engine
     participant Executor
-    participant LoaderNode
+    participant IONode
     participant InferNode
     participant TensorPool
 
@@ -144,8 +144,8 @@ sequenceDiagram
     Engine->>Executor: execute phases
 
     Note over Executor: Load Phase
-    Executor->>LoaderNode: load models to CPU
-    LoaderNode->>Executor: models ready
+    Executor->>IONode: load models to CPU
+    IONode->>Executor: models ready
 
     Note over Executor: Infer Phase
     Executor->>InferNode: run(context)

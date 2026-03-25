@@ -43,17 +43,17 @@ class GeneratorNode(InferNode):
     """Diffusion 去噪 — 所有卡并行执行。"""
 
     dispatch_policy = NodeDispatchPolicy.ALL_ALL_ALL
-    input_tensor_pins = [
+    input_defs = [
         TensorKey.POSITIVE,
         TensorKey.NEGATIVE,
         TensorKey.BASE_LATENT,
         TensorKey.AUX_LATENT,
         TensorKey.VACE_CONTEXT,
     ]
-    output_tensor_pins = [TensorKey.LATENTS]
+    output_defs = [TensorKey.LATENTS]
 
     def run(self, pins, *, context):
-        model_key = self.input_model_pins[0]
+        model_key = self._factory_model_key
         base_latent_data = pins.get_tensor(TensorKey.BASE_LATENT)  # list[Tensor] | None
         aux_latent_data = pins.get_tensor(TensorKey.AUX_LATENT)  # Tensor | list[Tensor] | None
         vace_context_data = pins.get_tensor(TensorKey.VACE_CONTEXT)  # Tensor | None

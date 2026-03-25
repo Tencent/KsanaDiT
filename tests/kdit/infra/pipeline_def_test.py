@@ -19,6 +19,7 @@ import unittest
 from kdit.models.model_key import ModelKey
 from kdit.nodes.core.node_context import NodeContext
 from kdit.nodes.core.node_types import InferNodeType as NT
+from kdit.nodes.core.node_types import IONodeType
 from kdit.pipelines.context_builder import ContextBuilder
 from kdit.pipelines.pin_ref import NodeRef
 from kdit.pipelines.pipeline_def import (
@@ -199,7 +200,7 @@ class TestPipelineDefBuilderDAG(unittest.TestCase):
         loader = pipeline_def.nodes[0]
         self.assertTrue(loader.is_loader)
         self.assertEqual(loader.model_key, ModelKey.T5TextEncoder)
-        self.assertIsNone(loader.node_type)
+        self.assertEqual(loader.node_type, IONodeType.LOAD_MODEL)
 
         # Infer node with model
         infer = pipeline_def.nodes[1]

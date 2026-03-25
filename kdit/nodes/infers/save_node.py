@@ -34,8 +34,8 @@ class SaveVideoNode(InferNode):
     """保存视频 — 只在 rank 0 执行，不广播。"""
 
     dispatch_policy = NodeDispatchPolicy.ALL_R0_R0
-    input_tensor_pins = [TensorKey.VIDEO]
-    output_tensor_pins = []
+    input_defs = [TensorKey.VIDEO]
+    output_defs = []
 
     def run(self, pins, *, context):
         video = pins.get_tensor(TensorKey.VIDEO)
@@ -67,8 +67,8 @@ class SaveImageNode(InferNode):
     """保存图像 — 只在 rank 0 执行，不广播。"""
 
     dispatch_policy = NodeDispatchPolicy.ALL_R0_R0
-    input_tensor_pins = [TensorKey.VIDEO]  # 复用 VIDEO key（图像也存在此 key）
-    output_tensor_pins = []
+    input_defs = [TensorKey.VIDEO]  # 复用 VIDEO key（图像也存在此 key）
+    output_defs = []
 
     def run(self, pins, *, context):
         image = pins.get_tensor(TensorKey.VIDEO)

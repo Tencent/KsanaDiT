@@ -28,9 +28,10 @@ from kdit.models.model_key import ModelKey
 from kdit.models.model_pool_key import ModelPoolKey
 from kdit.nodes.core.device_context import DeviceInfo
 from kdit.nodes.core.node_context import NodeContext
-from kdit.nodes.core.node_types import NodeDispatchPolicy
+from kdit.nodes.core.node_types import InferNodeType, NodeDispatchPolicy
 from kdit.nodes.core.pin_hub import PinHub
 from kdit.nodes.infers.generator_node import GeneratorNode
+from kdit.pipelines.pipeline_def import NodeDef
 from kdit.tensor import TensorKey
 from kdit.tensor.tensor_pool import TensorPool
 from kdit.tensor.tensor_pool_key import TensorPoolKey
@@ -41,7 +42,7 @@ class TestGeneratorNode(unittest.TestCase):
 
     def setUp(self):
         self.node = GeneratorNode()
-        self.node.input_model_pins = [ModelKey.Wan2_2_T2V_14B]
+        self.node._factory_model_key = ModelKey.Wan2_2_T2V_14B
 
         # 真实 TensorPool + 预填充数据
         self.tensor_pool = TensorPool()
@@ -79,8 +80,8 @@ class TestGeneratorNode(unittest.TestCase):
             metadata={"noise_shape": [4, 16, 32, 32]},
         )
 
-        # pins_mapping: 映射上游 tensor/model
-        self.pins_mapping = {
+        # input_pins: 映射上游 tensor/model
+        self.input_pins = {
             "model": {ModelKey.Wan2_2_T2V_14B: ModelPoolKey(99, ModelKey.Wan2_2_T2V_14B)},
             "tensor": {
                 TensorKey.POSITIVE: TensorPoolKey(10, TensorKey.POSITIVE),
@@ -90,10 +91,11 @@ class TestGeneratorNode(unittest.TestCase):
             },
         }
 
-    def _make_pins(self, pins_mapping=None):
+    def _make_pins(self, input_pins=None):
+        node_def = NodeDef(node_id=30, node_type=InferNodeType.GENERATE, model_key=ModelKey.Wan2_2_T2V_14B)
         return PinHub(
-            node_id=30,
-            pins_mapping=pins_mapping or self.pins_mapping,
+            node_def=node_def,
+            input_pins=input_pins or self.input_pins,
             tensor_pool=self.tensor_pool,
             model_pool=self.model_pool,
         )
@@ -155,11 +157,11 @@ class TestGeneratorNode(unittest.TestCase):
         self.assertEqual(GeneratorNode.dispatch_policy, NodeDispatchPolicy.ALL_ALL_ALL)
 
     def test_tensor_pins(self):
-        self.assertIn(TensorKey.POSITIVE, GeneratorNode.input_tensor_pins)
-        self.assertIn(TensorKey.NEGATIVE, GeneratorNode.input_tensor_pins)
-        self.assertIn(TensorKey.BASE_LATENT, GeneratorNode.input_tensor_pins)
-        self.assertIn(TensorKey.AUX_LATENT, GeneratorNode.input_tensor_pins)
-        self.assertEqual(GeneratorNode.output_tensor_pins, [TensorKey.LATENTS])
+        self.assertIn(TensorKey.POSITIVE, GeneratorNode.input_defs)
+        self.assertIn(TensorKey.NEGATIVE, GeneratorNode.input_defs)
+        self.assertIn(TensorKey.BASE_LATENT, GeneratorNode.input_defs)
+        self.assertIn(TensorKey.AUX_LATENT, GeneratorNode.input_defs)
+        self.assertEqual(GeneratorNode.output_defs, [TensorKey.LATENTS])
 
 
 if __name__ == "__main__":

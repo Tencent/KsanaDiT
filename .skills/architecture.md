@@ -14,7 +14,7 @@ Pipeline（编排层）→ Engine（分发层）→ Executor（执行层）→ N
 
 ## Node — 计算单元
 
-分两类：**LoaderNode**（加载模型）和 **InferNode**（前向推理）。
+分两类：**IONode**（加载模型）和 **InferNode**（前向推理）。
 
 ### 设计原则
 
@@ -35,7 +35,7 @@ class SomeInferNode(InferNode):
 ```
 
 - Pin 用 `TensorKey` / `ModelKey` 枚举声明
-- `LoaderNode` 的 `output_model_pins` 由 Factory 注册时自动填充，不需要手动声明
+- `IONode` 的 `output_model_pins` 由 Factory 注册时自动填充，不需要手动声明
 - Pin 声明用于 build 时校验（悬空检测）和运行时 PinHub 沙箱约束
 
 ### run() 签名
@@ -44,19 +44,19 @@ class SomeInferNode(InferNode):
 # InferNode
 def run(self, pins: PinHub, *, context: NodeContext) -> None:
 
-# LoaderNode — 签名与 InferNode 完全一致
+# IONode — 签名与 InferNode 完全一致
 def run(self, pins: PinHub, *, context: NodeContext) -> None:
 ```
 
 - `pins` 是位置参数（必须），是 Node 读写数据的唯一通道
 - `context` 是 keyword-only，包含配置、元数据和设备信息
 - Node 内部**禁止**直接访问 TensorPool / ModelPool / DeviceInfo，全部通过 `pins` 和 `context` 获取
-- LoaderNode 的加载参数（model_path、model_config、lora_config 等）统一放入 `context.metadata`
+- IONode 的加载参数（model_path、model_config、lora_config 等）统一放入 `context.metadata`
 
 ### 注意事项
 
 - `run()` 签名固定，**禁止**添加额外参数或 `**kwargs`
-- 额外配置（包括 LoaderNode 的加载参数）通过 `context.metadata` 传递
+- 额外配置（包括 IONode 的加载参数）通过 `context.metadata` 传递
 - tensor 只能通过 `pins.get_tensor()` / `pins.put_tensor()` 流转，**禁止**在参数或 metadata 中传递 tensor
 - `NodeContext.__post_init__` 递归校验 metadata 不含 `torch.Tensor`
 

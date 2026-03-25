@@ -20,7 +20,7 @@ from kdit.models.model_key import ModelKey
 from kdit.settings import load_default_settings
 from kdit.utils import log, time_profile
 
-from ..core.base_node import LoaderNode
+from ..core.base_node import IONode
 from ..core.node_factory import LoaderNodeFactory
 from ..core.node_types import NodeDispatchPolicy
 
@@ -28,7 +28,7 @@ from ..core.node_types import NodeDispatchPolicy
 @LoaderNodeFactory.register(
     [ModelKey.T5TextEncoder, ModelKey.Qwen2VLTextEncoder, ModelKey.Qwen2VLTextEncoderMultimodal]
 )
-class TextEncoderLoaderNode(LoaderNode):
+class TextEncoderLoaderNode(IONode):
     """加载 TextEncoder 模型。"""
 
     dispatch_policy = NodeDispatchPolicy.ALL_ALL_ALL
@@ -36,7 +36,7 @@ class TextEncoderLoaderNode(LoaderNode):
     @time_profile
     def run(self, pins, *, context):
         meta = context.metadata
-        model_key = self.output_model_pins[0]
+        model_key = self._factory_model_key
         checkpoint_dir = meta["model_path"]
         log.info(f"{model_key} loading text model")
         if not os.path.exists(checkpoint_dir) or not Path(checkpoint_dir).is_dir():

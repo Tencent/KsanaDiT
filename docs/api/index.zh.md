@@ -33,7 +33,7 @@ kdit/
 | [引擎](engine.md) | 线程安全单例，`auto_dispatch` 装饰器 |
 | [流水线](pipeline/index.md) | `Pipeline.from_models()`、`PipelineDef`、`ContextBuilder` |
 | [配置](config/index.md) | 所有配置数据类 |
-| [节点](nodes/index.md) | `InferNode`、`LoaderNode`、工厂 |
+| [节点](nodes/index.md) | `InferNode`、`IONode`、工厂 |
 | [模型](models/index.md) | 模型封装和 `ModelKey` |
 | [生成器](generators/index.md) | 去噪循环（Wan、Qwen、VACE） |
 | [执行器](executor/index.md) | 本地和 Ray 执行器 |

@@ -9,7 +9,7 @@ kdit/
 ├── engine/          # Engine — thread-safe singleton, orchestrates inference
 ├── pipelines/       # Pipeline — declarative pipeline definitions
 ├── config/          # Configuration dataclasses
-├── nodes/           # InferNode / LoaderNode — pipeline building blocks
+├── nodes/           # InferNode / IONode — pipeline building blocks
 │   ├── core/        # Base classes and factories
 │   ├── infers/      # Inference nodes (text encode, generate, VAE decode)
 │   └── loaders/     # Model loader nodes
@@ -33,7 +33,7 @@ kdit/
 | [Engine](engine.md) | Thread-safe singleton, `auto_dispatch` decorator |
 | [Pipeline](pipeline/index.md) | `Pipeline.from_models()`, `PipelineDef`, `ContextBuilder` |
 | [Config](config/index.md) | All configuration dataclasses |
-| [Nodes](nodes/index.md) | `InferNode`, `LoaderNode`, factories |
+| [Nodes](nodes/index.md) | `InferNode`, `IONode`, factories |
 | [Models](models/index.md) | Model wrappers and `ModelKey` |
 | [Generators](generators/index.md) | Denoising loops (Wan, Qwen, VACE) |
 | [Executor](executor/index.md) | Local and Ray executors |

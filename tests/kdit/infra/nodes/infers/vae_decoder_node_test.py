@@ -26,9 +26,10 @@ from kdit.models.model_key import ModelKey
 from kdit.models.model_pool_key import ModelPoolKey
 from kdit.nodes.core.device_context import DeviceInfo
 from kdit.nodes.core.node_context import NodeContext
-from kdit.nodes.core.node_types import NodeDispatchPolicy
+from kdit.nodes.core.node_types import InferNodeType, NodeDispatchPolicy
 from kdit.nodes.core.pin_hub import PinHub
 from kdit.nodes.infers.vae_decoder_node import VAEDecodeNode
+from kdit.pipelines.pipeline_def import NodeDef
 from kdit.tensor import TensorKey
 from kdit.tensor.tensor_pool import TensorPool
 from kdit.tensor.tensor_pool_key import TensorPoolKey
@@ -36,12 +37,13 @@ from kdit.tensor.tensor_pool_key import TensorPoolKey
 
 def _make_pins(*, node_id=0, model_key=None, tensor_pool=None, model_pool=None, tensor_mapping=None):
     """构建一个 PinHub 实例。"""
-    pins_mapping = {"model": {}, "tensor": tensor_mapping or {}}
+    input_pins = {"model": {}, "tensor": tensor_mapping or {}}
     if model_key is not None:
-        pins_mapping["model"][model_key] = ModelPoolKey(99, model_key)
+        input_pins["model"][model_key] = ModelPoolKey(99, model_key)
+    node_def = NodeDef(node_id=node_id, node_type=InferNodeType.VAE_DECODE, model_key=model_key)
     return PinHub(
-        node_id=node_id,
-        pins_mapping=pins_mapping,
+        node_def=node_def,
+        input_pins=input_pins,
         tensor_pool=tensor_pool or MagicMock(),
         model_pool=model_pool or MagicMock(),
     )
@@ -52,7 +54,7 @@ class TestVAEDecodeNode(unittest.TestCase):
 
     def setUp(self):
         self.node = VAEDecodeNode()
-        self.node.input_model_pins = [ModelKey.VAE_WAN2_2]
+        self.node._factory_model_key = ModelKey.VAE_WAN2_2
         self.latents = torch.randn(1, 4, 16, 32, 32)
 
         # 真实 TensorPool + 预填充数据
@@ -120,8 +122,8 @@ class TestVAEDecodeNode(unittest.TestCase):
         self.assertEqual(VAEDecodeNode.dispatch_policy, NodeDispatchPolicy.ALL_R0_R0)
 
     def test_tensor_pins(self):
-        self.assertEqual(VAEDecodeNode.input_tensor_pins, [TensorKey.LATENTS])
-        self.assertEqual(VAEDecodeNode.output_tensor_pins, [TensorKey.VIDEO])
+        self.assertEqual(VAEDecodeNode.input_defs, [TensorKey.LATENTS])
+        self.assertEqual(VAEDecodeNode.output_defs, [TensorKey.VIDEO])
 
 
 if __name__ == "__main__":

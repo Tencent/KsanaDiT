@@ -16,29 +16,29 @@ from kdit.utils.factory import AdvancedFactory, SimpleFactory
 
 
 class LoaderNodeFactory(SimpleFactory):
-    """Loader Node 工厂，按 model_key 一级注册。
+    """Loader Node 工厂 — 纯注册表 + _factory_model_key 注入。
 
-    - register(model_key_list): 注册 LoaderNode 类
-    - create(model_key): 创建 LoaderNode 实例，自动注入 output_model_pins
+    - register(model_key_list): 注册 IONode 类
+    - create(model_key): 创建 IONode 实例，自动注入 _factory_model_key
     """
 
     @classmethod
     def create(cls, model_key, *args, **kwargs):
         node = super().create(model_key, *args, **kwargs)
-        node.output_model_pins = [model_key] if model_key else []
+        node._factory_model_key = model_key
         return node
 
 
 class InferNodeFactory(AdvancedFactory):
-    """Infer Node 工厂，按 (infer_node_type, model_key) 二级注册。
+    """Infer Node 工厂 — 纯注册表 + _factory_model_key 注入。
 
     复用 AdvancedFactory 的 register() / create() 机制：
     - register(infer_node_type, model_key_list): 注册 InferNode 类
-    - create(infer_node_type, model_key): 创建 InferNode 实例，自动注入 input_model_pins
+    - create(infer_node_type, model_key): 创建 InferNode 实例，自动注入 _factory_model_key
     """
 
     @classmethod
     def create(cls, infer_node_type, model_key, *args, **kwargs):
         node = super().create(infer_node_type, model_key, *args, **kwargs)
-        node.input_model_pins = [model_key] if model_key else []
+        node._factory_model_key = model_key
         return node

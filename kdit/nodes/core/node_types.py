@@ -13,6 +13,25 @@
 # limitations under the License.
 
 from enum import Enum, auto
+from typing import Union
+
+from kdit.models.model_key import ModelKey
+from kdit.models.model_pool_key import ModelPoolKey
+from kdit.tensor.tensor_key import TensorKey
+from kdit.tensor.tensor_pool_key import TensorPoolKey
+
+# ---------------------------------------------------------------------------
+# 类型别名 — Def（静态声明）与 Pin（运行时映射）
+# ---------------------------------------------------------------------------
+
+#: Node 声明的端口类型（TensorKey 或 ModelKey）
+PinDef = Union[TensorKey, ModelKey]
+
+#: 运行时 pool 中的实际 key（TensorPoolKey 或 ModelPoolKey）
+PinPoolKey = Union[TensorPoolKey, ModelPoolKey]
+
+#: DAG 连线映射：PinDef → PinPoolKey
+Pins = dict[PinDef, PinPoolKey]
 
 
 class NodeDispatchPolicy(Enum):
@@ -35,6 +54,18 @@ class NodeDispatchPolicy(Enum):
     ALL_R0_R0 = auto()
 
 
+class IONodeType(Enum):
+    """IO Node 类型枚举 — Loader / Save / Read 等非推理 Node。
+
+    与 InferNodeType 互斥，共同构成 NodeDef.node_type 的取值范围。
+    """
+
+    LOAD_MODEL = auto()
+    SAVE_VIDEO = auto()
+    SAVE_IMAGE = auto()
+    READ_IMAGE = auto()
+
+
 class InferNodeType(Enum):
     """Infer Node 类型枚举，用于 InferNodeFactory 的二级注册键。"""
 
@@ -48,3 +79,7 @@ class InferNodeType(Enum):
     SAVE_IMAGE = auto()
     READ_IMAGE = auto()
     VACE_PREPROCESS = auto()
+
+
+#: NodeDef.node_type 的联合类型
+NodeType = Union[IONodeType, InferNodeType]

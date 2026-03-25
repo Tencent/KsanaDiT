@@ -39,8 +39,8 @@ class VACEPreprocessNode(InferNode):
     """
 
     dispatch_policy = NodeDispatchPolicy.R0_R0_BCAST
-    input_tensor_pins = []
-    output_tensor_pins = [TensorKey.VACE_CONTEXT]
+    input_defs = []
+    output_defs = [TensorKey.VACE_CONTEXT]
 
     def run(self, pins, *, context):
         meta = context.metadata
@@ -49,7 +49,7 @@ class VACEPreprocessNode(InferNode):
             return
 
         # 需要 VAE 模型来编码控制视频帧
-        vae_model_key = self.input_model_pins[0] if self.input_model_pins else None
+        vae_model_key = self._factory_model_key
         if vae_model_key is None:
             log.warning("VACEPreprocessNode: no VAE model pin connected, skipping")
             return

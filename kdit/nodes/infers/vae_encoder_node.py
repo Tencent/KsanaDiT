@@ -41,11 +41,11 @@ class VAEEncodeSpatialNode(InferNode):
     """
 
     dispatch_policy = NodeDispatchPolicy.R0_R0_BCAST
-    input_tensor_pins = [TensorKey.START_IMG, TensorKey.END_IMG]
-    output_tensor_pins = [TensorKey.BASE_LATENT]
+    input_defs = [TensorKey.START_IMG, TensorKey.END_IMG]
+    output_defs = [TensorKey.BASE_LATENT]
 
     def run(self, pins, *, context):
-        vae_model = pins.get_model(self.input_model_pins[0])
+        vae_model = pins.get_model(self._factory_model_key)
         meta = context.metadata
 
         start_img = pins.get_tensor(TensorKey.START_IMG)
@@ -90,11 +90,11 @@ class VAEEncodeImagesNode(InferNode):
     """
 
     dispatch_policy = NodeDispatchPolicy.R0_R0_BCAST
-    input_tensor_pins = [TensorKey.IMAGE]
-    output_tensor_pins = [TensorKey.AUX_LATENT]
+    input_defs = [TensorKey.IMAGE]
+    output_defs = [TensorKey.AUX_LATENT]
 
     def run(self, pins, *, context):
-        vae_model = pins.get_model(self.input_model_pins[0])
+        vae_model = pins.get_model(self._factory_model_key)
         meta = context.metadata
 
         image = pins.get_tensor(TensorKey.IMAGE)
@@ -127,11 +127,11 @@ class VAEComputeShapeNode(InferNode):
     """
 
     dispatch_policy = NodeDispatchPolicy.R0_R0_BCAST
-    input_tensor_pins = []
-    output_tensor_pins = [TensorKey.BASE_LATENT]
+    input_defs = []
+    output_defs = [TensorKey.BASE_LATENT]
 
     def run(self, pins, *, context):
-        model_key = self.input_model_pins[0]
+        model_key = self._factory_model_key
         vae_model = pins.get_model(model_key)
         meta = context.metadata
         target_f = meta.get("target_f", 1)

@@ -6,9 +6,9 @@
 
 ::: kdit.nodes.core.base_node.InferNode
 
-## LoaderNode
+## IONode
 
-::: kdit.nodes.core.base_node.LoaderNode
+::: kdit.nodes.core.base_node.IONode
 
 ## NodeContext
 

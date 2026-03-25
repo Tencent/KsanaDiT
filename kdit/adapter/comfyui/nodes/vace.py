@@ -152,9 +152,11 @@ class KsanaWanVaceToVideoNode:
 
         kdit_engine = get_engine()
         context = NodeContext(metadata={"image": image})
-        with kdit_engine.tensor_scope(keep=TensorKey.AUX_LATENT):
+        try:
             kdit_engine.run_infer_node(InferNodeType.VAE_ENCODE_IMAGES, vae_key, context)
-        tensor_value = kdit_engine.get_tensor(TensorKey.AUX_LATENT)
+            tensor_value = kdit_engine.get_tensor(TensorKey.AUX_LATENT)
+        finally:
+            kdit_engine.clear_all_tensors()
         return tensor_value.data if tensor_value is not None else None
 
     def encode(

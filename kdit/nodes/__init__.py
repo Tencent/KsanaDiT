@@ -21,7 +21,7 @@ from .core import (
     InferNode,
     InferNodeFactory,
     InferNodeType,
-    LoaderNode,
+    IONode,
     LoaderNodeFactory,
     NodeContext,
     NodeDeviceContext,
@@ -29,7 +29,7 @@ from .core import (
 )
 
 __all__ = [
-    "LoaderNode",
+    "IONode",
     "InferNode",
     "NodeDeviceContext",
     "NodeContext",

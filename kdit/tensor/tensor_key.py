@@ -38,6 +38,3 @@ class TensorKey(Enum):
 
     # VACE 视频控制上下文（VACEPreprocessNode 输出 → GeneratorNode 输入）
     VACE_CONTEXT = "vace_context"
-
-    # 图片 latent（VAEEncodeImagesNode 输出）
-    IMG_LATENTS = "img_latents"

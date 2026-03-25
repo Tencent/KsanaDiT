@@ -26,21 +26,23 @@ from kdit.models.model_key import ModelKey
 from kdit.models.model_pool_key import ModelPoolKey
 from kdit.nodes.core.device_context import DeviceInfo
 from kdit.nodes.core.node_context import NodeContext
-from kdit.nodes.core.node_types import NodeDispatchPolicy
+from kdit.nodes.core.node_types import InferNodeType, NodeDispatchPolicy
 from kdit.nodes.core.pin_hub import PinHub
 from kdit.nodes.infers.text_encoder_node import QwenTextEncodeNode, T5TextEncodeNode
+from kdit.pipelines.pipeline_def import NodeDef
 from kdit.tensor import TensorKey
 from kdit.tensor.tensor_pool_key import TensorPoolKey
 
 
 def _make_pins(*, node_id=0, model_key=None, tensor_pool=None, model_pool=None):
     """构建一个 PinHub 实例，model pin 映射到 node_id=99 的上游。"""
-    pins_mapping = {"model": {}, "tensor": {}}
+    input_pins = {"model": {}, "tensor": {}}
     if model_key is not None:
-        pins_mapping["model"][model_key] = ModelPoolKey(99, model_key)
+        input_pins["model"][model_key] = ModelPoolKey(99, model_key)
+    node_def = NodeDef(node_id=node_id, node_type=InferNodeType.TEXT_ENCODE, model_key=model_key)
     return PinHub(
-        node_id=node_id,
-        pins_mapping=pins_mapping,
+        node_def=node_def,
+        input_pins=input_pins,
         tensor_pool=tensor_pool or MagicMock(),
         model_pool=model_pool or MagicMock(),
     )
@@ -51,7 +53,7 @@ class TestT5TextEncodeNode(unittest.TestCase):
 
     def setUp(self):
         self.node = T5TextEncodeNode()
-        self.node.input_model_pins = [ModelKey.T5TextEncoder]
+        self.node._factory_model_key = ModelKey.T5TextEncoder
 
         self.tensor_pool = MagicMock()
         self.model_pool = MagicMock()
@@ -100,9 +102,9 @@ class TestT5TextEncodeNode(unittest.TestCase):
         self.assertEqual(T5TextEncodeNode.dispatch_policy, NodeDispatchPolicy.ALL_ALL_ALL)
 
     def test_tensor_pins(self):
-        self.assertEqual(T5TextEncodeNode.input_tensor_pins, [])
-        self.assertIn(TensorKey.POSITIVE, T5TextEncodeNode.output_tensor_pins)
-        self.assertIn(TensorKey.NEGATIVE, T5TextEncodeNode.output_tensor_pins)
+        self.assertEqual(T5TextEncodeNode.input_defs, [])
+        self.assertIn(TensorKey.POSITIVE, T5TextEncodeNode.output_defs)
+        self.assertIn(TensorKey.NEGATIVE, T5TextEncodeNode.output_defs)
 
 
 class TestQwenTextEncodeNode(unittest.TestCase):
@@ -110,7 +112,7 @@ class TestQwenTextEncodeNode(unittest.TestCase):
 
     def setUp(self):
         self.node = QwenTextEncodeNode()
-        self.node.input_model_pins = [ModelKey.Qwen2VLTextEncoder]
+        self.node._factory_model_key = ModelKey.Qwen2VLTextEncoder
 
         self.tensor_pool = MagicMock()
         self.model_pool = MagicMock()
@@ -164,9 +166,9 @@ class TestQwenTextEncodeNode(unittest.TestCase):
         self.assertEqual(QwenTextEncodeNode.dispatch_policy, NodeDispatchPolicy.ALL_ALL_ALL)
 
     def test_tensor_pins(self):
-        self.assertEqual(QwenTextEncodeNode.input_tensor_pins, [])
-        self.assertIn(TensorKey.POSITIVE, QwenTextEncodeNode.output_tensor_pins)
-        self.assertIn(TensorKey.NEGATIVE, QwenTextEncodeNode.output_tensor_pins)
+        self.assertEqual(QwenTextEncodeNode.input_defs, [])
+        self.assertIn(TensorKey.POSITIVE, QwenTextEncodeNode.output_defs)
+        self.assertIn(TensorKey.NEGATIVE, QwenTextEncodeNode.output_defs)
 
 
 if __name__ == "__main__":

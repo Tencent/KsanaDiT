@@ -31,18 +31,22 @@ def _normalize_key(key: TensorKey | TensorPoolKey) -> TensorPoolKey:
 
 
 class TensorPool:
-    """管理所有中间 tensor，与 ModelPool 同级。
+    """管理所有中间 tensor — 存储 + 引用计数 + 自动释放。
 
     Node 间通过 ``TensorKey`` 引用 tensor，避免 tensor 跨 Ray 边界序列化。
-    生命周期由 ``Engine.tensor_scope()`` 管理，scope 结束时 ``clear(exclude=keep)``。
+    引用计数归零时自动释放 tensor；``clear()`` 可一次性清理全部或排除指定 key。
 
-    同时支持 ``TensorKey``（旧接口，已 deprecated）和 ``TensorPoolKey``（新 DAG 接口）作为 key。
+    同时支持 ``TensorKey``（旧接口）和 ``TensorPoolKey``（新 DAG 接口）作为 key。
 
-    公开方法: ``put`` / ``get`` / ``clear`` / ``has`` / ``keys`` / ``__len__`` / ``__repr__``
+    公开方法: ``put`` / ``get`` / ``has`` / ``register`` / ``consume`` / ``remove`` /
+    ``clear`` / ``rename`` / ``keys`` / ``__len__`` / ``__repr__``
     """
 
+    __slots__ = ("_stores", "_ref_counts")
+
     def __init__(self):
-        self._stores: dict[TensorKey | TensorPoolKey, TensorValue] = {}
+        self._stores: dict[TensorPoolKey, TensorValue] = {}
+        self._ref_counts: dict[TensorPoolKey, int] = {}
 
     def put(self, key: TensorKey | TensorPoolKey, data: TensorData) -> None:
         """存入 tensor（或 list[Tensor]），覆盖同名 key。"""
@@ -59,16 +63,51 @@ class TensorPool:
         key = _normalize_key(key)
         return key in self._stores
 
+    # ── 引用计数 ──────────────────────────────────────────────
+
+    def register(self, pool_key: TensorPoolKey, ref_count: int) -> None:
+        """注册 tensor 的下游引用计数。
+
+        由 Executor 在 Node 执行后调用，为每个 output tensor 设置消费者数量。
+
+        Args:
+            pool_key: tensor 的 PoolKey（必须是 TensorPoolKey，不做 normalize）。
+            ref_count: 下游消费者数量（>= 0）。
+        """
+        self._ref_counts[pool_key] = ref_count
+
+    def consume(self, pool_key: TensorPoolKey) -> None:
+        """消费一次引用。归零时自动释放 tensor 并移除引用计数记录。
+
+        如果 *pool_key* 没有注册引用计数（如外部注入的 tensor），静默跳过。
+        """
+        if pool_key not in self._ref_counts:
+            return
+        self._ref_counts[pool_key] -= 1
+        if self._ref_counts[pool_key] <= 0:
+            self.remove(pool_key)
+            del self._ref_counts[pool_key]
+
+    def remove(self, key: TensorKey | TensorPoolKey) -> None:
+        """释放并移除指定 key 的 tensor。不存在时静默跳过。"""
+        key = _normalize_key(key)
+        if key in self._stores:
+            self._stores[key].release()
+            del self._stores[key]
+
+    # ── 批量操作 ──────────────────────────────────────────────
+
     def clear(self, exclude: list[TensorKey | TensorPoolKey] | None = None) -> None:
         """释放所有（或除 *exclude* 外的）tensor 引用并从池中移除。
 
-        被排除的 key 保留在池中不被 release。
+        被排除的 key 保留在池中不被 release。同时清理对应的引用计数记录。
         """
         exclude_set = {_normalize_key(k) for k in exclude} if exclude else set()
         keys_to_remove = [k for k in self._stores if k not in exclude_set]
         for k in keys_to_remove:
             self._stores[k].release()
             del self._stores[k]
+            self._ref_counts.pop(k, None)
 
     def rename(
         self,
@@ -77,7 +116,7 @@ class TensorPool:
     ) -> None:
         """将 old_key 重命名为 new_key，零拷贝。
 
-        old_key 的 TensorValue 移到 new_key 下，old_key 从 pool 中删除。
+        old_key 的 TensorValue 和引用计数一并迁移到 new_key 下。
         如果 new_key 已存在，直接覆盖（靠 Python 引用计数回收旧值）。
 
         Raises:
@@ -90,6 +129,10 @@ class TensorPool:
         if old_key not in self._stores:
             raise KeyError(f"TensorPool.rename: old_key {old_key!r} not found. Available keys: {self.keys()}")
         self._stores[new_key] = self._stores.pop(old_key)
+        if old_key in self._ref_counts:
+            self._ref_counts[new_key] = self._ref_counts.pop(old_key)
+
+    # ── 查询 ──────────────────────────────────────────────────
 
     def keys(self) -> list[TensorKey | TensorPoolKey]:
         return list(self._stores.keys())

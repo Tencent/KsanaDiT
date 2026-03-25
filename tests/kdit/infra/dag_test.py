@@ -19,7 +19,8 @@ import unittest
 from kdit.models.model_key import ModelKey
 from kdit.models.model_pool_key import ModelPoolKey
 from kdit.nodes.core.node_types import InferNodeType as NT
-from kdit.pipelines.dag import compute_pins_mapping, topo_sort
+from kdit.nodes.core.node_types import IONodeType
+from kdit.pipelines.dag import compute_input_pins, topo_sort
 from kdit.pipelines.pipeline_def import Edge, NodeDef
 from kdit.tensor import TensorKey
 from kdit.tensor.tensor_pool_key import TensorPoolKey
@@ -30,9 +31,9 @@ class TestTopoSort(unittest.TestCase):
 
     def test_linear_dag(self):
         """线性 DAG: A → B → C 拓扑排序结果正确。"""
-        a = NodeDef(node_id=0, is_loader=True, model_key=ModelKey.T5TextEncoder)
-        b = NodeDef(node_id=1, is_loader=False, node_type=NT.TEXT_ENCODE)
-        c = NodeDef(node_id=2, is_loader=False, node_type=NT.SAVE_VIDEO)
+        a = NodeDef(node_id=0, node_type=IONodeType.LOAD_MODEL, model_key=ModelKey.T5TextEncoder)
+        b = NodeDef(node_id=1, node_type=NT.TEXT_ENCODE)
+        c = NodeDef(node_id=2, node_type=NT.SAVE_VIDEO)
 
         nodes = (a, b, c)
         edges = (
@@ -45,10 +46,10 @@ class TestTopoSort(unittest.TestCase):
 
     def test_diamond_dag(self):
         """菱形 DAG: A→B, A→C, B→D, C→D 拓扑排序正确。"""
-        a = NodeDef(node_id=0, is_loader=True, model_key=ModelKey.T5TextEncoder)
-        b = NodeDef(node_id=1, is_loader=False, node_type=NT.TEXT_ENCODE)
-        c = NodeDef(node_id=2, is_loader=False, node_type=NT.VAE_DECODE)
-        d = NodeDef(node_id=3, is_loader=False, node_type=NT.SAVE_VIDEO)
+        a = NodeDef(node_id=0, node_type=IONodeType.LOAD_MODEL, model_key=ModelKey.T5TextEncoder)
+        b = NodeDef(node_id=1, node_type=NT.TEXT_ENCODE)
+        c = NodeDef(node_id=2, node_type=NT.VAE_DECODE)
+        d = NodeDef(node_id=3, node_type=NT.SAVE_VIDEO)
 
         nodes = (a, b, c, d)
         edges = (
@@ -70,8 +71,8 @@ class TestTopoSort(unittest.TestCase):
 
     def test_multiple_edges_same_pair(self):
         """同一对 src→dst 有多条边时，依赖只算一次。"""
-        a = NodeDef(node_id=0, is_loader=False, node_type=NT.TEXT_ENCODE)
-        b = NodeDef(node_id=1, is_loader=False, node_type=NT.GENERATE)
+        a = NodeDef(node_id=0, node_type=NT.TEXT_ENCODE)
+        b = NodeDef(node_id=1, node_type=NT.GENERATE)
 
         nodes = (a, b)
         edges = (
@@ -84,8 +85,8 @@ class TestTopoSort(unittest.TestCase):
 
     def test_isolated_nodes(self):
         """无边的独立节点也能排序。"""
-        a = NodeDef(node_id=0, is_loader=True, model_key=ModelKey.T5TextEncoder)
-        b = NodeDef(node_id=1, is_loader=True, model_key=ModelKey.VAE_WAN2_2)
+        a = NodeDef(node_id=0, node_type=IONodeType.LOAD_MODEL, model_key=ModelKey.T5TextEncoder)
+        b = NodeDef(node_id=1, node_type=IONodeType.LOAD_MODEL, model_key=ModelKey.VAE_WAN2_2)
 
         nodes = (a, b)
         edges = ()
@@ -97,8 +98,8 @@ class TestTopoSort(unittest.TestCase):
 
     def test_cycle_detection(self):
         """有环时抛出 ValueError。"""
-        a = NodeDef(node_id=0, is_loader=False, node_type=NT.TEXT_ENCODE)
-        b = NodeDef(node_id=1, is_loader=False, node_type=NT.GENERATE)
+        a = NodeDef(node_id=0, node_type=NT.TEXT_ENCODE)
+        b = NodeDef(node_id=1, node_type=NT.GENERATE)
 
         nodes = (a, b)
         edges = (
@@ -111,8 +112,8 @@ class TestTopoSort(unittest.TestCase):
 
     def test_loaders_first(self):
         """Loader 节点（入度 0）排在 Infer 节点前面。"""
-        loader = NodeDef(node_id=0, is_loader=True, model_key=ModelKey.T5TextEncoder)
-        infer = NodeDef(node_id=1, is_loader=False, node_type=NT.TEXT_ENCODE)
+        loader = NodeDef(node_id=0, node_type=IONodeType.LOAD_MODEL, model_key=ModelKey.T5TextEncoder)
+        infer = NodeDef(node_id=1, node_type=NT.TEXT_ENCODE)
 
         nodes = (infer, loader)  # 故意反序
         edges = (Edge(0, ModelKey.T5TextEncoder, 1, ModelKey.T5TextEncoder, "model"),)
@@ -122,18 +123,18 @@ class TestTopoSort(unittest.TestCase):
         self.assertEqual(result[1].node_id, 1)
 
 
-class TestComputePinsMapping(unittest.TestCase):
-    """compute_pins_mapping() 测试。"""
+class TestComputeInputPins(unittest.TestCase):
+    """compute_input_pins() 测试。"""
 
     def test_tensor_mapping(self):
         """正确计算 tensor 映射。"""
-        node = NodeDef(node_id=2, is_loader=False, node_type=NT.GENERATE)
+        node = NodeDef(node_id=2, node_type=NT.GENERATE)
         edges = (
             Edge(1, TensorKey.POSITIVE, 2, TensorKey.POSITIVE, "tensor"),
             Edge(1, TensorKey.NEGATIVE, 2, TensorKey.NEGATIVE, "tensor"),
         )
 
-        mapping = compute_pins_mapping(node, edges)
+        mapping = compute_input_pins(node, edges)
 
         self.assertEqual(len(mapping["tensor"]), 2)
         self.assertEqual(len(mapping["model"]), 0)
@@ -142,10 +143,10 @@ class TestComputePinsMapping(unittest.TestCase):
 
     def test_model_mapping(self):
         """正确计算 model 映射。"""
-        node = NodeDef(node_id=1, is_loader=False, node_type=NT.TEXT_ENCODE)
+        node = NodeDef(node_id=1, node_type=NT.TEXT_ENCODE)
         edges = (Edge(0, ModelKey.T5TextEncoder, 1, ModelKey.T5TextEncoder, "model"),)
 
-        mapping = compute_pins_mapping(node, edges)
+        mapping = compute_input_pins(node, edges)
 
         self.assertEqual(len(mapping["tensor"]), 0)
         self.assertEqual(len(mapping["model"]), 1)
@@ -153,7 +154,7 @@ class TestComputePinsMapping(unittest.TestCase):
 
     def test_mixed_mapping(self):
         """同时有 tensor 和 model 映射。"""
-        node = NodeDef(node_id=2, is_loader=False, node_type=NT.GENERATE)
+        node = NodeDef(node_id=2, node_type=NT.GENERATE)
         edges = (
             Edge(0, ModelKey.Wan2_2_T2V_14B, 2, ModelKey.Wan2_2_T2V_14B, "model"),
             Edge(1, TensorKey.POSITIVE, 2, TensorKey.POSITIVE, "tensor"),
@@ -162,7 +163,7 @@ class TestComputePinsMapping(unittest.TestCase):
             Edge(0, ModelKey.T5TextEncoder, 1, ModelKey.T5TextEncoder, "model"),
         )
 
-        mapping = compute_pins_mapping(node, edges)
+        mapping = compute_input_pins(node, edges)
 
         self.assertEqual(len(mapping["tensor"]), 2)
         self.assertEqual(len(mapping["model"]), 1)
@@ -173,10 +174,10 @@ class TestComputePinsMapping(unittest.TestCase):
 
     def test_no_edges_for_node(self):
         """节点没有入边时返回空映射。"""
-        node = NodeDef(node_id=0, is_loader=True, model_key=ModelKey.T5TextEncoder)
+        node = NodeDef(node_id=0, node_type=IONodeType.LOAD_MODEL, model_key=ModelKey.T5TextEncoder)
         edges = (Edge(0, ModelKey.T5TextEncoder, 1, ModelKey.T5TextEncoder, "model"),)
 
-        mapping = compute_pins_mapping(node, edges)
+        mapping = compute_input_pins(node, edges)
 
         self.assertEqual(mapping["tensor"], {})
         self.assertEqual(mapping["model"], {})

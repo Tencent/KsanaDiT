@@ -98,8 +98,8 @@ class TestSaveVideoNode(unittest.TestCase):
         self.assertEqual(SaveVideoNode.dispatch_policy, NodeDispatchPolicy.ALL_R0_R0)
 
     def test_tensor_pins(self):
-        self.assertEqual(SaveVideoNode.input_tensor_pins, [TensorKey.VIDEO])
-        self.assertEqual(SaveVideoNode.output_tensor_pins, [])
+        self.assertEqual(SaveVideoNode.input_defs, [TensorKey.VIDEO])
+        self.assertEqual(SaveVideoNode.output_defs, [])
 
 
 class TestSaveImageNode(unittest.TestCase):
@@ -136,8 +136,8 @@ class TestSaveImageNode(unittest.TestCase):
         self.assertEqual(SaveImageNode.dispatch_policy, NodeDispatchPolicy.ALL_R0_R0)
 
     def test_tensor_pins(self):
-        self.assertEqual(SaveImageNode.input_tensor_pins, [TensorKey.VIDEO])
-        self.assertEqual(SaveImageNode.output_tensor_pins, [])
+        self.assertEqual(SaveImageNode.input_defs, [TensorKey.VIDEO])
+        self.assertEqual(SaveImageNode.output_defs, [])
 
 
 if __name__ == "__main__":

@@ -68,7 +68,7 @@ def _resolve_latent_shape_for_memory(kdit_engine, base_latent):
     if not kdit_engine.has_tensor(base_latent_key):
         raise RuntimeError(
             f"generate: tensor key '{base_latent_key}' not found in pool. "
-            "Ensure vae_encode used tensor_scope(keep=...) correctly."
+            "Ensure vae_encode wrote the tensor to the pool correctly."
         )
     tensor_value = kdit_engine.get_tensor(base_latent_key)
     raw_data = tensor_value.data if tensor_value is not None else None
@@ -180,13 +180,15 @@ def generate(  # noqa: C901
         },
     )
 
-    with kdit_engine.tensor_scope(keep=[TensorKey.LATENTS]):
+    try:
         kdit_engine.put_tensors({TensorKey.POSITIVE: positive[0][0], TensorKey.NEGATIVE: negative[0][0]})
         # base_latent.samples 是 BASE_LATENT 或 AUX_LATENT — 已在 pool 中
         if aux_latent is not None and aux_latent.samples is not None:
             # aux_latent.samples 是 TensorKey — 重命名为 GeneratorNode 期望的 AUX_LATENT
             kdit_engine.rename_tensor(aux_latent.samples, TensorKey.AUX_LATENT)
         kdit_engine.run_infer_node(InferNodeType.GENERATE, diffusion_model_key, context)
+    finally:
+        kdit_engine.clear_all_tensors()
 
     MemoryProfiler.record_memory("after_kdit_engine_generate_with_tensors")
 

@@ -15,7 +15,6 @@
 import atexit
 import functools
 import threading
-from contextlib import contextmanager
 
 import ray
 import torch.distributed as dist
@@ -82,7 +81,6 @@ class Engine:
         self.num_gpus = dist_config.num_gpus
         self._is_ray = False
         self._cleaned_up = False
-        self._tensor_scope_depth = 0
         self.init_executors(dist_config=dist_config, offload_device=offload_device)
         if _register_atexit:
             atexit.register(self.cleanup_distributed)
@@ -267,12 +265,12 @@ class Engine:
 
     # ── V5 Node 架构：统一入口 ──────────────────────────────────────────
 
-    def run_loader_node(self, node_def, pins_mapping, context):
-        """LoaderNode 执行入口 — 分发到所有 Executor。
+    def run_loader_node(self, node_def, input_pins, context):
+        """IONode 执行入口 — 分发到所有 Executor。
 
         Args:
             node_def: ``NodeDef`` — Loader 节点定义（is_loader=True）。
-            pins_mapping: ``dict`` — 由 ``compute_pins_mapping()`` 生成的 pin 映射。
+            input_pins: ``dict`` — 由 ``compute_input_pins()`` 生成的 pin 映射。
             context: ``NodeContext`` — metadata 中存放 build_loader_kwargs() 的结果。
         """
         # 自动按 model_key 生成 profile label
@@ -284,26 +282,18 @@ class Engine:
 
         with time_profile(node_label):
             if self.is_ray:
-                ray.get([ex.run_loader_node.remote(node_def, pins_mapping, context) for ex in self.executors])
+                ray.get([ex.run_loader_node.remote(node_def, input_pins, context) for ex in self.executors])
             else:
-                self.executors.run_loader_node(node_def, pins_mapping, context)
+                self.executors.run_loader_node(node_def, input_pins, context)
 
-    def run_infer_node(self, node_def, pins_mapping, context):
+    def run_infer_node(self, node_def, input_pins, context):
         """InferNode 执行入口 — 分发到所有 Executor，结果写入各自 tensor_pool。
-
-        必须在 tensor_scope() 内调用，否则抛出 RuntimeError。
 
         Args:
             node_def: ``NodeDef`` — Infer 节点定义（is_loader=False）。
-            pins_mapping: ``dict`` — 由 ``compute_pins_mapping()`` 生成的 pin 映射。
+            input_pins: ``dict`` — 由 ``compute_input_pins()`` 生成的 pin 映射。
             context: ``NodeContext`` — 可序列化的上下文（device 字段由 Executor 注入）。
         """
-        if self._tensor_scope_depth <= 0:
-            raise RuntimeError(
-                "run_infer_node() must be called inside tensor_scope(). "
-                "Wrap the call with `with engine.tensor_scope(): ...` to ensure "
-                "tensors are auto-cleared and GPU memory is not leaked."
-            )
         # 自动按 node_type + model_key 生成 profile label
         node_label = node_def.node_type.name if node_def.node_type is not None else f"node_{node_def.node_id}"
         if node_def.model_key is not None:
@@ -312,30 +302,26 @@ class Engine:
 
         with time_profile(node_label):
             if self.is_ray:
-                futures = [ex.run_infer_node.remote(node_def, pins_mapping, context) for ex in self.executors]
+                futures = [ex.run_infer_node.remote(node_def, input_pins, context) for ex in self.executors]
                 ray.get(futures)
             else:
-                self.executors.run_infer_node(node_def, pins_mapping, context)
+                self.executors.run_infer_node(node_def, input_pins, context)
 
-    @contextmanager
-    def tensor_scope(self, keep=None):
-        """上下文管理器，标记 tensor 生命周期的作用域。
+    def clear_all_tensors(self):
+        """清理所有 Executor 的 tensor_pool — 用于 Pipeline/ComfyUI 的 try/finally 异常恢复。"""
+        self._clear_tensor_pools()
+
+    def register_tensor(self, pool_key, ref_count):
+        """注册 tensor 引用计数 — 透传到所有 Executor 的 tensor_pool。
 
         Args:
-            keep: 退出 scope 时需要保留的 ``TensorKey``，可以是单个 key 或列表。
-                  被保留的 key 不会被 release，可在后续 scope 中继续使用。
-
-        支持嵌套：只有最外层 scope 退出时才清理 tensor_pool。
+            pool_key: ``TensorPoolKey`` — tensor 的 pool key。
+            ref_count: ``int`` — 下游消费者数量。
         """
-        if keep is not None and not isinstance(keep, list):
-            keep = [keep]
-        self._tensor_scope_depth += 1
-        try:
-            yield
-        finally:
-            self._tensor_scope_depth -= 1
-            if self._tensor_scope_depth == 0:
-                self._clear_tensor_pools(exclude=keep)
+        if self.is_ray:
+            ray.get([ex.register_ref_count.remote(pool_key, ref_count) for ex in self.executors])
+        else:
+            self.executors.register_ref_count(pool_key, ref_count)
 
     def _clear_tensor_pools(self, exclude=None):
         """清理所有 Executor 的 tensor pool。"""

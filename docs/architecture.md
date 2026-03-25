@@ -19,7 +19,7 @@ graph TB
 
     subgraph "Layer 3: Unit"
         C1[InferNode]
-        C2[LoaderNode]
+        C2[IONode]
         C3[Generator]
     end
 
@@ -92,7 +92,7 @@ The building blocks of inference pipelines.
 | Component | Description |
 |-----------|-------------|
 | [`InferNode`](api/nodes/core.md) | Base class for inference nodes. Fixed `run()` signature; data flows via `TensorPool` |
-| [`LoaderNode`](api/nodes/loaders.md) | Nodes responsible for loading models (diffusion, text encoder, VAE) |
+| [`IONode`](api/nodes/loaders.md) | Nodes responsible for loading models (diffusion, text encoder, VAE) |
 | [`Generator`](api/generators/index.md) | Denoising loop implementations (Wan, Qwen, VACE) |
 
 ### Layer 4: Cache (缓存层)
@@ -135,7 +135,7 @@ sequenceDiagram
     participant Pipeline
     participant Engine
     participant Executor
-    participant LoaderNode
+    participant IONode
     participant InferNode
     participant TensorPool
 
@@ -144,8 +144,8 @@ sequenceDiagram
     Engine->>Executor: execute phases
 
     Note over Executor: Load Phase
-    Executor->>LoaderNode: load models to CPU
-    LoaderNode->>Executor: models ready
+    Executor->>IONode: load models to CPU
+    IONode->>Executor: models ready
 
     Note over Executor: Infer Phase
     Executor->>InferNode: run(context)

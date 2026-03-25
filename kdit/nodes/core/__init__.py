@@ -12,22 +12,37 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .base_node import InferNode, LoaderNode
+from .base_node import InferNode, IONode
 from .device_context import DeviceInfo, NodeDeviceContext
 from .node_context import NodeContext
+from .node_def import NodeDef
 from .node_factory import InferNodeFactory, LoaderNodeFactory
-from .node_types import InferNodeType, NodeDispatchPolicy
+from .node_types import (
+    InferNodeType,
+    IONodeType,
+    NodeDispatchPolicy,
+    NodeType,
+    PinDef,
+    PinPoolKey,
+    Pins,
+)
 from .pin_hub import PinHub
 
 __all__ = [
     "DeviceInfo",
-    "LoaderNode",
+    "IONode",
+    "IONodeType",
     "InferNode",
-    "NodeDeviceContext",
-    "NodeContext",
+    "InferNodeType",
     "LoaderNodeFactory",
     "InferNodeFactory",
-    "InferNodeType",
+    "NodeContext",
+    "NodeDef",
+    "NodeDeviceContext",
     "NodeDispatchPolicy",
+    "NodeType",
+    "PinDef",
     "PinHub",
+    "PinPoolKey",
+    "Pins",
 ]

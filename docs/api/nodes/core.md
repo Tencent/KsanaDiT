@@ -6,9 +6,9 @@ Base classes, factories, and dispatch policies for the node system.
 
 ::: kdit.nodes.core.base_node.InferNode
 
-## LoaderNode
+## IONode
 
-::: kdit.nodes.core.base_node.LoaderNode
+::: kdit.nodes.core.base_node.IONode
 
 ## NodeContext
 

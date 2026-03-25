@@ -195,13 +195,13 @@ class Pipeline:
         # DAG 模式：按拓扑序遍历 Loader 节点
         from kdit.nodes.core.node_context import NodeContext
 
-        from .dag import compute_pins_mapping, topo_sort
+        from .dag import compute_input_pins, topo_sort
 
         sorted_nodes = topo_sort(self._def.nodes, self._def.edges)
         for node_def in sorted_nodes:
             if not node_def.is_loader:
                 continue
-            pins_mapping = compute_pins_mapping(node_def, self._def.edges)
+            input_pins = compute_input_pins(node_def, self._def.edges)
             # 构建 loader context — metadata 中放 build_loader_kwargs() 的结果
             loader_kwargs = self._ctx_builder.build_loader_kwargs(
                 node_def.model_key,
@@ -214,7 +214,7 @@ class Pipeline:
             )
             context = NodeContext(metadata=loader_kwargs)
             with _task_node_timer(node_def):
-                self._engine.run_loader_node(node_def, pins_mapping, context)
+                self._engine.run_loader_node(node_def, input_pins, context)
 
     def clear(self):
         """清理所有已加载的模型。"""
@@ -278,13 +278,14 @@ class Pipeline:
         )
 
         # 执行 infer phases
-        keep = list(self._def.keep_tensors)
-        with self._engine.tensor_scope(keep=keep):
+        try:
             self._generate_dag(inputs)
 
             # 获取输出
             output_tv = self._engine.get_tensor(TensorKey.VIDEO)
             output = output_tv.data if output_tv is not None else None
+        finally:
+            self._engine.clear_all_tensors()
 
         # offload 后清理
         if runtime_config.offload_model:
@@ -310,7 +311,7 @@ class Pipeline:
 
     def _generate_dag(self, inputs: PipelineGenerateInputs):
         """按拓扑序遍历 Infer 节点，通过 engine.run_infer_node() 执行。"""
-        from .dag import compute_pins_mapping, topo_sort
+        from .dag import compute_input_pins, topo_sort
 
         sorted_nodes = topo_sort(self._def.nodes, self._def.edges)
         for node_def in sorted_nodes:
@@ -324,10 +325,10 @@ class Pipeline:
             # 2. 构建 context — 直接传 NodeDef
             node_ctx = self._ctx_builder.build_context(node_def, inputs)
 
-            # 3. 计算 pins_mapping 并执行
-            pins_mapping = compute_pins_mapping(node_def, self._def.edges)
+            # 3. 计算 input_pins 并执行
+            input_pins = compute_input_pins(node_def, self._def.edges)
             with _task_node_timer(node_def):
-                self._engine.run_infer_node(node_def, pins_mapping, node_ctx)
+                self._engine.run_infer_node(node_def, input_pins, node_ctx)
 
 
 # ── 辅助函数 ─────────────────────────────────────────────────────────────

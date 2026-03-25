@@ -105,9 +105,11 @@ def vae_encode(
             "batch_size": batch_size,
         }
     )
-    with kdit_engine.tensor_scope(keep=[TensorKey.BASE_LATENT]):
+    try:
         kdit_engine.put_tensors({TensorKey.START_IMG: start_image, TensorKey.END_IMG: end_image})
         kdit_engine.run_infer_node(InferNodeType.VAE_ENCODE_SPATIAL, vae, context)
+    finally:
+        kdit_engine.clear_all_tensors()
 
     return KsanaNodeVAEEncodeOutput(
         samples=TensorKey.BASE_LATENT,
@@ -128,9 +130,11 @@ def vae_encode_image(
     log.info(f"encoder vae: {vae}")
 
     context = NodeContext(metadata={"batch_size": batch_size})
-    with kdit_engine.tensor_scope(keep=[TensorKey.AUX_LATENT]):
+    try:
         kdit_engine.put_tensors({TensorKey.IMAGE: image})
         kdit_engine.run_infer_node(InferNodeType.VAE_ENCODE_IMAGES, vae, context)
+    finally:
+        kdit_engine.clear_all_tensors()
 
     MemoryProfiler.record_memory("after vae_encode_image")
     return KsanaNodeVAEEncodeOutput(
@@ -153,11 +157,11 @@ def vae_decode(vae, latent):
     if not kdit_engine.has_tensor(latents_key):
         raise RuntimeError(
             f"vae_decode: tensor key '{latents_key}' not found in pool. "
-            "Ensure the upstream node (vae_encode/generate) used tensor_scope(keep=...) correctly."
+            "Ensure the upstream node (vae_encode/generate) wrote the tensor to the pool correctly."
         )
 
     context = NodeContext(metadata={"with_end_image": with_end_image})
-    with kdit_engine.tensor_scope():
+    try:
         # latents_key 可能是 LATENTS 或 AUX_LATENT，VAEDecodeNode 读 LATENTS
         if latents_key != TensorKey.LATENTS:
             tensor_value = kdit_engine.get_tensor(latents_key)
@@ -165,6 +169,8 @@ def vae_decode(vae, latent):
         kdit_engine.run_infer_node(InferNodeType.VAE_DECODE, vae, context)
         video_tv = kdit_engine.get_tensor(TensorKey.VIDEO)
         images = video_tv.data
+    finally:
+        kdit_engine.clear_all_tensors()
 
     images = images.cpu().permute(0, 2, 3, 4, 1)
     images = images.reshape(-1, images.shape[-3], images.shape[-2], images.shape[-1])

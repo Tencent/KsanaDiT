@@ -27,7 +27,7 @@ from kdit.utils import is_file_or_dir, log
 from kdit.utils.lora import load_state_dict_and_merge_lora
 from kdit.utils.profile import time_profile
 
-from ..core.base_node import LoaderNode
+from ..core.base_node import IONode
 from ..core.node_factory import LoaderNodeFactory
 from ..core.node_types import NodeDispatchPolicy
 
@@ -41,7 +41,7 @@ from ..core.node_types import NodeDispatchPolicy
         ModelKey.QwenImage_Edit,
     ],
 )
-class DiffusionLoaderNode(LoaderNode):
+class DiffusionLoaderNode(IONode):
     """加载 Diffusion 模型。
 
     context.metadata 由 Executor.run_loader_node() 自动注入 dist_config / shard_fn，
@@ -156,7 +156,7 @@ class DiffusionLoaderNode(LoaderNode):
     # TODO(test): 需要添加一个本地测试用例来验证 model_patch_path 的加载功能
     def run(self, pins, *, context):
         meta = context.metadata
-        model_key = self.output_model_pins[0]
+        model_key = self._factory_model_key
         model_path = meta.pop("model_path")
         model_patch_path = meta.pop("model_patch_path", None)
         model_config: ModelConfig = meta.pop("model_config", None)

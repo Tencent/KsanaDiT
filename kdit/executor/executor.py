@@ -25,7 +25,8 @@ from ..models.model_key import ModelKey
 from ..models.model_pool import ModelPool
 from ..nodes.core.device_context import NodeDeviceContext
 from ..nodes.core.pin_hub import PinHub
-from ..tensor import TensorPool
+from ..tensor import TensorKey, TensorPool
+from ..tensor.tensor_pool_key import TensorPoolKey
 from ..utils import log
 from ..utils.logger import reset_logging
 from .distributed_group import DistributedGroupManager
@@ -112,7 +113,7 @@ class Executor(ABC):
     def _get_or_create_node(self, node_def):
         """根据 NodeDef 获取或创建 Node 实例（缓存在 _node_cache 中）。
 
-        LoaderNode 通过 LoaderNodeFactory.create(model_key) 创建；
+        IONode 通过 LoaderNodeFactory.create(model_key) 创建；
         InferNode 通过 InferNodeFactory.create(node_type, model_key) 创建。
         """
         from ..nodes.core.node_factory import InferNodeFactory, LoaderNodeFactory
@@ -129,14 +130,47 @@ class Executor(ABC):
         self._node_cache[node_id] = node
         return node
 
-    def _build_pin_hub(self, node_def, pins_mapping) -> PinHub:
-        """根据 node_def 和 pins_mapping 构建 PinHub。"""
+    def _build_pin_hub(self, node_def, input_pins) -> PinHub:
+        """根据 node_def 和 input_pins 构建 PinHub。"""
         return PinHub(
-            node_id=node_def.node_id,
-            pins_mapping=pins_mapping,
+            node_def=node_def,
+            input_pins=input_pins,
             tensor_pool=self.tensor_pool,
             model_pool=self.model_pool,
         )
+
+    def _build_output_pins(self, node, node_def) -> dict:
+        """从 Node 的 output_defs + NodeDef.model_key 构建 output_pins。
+
+        返回 ``{TensorKey | ModelKey: TensorPoolKey | ModelPoolKey}`` 映射，
+        供调用方（Pipeline DAG / ComfyUI adapter）用于下游 Node 的 input_pins 构建。
+        """
+        from ..models.model_pool_key import ModelPoolKey
+
+        pins: dict = {}
+        for pin_def in node.output_defs:
+            if isinstance(pin_def, TensorKey):
+                pins[pin_def] = TensorPoolKey(node_def.node_id, pin_def)
+        # IONode 的 model 输出
+        if node_def.is_io and node_def.model_key is not None:
+            pins[node_def.model_key] = ModelPoolKey(node_def.node_id, node_def.model_key)
+        return pins
+
+    def _consume_input_tensors(self, input_pins: dict) -> None:
+        """自动消费 input_pins 中的输入 tensor 引用。
+
+        遍历 input_pins["tensor"] 中的所有 TensorPoolKey，
+        调用 tensor_pool.consume() 递减引用计数。
+        当引用计数归零时，tensor 自动释放。
+        """
+        tensor_mapping = input_pins.get("tensor", {})
+        for pool_key in tensor_mapping.values():
+            if isinstance(pool_key, TensorPoolKey):
+                self.tensor_pool.consume(pool_key)
+
+    def register_ref_count(self, pool_key: TensorPoolKey, ref_count: int) -> None:
+        """注册 tensor 的引用计数（由 Pipeline / ComfyUI adapter 调用）。"""
+        self.tensor_pool.register(pool_key, ref_count)
 
     def _inject_context_defaults(self, node_def, context):
         """注入 Executor 层的默认值到 context — DeviceInfo。"""
@@ -146,16 +180,19 @@ class Executor(ABC):
             context = dataclasses.replace(context, device=self.device_ctx)
         return context
 
-    def run_loader_node(self, node_def, pins_mapping, context):
-        """LoaderNode 执行入口 — 构建 PinHub 并执行 Node。
+    def run_loader_node(self, node_def, input_pins, context) -> dict:
+        """IONode 执行入口 — 构建 PinHub 并执行 Node，返回 output_pins。
 
         自动注入 DeviceInfo / dist_config / shard_fn 到 context，
         构建 PinHub 绑定本地 pool，调用 node.run(pins, context=context)。
 
         Args:
             node_def: ``NodeDef`` — Loader 节点定义（is_loader=True）。
-            pins_mapping: ``dict`` — 由 ``compute_pins_mapping()`` 生成的 pin 映射。
+            input_pins: ``dict`` — 由 ``compute_input_pins()`` 生成的 pin 映射。
             context: ``NodeContext`` — metadata 中存放 build_loader_kwargs() 的结果。
+
+        Returns:
+            output_pins — ``{TensorKey | ModelKey: TensorPoolKey | ModelPoolKey}`` 映射。
         """
         from ..nodes.core.node_types import NodeDispatchPolicy
 
@@ -171,19 +208,24 @@ class Executor(ABC):
 
         is_active = policy == NodeDispatchPolicy.ALL_ALL_ALL or self.device_ctx.rank_id == 0
         if is_active:
-            pins = self._build_pin_hub(node_def, pins_mapping)
+            pins = self._build_pin_hub(node_def, input_pins)
             node.run(pins, context=context)
 
-    def run_infer_node(self, node_def, pins_mapping, context):
-        """InferNode 执行入口 — 构建 PinHub 并执行 Node。
+        return self._build_output_pins(node, node_def)
+
+    def run_infer_node(self, node_def, input_pins, context) -> dict:
+        """InferNode 执行入口 — 构建 PinHub 并执行 Node，返回 output_pins。
 
         自动注入 DeviceInfo 到 context，构建 PinHub 绑定本地 pool，
-        管理 pre/post tensor 同步。
+        管理 pre/post tensor 同步，自动消费输入 tensor 引用。
 
         Args:
             node_def: ``NodeDef`` — Infer 节点定义（is_loader=False）。
-            pins_mapping: ``dict`` — 由 ``compute_pins_mapping()`` 生成的 pin 映射。
+            input_pins: ``dict`` — 由 ``compute_input_pins()`` 生成的 pin 映射。
             context: ``NodeContext`` — 可序列化的上下文（device 字段由此方法注入）。
+
+        Returns:
+            output_pins — ``{TensorKey | ModelKey: TensorPoolKey | ModelPoolKey}`` 映射。
         """
         from ..nodes.core.node_types import NodeDispatchPolicy
 
@@ -196,10 +238,15 @@ class Executor(ABC):
 
         is_active = policy == NodeDispatchPolicy.ALL_ALL_ALL or self.device_ctx.rank_id == 0
         if is_active:
-            pins = self._build_pin_hub(node_def, pins_mapping)
+            pins = self._build_pin_hub(node_def, input_pins)
             node.run(pins, context=context)
 
         self._post_sync_tensors(node, node_def, policy)
+
+        # 自动消费输入 tensor 引用
+        self._consume_input_tensors(input_pins)
+
+        return self._build_output_pins(node, node_def)
 
     def _pre_sync_tensors(self, node, policy):
         """执行前的 tensor 同步（预留接口）。
@@ -211,14 +258,14 @@ class Executor(ABC):
     def _post_sync_tensors(self, node, node_def, policy):
         """执行后的 tensor 同步。
 
-        当前实现：R0_R0_BCAST 时 broadcast output_tensor_pins 到所有卡。
+        当前实现：R0_R0_BCAST 时 broadcast output_defs 中的 TensorKey 到所有卡。
         使用 TensorPoolKey(node_id, pin) 确保与 PinHub 写入的 key 一致。
         """
         from ..nodes.core.node_types import NodeDispatchPolicy
         from ..tensor.tensor_pool_key import TensorPoolKey
 
         if policy == NodeDispatchPolicy.R0_R0_BCAST and self.device_ctx.world_size > 1:
-            pool_keys = [TensorPoolKey(node_def.node_id, pin) for pin in node.output_tensor_pins]
+            pool_keys = [TensorPoolKey(node_def.node_id, pin) for pin in node.output_defs]
             self.dist_group.broadcast_tensors(
                 tensor_pool=self.tensor_pool,
                 keys=pool_keys,

@@ -11,7 +11,7 @@
 | 导入层级 | 写法 | 示例 |
 |---------|------|------|
 | 同目录（`.`） | **相对导入** | `from .base import Foo` |
-| 同子包内（`..`） | **相对导入** | `from ..core.base_node import LoaderNode` |
+| 同子包内（`..`） | **相对导入** | `from ..core.base_node import IONode` |
 | 跨子包（`...` 及以上） | **绝对导入** | `from kdit.utils.factory import AdvancedFactory` |
 
 ### 判定标准
@@ -32,7 +32,7 @@ from kdit.models import KsanaWanModel
 from kdit.utils import is_file_or_dir, log
 
 # ✅ 同子包 (nodes) → 相对导入
-from ..core.base_node import LoaderNode
+from ..core.base_node import IONode
 from ..core.node_factory import LoaderNodeFactory
 from ..core.node_types import NodeDispatchPolicy
 ```

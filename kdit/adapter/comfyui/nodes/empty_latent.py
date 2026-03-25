@@ -76,7 +76,9 @@ class EmptyLatentNode:
             }
         )
         # VAE_COMPUTE_SHAPE 输出 BASE_LATENT，直接保留在 pool 中
-        with kdit_engine.tensor_scope(keep=[TensorKey.BASE_LATENT]):
+        try:
             kdit_engine.run_infer_node(InferNodeType.VAE_COMPUTE_SHAPE, vae, context)
+        finally:
+            kdit_engine.clear_all_tensors()
 
         return (EmptyLatentOutput(samples=TensorKey.BASE_LATENT),)

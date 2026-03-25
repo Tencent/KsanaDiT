@@ -14,7 +14,7 @@
 
 """DAG 拓扑排序与 pin 映射工具。
 
-提供 topo_sort() 和 compute_pins_mapping()，供 Pipeline 执行器使用。
+提供 topo_sort() 和 compute_input_pins()，供 Pipeline 执行器使用。
 """
 
 from collections import deque
@@ -72,11 +72,11 @@ def topo_sort(nodes: tuple[NodeDef, ...], edges: tuple[Edge, ...]) -> list[NodeD
     return result
 
 
-def compute_pins_mapping(
+def compute_input_pins(
     node_def: NodeDef,
     edges: tuple[Edge, ...],
 ) -> dict[str, dict]:
-    """从 DAG edges 计算当前 Node 的 pins_mapping。
+    """从 DAG edges 计算当前 Node 的 input_pins。
 
     返回::
 

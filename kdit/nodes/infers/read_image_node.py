@@ -69,8 +69,8 @@ class ReadImageNode(InferNode):
     """
 
     dispatch_policy = NodeDispatchPolicy.R0_R0_BCAST
-    input_tensor_pins = []
-    output_tensor_pins = [TensorKey.IMAGE]
+    input_defs = []
+    output_defs = [TensorKey.IMAGE]
 
     def run(self, pins, *, context):
         meta = context.metadata

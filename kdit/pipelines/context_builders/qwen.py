@@ -209,8 +209,9 @@ class QwenEditContextBuilder(QwenContextBuilder):
                 # Edit 模式：传入 condition_image_path
                 return self._build_text_ctx(inputs, condition_image_path=extra.img_path)
             case NT.READ_IMAGE:
-                # ReadImageNode: 传入参考图路径
-                return NodeContext(metadata={"img_paths": extra.img_path})
+                # ReadImageNode 期望 str | list[str]，需要将二维列表展平
+                flat_paths = [p for group in extra.img_path for p in group] if extra.img_path else None
+                return NodeContext(metadata={"img_paths": flat_paths})
             case NT.VAE_COMPUTE_SHAPE:
                 return NodeContext(
                     metadata={

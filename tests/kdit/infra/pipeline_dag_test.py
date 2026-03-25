@@ -18,7 +18,7 @@
 - 按拓扑序遍历 Loader / Infer 节点
 - load_models() 调用 engine.run_loader_node()
 - generate() 调用 engine.run_infer_node()
-- pins_mapping 正确传递
+- input_pins 正确传递
 - 条件跳过（check_condition）的行为
 - build_context 接收 NodeDef（非 InferTask）
 """
@@ -29,6 +29,7 @@ from kdit.models.model_key import ModelKey
 from kdit.models.model_pool_key import ModelPoolKey
 from kdit.nodes.core.node_context import NodeContext
 from kdit.nodes.core.node_types import InferNodeType as NT
+from kdit.nodes.core.node_types import IONodeType
 from kdit.pipelines.pipeline import (
     Pipeline,
     _node_def_display_name,
@@ -45,10 +46,6 @@ from kdit.tensor.tensor_pool_key import TensorPoolKey
 def _make_mock_engine():
     """构建一个 mock Engine，模拟所有 Pipeline 需要的方法。"""
     engine = MagicMock()
-    engine.tensor_scope = MagicMock()
-    # tensor_scope 作为 context manager
-    engine.tensor_scope.return_value.__enter__ = MagicMock(return_value=None)
-    engine.tensor_scope.return_value.__exit__ = MagicMock(return_value=False)
     # get_tensor 返回 mock TensorValue
     mock_tv = MagicMock()
     mock_tv.data = "fake_output"
@@ -82,29 +79,26 @@ def _make_dag_pipeline_def(*, with_condition=False):
         vae_dec(5) ──VIDEO──> save(6)
     """
     nodes = (
-        NodeDef(node_id=0, is_loader=True, model_key=ModelKey.T5TextEncoder),
-        NodeDef(node_id=1, is_loader=True, model_key=ModelKey.Wan2_2_T2V_14B),
-        NodeDef(node_id=2, is_loader=True, model_key=ModelKey.VAE_WAN2_2),
+        NodeDef(node_id=0, node_type=IONodeType.LOAD_MODEL, model_key=ModelKey.T5TextEncoder),
+        NodeDef(node_id=1, node_type=IONodeType.LOAD_MODEL, model_key=ModelKey.Wan2_2_T2V_14B),
+        NodeDef(node_id=2, node_type=IONodeType.LOAD_MODEL, model_key=ModelKey.VAE_WAN2_2),
         NodeDef(
             node_id=3,
-            is_loader=False,
             node_type=NT.TEXT_ENCODE,
             model_key=ModelKey.T5TextEncoder,
         ),
         NodeDef(
             node_id=4,
-            is_loader=False,
             node_type=NT.GENERATE,
             model_key=ModelKey.Wan2_2_T2V_14B,
             condition="should_generate" if with_condition else None,
         ),
         NodeDef(
             node_id=5,
-            is_loader=False,
             node_type=NT.VAE_DECODE,
             model_key=ModelKey.VAE_WAN2_2,
         ),
-        NodeDef(node_id=6, is_loader=False, node_type=NT.SAVE_VIDEO),
+        NodeDef(node_id=6, node_type=NT.SAVE_VIDEO),
     )
     edges = (
         Edge(0, ModelKey.T5TextEncoder, 3, ModelKey.T5TextEncoder, "model"),
@@ -159,19 +153,18 @@ class TestNodeDefDisplayName:
 
     def test_loader_node_def(self):
         """Loader NodeDef 显示为 LOAD(model_name)。"""
-        nd = NodeDef(node_id=0, is_loader=True, model_key=ModelKey.T5TextEncoder)
+        nd = NodeDef(node_id=0, node_type=IONodeType.LOAD_MODEL, model_key=ModelKey.T5TextEncoder)
         assert _node_def_display_name(nd) == "LOAD(T5TextEncoder)"
 
     def test_loader_node_def_no_model_key(self):
         """Loader NodeDef 无 model_key 时显示 LOAD(UNKNOWN)。"""
-        nd = NodeDef(node_id=0, is_loader=True)
+        nd = NodeDef(node_id=0, node_type=IONodeType.LOAD_MODEL)
         assert _node_def_display_name(nd) == "LOAD(UNKNOWN)"
 
     def test_infer_node_def_with_model(self):
         """Infer NodeDef 有 model_key 时显示 TYPE(model_name)。"""
         nd = NodeDef(
             node_id=1,
-            is_loader=False,
             node_type=NT.GENERATE,
             model_key=ModelKey.Wan2_2_T2V_14B,
         )
@@ -179,17 +172,17 @@ class TestNodeDefDisplayName:
 
     def test_infer_node_def_no_model(self):
         """Infer NodeDef 无 model_key 时只显示 TYPE。"""
-        nd = NodeDef(node_id=2, is_loader=False, node_type=NT.SAVE_VIDEO)
+        nd = NodeDef(node_id=2, node_type=NT.SAVE_VIDEO)
         assert _node_def_display_name(nd) == "SAVE_VIDEO"
 
-    def test_infer_node_def_no_type_no_model(self):
-        """Infer NodeDef 无 node_type 时显示 node_id。"""
-        nd = NodeDef(node_id=99, is_loader=False)
-        assert _node_def_display_name(nd) == "node_99"
+    def test_infer_node_def_no_model_save_image(self):
+        """Infer NodeDef 无 model_key 时只显示 TYPE（SAVE_IMAGE 示例）。"""
+        nd = NodeDef(node_id=99, node_type=NT.SAVE_IMAGE)
+        assert _node_def_display_name(nd) == "SAVE_IMAGE"
 
     def test_phase_display_name_dispatches_to_node_def(self):
         """_phase_display_name() 对 NodeDef 类型正确分发。"""
-        nd = NodeDef(node_id=0, is_loader=True, model_key=ModelKey.T5TextEncoder)
+        nd = NodeDef(node_id=0, node_type=IONodeType.LOAD_MODEL, model_key=ModelKey.T5TextEncoder)
         assert _phase_display_name(nd) == "LOAD(T5TextEncoder)"
 
 
@@ -232,8 +225,8 @@ class TestLoadModels:
         assert [nd.node_id for nd in call_node_defs] == [0, 1, 2]
 
     @patch("kdit.pipelines.pipeline.load_default_settings")
-    def test_load_pins_mapping_passed(self, mock_settings):
-        """pins_mapping 正确传递给 engine.run_loader_node()。"""
+    def test_load_input_pins_passed(self, mock_settings):
+        """input_pins 正确传递给 engine.run_loader_node()。"""
         mock_settings.return_value = _make_default_settings()
         pipeline_def = _make_dag_pipeline_def()
         engine = _make_mock_engine()
@@ -242,10 +235,10 @@ class TestLoadModels:
 
         pipeline.load_models("/fake/path")
 
-        # Loader 节点没有入边，pins_mapping 应该是空的
+        # Loader 节点没有入边，input_pins 应该是空的
         for c in engine.run_loader_node.call_args_list:
-            pins_mapping = c.args[1]
-            assert pins_mapping == {"tensor": {}, "model": {}}
+            input_pins = c.args[1]
+            assert input_pins == {"tensor": {}, "model": {}}
 
     @patch("kdit.pipelines.pipeline.load_default_settings")
     def test_load_context_has_loader_kwargs(self, mock_settings):
@@ -322,8 +315,8 @@ class TestGenerate:
         # 拓扑序: text_enc(3) → gen(4) → vae_dec(5) → save(6)
         assert [nd.node_id for nd in call_node_defs] == [3, 4, 5, 6]
 
-    def test_generate_pins_mapping_correct(self):
-        """infer 节点的 pins_mapping 正确。"""
+    def test_generate_input_pins_correct(self):
+        """infer 节点的 input_pins 正确。"""
         pipeline, engine, _ = self._setup_pipeline_for_generate()
 
         pipeline.generate("test prompt")
@@ -331,27 +324,27 @@ class TestGenerate:
         calls = engine.run_infer_node.call_args_list
 
         # text_enc(3): 入边 = loader_t5(0) → model
-        pm_text = calls[0].args[1]
-        assert pm_text["model"] == {ModelKey.T5TextEncoder: ModelPoolKey(0, ModelKey.T5TextEncoder)}
-        assert pm_text["tensor"] == {}
+        ip_text = calls[0].args[1]
+        assert ip_text["model"] == {ModelKey.T5TextEncoder: ModelPoolKey(0, ModelKey.T5TextEncoder)}
+        assert ip_text["tensor"] == {}
 
         # gen(4): 入边 = loader_dit(1)→model, text_enc(3)→POSITIVE/NEGATIVE
-        pm_gen = calls[1].args[1]
-        assert pm_gen["model"] == {ModelKey.Wan2_2_T2V_14B: ModelPoolKey(1, ModelKey.Wan2_2_T2V_14B)}
-        assert pm_gen["tensor"] == {
+        ip_gen = calls[1].args[1]
+        assert ip_gen["model"] == {ModelKey.Wan2_2_T2V_14B: ModelPoolKey(1, ModelKey.Wan2_2_T2V_14B)}
+        assert ip_gen["tensor"] == {
             TensorKey.POSITIVE: TensorPoolKey(3, TensorKey.POSITIVE),
             TensorKey.NEGATIVE: TensorPoolKey(3, TensorKey.NEGATIVE),
         }
 
         # vae_dec(5): 入边 = loader_vae(2) → model, gen(4) → LATENTS
-        pm_vae = calls[2].args[1]
-        assert pm_vae["model"] == {ModelKey.VAE_WAN2_2: ModelPoolKey(2, ModelKey.VAE_WAN2_2)}
-        assert pm_vae["tensor"] == {TensorKey.LATENTS: TensorPoolKey(4, TensorKey.LATENTS)}
+        ip_vae = calls[2].args[1]
+        assert ip_vae["model"] == {ModelKey.VAE_WAN2_2: ModelPoolKey(2, ModelKey.VAE_WAN2_2)}
+        assert ip_vae["tensor"] == {TensorKey.LATENTS: TensorPoolKey(4, TensorKey.LATENTS)}
 
         # save(6): 入边 = vae_dec(5) → VIDEO
-        pm_save = calls[3].args[1]
-        assert pm_save["model"] == {}
-        assert pm_save["tensor"] == {TensorKey.VIDEO: TensorPoolKey(5, TensorKey.VIDEO)}
+        ip_save = calls[3].args[1]
+        assert ip_save["model"] == {}
+        assert ip_save["tensor"] == {TensorKey.VIDEO: TensorPoolKey(5, TensorKey.VIDEO)}
 
     def test_generate_build_context_receives_node_def(self):
         """build_context() 接收 NodeDef 实例。"""
@@ -368,13 +361,13 @@ class TestGenerate:
         assert first_arg.node_type == NT.TEXT_ENCODE
         assert first_arg.model_key == ModelKey.T5TextEncoder
 
-    def test_generate_tensor_scope_used(self):
-        """generate() 在 tensor_scope 内执行。"""
+    def test_generate_clear_all_tensors_called(self):
+        """generate() 在 finally 中调用 clear_all_tensors()。"""
         pipeline, engine, _ = self._setup_pipeline_for_generate()
 
         pipeline.generate("test prompt")
 
-        engine.tensor_scope.assert_called_once_with(keep=[TensorKey.VIDEO])
+        engine.clear_all_tensors.assert_called_once()
 
     def test_generate_extra_inputs_passed_to_prepare(self):
         """extra_inputs 参数传递给 prepare_generate_inputs()。"""
@@ -490,7 +483,7 @@ class TestFindVaeModelKey:
 
     def test_no_vae_returns_none(self):
         """无 VAE 时返回 None。"""
-        nodes = (NodeDef(node_id=0, is_loader=True, model_key=ModelKey.T5TextEncoder),)
+        nodes = (NodeDef(node_id=0, node_type=IONodeType.LOAD_MODEL, model_key=ModelKey.T5TextEncoder),)
         pipeline_def = PipelineDef(
             pipeline_key=PipelineKey.Wan2_2_T2V_14B,
             nodes=nodes,

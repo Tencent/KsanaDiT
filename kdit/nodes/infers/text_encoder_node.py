@@ -64,12 +64,12 @@ class T5TextEncodeNode(InferNode):
     """T5 文本编码 — forward 后 pad + chunk 拆分 pos/neg。"""
 
     dispatch_policy = NodeDispatchPolicy.ALL_ALL_ALL
-    input_tensor_pins = []
-    output_tensor_pins = [TensorKey.POSITIVE, TensorKey.NEGATIVE]
+    input_defs = []
+    output_defs = [TensorKey.POSITIVE, TensorKey.NEGATIVE]
 
     @time_profile
     def run(self, pins, *, context):
-        model = pins.get_model(self.input_model_pins[0])
+        model = pins.get_model(self._factory_model_key)
         device = context.metadata.get("text_run_device", context.device.device)
         meta = context.metadata
 
@@ -109,12 +109,12 @@ class QwenTextEncodeNode(InferNode):
     """Qwen VL 文本编码 — 分别 forward pos/neg，返回 (embeds, mask)。"""
 
     dispatch_policy = NodeDispatchPolicy.ALL_ALL_ALL
-    input_tensor_pins = []
-    output_tensor_pins = [TensorKey.POSITIVE, TensorKey.NEGATIVE]
+    input_defs = []
+    output_defs = [TensorKey.POSITIVE, TensorKey.NEGATIVE]
 
     @time_profile
     def run(self, pins, *, context):
-        model = pins.get_model(self.input_model_pins[0])
+        model = pins.get_model(self._factory_model_key)
         device = context.metadata.get("text_run_device", context.device.device)
         meta = context.metadata
         images = meta.get("condition_image_path")

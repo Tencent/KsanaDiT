@@ -20,45 +20,62 @@ from kdit.tensor.tensor_pool import TensorPool
 from kdit.tensor.tensor_pool_key import TensorPoolKey
 from kdit.tensor.tensor_value import TensorData
 
+from .node_def import NodeDef
+
 
 class PinHub:
     """Node 运行时的数据访问器 — 由 Executor 根据 DAG 连线构建。
 
     每个 Node 实例拥有独立的 PinHub，被严格约束在 DAG 声明的范围内：
-    - 读操作：只能读 pins_mapping 中声明的上游输出
+    - 读操作：只能读 input_pins 中声明的上游输出
     - 写操作：只能写自己 node_id 命名空间下的 key
+    - get_model() / put_model() 支持无参调用（自动使用 node_def.model_key）
     """
+
+    __slots__ = ("_node_def", "_tensor_pool", "_model_pool", "_model_mapping", "_tensor_mapping")
 
     def __init__(
         self,
-        node_id: int,
-        pins_mapping: dict,
+        node_def: NodeDef,
+        input_pins: dict,
         tensor_pool: TensorPool,
         model_pool: ModelPool,
     ):
-        self._node_id = node_id
+        self._node_def = node_def
         self._tensor_pool = tensor_pool
         self._model_pool = model_pool
-        # 从 pins_mapping 中拆分 model 和 tensor 映射
-        self._model_mapping: dict[ModelKey, ModelPoolKey] = pins_mapping.get("model", {})
-        self._tensor_mapping: dict[TensorKey, TensorPoolKey] = pins_mapping.get("tensor", {})
+        # 从 input_pins 中拆分 model 和 tensor 映射
+        self._model_mapping: dict[ModelKey, ModelPoolKey] = input_pins.get("model", {})
+        self._tensor_mapping: dict[TensorKey, TensorPoolKey] = input_pins.get("tensor", {})
 
     # ── Model 读写 ──
 
-    def get_model(self, pin: ModelKey):
+    def get_model(self, pin: ModelKey | None = None):
         """读取输入 model — 从 DAG 连线找到上游 ModelPoolKey。
 
+        Args:
+            pin: 指定 ModelKey。None 时自动使用 node_def.model_key（单 model 场景）。
+
         Raises:
-            KeyError: pin 未在 pins_mapping 中声明。
+            KeyError: pin 未在 input_pins 中声明。
         """
+        if pin is None:
+            pin = self._node_def.model_key
         pool_key = self._model_mapping.get(pin)
         if pool_key is None:
-            raise KeyError(f"Model pin {pin} not connected for node {self._node_id}")
+            raise KeyError(f"Model pin {pin} not connected for node {self._node_def.node_id}")
         return self._model_pool.get_model(pool_key)
 
-    def put_model(self, pin: ModelKey, model) -> None:
-        """写入输出 model — 自动用 node_id + pin 生成 ModelPoolKey。"""
-        pool_key = ModelPoolKey(self._node_id, pin)
+    def put_model(self, model, pin: ModelKey | None = None) -> None:
+        """写入输出 model — 自动用 node_id + pin 生成 ModelPoolKey。
+
+        Args:
+            model: 要写入的模型实例。
+            pin: 指定 ModelKey。None 时自动使用 node_def.model_key。
+        """
+        if pin is None:
+            pin = self._node_def.model_key
+        pool_key = ModelPoolKey(self._node_def.node_id, pin)
         self._model_pool.update_model_with_key(pool_key, model)
 
     # ── Tensor 读写 ──
@@ -89,5 +106,5 @@ class PinHub:
 
     def put_tensor(self, pin: TensorKey, data: TensorData) -> None:
         """写入输出 tensor — 自动用 node_id + pin 生成 TensorPoolKey。"""
-        pool_key = TensorPoolKey(self._node_id, pin)
+        pool_key = TensorPoolKey(self._node_def.node_id, pin)
         self._tensor_pool.put(pool_key, data)

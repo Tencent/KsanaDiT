@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from .context_builder import ContextBuilder
-from .dag import compute_pins_mapping, topo_sort
+from .dag import compute_input_pins, topo_sort
 from .defs import *  # noqa: F403
 from .extra_inputs import ExtraInputs
 from .generate_inputs import PipelineGenerateInputs
@@ -48,5 +48,5 @@ __all__ = [
     "NodeRef",
     "PinRef",
     "topo_sort",
-    "compute_pins_mapping",
+    "compute_input_pins",
 ]

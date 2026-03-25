@@ -449,10 +449,12 @@ def _valid_video_control_config(
 
     def vae_encode_fn(frame: torch.Tensor) -> torch.Tensor:
         context = NodeContext()
-        with engine.tensor_scope(keep=[TensorKey.AUX_LATENT]):
+        try:
             engine.put_tensors({TensorKey.IMAGE: frame})
             engine.run_infer_node(NT.VAE_ENCODE_IMAGES, vae_model_key, context)
-        tensor_value = engine.get_tensor(TensorKey.AUX_LATENT)
+            tensor_value = engine.get_tensor(TensorKey.AUX_LATENT)
+        finally:
+            engine.clear_all_tensors()
         latents_list = tensor_value.data  # list[Tensor]
         return latent_process_out(latents_list[0])
 

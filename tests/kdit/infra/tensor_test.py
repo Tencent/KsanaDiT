@@ -317,3 +317,141 @@ class TestBareTensorKeyAutoNormalize:
             pool.clear(exclude=[TensorKey.LATENTS])
             pool.rename(TensorKey.LATENTS, TensorKey.VIDEO)
             pool.clear()
+
+
+# ── TensorPool 引用计数 ─────────────────────────────────────────────────────
+
+
+class TestTensorPoolRefCount:
+    """TensorPool.register / consume / remove 引用计数机制。"""
+
+    # 辅助：不同 node_id 的 TensorPoolKey
+    _PK1 = TensorPoolKey(1, TensorKey.POSITIVE)
+    _PK2 = TensorPoolKey(2, TensorKey.NEGATIVE)
+    _PK3 = TensorPoolKey(3, TensorKey.LATENTS)
+
+    def test_register_and_consume(self):
+        """register 后 consume 递减引用计数，未归零时 tensor 仍在。"""
+        pool = TensorPool()
+        pool.put(self._PK1, torch.randn(4))
+        pool.register(self._PK1, ref_count=2)
+
+        pool.consume(self._PK1)
+        assert pool.has(self._PK1), "ref_count=1，tensor 应仍存在"
+
+    def test_consume_auto_release(self):
+        """引用计数归零时 tensor 自动释放。"""
+        pool = TensorPool()
+        t = torch.randn(4)
+        pool.put(self._PK1, t)
+        pool.register(self._PK1, ref_count=2)
+
+        pool.consume(self._PK1)
+        pool.consume(self._PK1)
+        assert not pool.has(self._PK1), "ref_count=0，tensor 应已释放"
+        assert len(pool) == 0
+
+    def test_consume_unknown_key_noop(self):
+        """consume 未注册的 key 静默跳过，不抛异常。"""
+        pool = TensorPool()
+        pool.put(self._PK1, torch.randn(4))
+        # 未调用 register，直接 consume
+        pool.consume(self._PK1)
+        assert pool.has(self._PK1), "未注册 ref_count 的 tensor 不受 consume 影响"
+
+    def test_remove(self):
+        """remove 立即释放 tensor，不管引用计数。"""
+        pool = TensorPool()
+        t = torch.randn(4)
+        pool.put(self._PK1, t)
+        pool.register(self._PK1, ref_count=5)
+
+        pool.remove(self._PK1)
+        assert not pool.has(self._PK1)
+        assert len(pool) == 0
+
+    def test_remove_nonexistent_noop(self):
+        """remove 不存在的 key 静默跳过。"""
+        pool = TensorPool()
+        pool.remove(self._PK1)  # 不抛异常
+
+    def test_clear_resets_ref_counts(self):
+        """clear 同时清理 tensor 和引用计数记录。"""
+        pool = TensorPool()
+        pool.put(self._PK1, torch.randn(4))
+        pool.put(self._PK2, torch.randn(4))
+        pool.register(self._PK1, ref_count=3)
+        pool.register(self._PK2, ref_count=1)
+
+        pool.clear()
+        assert len(pool) == 0
+        # 再次 consume 不应抛异常（ref_counts 已清空）
+        pool.consume(self._PK1)
+        pool.consume(self._PK2)
+
+    def test_clear_with_exclude_preserves_ref_count(self):
+        """clear(exclude=[...]) 保留被排除 key 的引用计数。"""
+        pool = TensorPool()
+        pool.put(self._PK1, torch.randn(4))
+        pool.put(self._PK2, torch.randn(4))
+        pool.register(self._PK1, ref_count=2)
+        pool.register(self._PK2, ref_count=1)
+
+        pool.clear(exclude=[self._PK1])
+        assert pool.has(self._PK1), "被排除的 key 应保留"
+        assert not pool.has(self._PK2), "未排除的 key 应被清理"
+        # _PK1 的 ref_count 仍有效
+        pool.consume(self._PK1)
+        assert pool.has(self._PK1), "ref_count 从 2 降到 1，仍在"
+        pool.consume(self._PK1)
+        assert not pool.has(self._PK1), "ref_count 归零，自动释放"
+
+    def test_multi_consumer(self):
+        """多个下游消费者场景：ref_count=3，consume 3 次后释放。"""
+        pool = TensorPool()
+        pool.put(self._PK1, torch.randn(4))
+        pool.register(self._PK1, ref_count=3)
+
+        for i in range(2):
+            pool.consume(self._PK1)
+            assert pool.has(self._PK1), f"第 {i + 1} 次 consume 后 tensor 应仍在"
+
+        pool.consume(self._PK1)
+        assert not pool.has(self._PK1), "第 3 次 consume 后 tensor 应释放"
+
+    def test_rename_preserves_ref_count(self):
+        """rename 后引用计数跟随新 key。"""
+        pool = TensorPool()
+        pool.put(self._PK1, torch.randn(4))
+        pool.register(self._PK1, ref_count=2)
+
+        pool.rename(self._PK1, self._PK3)
+        assert not pool.has(self._PK1)
+        assert pool.has(self._PK3)
+
+        # 用新 key consume
+        pool.consume(self._PK3)
+        assert pool.has(self._PK3), "ref_count 从 2 降到 1"
+        pool.consume(self._PK3)
+        assert not pool.has(self._PK3), "ref_count 归零，自动释放"
+
+    def test_register_overwrite(self):
+        """重复 register 覆盖旧的引用计数。"""
+        pool = TensorPool()
+        pool.put(self._PK1, torch.randn(4))
+        pool.register(self._PK1, ref_count=1)
+        pool.register(self._PK1, ref_count=3)
+
+        pool.consume(self._PK1)
+        assert pool.has(self._PK1), "覆盖后 ref_count=3，consume 1 次后仍在"
+
+    def test_consume_releases_tensor_value(self):
+        """consume 归零时 TensorValue.release() 被调用，data 置 None。"""
+        pool = TensorPool()
+        pool.put(self._PK1, torch.randn(4))
+        tv = pool.get(self._PK1)
+        assert tv.data is not None
+
+        pool.register(self._PK1, ref_count=1)
+        pool.consume(self._PK1)
+        assert tv.data is None, "release() 应将 data 置为 None"

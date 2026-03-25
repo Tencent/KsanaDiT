@@ -26,9 +26,10 @@ from kdit.models.model_key import ModelKey
 from kdit.models.model_pool_key import ModelPoolKey
 from kdit.nodes.core.device_context import DeviceInfo
 from kdit.nodes.core.node_context import NodeContext
-from kdit.nodes.core.node_types import NodeDispatchPolicy
+from kdit.nodes.core.node_types import InferNodeType, NodeDispatchPolicy
 from kdit.nodes.core.pin_hub import PinHub
 from kdit.nodes.infers.vae_encoder_node import VAEEncodeImagesNode, VAEEncodeSpatialNode
+from kdit.pipelines.pipeline_def import NodeDef
 from kdit.tensor import TensorKey
 from kdit.tensor.tensor_pool import TensorPool
 from kdit.tensor.tensor_pool_key import TensorPoolKey
@@ -39,7 +40,7 @@ class TestVAEEncodeSpatialNode(unittest.TestCase):
 
     def setUp(self):
         self.node = VAEEncodeSpatialNode()
-        self.node.input_model_pins = [ModelKey.VAE_WAN2_2]
+        self.node._factory_model_key = ModelKey.VAE_WAN2_2
         self.start_img = torch.randn(1, 3, 480, 832)
         self.end_img = torch.randn(1, 3, 480, 832)
 
@@ -67,9 +68,10 @@ class TestVAEEncodeSpatialNode(unittest.TestCase):
         }
 
     def _make_pins(self, node_id=0):
+        node_def = NodeDef(node_id=node_id, node_type=InferNodeType.VAE_ENCODE_SPATIAL, model_key=ModelKey.VAE_WAN2_2)
         return PinHub(
-            node_id=node_id,
-            pins_mapping={
+            node_def=node_def,
+            input_pins={
                 "model": {ModelKey.VAE_WAN2_2: ModelPoolKey(99, ModelKey.VAE_WAN2_2)},
                 "tensor": self.tensor_mapping,
             },
@@ -114,9 +116,9 @@ class TestVAEEncodeSpatialNode(unittest.TestCase):
         self.assertEqual(VAEEncodeSpatialNode.dispatch_policy, NodeDispatchPolicy.R0_R0_BCAST)
 
     def test_tensor_pins(self):
-        self.assertIn(TensorKey.START_IMG, VAEEncodeSpatialNode.input_tensor_pins)
-        self.assertIn(TensorKey.END_IMG, VAEEncodeSpatialNode.input_tensor_pins)
-        self.assertEqual(VAEEncodeSpatialNode.output_tensor_pins, [TensorKey.BASE_LATENT])
+        self.assertIn(TensorKey.START_IMG, VAEEncodeSpatialNode.input_defs)
+        self.assertIn(TensorKey.END_IMG, VAEEncodeSpatialNode.input_defs)
+        self.assertEqual(VAEEncodeSpatialNode.output_defs, [TensorKey.BASE_LATENT])
 
 
 class TestVAEEncodeImagesNode(unittest.TestCase):
@@ -124,7 +126,7 @@ class TestVAEEncodeImagesNode(unittest.TestCase):
 
     def setUp(self):
         self.node = VAEEncodeImagesNode()
-        self.node.input_model_pins = [ModelKey.VAE_WAN2_2]
+        self.node._factory_model_key = ModelKey.VAE_WAN2_2
         self.image = torch.randn(1, 3, 480, 832)
 
         # 真实 TensorPool + 预填充数据
@@ -147,9 +149,10 @@ class TestVAEEncodeImagesNode(unittest.TestCase):
         self.tensor_mapping = {TensorKey.IMAGE: TensorPoolKey(10, TensorKey.IMAGE)}
 
     def _make_pins(self, node_id=0):
+        node_def = NodeDef(node_id=node_id, node_type=InferNodeType.VAE_ENCODE_IMAGES, model_key=ModelKey.VAE_WAN2_2)
         return PinHub(
-            node_id=node_id,
-            pins_mapping={
+            node_def=node_def,
+            input_pins={
                 "model": {ModelKey.VAE_WAN2_2: ModelPoolKey(99, ModelKey.VAE_WAN2_2)},
                 "tensor": self.tensor_mapping,
             },
@@ -181,8 +184,8 @@ class TestVAEEncodeImagesNode(unittest.TestCase):
         self.assertEqual(VAEEncodeImagesNode.dispatch_policy, NodeDispatchPolicy.R0_R0_BCAST)
 
     def test_tensor_pins(self):
-        self.assertEqual(VAEEncodeImagesNode.input_tensor_pins, [TensorKey.IMAGE])
-        self.assertEqual(VAEEncodeImagesNode.output_tensor_pins, [TensorKey.AUX_LATENT])
+        self.assertEqual(VAEEncodeImagesNode.input_defs, [TensorKey.IMAGE])
+        self.assertEqual(VAEEncodeImagesNode.output_defs, [TensorKey.AUX_LATENT])
 
 
 if __name__ == "__main__":

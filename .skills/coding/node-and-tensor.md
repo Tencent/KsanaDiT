@@ -4,46 +4,74 @@
 
 ---
 
+## Def/Pin 术语规范
+
+### 核心概念
+
+- **Def（声明）**：编译时/类定义时的端口声明。Node 类上的 `input_defs`/`output_defs`。
+- **Pin（绑定）**：运行时的端口地址。Executor 构建的 `input_pins`/`output_pins`，值为 PoolKey。
+
+### 命名规则
+
+- 变量名含 `def` → 声明层（TensorKey / ModelKey）
+- 变量名含 `pin` → 运行时层（TensorPoolKey / ModelPoolKey）
+- Node 类属性用 `input_defs` / `output_defs`
+- Executor/Engine 参数用 `input_pins` / `output_pins`
+- PinHub 是 Pin 层的访问器
+
+### 类型
+
+| 名称 | 类型 | 层级 |
+|------|------|------|
+| `PinDef` | `TensorKey \| ModelKey` | Def |
+| `PinPoolKey` | `TensorPoolKey \| ModelPoolKey` | Pin |
+| `Pins` | `dict[PinDef, PinPoolKey]` | Pin |
+
+---
+
 ## 4. V5 Node / Tensor API 规范
 
 ### Node.run() 返回值
 
 | Node 类型 | 返回值 | 说明 |
 |-----------|--------|------|
-| `LoaderNode.run()` | `None` | 模型写入 model_pool，不返回 |
+| `IONode.run()` | `None` | 模型写入 model_pool，不返回 |
 | `InferNode.run()` | `None` | 结果写入 tensor_pool，不返回 tensor |
 
 **禁止** `InferNode.run()` 返回 dict 或 tensor。所有中间结果通过 `tensor_pool.put(key, tensor)` 写入。
 
-### output_tensor_keys 静态声明
+### output_defs 静态声明
 
-`output_tensor_keys` 保留为**类属性**，Executor 用它做 `RANK_0_BROADCAST`。
-对于条件性输出（如 VAEEncodeNode 可能不写入 img_latents），broadcast 逻辑对 `tensor_pool.peek(key) is None` 的 key 做 skip 容错。
+`output_defs` 保留为**类属性**（`list[PinDef]`），Executor 用它做 `R0_R0_BCAST` broadcast 和 `_build_output_pins()`。
+对于条件性输出（如 VAEEncodeNode 可能不写入 AUX_LATENT），broadcast 逻辑对 `tensor_pool.peek(key) is None` 的 key 做 skip 容错。
 
 ```python
 class GeneratorNode(InferNode):
-    output_tensor_keys = [TensorKey.LATENTS]
+    input_defs = [TensorKey.POSITIVE, TensorKey.NEGATIVE, TensorKey.BASE_LATENT,
+                  TensorKey.AUX_LATENT, TensorKey.VACE_CONTEXT]
+    output_defs = [TensorKey.LATENTS]
 
-    def run(self, model_key, context, *, tensor_pool, model_pool, device_ctx) -> None:
+    def run(self, pins: PinHub, *, context: NodeContext) -> None:
+        model = pins.get_model()  # 无参 — 自动从 node_def.model_key 获取
         latents = generator.run(...)
-        tensor_pool.put(TensorKey.LATENTS, latents)
+        pins.put_tensor(TensorKey.LATENTS, latents)
 ```
 
 ### Node.run() 写入规则
 
-Node 必须**无条件写入** tensor_pool，不得判断 `rank_id`：
+Node 必须**无条件写入** tensor，不得判断 `rank_id`：
 
 ```python
 # ✅ 正确
-def run(self, model_key, context, *, tensor_pool, model_pool, device_ctx) -> None:
+def run(self, pins: PinHub, *, context: NodeContext) -> None:
     result = unit.run(...)
-    tensor_pool.put(TensorKey.LATENTS, result)
+    pins.put_tensor(TensorKey.LATENTS, result)
 
 # ❌ 错误 — Node 不应关心下游的 dispatch_policy
-def run(self, model_key, context, *, tensor_pool, model_pool, device_ctx) -> None:
+def run(self, pins: PinHub, *, context: NodeContext) -> None:
     result = unit.run(...)
-    if device_ctx.rank_id == 0:
-        tensor_pool.put(TensorKey.LATENTS, result)
+    if context.device.rank_id == 0:
+        pins.put_tensor(TensorKey.LATENTS, result)
 ```
 
 ### TensorKey 枚举
@@ -51,10 +79,10 @@ def run(self, model_key, context, *, tensor_pool, model_pool, device_ctx) -> Non
 tensor_pool 的 key **必须**使用 `TensorKey(str, Enum)` 枚举，全局统一，不使用裸字符串：
 
 ```python
-from kdit.nodes.core.tensor_keys import TensorKey
+from kdit.tensor import TensorKey
 
 # ✅ 使用枚举
-tensor_pool.put(TensorKey.LATENTS, latents)
+pins.put_tensor(TensorKey.LATENTS, latents)
 video = engine.get_tensor(TensorKey.VIDEO)
 engine.put_tensors(**{TensorKey.POSITIVE: positive, TensorKey.NEGATIVE: negative})
 
@@ -68,14 +96,13 @@ tensor_pool.put("latents", latents)
 |------|-----|--------|--------|
 | `TensorKey.POSITIVE` | `"positive"` | TextEncodeNode | GeneratorNode |
 | `TensorKey.NEGATIVE` | `"negative"` | TextEncodeNode | GeneratorNode |
-| `TensorKey.IMG_LATENTS` | `"img_latents"` | VAEEncodeImagesNode | GeneratorNode |
 | `TensorKey.LATENTS` | `"latents"` | GeneratorNode | VAEDecodeNode |
 | `TensorKey.VIDEO` | `"video"` | VAEDecodeNode | SaveVideoNode |
-| `TensorKey.IMAGE` | `"image"` | ReadImageNode | VAEEncodeSpatialNode / VAEEncodeImagesNode（通过 cross-pin connect） |
-| `TensorKey.START_IMG` | `"start_img"` | ReadImageNode（cross-pin） | VAEEncodeSpatialNode |
-| `TensorKey.END_IMG` | `"end_img"` | ReadImageNode（cross-pin） | VAEEncodeSpatialNode |
+| `TensorKey.IMAGE` | `"image"` | ReadImageNode | VAEEncodeSpatialNode / VAEEncodeImagesNode（通过 DAG edge connect） |
+| `TensorKey.START_IMG` | `"start_img"` | ReadImageNode（DAG edge） | VAEEncodeSpatialNode |
+| `TensorKey.END_IMG` | `"end_img"` | ReadImageNode（DAG edge） | VAEEncodeSpatialNode |
 | `TensorKey.BASE_LATENT` | `"base_latent"` | VAEEncodeSpatialNode / VAEComputeShapeNode | GeneratorNode |
-| `TensorKey.AUX_LATENT` | `"aux_latent"` | VACEPreprocessNode | GeneratorNode |
+| `TensorKey.AUX_LATENT` | `"aux_latent"` | VAEEncodeImagesNode / VACEPreprocessNode | GeneratorNode |
 | `TensorKey.VACE_CONTEXT` | `"vace_context"` | VACEPreprocessNode | GeneratorNode |
 
 ### NodeContext 禁止 tensor
@@ -106,17 +133,16 @@ def __post_init__(self):
 | 方法 | 用途 | 说明 |
 |------|------|------|
 | `engine.get_tensor(key)` | 取回 TensorValue | 自动从 rank 0 取，返回 `TensorValue`（需 `.data` 取裸 tensor） |
-| `engine.put_tensors(**kw)` | 写入 tensor | 写入所有 Executor 的 tensor_pool，自动包装为 `TensorValue` |
-| `engine.tensor_scope(keep=[...])` | 生命周期管理 | context manager，scope 结束自动 clear（keep 列表中的 key 保留） |
+| `engine.put_tensors(tensors)` | 写入 tensor | 写入所有 Executor 的 tensor_pool，自动包装为 `TensorValue` |
 | `engine.has_tensor(key)` | 检查 key 存在性 | 检查 rank 0 的 tensor_pool 中是否存在指定 key |
+| `engine.register_tensor(pool_key, ref_count)` | 注册引用计数 | 透传到所有 Executor 的 tensor_pool.register() |
+| `engine.clear_all_tensors()` | 清理所有 tensor | 清理所有 Executor 的 tensor_pool — 用于 try/finally 异常恢复 |
+| `engine.rename_tensor(old, new)` | 重命名 key | 透传到所有 Executor 的 tensor_pool.rename() |
 
-**保持 `with` 模式的理由**：
-1. **异常安全**：即使 Node 抛异常，tensor_pool 也会被清理
-2. **语义清晰**：标记一次推理的 tensor 边界
-3. **Node 不应自管理清理**：Node 不知道 pipeline 的全局编排，无法判断哪些 tensor 还被下游需要
-4. **tensor 数量少**：pool 中通常只有 5-6 个 tensor，全量清理开销可忽略
+> **`tensor_scope` 已删除**。异常安全通过 `try/finally + engine.clear_all_tensors()` 实现。
+> TensorPool 内置引用计数（register/consume）自动管理中间 tensor 的释放。
 
-### Tensor 生命周期与 TensorValue
+### Tensor 生命周期与 TensorPool 引用计数
 
 #### TensorValue 类
 
@@ -142,22 +168,23 @@ class TensorValue:
 - Pool 的 `clear()` 遍历调用 `TensorValue.release()`
 - 只有最终边界（如 vae_decode 输出给用户）才允许 `.data` 取裸 tensor
 
-#### tensor_scope(keep=[...]) 声明式保留
+#### TensorPool 内置引用计数
 
-`tensor_scope` 支持 `keep` 参数，声明哪些 key 在 scope 退出时保留：
+TensorPool 内置 `register()` / `consume()` / `remove()` 引用计数机制，替代了旧的 `tensor_scope`：
 
 ```python
-# 分段调用：vae_encode 保留 BASE_LATENT
-with engine.tensor_scope(keep=[TensorKey.BASE_LATENT]):
-    engine.put_tensors(**{TensorKey.IMAGE: image})
-    engine.run_infer_node(InferNodeType.VAE_ENCODE_SPATIAL, vae, context)
-# scope 退出：IMAGE 被 release，BASE_LATENT 保留在 pool 中
+# Pipeline DAG 模式 — Executor 自动管理
+# 1. Pipeline 构建 DAG 时，Engine 调用 register_tensor() 注册每个 tensor 的下游消费者数
+# 2. Executor.run_infer_node() 执行后自动 consume 输入 tensor
+# 3. consume 时 ref_count 降为 0 → 自动 release TensorValue
 
-# 最终步骤：vae_decode 不 keep，全部清理
-with engine.tensor_scope():
-    engine.run_infer_node(InferNodeType.VAE_DECODE, vae, context)
-    video = engine.get_tensor(TensorKey.VIDEO).data  # 取裸 tensor
-# scope 退出：全部 release
+# ComfyUI 模式 — try/finally 手动清理
+try:
+    engine.put_tensors({TensorKey.IMAGE: image})
+    engine.run_infer_node(node_def, pins_mapping, context)
+    result = engine.get_tensor(TensorKey.AUX_LATENT)
+finally:
+    engine.clear_all_tensors()
 ```
 
 #### ComfyUI adapter 之间传递 key
@@ -167,31 +194,38 @@ ComfyUI adapter 之间传递的是 `TensorKey`（而非裸 tensor），真正的
 ```python
 # vae_encode 返回 key
 def vae_encode_image(...):
-    with engine.tensor_scope(keep=[TensorKey.BASE_LATENT]):
+    try:
         engine.put_tensors(...)
         engine.run_infer_node(...)
-    return KsanaNodeVAEEncodeOutput(samples=TensorKey.BASE_LATENT, ...)
+        return KsanaNodeVAEEncodeOutput(samples=TensorKey.BASE_LATENT, ...)
+    except Exception:
+        engine.clear_all_tensors()
+        raise
 
 # generate 收到 key，先检查存在性
 def generate(...):
     if not engine.has_tensor(base_latent_key):
         raise RuntimeError(f"Tensor {base_latent_key} not found in pool")
-    with engine.tensor_scope(keep=[TensorKey.LATENTS]):
+    try:
         engine.run_infer_node(...)
-    return KsanaNodeGeneratorOutput(samples=TensorKey.LATENTS, ...)
+        return KsanaNodeGeneratorOutput(samples=TensorKey.LATENTS, ...)
+    except Exception:
+        engine.clear_all_tensors()
+        raise
 ```
 
 #### Pool 的 clear(exclude=[...])
 
-`TensorPool.clear(exclude)` 释放除 exclude 列表外的所有 tensor：
+`TensorPool.clear(exclude)` 释放除 exclude 列表外的所有 tensor，同时重置引用计数：
 
 ```python
-def clear(self, exclude: list[TensorKey] | None = None) -> None:
-    exclude_set = set(exclude) if exclude else set()
-    keys_to_remove = [k for k in self._tensors if k not in exclude_set]
+def clear(self, exclude: list[TensorKey | TensorPoolKey] | None = None) -> None:
+    exclude_set = set(_normalize_key(k) for k in exclude) if exclude else set()
+    keys_to_remove = [k for k in self._store if k not in exclude_set]
     for key in keys_to_remove:
-        self._tensors[key].release()
-        del self._tensors[key]
+        self._store[key].release()
+        del self._store[key]
+        self._ref_counts.pop(key, None)
 ```
 
 ### Node 间数据传递
@@ -247,14 +281,15 @@ Executor (每卡一个实例)
 - `run_infer_node()` → 分发到所有 Executor
 - `put_tensors()` → 写入所有 Executor 的 tensor_pool
 - `get_tensor()` → 从 rank 0 Executor 的 tensor_pool 读取
-- `inference_session()` → 管理所有 Executor 的 tensor_pool 生命周期
+- `register_tensor()` → 注册引用计数到所有 Executor 的 tensor_pool
+- `clear_all_tensors()` → 清理所有 Executor 的 tensor_pool（异常恢复）
 
 #### Executor (`kdit/executor/executor.py`)
 
 | 属性 | 类型 | 生命周期 | 说明 |
 |------|------|---------|------|
 | `model_pool` | `ModelPool` | 与 Executor 同生命周期 | 存储所有已加载模型，按 `ModelKey` 索引 |
-| `tensor_pool` | `TensorPool` | 每次 `inference_session()` 结束时 clear | 存储推理中间 tensor，按 string key 索引 |
+| `tensor_pool` | `TensorPool` | 每次推理结束时 clear（Pipeline 用 try/finally） | 存储推理中间 tensor，内置引用计数 |
 | `dist_group` | `DistributedGroupManager` | 与 Executor 同生命周期 | 管理 broadcast 等分布式操作 |
 | `device_ctx` | `NodeDeviceContext` | 初始化后不变（frozen） | 只读设备上下文，传入 Node.run() |
 | `device` | `torch.device` | 不变 | 计算设备 (如 `cuda:0`) |
@@ -280,17 +315,18 @@ class NodeDeviceContext:
 #### TensorPool (`kdit/tensor/tensor_pool.py`)
 
 - **Owner**: Executor
-- **生命周期**: 每次 `engine.tensor_scope()` 退出（depth→0）时 `clear(exclude=keep)`
-- **内容**: `dict[TensorKey, TensorValue]`，每个 TensorValue 持有 `Tensor | list[Tensor]`
+- **生命周期**: Pipeline 推理结束时由 `engine.clear_all_tensors()` 清理；DAG 模式下中间 tensor 通过引用计数自动释放
+- **内容**: `dict[TensorPoolKey, TensorValue]`，每个 TensorValue 持有 `Tensor | list[Tensor]`
+- **引用计数**: `register(pool_key, ref_count)` / `consume(pool_key)` / `remove(pool_key)` — Executor 自动管理
 - **用途**: Node 间通过 `TensorKey` 引用 tensor，避免 tensor 跨 Ray 边界序列化
-- **关键方法**: `put` / `get`（返回 TensorValue）/ `clear(exclude)` / `has` / `keys` / `__len__`
+- **关键方法**: `put` / `get` / `peek` / `has` / `clear(exclude)` / `register` / `consume` / `remove` / `rename`
 
 #### ModelPool (`kdit/models/model_pool.py`)
 
 - **Owner**: Executor
 - **生命周期**: 与 Executor 同生命周期，`clear_models()` 可手动清理
 - **内容**: `dict[ModelKey, KsanaModel]`
-- **用途**: LoaderNode 写入模型，InferNode 读取模型
+- **用途**: IONode 写入模型，InferNode 读取模型
 
 #### DistributedGroupManager (`kdit/executor/distributed_group.py`)
 
@@ -300,7 +336,7 @@ class NodeDeviceContext:
 
 ### Node 状态分析
 
-#### LoaderNode (`LoaderNode` 子类)
+#### IONode (`IONode` 子类)
 
 | Node | 类变量状态 | 实例变量状态 | 说明 |
 |------|-----------|-------------|------|
@@ -323,44 +359,51 @@ class NodeDeviceContext:
 | `VAEEncodeImagesNode` | 无 | 无 | **完全无状态** |
 
 所有 InferNode **完全无状态**：
-- 每次 `run()` 从 `tensor_pool` 读输入、从 `model_pool` 读模型
-- 计算结果写入 `tensor_pool`
+- 每次 `run()` 从 PinHub 读输入 tensor 和 model
+- 计算结果通过 `pins.put_tensor()` 写入
 - 不持有任何跨调用的状态
 
 ### Node 创建方式
 
-Node 由 AdvancedFactory **按需创建**，每次 `run_loader_node()` / `run_infer_node()` 调用时创建新实例：
+Node 由 Factory **按 node_def 创建**，Executor 内部按 `node_id` 缓存：
 
 ```python
 # executor.py
-def run_loader_node(self, model_key, **kwargs):
-    node = LoaderNodeFactory.create(model_key)  # ← 每次新建
-    node.run(model_key, model_pool=self.model_pool, device_ctx=self.device_ctx, **kwargs)
+def _get_or_create_node(self, node_def):
+    if node_def.node_id in self._node_cache:
+        return self._node_cache[node_def.node_id]
+    if node_def.is_io:
+        node = LoaderNodeFactory.create(node_def.model_key)
+    else:
+        node = InferNodeFactory.create(node_def.node_type, node_def.model_key)
+    self._node_cache[node_def.node_id] = node
+    return node
 
-def run_infer_node(self, infer_node_type, model_key, context):
-    node = InferNodeFactory.create(infer_node_type, model_key)  # ← 每次新建
+def run_infer_node(self, node_def, pins_mapping, context):
+    node = self._get_or_create_node(node_def)
+    pin_hub = self._build_pin_hub(node_def, pins_mapping)
     self._pre_sync_tensors(node, policy)
-    is_active_rank = policy == NodeDispatchPolicy.ALL_ALL_ALL or self.device_ctx.rank_id == 0
     if is_active_rank:
-        node.run(model_key, context, tensor_pool=self.tensor_pool, model_pool=self.model_pool, device_ctx=self.device_ctx)
-    self._post_sync_tensors(node, policy)
+        node.run(pin_hub, context=context)
+    self._post_sync_tensors(node, node_def, policy)
+    self._consume_input_tensors(pins_mapping)  # 自动消费输入 tensor
 ```
 
-Node 实例是**临时对象**，用完即弃。Executor 不持有 Node 引用。
+Node 实例按 `node_id` 缓存在 Executor 中，同一 node_id 复用同一实例。
 
 ### 设计约束总结
 
 | 约束 | 说明 |
 |------|------|
 | Engine 不持有资源 | Engine 只是分发层，所有实际资源（model_pool, tensor_pool, device）在 Executor 上 |
-| Executor 持有所有资源 | model_pool + tensor_pool + dist_group + device_ctx |
-| Node 无状态（理想） | InferNode 完全无状态；LoaderNode 中 `DiffusionLoaderNode` 有类级 `_pinned_memory_manager` 例外 |
+| Executor 持有所有资源 | model_pool + tensor_pool + dist_group + device_ctx + node_cache |
+| Node 无状态（理想） | InferNode 完全无状态；IONode 中 `DiffusionLoaderNode` 有类级 `_pinned_memory_manager` 例外 |
 | NodeDeviceContext 只读 | `frozen=True` dataclass，Node 无法篡改 |
 | NodeContext 无 tensor | `__post_init__` 强制校验不含 `torch.Tensor`，保证可跨 Ray 序列化 |
-| tensor_pool 生命周期 | 由 `engine.inference_session()` 管理，session 结束自动 clear |
+| tensor_pool 生命周期 | Pipeline 用 `try/finally + clear_all_tensors()`；DAG 模式下引用计数自动释放 |
 | model_pool 生命周期 | 与 Executor 同生命周期，需手动 `clear_models()` 释放 |
-| InferNode.run() 签名固定 | 禁止添加 `**kwargs` 或额外参数，额外配置通过 `context.metadata` 传递 |
-| Tensor 只能通过 tensor_pool 流转 | 禁止在 run() 参数或 context.metadata 中传递 tensor |
+| InferNode.run() 签名固定 | `(self, pins: PinHub, *, context: NodeContext) -> None`，禁止扩展 |
+| Tensor 只能通过 PinHub 流转 | 禁止在 run() 参数或 context.metadata 中传递 tensor |
 
 ---
 
@@ -390,16 +433,17 @@ def run(self, pins: PinHub, *, context: NodeContext) -> None:
 
 ### 声明 tensor 契约
 
-每个 Node 必须声明 `input_tensor_pins` 和 `output_tensor_pins`：
+每个 Node 必须声明 `input_defs` 和 `output_defs`（`list[PinDef]`）：
 
 ```python
 class MyNode(InferNode):
-    input_tensor_pins = [TensorKey.POSITIVE, TensorKey.NEGATIVE]
-    output_tensor_pins = [TensorKey.LATENTS]
+    input_defs = [TensorKey.POSITIVE, TensorKey.NEGATIVE]
+    output_defs = [TensorKey.LATENTS]
 ```
 
-- `input_tensor_pins` 可以为空列表 `[]`（如 TextEncodeNode 不依赖其他 tensor）
-- `output_tensor_pins` 用于 `R0_R0_BCAST` 策略时指定需要 broadcast 的 key
+- `input_defs` 可以为空列表 `[]`（如 TextEncodeNode 不依赖其他 tensor）
+- `output_defs` 用于 Executor 构建 `output_pins` 和 `R0_R0_BCAST` 时指定需要 broadcast 的 key
+- model 端口由 `NodeDef.model_key` 隐含，**不在** `input_defs`/`output_defs` 中声明
 
 ### dispatch_policy 三维度命名
 
@@ -419,18 +463,18 @@ class MyNode(InferNode):
 
 ### 现有 Node 参考
 
-| Node | dispatch_policy | input_tensor_pins | output_tensor_pins |
-|------|----------------|-------------------|-------------------|
-| `TextEncodeNode` | `ALL_ALL_ALL` | `[]` | `[POSITIVE, NEGATIVE]` |
+| Node | dispatch_policy | input_defs | output_defs |
+|------|----------------|------------|-------------|
+| `T5TextEncodeNode` | `ALL_ALL_ALL` | `[]` | `[POSITIVE, NEGATIVE]` |
+| `QwenTextEncodeNode` | `ALL_ALL_ALL` | `[]` | `[POSITIVE, NEGATIVE]` |
 | `VAEEncodeSpatialNode` | `R0_R0_BCAST` | `[START_IMG, END_IMG]` | `[BASE_LATENT]` |
-| `VAEEncodeImagesNode` | `R0_R0_BCAST` | `[IMAGE]` | `[IMG_LATENTS]` |
+| `VAEEncodeImagesNode` | `R0_R0_BCAST` | `[IMAGE]` | `[AUX_LATENT]` |
 | `VAEComputeShapeNode` | `R0_R0_BCAST` | `[]` | `[BASE_LATENT]` |
 | `VAEDecodeNode` | `ALL_R0_R0` | `[LATENTS]` | `[VIDEO]` |
 | `GeneratorNode` | `ALL_ALL_ALL` | `[POSITIVE, NEGATIVE, BASE_LATENT, AUX_LATENT, VACE_CONTEXT]` | `[LATENTS]` |
 | `SaveVideoNode` | `ALL_R0_R0` | `[VIDEO]` | `[]` |
 | `SaveImageNode` | `ALL_R0_R0` | `[VIDEO]` | `[]` |
 | `ReadImageNode` | `R0_R0_BCAST` | `[]` | `[IMAGE]` |
-| `VACEPreprocessNode` | `R0_R0_BCAST` | `[START_IMG, END_IMG]` | `[AUX_LATENT, VACE_CONTEXT]` |
 
 ### Executor 同步机制
 
@@ -438,6 +482,7 @@ class MyNode(InferNode):
 
 1. **`_pre_sync_tensors()`**: 执行前的 tensor 同步（预留接口，未来可自动 broadcast 输入）
 2. **`is_active_rank`**: 根据 policy 判断当前卡是否执行 `run()`
-3. **`_post_sync_tensors()`**: 执行后的 tensor 同步（`R0_R0_BCAST` 时 broadcast output_tensor_keys）
+3. **`_post_sync_tensors()`**: 执行后的 tensor 同步（`R0_R0_BCAST` 时 broadcast `output_defs` 中的 key）
+4. **`_consume_input_tensors()`**: 自动消费输入 tensor 引用计数
 
-Node 内部不需要感知多卡逻辑，Executor 负责所有 tensor 的 pre/post 同步。
+Node 内部不需要感知多卡逻辑，Executor 负责所有 tensor 的 pre/post 同步和引用计数管理。

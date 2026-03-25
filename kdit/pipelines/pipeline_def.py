@@ -26,7 +26,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from kdit.models.model_key import ModelKey
-from kdit.nodes.core.node_types import InferNodeType
+from kdit.nodes.core.node_def import NodeDef
+from kdit.nodes.core.node_types import InferNodeType, IONodeType
 from kdit.tensor import TensorKey
 from kdit.utils import log
 
@@ -35,25 +36,6 @@ from .pin_ref import NodeRef
 from .pipeline_key import PipelineKey
 
 # ── DAG 数据结构 ─────────────────────────────────────────────────────────
-
-
-@dataclass(frozen=True)
-class NodeDef:
-    """DAG 中一个 Node 实例的定义。
-
-    Attributes:
-        node_id: Builder 自动分配的唯一 ID。
-        is_loader: True=LoaderNode, False=InferNode。
-        node_type: InferNode 的类型（Loader 为 None）。
-        model_key: 关联的模型（用于 Factory 查找 Node 类）。
-        condition: 条件执行（ContextBuilder 上的方法名）。
-    """
-
-    node_id: int
-    is_loader: bool
-    node_type: InferNodeType | None = None
-    model_key: ModelKey | None = None
-    condition: str | None = None
 
 
 @dataclass(frozen=True)
@@ -86,7 +68,7 @@ class PipelineDef:
         pipeline_key: Pipeline 标识。
         nodes: DAG 中所有 Node 定义。
         edges: DAG 中所有连线。
-        keep_tensors: tensor_scope 中需要保留的 TensorKey 列表。
+        keep_tensors: 最终输出 TensorKey 列表（不会被自动 consume 释放）。
         context_builder_cls: ContextBuilder 子类，用于构建 NodeContext。
     """
 
@@ -153,7 +135,7 @@ class PipelineDefBuilder:
     def add_loader(self, model_key: ModelKey) -> NodeRef:
         """添加一个 Loader Node，返回 NodeRef。"""
         node_id = self._alloc_node_id()
-        self._node_defs.append(NodeDef(node_id=node_id, is_loader=True, model_key=model_key))
+        self._node_defs.append(NodeDef(node_id=node_id, node_type=IONodeType.LOAD_MODEL, model_key=model_key))
         return NodeRef(node_id)
 
     def add_infer(
@@ -163,7 +145,7 @@ class PipelineDefBuilder:
     ) -> _NodeRefWithWhen:
         """添加一个 Infer Node，返回 _NodeRefWithWhen（支持 .when() 和 pin 访问）。"""
         node_id = self._alloc_node_id()
-        self._node_defs.append(NodeDef(node_id=node_id, is_loader=False, node_type=node_type, model_key=model_key))
+        self._node_defs.append(NodeDef(node_id=node_id, node_type=node_type, model_key=model_key))
         return _NodeRefWithWhen(self, node_id)
 
     def connect(self, *edges) -> PipelineDefBuilder:
@@ -202,7 +184,7 @@ class PipelineDefBuilder:
     # ── 公共 API ──
 
     def keep_tensors(self, *keys: TensorKey) -> PipelineDefBuilder:
-        """声明 tensor_scope 中需要保留的 TensorKey。"""
+        """声明最终输出 TensorKey — 不会被自动 consume 释放。"""
         self._keep_tensors.extend(keys)
         return self
 
@@ -264,7 +246,6 @@ class _NodeRefWithWhen(NodeRef):
             if nd.node_id == self._node_id:
                 self._builder._node_defs[i] = NodeDef(
                     node_id=nd.node_id,
-                    is_loader=nd.is_loader,
                     node_type=nd.node_type,
                     model_key=nd.model_key,
                     condition=condition_name,
