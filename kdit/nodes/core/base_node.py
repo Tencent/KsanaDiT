@@ -26,7 +26,7 @@ class IONode(ABC):
     dispatch_policy 默认 ALL_ALL_ALL（每卡独立执行），子类可覆写。
 
     run() 签名统一为 ``(self, pins: PinHub, *, context: NodeContext)``：
-    - ``pins.put_model(model_key, model)`` 写入加载好的模型
+    - ``pins.put_model(model, model_key)`` 写入加载好的模型
     - ``context.metadata`` 获取加载参数（model_path / model_config 等）
     - ``context.device`` 获取设备信息（由 Executor 注入）
 

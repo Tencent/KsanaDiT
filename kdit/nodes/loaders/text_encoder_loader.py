@@ -50,4 +50,4 @@ class TextEncoderLoaderNode(IONode):
             device=context.device.offload_device,
             dtype=None,
         )
-        pins.put_model(model_key, model)
+        pins.put_model(model, model_key)

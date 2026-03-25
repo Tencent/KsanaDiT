@@ -54,4 +54,4 @@ class VAELoaderNode(IONode):
             model_key=model_key, default_settings=default_settings, device=context.device.offload_device
         )
         model.load(model_path, shard_fn=meta.get("shard_fn"))
-        pins.put_model(model_key, model)
+        pins.put_model(model, model_key)

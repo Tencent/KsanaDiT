@@ -240,4 +240,4 @@ class DiffusionLoaderNode(IONode):
                 comfy_bar_callback()
 
         loaded_model = res[0] if len(res) == 1 else res
-        pins.put_model(model_key, loaded_model)
+        pins.put_model(loaded_model, model_key)
