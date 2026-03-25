@@ -14,6 +14,7 @@
 | [`architecture.md`](architecture.md) | §5–§8 | Adapter 依赖方向、类命名规范、Metadata 重构、Pipeline 声明式架构、Settings YAML |
 | [`coding/generator.md`](coding/generator.md) | §12 | BaseLatent 与 AuxLatent 语义规范 |
 | [`coding/workflow.md`](coding/workflow.md) | §13, §14, §15 | 单元测试同步、代码格式检查、文档同步 |
+| [`coding/spec-coding.md`](coding/spec-coding.md) | §16 | Spec Coding 工作流：先设计后编码的 5 步流程 |
 
 ---
 
@@ -36,3 +37,4 @@
 | 13 | 新增功能必须同步单元测试 | [`workflow.md`](coding/workflow.md) |
 | 14 | 代码格式检查规范 | [`workflow.md`](coding/workflow.md) |
 | 15 | 代码修改必须同步更新文档 | [`workflow.md`](coding/workflow.md) |
+| 16 | Spec Coding：先设计后编码的 5 步工作流 | [`spec-coding.md`](coding/spec-coding.md) |

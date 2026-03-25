@@ -320,6 +320,49 @@ class TestGeneratorRunnerRun(unittest.TestCase):
     @patch(f"{_MOD}.noise_ops")
     @patch(f"{_MOD}.validation")
     @patch(f"{_MOD}.tensor_ops")
+    def test_run_passes_model_key_to_prepare_model_forward_kargs(
+        self, mock_tensor_ops, mock_valid, mock_noise, mock_sched
+    ):
+        """验证 _run_one_batch 调用 prepare_model_forward_kargs 时传递了 model_key。
+
+        回归测试：修复前 model_key 未传递，导致 WanDenoiseHandler 因缺少
+        必需参数 model_key 而 TypeError，I2V 的 y 无法传给模型。
+        """
+        runner, ctx, _, _, denoise_h, mock_model = self._make_runner_and_ctx()
+
+        mock_valid.valid_diffusion_model.return_value = [mock_model]
+        mock_valid.valid_sample_config.side_effect = lambda s, n: s
+        mock_valid.valid_cache_config.side_effect = lambda c, n: c
+        mock_valid.valid_runtime_config.side_effect = lambda r, n: r
+        mock_valid.valid_aux_latent.return_value = None
+        mock_tensor_ops.cast_to.side_effect = lambda t, **kw: t
+        mock_tensor_ops.split_tensors.side_effect = lambda t, s, e: t
+
+        noise_t = torch.randn(1, 16, 4, 8, 8)
+        mock_noise.create_random_noise_latents.return_value = (noise_t, MagicMock())
+        mock_noise.create_cache.return_value = [None]
+
+        mock_sched.return_value = (
+            MagicMock(step=MagicMock(return_value=(noise_t, None))),
+            None,
+            torch.tensor([0.9, 0.1]),
+        )
+
+        runner.batch_scheduler = MagicMock()
+        runner.batch_scheduler.build_batch_strategy.return_value = [MagicMock(start=0, end=1, combine_cond_uncond=True)]
+
+        runner.run(ctx)
+
+        # 验证 prepare_model_forward_kargs 被调用时包含 model_key 关键字参数
+        denoise_h.prepare_model_forward_kargs.assert_called()
+        call_kwargs = denoise_h.prepare_model_forward_kargs.call_args
+        self.assertIn("model_key", call_kwargs.kwargs, "model_key must be passed to prepare_model_forward_kargs")
+        self.assertEqual(call_kwargs.kwargs["model_key"], runner.model_key)
+
+    @patch(f"{_MOD}.get_sample_scheduler")
+    @patch(f"{_MOD}.noise_ops")
+    @patch(f"{_MOD}.validation")
+    @patch(f"{_MOD}.tensor_ops")
     def test_run_returns_tensor(self, mock_tensor_ops, mock_valid, mock_noise, mock_sched):
         """验证 run() 返回值是 tensor。"""
         runner, ctx, _, _, _, mock_model = self._make_runner_and_ctx()

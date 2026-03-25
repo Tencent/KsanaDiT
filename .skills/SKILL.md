@@ -30,6 +30,7 @@ description: >
 | 文件 | 主题 |
 |------|------|
 | [`coding.md`](coding.md) | 编码规范总索引 |
+| [`coding/spec-coding.md`](coding/spec-coding.md) | Spec Coding：先设计后编码的 5 步工作流（需求澄清→可行性分析→结构设计→测试设计→编码实现） |
 | [`coding/imports-and-types.md`](coding/imports-and-types.md) | Import 风格（方案 B）、类型注解规范、Lint 抑制注释 |
 | [`coding/key-system.md`](coding/key-system.md) | Key 类型体系（ModelKey / PipelineKey / InferNodeType） |
 | [`coding/node-and-tensor.md`](coding/node-and-tensor.md) | Node/Tensor API、Ownership 关系、InferNode 开发规范 |
