@@ -38,6 +38,7 @@ from kdit.config import (
     SampleConfig,
     SolverType,
 )
+from kdit.pipelines.context_builders.wan import WanI2VExtraInputs
 from kdit.utils.distribute import get_gpu_count
 
 
@@ -66,7 +67,7 @@ class TestKsanaPipelineWanI2V(unittest.TestCase):
         )
         videos = pipeline.generate(
             PROMPTS[0],
-            start_img_path="./examples/images/input.png",
+            extra_inputs=WanI2VExtraInputs(start_img_path="./examples/images/input.png"),
             sample_config=SampleConfig(steps=TEST_STEPS),
             runtime_config=RuntimeConfig(
                 seed=SEED,
@@ -83,8 +84,10 @@ class TestKsanaPipelineWanI2V(unittest.TestCase):
 
         videos = pipeline.generate(
             PROMPTS,
-            start_img_path="./examples/images/start_image.png",
-            end_img_path="./examples/images/end_image.png",
+            extra_inputs=WanI2VExtraInputs(
+                start_img_path="./examples/images/start_image.png",
+                end_img_path="./examples/images/end_image.png",
+            ),
             sample_config=SampleConfig(steps=TEST_STEPS, add_noise_to_latent=True),
             runtime_config=RuntimeConfig(
                 seed=SEED,
@@ -142,7 +145,7 @@ class TestKsanaPipelineWanI2V(unittest.TestCase):
 
         videos = pipeline.generate(
             PROMPTS[0],
-            start_img_path="./examples/images/input.png",
+            extra_inputs=WanI2VExtraInputs(start_img_path="./examples/images/input.png"),
             sample_config=sample_config,
             runtime_config=RuntimeConfig(
                 seed=SEED,
@@ -158,8 +161,10 @@ class TestKsanaPipelineWanI2V(unittest.TestCase):
 
         videos = pipeline.generate(
             PROMPTS,
-            start_img_path="./examples/images/start_image.png",
-            end_img_path="./examples/images/end_image.png",
+            extra_inputs=WanI2VExtraInputs(
+                start_img_path="./examples/images/start_image.png",
+                end_img_path="./examples/images/end_image.png",
+            ),
             sample_config=sample_config,
             runtime_config=RuntimeConfig(
                 seed=SEED,

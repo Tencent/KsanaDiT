@@ -31,6 +31,7 @@ from kdit.config import (
     SampleConfig,
     SolverType,
 )
+from kdit.pipelines.context_builders.qwen import QwenEditExtraInputs
 from kdit.pipelines.pipeline_key import PipelineKey
 
 TEST_DTYPE = torch.bfloat16
@@ -69,7 +70,7 @@ class TestKsanaQwenImageEdit(unittest.TestCase):
         images = pipeline.generate(
             PROMPT,
             prompt_negative=NEGATIVE_PROMPT,
-            img_path=IMG_PATHS,
+            extra_inputs=QwenEditExtraInputs(img_path=IMG_PATHS),
             sample_config=SampleConfig(
                 steps=TEST_STEPS,
                 cfg_scale=4.0,
@@ -105,7 +106,7 @@ class TestKsanaQwenImageEdit(unittest.TestCase):
         images = pipeline.generate(
             PROMPT,
             prompt_negative=NEGATIVE_PROMPT,
-            img_path=["examples/images/woman.png"],
+            extra_inputs=QwenEditExtraInputs(img_path=["examples/images/woman.png"]),
             sample_config=SampleConfig(
                 steps=TEST_STEPS,
                 cfg_scale=4.0,
