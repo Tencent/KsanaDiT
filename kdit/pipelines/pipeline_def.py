@@ -47,14 +47,12 @@ class Edge:
         src_pin: 源 pin 枚举（ModelKey 或 TensorKey）。
         dst_node_id: 目标 Node 的 ID。
         dst_pin: 目标 pin 枚举（ModelKey 或 TensorKey）。
-        edge_type: "model" 或 "tensor"。
     """
 
     src_node_id: int
     src_pin: ModelKey | TensorKey
     dst_node_id: int
     dst_pin: ModelKey | TensorKey
-    edge_type: str
 
 
 # ── PipelineDef ──────────────────────────────────────────────────────────
@@ -178,8 +176,7 @@ class PipelineDefBuilder:
                 f"Cannot connect {type(src_pin).__name__}.{src_pin.name} "
                 f"to {type(dst_pin).__name__}.{dst_pin.name}: type mismatch"
             )
-        edge_type = "model" if isinstance(src_pin, ModelKey) else "tensor"
-        self._edges.append(Edge(src_id, src_pin, dst_id, dst_pin, edge_type))
+        self._edges.append(Edge(src_id, src_pin, dst_id, dst_pin))
 
     # ── 公共 API ──
 

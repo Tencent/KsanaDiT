@@ -370,7 +370,7 @@ class WanI2VContextBuilder(WanContextBuilder):
             return extra.start_img_path
 
         for edge in self._pipeline_def.edges:
-            if edge.src_node_id == node_def.node_id and edge.edge_type == "tensor":
+            if edge.src_node_id == node_def.node_id and isinstance(edge.src_pin, TensorKey):
                 if edge.dst_pin == TensorKey.START_IMG:
                     return extra.start_img_path
                 if edge.dst_pin == TensorKey.END_IMG:

@@ -37,9 +37,9 @@ from kdit.tensor.tensor_pool_key import TensorPoolKey
 
 def _make_pins(*, node_id=0, model_key=None, tensor_pool=None, model_pool=None, tensor_mapping=None):
     """构建一个 PinHub 实例。"""
-    input_pins = {"model": {}, "tensor": tensor_mapping or {}}
+    input_pins = dict(tensor_mapping or {})
     if model_key is not None:
-        input_pins["model"][model_key] = ModelPoolKey(99, model_key)
+        input_pins[model_key] = ModelPoolKey(99, model_key)
     node_def = NodeDef(node_id=node_id, node_type=InferNodeType.VAE_DECODE, model_key=model_key)
     return PinHub(
         node_def=node_def,

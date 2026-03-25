@@ -159,12 +159,11 @@ class Executor(ABC):
     def _consume_input_tensors(self, input_pins: dict) -> None:
         """自动消费 input_pins 中的输入 tensor 引用。
 
-        遍历 input_pins["tensor"] 中的所有 TensorPoolKey，
+        遍历 flat input_pins 中所有 TensorPoolKey 值，
         调用 tensor_pool.consume() 递减引用计数。
         当引用计数归零时，tensor 自动释放。
         """
-        tensor_mapping = input_pins.get("tensor", {})
-        for pool_key in tensor_mapping.values():
+        for pool_key in input_pins.values():
             if isinstance(pool_key, TensorPoolKey):
                 self.tensor_pool.consume(pool_key)
 

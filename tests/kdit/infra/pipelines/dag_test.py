@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Pipeline DAG 遍历逻辑 单元测试。
+"""Pipeline DAG 遍历逻辑 + 拓扑排序 + pin 映射 单元测试。
 
 测试 Pipeline 的 load_models() 和 generate() 的行为：
 - 按拓扑序遍历 Loader / Infer 节点
@@ -21,8 +21,13 @@
 - input_pins 正确传递
 - 条件跳过（check_condition）的行为
 - build_context 接收 NodeDef（非 InferTask）
+
+以及底层 DAG 工具函数：
+- topo_sort() 拓扑排序
+- compute_input_pins() pin 映射计算
 """
 
+import unittest
 from unittest.mock import MagicMock, patch
 
 from kdit.models.model_key import ModelKey
@@ -30,6 +35,7 @@ from kdit.models.model_pool_key import ModelPoolKey
 from kdit.nodes.core.node_context import NodeContext
 from kdit.nodes.core.node_types import InferNodeType as NT
 from kdit.nodes.core.node_types import IONodeType
+from kdit.pipelines.dag import compute_input_pins, topo_sort
 from kdit.pipelines.pipeline import (
     Pipeline,
     _node_def_display_name,
@@ -101,13 +107,13 @@ def _make_dag_pipeline_def(*, with_condition=False):
         NodeDef(node_id=6, node_type=NT.SAVE_VIDEO),
     )
     edges = (
-        Edge(0, ModelKey.T5TextEncoder, 3, ModelKey.T5TextEncoder, "model"),
-        Edge(1, ModelKey.Wan2_2_T2V_14B, 4, ModelKey.Wan2_2_T2V_14B, "model"),
-        Edge(2, ModelKey.VAE_WAN2_2, 5, ModelKey.VAE_WAN2_2, "model"),
-        Edge(3, TensorKey.POSITIVE, 4, TensorKey.POSITIVE, "tensor"),
-        Edge(3, TensorKey.NEGATIVE, 4, TensorKey.NEGATIVE, "tensor"),
-        Edge(4, TensorKey.LATENTS, 5, TensorKey.LATENTS, "tensor"),
-        Edge(5, TensorKey.VIDEO, 6, TensorKey.VIDEO, "tensor"),
+        Edge(0, ModelKey.T5TextEncoder, 3, ModelKey.T5TextEncoder),
+        Edge(1, ModelKey.Wan2_2_T2V_14B, 4, ModelKey.Wan2_2_T2V_14B),
+        Edge(2, ModelKey.VAE_WAN2_2, 5, ModelKey.VAE_WAN2_2),
+        Edge(3, TensorKey.POSITIVE, 4, TensorKey.POSITIVE),
+        Edge(3, TensorKey.NEGATIVE, 4, TensorKey.NEGATIVE),
+        Edge(4, TensorKey.LATENTS, 5, TensorKey.LATENTS),
+        Edge(5, TensorKey.VIDEO, 6, TensorKey.VIDEO),
     )
     mock_ctx_cls = MagicMock
     return PipelineDef(
@@ -238,7 +244,7 @@ class TestLoadModels:
         # Loader 节点没有入边，input_pins 应该是空的
         for c in engine.run_loader_node.call_args_list:
             input_pins = c.args[1]
-            assert input_pins == {"tensor": {}, "model": {}}
+            assert input_pins == {}
 
     @patch("kdit.pipelines.pipeline.load_default_settings")
     def test_load_context_has_loader_kwargs(self, mock_settings):
@@ -325,26 +331,26 @@ class TestGenerate:
 
         # text_enc(3): 入边 = loader_t5(0) → model
         ip_text = calls[0].args[1]
-        assert ip_text["model"] == {ModelKey.T5TextEncoder: ModelPoolKey(0, ModelKey.T5TextEncoder)}
-        assert ip_text["tensor"] == {}
+        assert ip_text[ModelKey.T5TextEncoder] == ModelPoolKey(0, ModelKey.T5TextEncoder)
+        assert len(ip_text) == 1
 
         # gen(4): 入边 = loader_dit(1)→model, text_enc(3)→POSITIVE/NEGATIVE
         ip_gen = calls[1].args[1]
-        assert ip_gen["model"] == {ModelKey.Wan2_2_T2V_14B: ModelPoolKey(1, ModelKey.Wan2_2_T2V_14B)}
-        assert ip_gen["tensor"] == {
-            TensorKey.POSITIVE: TensorPoolKey(3, TensorKey.POSITIVE),
-            TensorKey.NEGATIVE: TensorPoolKey(3, TensorKey.NEGATIVE),
-        }
+        assert ip_gen[ModelKey.Wan2_2_T2V_14B] == ModelPoolKey(1, ModelKey.Wan2_2_T2V_14B)
+        assert ip_gen[TensorKey.POSITIVE] == TensorPoolKey(3, TensorKey.POSITIVE)
+        assert ip_gen[TensorKey.NEGATIVE] == TensorPoolKey(3, TensorKey.NEGATIVE)
+        assert len(ip_gen) == 3
 
         # vae_dec(5): 入边 = loader_vae(2) → model, gen(4) → LATENTS
         ip_vae = calls[2].args[1]
-        assert ip_vae["model"] == {ModelKey.VAE_WAN2_2: ModelPoolKey(2, ModelKey.VAE_WAN2_2)}
-        assert ip_vae["tensor"] == {TensorKey.LATENTS: TensorPoolKey(4, TensorKey.LATENTS)}
+        assert ip_vae[ModelKey.VAE_WAN2_2] == ModelPoolKey(2, ModelKey.VAE_WAN2_2)
+        assert ip_vae[TensorKey.LATENTS] == TensorPoolKey(4, TensorKey.LATENTS)
+        assert len(ip_vae) == 2
 
         # save(6): 入边 = vae_dec(5) → VIDEO
         ip_save = calls[3].args[1]
-        assert ip_save["model"] == {}
-        assert ip_save["tensor"] == {TensorKey.VIDEO: TensorPoolKey(5, TensorKey.VIDEO)}
+        assert ip_save[TensorKey.VIDEO] == TensorPoolKey(5, TensorKey.VIDEO)
+        assert len(ip_save) == 1
 
     def test_generate_build_context_receives_node_def(self):
         """build_context() 接收 NodeDef 实例。"""
@@ -494,3 +500,167 @@ class TestFindVaeModelKey:
 
         result = pipeline._find_vae_model_key()
         assert result is None
+
+
+# ── topo_sort() 测试 ──────────────────────────────────────────────────────
+
+
+class TestTopoSort(unittest.TestCase):
+    """topo_sort() 拓扑排序测试。"""
+
+    def test_linear_dag(self):
+        """线性 DAG: A → B → C 拓扑排序结果正确。"""
+        a = NodeDef(node_id=0, node_type=IONodeType.LOAD_MODEL, model_key=ModelKey.T5TextEncoder)
+        b = NodeDef(node_id=1, node_type=NT.TEXT_ENCODE)
+        c = NodeDef(node_id=2, node_type=NT.SAVE_VIDEO)
+
+        nodes = (a, b, c)
+        edges = (
+            Edge(0, ModelKey.T5TextEncoder, 1, ModelKey.T5TextEncoder),
+            Edge(1, TensorKey.POSITIVE, 2, TensorKey.POSITIVE),
+        )
+
+        result = topo_sort(nodes, edges)
+        self.assertEqual([n.node_id for n in result], [0, 1, 2])
+
+    def test_diamond_dag(self):
+        """菱形 DAG: A→B, A→C, B→D, C→D 拓扑排序正确。"""
+        a = NodeDef(node_id=0, node_type=IONodeType.LOAD_MODEL, model_key=ModelKey.T5TextEncoder)
+        b = NodeDef(node_id=1, node_type=NT.TEXT_ENCODE)
+        c = NodeDef(node_id=2, node_type=NT.VAE_DECODE)
+        d = NodeDef(node_id=3, node_type=NT.SAVE_VIDEO)
+
+        nodes = (a, b, c, d)
+        edges = (
+            Edge(0, TensorKey.POSITIVE, 1, TensorKey.POSITIVE),
+            Edge(0, TensorKey.NEGATIVE, 2, TensorKey.NEGATIVE),
+            Edge(1, TensorKey.LATENTS, 3, TensorKey.LATENTS),
+            Edge(2, TensorKey.VIDEO, 3, TensorKey.VIDEO),
+        )
+
+        result = topo_sort(nodes, edges)
+        ids = [n.node_id for n in result]
+
+        # A 必须在 B 和 C 之前
+        self.assertLess(ids.index(0), ids.index(1))
+        self.assertLess(ids.index(0), ids.index(2))
+        # B 和 C 必须在 D 之前
+        self.assertLess(ids.index(1), ids.index(3))
+        self.assertLess(ids.index(2), ids.index(3))
+
+    def test_multiple_edges_same_pair(self):
+        """同一对 src→dst 有多条边时，依赖只算一次。"""
+        a = NodeDef(node_id=0, node_type=NT.TEXT_ENCODE)
+        b = NodeDef(node_id=1, node_type=NT.GENERATE)
+
+        nodes = (a, b)
+        edges = (
+            Edge(0, TensorKey.POSITIVE, 1, TensorKey.POSITIVE),
+            Edge(0, TensorKey.NEGATIVE, 1, TensorKey.NEGATIVE),
+        )
+
+        result = topo_sort(nodes, edges)
+        self.assertEqual([n.node_id for n in result], [0, 1])
+
+    def test_isolated_nodes(self):
+        """无边的独立节点也能排序。"""
+        a = NodeDef(node_id=0, node_type=IONodeType.LOAD_MODEL, model_key=ModelKey.T5TextEncoder)
+        b = NodeDef(node_id=1, node_type=IONodeType.LOAD_MODEL, model_key=ModelKey.VAE_WAN2_2)
+
+        nodes = (a, b)
+        edges = ()
+
+        result = topo_sort(nodes, edges)
+        self.assertEqual(len(result), 2)
+        # 按 node_id 排序
+        self.assertEqual([n.node_id for n in result], [0, 1])
+
+    def test_cycle_detection(self):
+        """有环时抛出 ValueError。"""
+        a = NodeDef(node_id=0, node_type=NT.TEXT_ENCODE)
+        b = NodeDef(node_id=1, node_type=NT.GENERATE)
+
+        nodes = (a, b)
+        edges = (
+            Edge(0, TensorKey.POSITIVE, 1, TensorKey.POSITIVE),
+            Edge(1, TensorKey.NEGATIVE, 0, TensorKey.NEGATIVE),
+        )
+
+        with self.assertRaises(ValueError, msg="cycle"):
+            topo_sort(nodes, edges)
+
+    def test_loaders_first(self):
+        """Loader 节点（入度 0）排在 Infer 节点前面。"""
+        loader = NodeDef(node_id=0, node_type=IONodeType.LOAD_MODEL, model_key=ModelKey.T5TextEncoder)
+        infer = NodeDef(node_id=1, node_type=NT.TEXT_ENCODE)
+
+        nodes = (infer, loader)  # 故意反序
+        edges = (Edge(0, ModelKey.T5TextEncoder, 1, ModelKey.T5TextEncoder),)
+
+        result = topo_sort(nodes, edges)
+        self.assertEqual(result[0].node_id, 0)  # loader first
+        self.assertEqual(result[1].node_id, 1)
+
+
+# ── compute_input_pins() 测试 ─────────────────────────────────────────────
+
+
+class TestComputeInputPins(unittest.TestCase):
+    """compute_input_pins() 测试。"""
+
+    def test_tensor_mapping(self):
+        """正确计算 tensor 映射。"""
+        node = NodeDef(node_id=2, node_type=NT.GENERATE)
+        edges = (
+            Edge(1, TensorKey.POSITIVE, 2, TensorKey.POSITIVE),
+            Edge(1, TensorKey.NEGATIVE, 2, TensorKey.NEGATIVE),
+        )
+
+        mapping = compute_input_pins(node, edges)
+
+        self.assertEqual(len(mapping), 2)
+        self.assertEqual(mapping[TensorKey.POSITIVE], TensorPoolKey(1, TensorKey.POSITIVE))
+        self.assertEqual(mapping[TensorKey.NEGATIVE], TensorPoolKey(1, TensorKey.NEGATIVE))
+
+    def test_model_mapping(self):
+        """正确计算 model 映射。"""
+        node = NodeDef(node_id=1, node_type=NT.TEXT_ENCODE)
+        edges = (Edge(0, ModelKey.T5TextEncoder, 1, ModelKey.T5TextEncoder),)
+
+        mapping = compute_input_pins(node, edges)
+
+        self.assertEqual(len(mapping), 1)
+        self.assertEqual(mapping[ModelKey.T5TextEncoder], ModelPoolKey(0, ModelKey.T5TextEncoder))
+
+    def test_mixed_mapping(self):
+        """同时有 tensor 和 model 映射。"""
+        node = NodeDef(node_id=2, node_type=NT.GENERATE)
+        edges = (
+            Edge(0, ModelKey.Wan2_2_T2V_14B, 2, ModelKey.Wan2_2_T2V_14B),
+            Edge(1, TensorKey.POSITIVE, 2, TensorKey.POSITIVE),
+            Edge(1, TensorKey.NEGATIVE, 2, TensorKey.NEGATIVE),
+            # 不相关的边（目标不是 node 2）
+            Edge(0, ModelKey.T5TextEncoder, 1, ModelKey.T5TextEncoder),
+        )
+
+        mapping = compute_input_pins(node, edges)
+
+        # 3 个 pin：1 model + 2 tensor
+        self.assertEqual(len(mapping), 3)
+        self.assertEqual(
+            mapping[ModelKey.Wan2_2_T2V_14B],
+            ModelPoolKey(0, ModelKey.Wan2_2_T2V_14B),
+        )
+
+    def test_no_edges_for_node(self):
+        """节点没有入边时返回空映射。"""
+        node = NodeDef(node_id=0, node_type=IONodeType.LOAD_MODEL, model_key=ModelKey.T5TextEncoder)
+        edges = (Edge(0, ModelKey.T5TextEncoder, 1, ModelKey.T5TextEncoder),)
+
+        mapping = compute_input_pins(node, edges)
+
+        self.assertEqual(mapping, {})
+
+
+if __name__ == "__main__":
+    unittest.main()

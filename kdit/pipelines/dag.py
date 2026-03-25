@@ -19,7 +19,9 @@
 
 from collections import deque
 
+from kdit.models.model_key import ModelKey
 from kdit.models.model_pool_key import ModelPoolKey
+from kdit.nodes.core.node_types import Pins
 from kdit.tensor.tensor_pool_key import TensorPoolKey
 
 from .pipeline_def import Edge, NodeDef
@@ -75,22 +77,16 @@ def topo_sort(nodes: tuple[NodeDef, ...], edges: tuple[Edge, ...]) -> list[NodeD
 def compute_input_pins(
     node_def: NodeDef,
     edges: tuple[Edge, ...],
-) -> dict[str, dict]:
-    """从 DAG edges 计算当前 Node 的 input_pins。
+) -> Pins:
+    """从 DAG edges 计算当前 Node 的 input_pins（扁平映射）。
 
-    返回::
-
-        {
-            "tensor": {dst_TensorKey: TensorPoolKey(src_node_id, src_TensorKey), ...},
-            "model": {dst_ModelKey: ModelPoolKey(src_node_id, src_ModelKey), ...},
-        }
+    返回 ``{PinDef: PinPoolKey}`` — 即 ``{TensorKey | ModelKey: TensorPoolKey | ModelPoolKey}``。
     """
-    tensor_map: dict = {}
-    model_map: dict = {}
+    pins: Pins = {}
     for edge in edges:
         if edge.dst_node_id == node_def.node_id:
-            if edge.edge_type == "model":
-                model_map[edge.dst_pin] = ModelPoolKey(edge.src_node_id, edge.src_pin)
+            if isinstance(edge.src_pin, ModelKey):
+                pins[edge.dst_pin] = ModelPoolKey(edge.src_node_id, edge.src_pin)
             else:
-                tensor_map[edge.dst_pin] = TensorPoolKey(edge.src_node_id, edge.src_pin)
-    return {"tensor": tensor_map, "model": model_map}
+                pins[edge.dst_pin] = TensorPoolKey(edge.src_node_id, edge.src_pin)
+    return pins

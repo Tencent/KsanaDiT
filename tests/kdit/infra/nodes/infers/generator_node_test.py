@@ -80,15 +80,13 @@ class TestGeneratorNode(unittest.TestCase):
             metadata={"noise_shape": [4, 16, 32, 32]},
         )
 
-        # input_pins: 映射上游 tensor/model
+        # input_pins: 映射上游 tensor/model（扁平 Pins 格式）
         self.input_pins = {
-            "model": {ModelKey.Wan2_2_T2V_14B: ModelPoolKey(99, ModelKey.Wan2_2_T2V_14B)},
-            "tensor": {
-                TensorKey.POSITIVE: TensorPoolKey(10, TensorKey.POSITIVE),
-                TensorKey.NEGATIVE: TensorPoolKey(10, TensorKey.NEGATIVE),
-                TensorKey.BASE_LATENT: TensorPoolKey(20, TensorKey.BASE_LATENT),
-                TensorKey.AUX_LATENT: TensorPoolKey(20, TensorKey.AUX_LATENT),
-            },
+            ModelKey.Wan2_2_T2V_14B: ModelPoolKey(99, ModelKey.Wan2_2_T2V_14B),
+            TensorKey.POSITIVE: TensorPoolKey(10, TensorKey.POSITIVE),
+            TensorKey.NEGATIVE: TensorPoolKey(10, TensorKey.NEGATIVE),
+            TensorKey.BASE_LATENT: TensorPoolKey(20, TensorKey.BASE_LATENT),
+            TensorKey.AUX_LATENT: TensorPoolKey(20, TensorKey.AUX_LATENT),
         }
 
     def _make_pins(self, input_pins=None):

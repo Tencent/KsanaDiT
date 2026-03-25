@@ -36,9 +36,9 @@ from kdit.tensor.tensor_pool_key import TensorPoolKey
 
 def _make_pins(*, node_id=0, model_key=None, tensor_pool=None, model_pool=None):
     """构建一个 PinHub 实例，model pin 映射到 node_id=99 的上游。"""
-    input_pins = {"model": {}, "tensor": {}}
+    input_pins = {}
     if model_key is not None:
-        input_pins["model"][model_key] = ModelPoolKey(99, model_key)
+        input_pins[model_key] = ModelPoolKey(99, model_key)
     node_def = NodeDef(node_id=node_id, node_type=InferNodeType.TEXT_ENCODE, model_key=model_key)
     return PinHub(
         node_def=node_def,

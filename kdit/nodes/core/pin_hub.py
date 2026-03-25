@@ -21,6 +21,7 @@ from kdit.tensor.tensor_pool_key import TensorPoolKey
 from kdit.tensor.tensor_value import TensorData
 
 from .node_def import NodeDef
+from .node_types import Pins
 
 
 class PinHub:
@@ -37,16 +38,20 @@ class PinHub:
     def __init__(
         self,
         node_def: NodeDef,
-        input_pins: dict,
+        input_pins: Pins,
         tensor_pool: TensorPool,
         model_pool: ModelPool,
     ):
         self._node_def = node_def
         self._tensor_pool = tensor_pool
         self._model_pool = model_pool
-        # 从 input_pins 中拆分 model 和 tensor 映射
-        self._model_mapping: dict[ModelKey, ModelPoolKey] = input_pins.get("model", {})
-        self._tensor_mapping: dict[TensorKey, TensorPoolKey] = input_pins.get("tensor", {})
+        # 从 flat input_pins 中按值类型拆分 model / tensor 映射
+        self._model_mapping: dict[ModelKey, ModelPoolKey] = {
+            k: v for k, v in input_pins.items() if isinstance(v, ModelPoolKey)
+        }
+        self._tensor_mapping: dict[TensorKey, TensorPoolKey] = {
+            k: v for k, v in input_pins.items() if isinstance(v, TensorPoolKey)
+        }
 
     # ── Model 读写 ──
 

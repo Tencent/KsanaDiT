@@ -51,7 +51,7 @@ class TestPinHub:
         # 下游 node_id=1 映射 LATENTS -> 上游的 TensorPoolKey(0, LATENTS)
         downstream = PinHub(
             node_def=_node_def(1),
-            input_pins={"tensor": {TensorKey.LATENTS: TensorPoolKey(0, TensorKey.LATENTS)}},
+            input_pins={TensorKey.LATENTS: TensorPoolKey(0, TensorKey.LATENTS)},
             tensor_pool=tp,
             model_pool=mp,
         )
@@ -87,7 +87,7 @@ class TestPinHub:
         # PinHub 只映射 POSITIVE
         hub = PinHub(
             node_def=_node_def(1),
-            input_pins={"tensor": {TensorKey.POSITIVE: key_a}},
+            input_pins={TensorKey.POSITIVE: key_a},
             tensor_pool=tp,
             model_pool=mp,
         )
@@ -124,7 +124,7 @@ class TestPinHub:
         nd_down = _node_def(1, model_key=ModelKey.T5TextEncoder)
         downstream = PinHub(
             node_def=nd_down,
-            input_pins={"model": {ModelKey.T5TextEncoder: ModelPoolKey(0, ModelKey.T5TextEncoder)}},
+            input_pins={ModelKey.T5TextEncoder: ModelPoolKey(0, ModelKey.T5TextEncoder)},
             tensor_pool=tp,
             model_pool=mp,
         )
@@ -142,7 +142,7 @@ class TestPinHub:
 
         hub = PinHub(
             node_def=_node_def(1),
-            input_pins={"tensor": {TensorKey.LATENTS: key}},
+            input_pins={TensorKey.LATENTS: key},
             tensor_pool=tp,
             model_pool=mp,
         )
@@ -161,8 +161,8 @@ class TestPinHub:
     def test_input_pins_serializable(self):
         """input_pins 可通过 pickle 序列化（模拟 Ray 传输）。"""
         mapping = {
-            "tensor": {TensorKey.POSITIVE: TensorPoolKey(1, TensorKey.POSITIVE)},
-            "model": {ModelKey.T5TextEncoder: ModelPoolKey(0, ModelKey.T5TextEncoder)},
+            TensorKey.POSITIVE: TensorPoolKey(1, TensorKey.POSITIVE),
+            ModelKey.T5TextEncoder: ModelPoolKey(0, ModelKey.T5TextEncoder),
         }
         restored = pickle.loads(pickle.dumps(mapping))
         assert restored == mapping
@@ -186,7 +186,7 @@ class TestPinHubModelAutoResolve:
         nd_down = _node_def(1, model_key=ModelKey.T5TextEncoder)
         downstream = PinHub(
             node_def=nd_down,
-            input_pins={"model": {ModelKey.T5TextEncoder: ModelPoolKey(0, ModelKey.T5TextEncoder)}},
+            input_pins={ModelKey.T5TextEncoder: ModelPoolKey(0, ModelKey.T5TextEncoder)},
             tensor_pool=tp,
             model_pool=mp,
         )
@@ -226,7 +226,7 @@ class TestPinHubModelAutoResolve:
         nd = _node_def(1, model_key=ModelKey.T5TextEncoder)
         hub = PinHub(
             node_def=nd,
-            input_pins={"model": {ModelKey.VAE_WAN2_2: ModelPoolKey(0, ModelKey.VAE_WAN2_2)}},
+            input_pins={ModelKey.VAE_WAN2_2: ModelPoolKey(0, ModelKey.VAE_WAN2_2)},
             tensor_pool=tp,
             model_pool=mp,
         )

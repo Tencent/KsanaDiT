@@ -6,6 +6,7 @@ output
 tmp
 refer/
 .roo*
+.claude/
 .gitconfig
 AGENTS.md
 *.png

@@ -81,7 +81,7 @@ class TestExecutorRunInferNode:
         mock_node.output_defs = []
 
         with patch("kdit.executor.executor.Executor._get_or_create_node", return_value=mock_node):
-            executor.run_infer_node(node_def, input_pins={"model": {}, "tensor": {}}, context=context)
+            executor.run_infer_node(node_def, input_pins={}, context=context)
 
         # 验证 node.run() 被调用，且 context（keyword 参数）中注入了 device
         mock_node.run.assert_called_once()
@@ -108,7 +108,7 @@ class TestExecutorRunInferNode:
         mock_node.output_defs = []
 
         with patch("kdit.executor.executor.Executor._get_or_create_node", return_value=mock_node):
-            executor.run_infer_node(node_def, input_pins={"model": {}, "tensor": {}}, context=context)
+            executor.run_infer_node(node_def, input_pins={}, context=context)
 
         call_kwargs = mock_node.run.call_args.kwargs
         injected_ctx = call_kwargs["context"]
@@ -128,7 +128,7 @@ class TestExecutorRunInferNode:
         mock_node.output_defs = []
 
         with patch("kdit.executor.executor.Executor._get_or_create_node", return_value=mock_node):
-            executor.run_infer_node(node_def, input_pins={"model": {}, "tensor": {}}, context=context)
+            executor.run_infer_node(node_def, input_pins={}, context=context)
 
         call_args = mock_node.run.call_args
         pins = call_args.args[0]
@@ -146,7 +146,7 @@ class TestExecutorRunInferNode:
         mock_node.output_defs = []
 
         with patch("kdit.executor.executor.Executor._get_or_create_node", return_value=mock_node):
-            executor.run_infer_node(node_def, input_pins={"model": {}, "tensor": {}}, context=context)
+            executor.run_infer_node(node_def, input_pins={}, context=context)
 
         call_kwargs = mock_node.run.call_args.kwargs
         assert "context" in call_kwargs
@@ -166,7 +166,7 @@ class TestExecutorRunInferNode:
         mock_node.output_defs = []
 
         with patch("kdit.executor.executor.Executor._get_or_create_node", return_value=mock_node):
-            executor.run_infer_node(node_def, input_pins={"model": {}, "tensor": {}}, context=context)
+            executor.run_infer_node(node_def, input_pins={}, context=context)
 
         executor._pre_sync_tensors.assert_called_once_with(mock_node, NodeDispatchPolicy.ALL_ALL_ALL)
         executor._post_sync_tensors.assert_called_once_with(mock_node, node_def, NodeDispatchPolicy.ALL_ALL_ALL)
@@ -183,7 +183,7 @@ class TestExecutorRunInferNode:
         mock_node.output_defs = []
 
         with patch("kdit.executor.executor.Executor._get_or_create_node", return_value=mock_node):
-            executor.run_infer_node(node_def, input_pins={"model": {}, "tensor": {}}, context=context)
+            executor.run_infer_node(node_def, input_pins={}, context=context)
 
         call_args = mock_node.run.call_args
         # 只有 1 个位置参数（PinHub）
@@ -216,7 +216,7 @@ class TestExecutorRunLoaderNode:
         mock_node.dispatch_policy = NodeDispatchPolicy.ALL_ALL_ALL
 
         with patch("kdit.executor.executor.Executor._get_or_create_node", return_value=mock_node):
-            executor.run_loader_node(node_def, input_pins={"model": {}, "tensor": {}}, context=context)
+            executor.run_loader_node(node_def, input_pins={}, context=context)
 
         # IONode 不需要 tensor sync
         executor._pre_sync_tensors.assert_not_called()
@@ -233,7 +233,7 @@ class TestExecutorRunLoaderNode:
         mock_node.dispatch_policy = NodeDispatchPolicy.ALL_ALL_ALL
 
         with patch("kdit.executor.executor.Executor._get_or_create_node", return_value=mock_node):
-            executor.run_loader_node(node_def, input_pins={"model": {}, "tensor": {}}, context=context)
+            executor.run_loader_node(node_def, input_pins={}, context=context)
 
         call_args = mock_node.run.call_args
         pins = call_args.args[0]
@@ -250,7 +250,7 @@ class TestExecutorRunLoaderNode:
         mock_node.dispatch_policy = NodeDispatchPolicy.ALL_ALL_ALL
 
         with patch("kdit.executor.executor.Executor._get_or_create_node", return_value=mock_node):
-            executor.run_loader_node(node_def, input_pins={"model": {}, "tensor": {}}, context=context)
+            executor.run_loader_node(node_def, input_pins={}, context=context)
 
         call_kwargs = mock_node.run.call_args.kwargs
         assert "context" in call_kwargs
@@ -267,7 +267,7 @@ class TestExecutorRunLoaderNode:
         mock_node.dispatch_policy = NodeDispatchPolicy.ALL_ALL_ALL
 
         with patch("kdit.executor.executor.Executor._get_or_create_node", return_value=mock_node):
-            executor.run_loader_node(node_def, input_pins={"model": {}, "tensor": {}}, context=context)
+            executor.run_loader_node(node_def, input_pins={}, context=context)
 
         call_kwargs = mock_node.run.call_args.kwargs
         injected_ctx = call_kwargs["context"]
@@ -287,7 +287,7 @@ class TestExecutorRunLoaderNode:
         mock_node.dispatch_policy = NodeDispatchPolicy.ALL_ALL_ALL
 
         with patch("kdit.executor.executor.Executor._get_or_create_node", return_value=mock_node):
-            executor.run_loader_node(node_def, input_pins={"model": {}, "tensor": {}}, context=context)
+            executor.run_loader_node(node_def, input_pins={}, context=context)
 
         call_kwargs = mock_node.run.call_args.kwargs
         injected_ctx = call_kwargs["context"]
@@ -306,7 +306,7 @@ class TestExecutorRunLoaderNode:
         mock_node.dispatch_policy = NodeDispatchPolicy.ALL_ALL_ALL
 
         with patch("kdit.executor.executor.Executor._get_or_create_node", return_value=mock_node):
-            executor.run_loader_node(node_def, input_pins={"model": {}, "tensor": {}}, context=context)
+            executor.run_loader_node(node_def, input_pins={}, context=context)
 
         call_kwargs = mock_node.run.call_args.kwargs
         injected_ctx = call_kwargs["context"]
@@ -324,7 +324,7 @@ class TestExecutorRunLoaderNode:
         mock_node.dispatch_policy = NodeDispatchPolicy.ALL_ALL_ALL
 
         with patch("kdit.executor.executor.Executor._get_or_create_node", return_value=mock_node):
-            executor.run_loader_node(node_def, input_pins={"model": {}, "tensor": {}}, context=context)
+            executor.run_loader_node(node_def, input_pins={}, context=context)
 
         call_args = mock_node.run.call_args
         # 只有 1 个位置参数（PinHub）
@@ -400,7 +400,7 @@ class TestDispatchPolicySkip:
         mock_node.output_defs = []
 
         with patch("kdit.executor.executor.Executor._get_or_create_node", return_value=mock_node):
-            executor.run_infer_node(node_def, input_pins={"model": {}, "tensor": {}}, context=context)
+            executor.run_infer_node(node_def, input_pins={}, context=context)
 
         # run() 不应被调用（非 rank0）
         mock_node.run.assert_not_called()
@@ -424,7 +424,7 @@ class TestDispatchPolicySkip:
         mock_node.output_defs = []
 
         with patch("kdit.executor.executor.Executor._get_or_create_node", return_value=mock_node):
-            executor.run_infer_node(node_def, input_pins={"model": {}, "tensor": {}}, context=context)
+            executor.run_infer_node(node_def, input_pins={}, context=context)
 
         mock_node.run.assert_called_once()
 
@@ -445,7 +445,7 @@ class TestDispatchPolicySkip:
         mock_node.dispatch_policy = NodeDispatchPolicy.R0_R0_BCAST
 
         with patch("kdit.executor.executor.Executor._get_or_create_node", return_value=mock_node):
-            executor.run_loader_node(node_def, input_pins={"model": {}, "tensor": {}}, context=context)
+            executor.run_loader_node(node_def, input_pins={}, context=context)
 
         mock_node.run.assert_not_called()
 
@@ -463,9 +463,7 @@ class TestBuildOutputPins:
         mock_node.dispatch_policy = NodeDispatchPolicy.ALL_ALL_ALL
 
         with patch("kdit.executor.executor.Executor._get_or_create_node", return_value=mock_node):
-            output_pins = executor.run_infer_node(
-                node_def, input_pins={"model": {}, "tensor": {}}, context=NodeContext(prompt="test")
-            )
+            output_pins = executor.run_infer_node(node_def, input_pins={}, context=NodeContext(prompt="test"))
 
         assert TensorKey.LATENTS in output_pins
         assert output_pins[TensorKey.LATENTS] == TensorPoolKey(5, TensorKey.LATENTS)
@@ -480,9 +478,7 @@ class TestBuildOutputPins:
         mock_node.dispatch_policy = NodeDispatchPolicy.ALL_ALL_ALL
 
         with patch("kdit.executor.executor.Executor._get_or_create_node", return_value=mock_node):
-            output_pins = executor.run_loader_node(
-                node_def, input_pins={"model": {}, "tensor": {}}, context=NodeContext(metadata={})
-            )
+            output_pins = executor.run_loader_node(node_def, input_pins={}, context=NodeContext(metadata={}))
 
         assert ModelKey.VAE_WAN2_2 in output_pins
         assert output_pins[ModelKey.VAE_WAN2_2] == ModelPoolKey(2, ModelKey.VAE_WAN2_2)
@@ -497,9 +493,7 @@ class TestBuildOutputPins:
         mock_node.dispatch_policy = NodeDispatchPolicy.ALL_ALL_ALL
 
         with patch("kdit.executor.executor.Executor._get_or_create_node", return_value=mock_node):
-            output_pins = executor.run_infer_node(
-                node_def, input_pins={"model": {}, "tensor": {}}, context=NodeContext(prompt="test")
-            )
+            output_pins = executor.run_infer_node(node_def, input_pins={}, context=NodeContext(prompt="test"))
 
         assert output_pins == {}
 
@@ -513,9 +507,7 @@ class TestBuildOutputPins:
         mock_node.dispatch_policy = NodeDispatchPolicy.ALL_ALL_ALL
 
         with patch("kdit.executor.executor.Executor._get_or_create_node", return_value=mock_node):
-            output_pins = executor.run_infer_node(
-                node_def, input_pins={"model": {}, "tensor": {}}, context=NodeContext(prompt="test")
-            )
+            output_pins = executor.run_infer_node(node_def, input_pins={}, context=NodeContext(prompt="test"))
 
         assert output_pins[TensorKey.POSITIVE] == TensorPoolKey(3, TensorKey.POSITIVE)
         assert output_pins[TensorKey.NEGATIVE] == TensorPoolKey(3, TensorKey.NEGATIVE)
@@ -538,10 +530,7 @@ class TestAutoConsumeInputTensors:
         mock_node.output_defs = [TensorKey.LATENTS]
         mock_node.dispatch_policy = NodeDispatchPolicy.ALL_ALL_ALL
 
-        input_pins = {
-            "model": {},
-            "tensor": {TensorKey.POSITIVE: input_pool_key},
-        }
+        input_pins = {TensorKey.POSITIVE: input_pool_key}
 
         with patch("kdit.executor.executor.Executor._get_or_create_node", return_value=mock_node):
             executor.run_infer_node(node_def, input_pins=input_pins, context=NodeContext(prompt="test"))
@@ -562,10 +551,7 @@ class TestAutoConsumeInputTensors:
         mock_node.output_defs = []
         mock_node.dispatch_policy = NodeDispatchPolicy.ALL_ALL_ALL
 
-        input_pins = {
-            "model": {},
-            "tensor": {TensorKey.POSITIVE: input_pool_key},
-        }
+        input_pins = {TensorKey.POSITIVE: input_pool_key}
 
         with patch("kdit.executor.executor.Executor._get_or_create_node", return_value=mock_node):
             executor.run_infer_node(node_def, input_pins=input_pins, context=NodeContext(prompt="test"))
@@ -587,10 +573,7 @@ class TestAutoConsumeInputTensors:
         executor.tensor_pool.put(input_pool_key, MagicMock())
         executor.tensor_pool.register(input_pool_key, ref_count=1)
 
-        input_pins = {
-            "model": {},
-            "tensor": {TensorKey.POSITIVE: input_pool_key},
-        }
+        input_pins = {TensorKey.POSITIVE: input_pool_key}
 
         with patch("kdit.executor.executor.Executor._get_or_create_node", return_value=mock_node):
             executor.run_loader_node(node_def, input_pins=input_pins, context=NodeContext(metadata={}))

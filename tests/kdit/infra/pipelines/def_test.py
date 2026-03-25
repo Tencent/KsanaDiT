@@ -93,7 +93,6 @@ class TestPipelineDefBuilderDAG(unittest.TestCase):
         self.assertEqual(edge.src_pin, ModelKey.T5TextEncoder)
         self.assertEqual(edge.dst_node_id, 1)
         self.assertEqual(edge.dst_pin, ModelKey.T5TextEncoder)
-        self.assertEqual(edge.edge_type, "model")
 
     def test_connect_pinref_tuple(self):
         """connect() 格式 2（PinRef 元组）正确添加 Edge。"""
@@ -113,7 +112,6 @@ class TestPipelineDefBuilderDAG(unittest.TestCase):
         self.assertEqual(edge.src_pin, ModelKey.T5TextEncoder)
         self.assertEqual(edge.dst_node_id, 1)
         self.assertEqual(edge.dst_pin, ModelKey.T5TextEncoder)
-        self.assertEqual(edge.edge_type, "model")
 
     def test_connect_one_to_many(self):
         """connect() 一对多 (src, [dst1, dst2]) 生成多条 Edge。"""

@@ -72,8 +72,8 @@ class TestVAEEncodeSpatialNode(unittest.TestCase):
         return PinHub(
             node_def=node_def,
             input_pins={
-                "model": {ModelKey.VAE_WAN2_2: ModelPoolKey(99, ModelKey.VAE_WAN2_2)},
-                "tensor": self.tensor_mapping,
+                ModelKey.VAE_WAN2_2: ModelPoolKey(99, ModelKey.VAE_WAN2_2),
+                **self.tensor_mapping,
             },
             tensor_pool=self.tensor_pool,
             model_pool=self.model_pool,
@@ -153,8 +153,8 @@ class TestVAEEncodeImagesNode(unittest.TestCase):
         return PinHub(
             node_def=node_def,
             input_pins={
-                "model": {ModelKey.VAE_WAN2_2: ModelPoolKey(99, ModelKey.VAE_WAN2_2)},
-                "tensor": self.tensor_mapping,
+                ModelKey.VAE_WAN2_2: ModelPoolKey(99, ModelKey.VAE_WAN2_2),
+                **self.tensor_mapping,
             },
             tensor_pool=self.tensor_pool,
             model_pool=self.model_pool,
