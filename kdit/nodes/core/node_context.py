@@ -27,7 +27,7 @@ class NodeContext:
 
     设计约束：
     - 不含任何 tensor（强制 __post_init__ 校验）
-    - 不含 model_key（model_key 作为 engine.run_infer_node 的参数传入）
+    - 不含 model_key（model_key 作为 NodeDef 的成员传入 engine.run_node）
     - 可安全跨 Ray 边界序列化
     """
 

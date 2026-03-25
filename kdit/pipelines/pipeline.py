@@ -115,6 +115,8 @@ class Pipeline:
         self._default_settings = None
         self._has_lora = False
         self._pipeline_name = pipeline_def.pipeline_key.name
+        # Loader 阶段的 output_pins 缓存 — generate 阶段用于动态构建 input_pins
+        self._loader_outputs: dict = {}
 
     @property
     def engine(self) -> Engine:
@@ -183,6 +185,7 @@ class Pipeline:
         """按 PipelineDef 加载所有模型。"""
         # 先清理本 PipelineDef 声明的所有模型，保证全新加载
         self._engine.clear_models()
+        self._loader_outputs = {}
         self._has_lora = lora_config is not None
         self._default_settings = load_default_settings(self._def.pipeline_key, with_lora=self._has_lora)
 
@@ -214,7 +217,8 @@ class Pipeline:
             )
             context = NodeContext(metadata=loader_kwargs)
             with _task_node_timer(node_def):
-                self._engine.run_loader_node(node_def, input_pins, context)
+                output_pins = self._engine.run_node(node_def, input_pins, context)
+                self._loader_outputs[node_def.node_id] = output_pins
 
     def clear(self):
         """清理所有已加载的模型。"""
@@ -310,10 +314,16 @@ class Pipeline:
         )
 
     def _generate_dag(self, inputs: PipelineGenerateInputs):
-        """按拓扑序遍历 Infer 节点，通过 engine.run_infer_node() 执行。"""
+        """按拓扑序遍历 Infer 节点，通过 engine.run_node() 执行。
+
+        使用动态 output_pins 模式：每个 Node 的 output_pins 收集到 all_outputs，
+        下游 Node 的 input_pins 从 all_outputs 中查找实际 PoolKey。
+        """
         from .dag import compute_input_pins, topo_sort
 
         sorted_nodes = topo_sort(self._def.nodes, self._def.edges)
+        all_outputs: dict = dict(self._loader_outputs)  # 包含 loader 阶段的输出
+
         for node_def in sorted_nodes:
             if node_def.is_loader:
                 continue
@@ -326,9 +336,10 @@ class Pipeline:
             node_ctx = self._ctx_builder.build_context(node_def, inputs)
 
             # 3. 计算 input_pins 并执行
-            input_pins = compute_input_pins(node_def, self._def.edges)
+            input_pins = compute_input_pins(node_def, self._def.edges, all_outputs)
             with _task_node_timer(node_def):
-                self._engine.run_infer_node(node_def, input_pins, node_ctx)
+                output_pins = self._engine.run_node(node_def, input_pins, node_ctx)
+                all_outputs[node_def.node_id] = output_pins
 
 
 # ── 辅助函数 ─────────────────────────────────────────────────────────────

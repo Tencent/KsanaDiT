@@ -175,13 +175,13 @@ TensorPool 内置 `register()` / `consume()` / `remove()` 引用计数机制，�
 ```python
 # Pipeline DAG 模式 — Executor 自动管理
 # 1. Pipeline 构建 DAG 时，Engine 调用 register_tensor() 注册每个 tensor 的下游消费者数
-# 2. Executor.run_infer_node() 执行后自动 consume 输入 tensor
+# 2. Executor.run_node() 执行后自动 consume 输入 tensor
 # 3. consume 时 ref_count 降为 0 → 自动 release TensorValue
 
 # ComfyUI 模式 — try/finally 手动清理
 try:
     engine.put_tensors({TensorKey.IMAGE: image})
-    engine.run_infer_node(node_def, pins_mapping, context)
+    engine.run_node(node_def, pins_mapping, context)
     result = engine.get_tensor(TensorKey.AUX_LATENT)
 finally:
     engine.clear_all_tensors()
@@ -196,7 +196,7 @@ ComfyUI adapter 之间传递的是 `TensorKey`（而非裸 tensor），真正的
 def vae_encode_image(...):
     try:
         engine.put_tensors(...)
-        engine.run_infer_node(...)
+        engine.run_node(...)
         return KsanaNodeVAEEncodeOutput(samples=TensorKey.BASE_LATENT, ...)
     except Exception:
         engine.clear_all_tensors()
@@ -207,7 +207,7 @@ def generate(...):
     if not engine.has_tensor(base_latent_key):
         raise RuntimeError(f"Tensor {base_latent_key} not found in pool")
     try:
-        engine.run_infer_node(...)
+        engine.run_node(...)
         return KsanaNodeGeneratorOutput(samples=TensorKey.LATENTS, ...)
     except Exception:
         engine.clear_all_tensors()
@@ -260,7 +260,7 @@ Executor (每卡一个实例)
  ├── owns: rank_id / world_size (分布式信息)
  ├── owns: dist_config / shard_fn (分布式配置)
  ├── owns: local_pipeline (遗留 V4 接口，将废弃)
- └── NOT own: Node 实例 (Node 在 run_loader_node / run_infer_node 中临时创建)
+ └── NOT own: Node 实例 (Node 在 run_node 中临时创建)
 ```
 
 ### 各组件详细 Ownership
@@ -277,8 +277,7 @@ Executor (每卡一个实例)
 **Engine 不持有**：model_pool、tensor_pool、device 信息、Node 实例。Engine 是纯粹的**分发层**，所有实际资源都在 Executor 上。
 
 **Engine 的桥接方法**（透传到 Executor）：
-- `run_loader_node()` → 分发到所有 Executor
-- `run_infer_node()` → 分发到所有 Executor
+- `run_node()` → 分发到所有 Executor，**返回 `output_pins`**（`{TensorKey | ModelKey: TensorPoolKey | ModelPoolKey}`）。Ray 模式取 rank 0 结果（output_pins 是纯元数据，所有 rank 相同）
 - `put_tensors()` → 写入所有 Executor 的 tensor_pool
 - `get_tensor()` → 从 rank 0 Executor 的 tensor_pool 读取
 - `register_tensor()` → 注册引用计数到所有 Executor 的 tensor_pool
@@ -379,7 +378,7 @@ def _get_or_create_node(self, node_def):
     self._node_cache[node_def.node_id] = node
     return node
 
-def run_infer_node(self, node_def, pins_mapping, context):
+def run_node(self, node_def, pins_mapping, context):
     node = self._get_or_create_node(node_def)
     pin_hub = self._build_pin_hub(node_def, pins_mapping)
     self._pre_sync_tensors(node, policy)
@@ -478,7 +477,7 @@ class MyNode(InferNode):
 
 ### Executor 同步机制
 
-`Executor.run_infer_node()` 负责：
+`Executor.run_node()` 负责：
 
 1. **`_pre_sync_tensors()`**: 执行前的 tensor 同步（预留接口，未来可自动 broadcast 输入）
 2. **`is_active_rank`**: 根据 policy 判断当前卡是否执行 `run()`

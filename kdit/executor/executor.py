@@ -179,19 +179,26 @@ class Executor(ABC):
             context = dataclasses.replace(context, device=self.device_ctx)
         return context
 
-    def run_loader_node(self, node_def, input_pins, context) -> dict:
-        """IONode 执行入口 — 构建 PinHub 并执行 Node，返回 output_pins。
-
-        自动注入 DeviceInfo / dist_config / shard_fn 到 context，
-        构建 PinHub 绑定本地 pool，调用 node.run(pins, context=context)。
+    def run_node(self, node_def, input_pins, context) -> dict:
+        """统一 Node 执行入口 — 根据 node_def.is_io 分发到 IO 或 Infer 路径。
 
         Args:
-            node_def: ``NodeDef`` — Loader 节点定义（is_loader=True）。
+            node_def: ``NodeDef`` — 节点定义。
             input_pins: ``dict`` — 由 ``compute_input_pins()`` 生成的 pin 映射。
-            context: ``NodeContext`` — metadata 中存放 build_loader_kwargs() 的结果。
+            context: ``NodeContext`` — 可序列化的上下文。
 
         Returns:
             output_pins — ``{TensorKey | ModelKey: TensorPoolKey | ModelPoolKey}`` 映射。
+        """
+        if node_def.is_io:
+            return self._run_io_node(node_def, input_pins, context)
+        return self._run_infer_node(node_def, input_pins, context)
+
+    def _run_io_node(self, node_def, input_pins, context) -> dict:
+        """IONode 执行 — 构建 PinHub 并执行 Node，返回 output_pins。
+
+        自动注入 DeviceInfo / dist_config / shard_fn 到 context，
+        构建 PinHub 绑定本地 pool，调用 node.run(pins, context=context)。
         """
         from ..nodes.core.node_types import NodeDispatchPolicy
 
@@ -212,19 +219,11 @@ class Executor(ABC):
 
         return self._build_output_pins(node, node_def)
 
-    def run_infer_node(self, node_def, input_pins, context) -> dict:
-        """InferNode 执行入口 — 构建 PinHub 并执行 Node，返回 output_pins。
+    def _run_infer_node(self, node_def, input_pins, context) -> dict:
+        """InferNode 执行 — 构建 PinHub 并执行 Node，返回 output_pins。
 
         自动注入 DeviceInfo 到 context，构建 PinHub 绑定本地 pool，
         管理 pre/post tensor 同步，自动消费输入 tensor 引用。
-
-        Args:
-            node_def: ``NodeDef`` — Infer 节点定义（is_loader=False）。
-            input_pins: ``dict`` — 由 ``compute_input_pins()`` 生成的 pin 映射。
-            context: ``NodeContext`` — 可序列化的上下文（device 字段由此方法注入）。
-
-        Returns:
-            output_pins — ``{TensorKey | ModelKey: TensorPoolKey | ModelPoolKey}`` 映射。
         """
         from ..nodes.core.node_types import NodeDispatchPolicy
 

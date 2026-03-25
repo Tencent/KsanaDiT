@@ -16,8 +16,8 @@
 
 测试 Pipeline 的 load_models() 和 generate() 的行为：
 - 按拓扑序遍历 Loader / Infer 节点
-- load_models() 调用 engine.run_loader_node()
-- generate() 调用 engine.run_infer_node()
+- load_models() 调用 engine.run_node()
+- generate() 调用 engine.run_node()
 - input_pins 正确传递
 - 条件跳过（check_condition）的行为
 - build_context 接收 NodeDef（非 InferTask）
@@ -48,6 +48,33 @@ from kdit.tensor.tensor_pool_key import TensorPoolKey
 
 # ── 辅助：构建 mock 对象 ──────────────────────────────────────────────────
 
+# 每个节点的 output_pins — 与 _make_dag_pipeline_def 的 DAG 结构对应。
+# Loader 节点输出 model pin，Infer 节点输出 tensor pin。
+_MOCK_NODE_OUTPUTS: dict[int, dict] = {
+    # loader_t5(0)
+    0: {ModelKey.T5TextEncoder: ModelPoolKey(0, ModelKey.T5TextEncoder)},
+    # loader_dit(1)
+    1: {ModelKey.Wan2_2_T2V_14B: ModelPoolKey(1, ModelKey.Wan2_2_T2V_14B)},
+    # loader_vae(2)
+    2: {ModelKey.VAE_WAN2_2: ModelPoolKey(2, ModelKey.VAE_WAN2_2)},
+    # text_enc(3)
+    3: {
+        TensorKey.POSITIVE: TensorPoolKey(3, TensorKey.POSITIVE),
+        TensorKey.NEGATIVE: TensorPoolKey(3, TensorKey.NEGATIVE),
+    },
+    # gen(4)
+    4: {TensorKey.LATENTS: TensorPoolKey(4, TensorKey.LATENTS)},
+    # vae_dec(5)
+    5: {TensorKey.VIDEO: TensorPoolKey(5, TensorKey.VIDEO)},
+    # save(6)
+    6: {},
+}
+
+
+def _mock_run_node(node_def, input_pins, context):
+    """模拟 Engine.run_node 返回 output_pins。"""
+    return dict(_MOCK_NODE_OUTPUTS.get(node_def.node_id, {}))
+
 
 def _make_mock_engine():
     """构建一个 mock Engine，模拟所有 Pipeline 需要的方法。"""
@@ -56,6 +83,8 @@ def _make_mock_engine():
     mock_tv = MagicMock()
     mock_tv.data = "fake_output"
     engine.get_tensor.return_value = mock_tv
+    # run_node 返回 output_pins — 模拟 Executor._build_output_pins 的行为
+    engine.run_node.side_effect = _mock_run_node
     return engine
 
 
@@ -199,8 +228,8 @@ class TestLoadModels:
     """Pipeline.load_models() 的行为。"""
 
     @patch("kdit.pipelines.pipeline.load_default_settings")
-    def test_load_calls_run_loader_node_for_loaders_only(self, mock_settings):
-        """load_models() 只对 is_loader=True 的节点调用 engine.run_loader_node()。"""
+    def test_load_calls_run_node_for_loaders_only(self, mock_settings):
+        """load_models() 只对 is_loader=True 的节点调用 engine.run_node()。"""
         mock_settings.return_value = _make_default_settings()
         pipeline_def = _make_dag_pipeline_def()
         engine = _make_mock_engine()
@@ -209,8 +238,8 @@ class TestLoadModels:
 
         pipeline.load_models("/fake/path")
 
-        # 应该调用 3 次 run_loader_node（3 个 loader）
-        assert engine.run_loader_node.call_count == 3
+        # 应该调用 3 次 run_node（3 个 loader）
+        assert engine.run_node.call_count == 3
 
     @patch("kdit.pipelines.pipeline.load_default_settings")
     def test_load_topo_order(self, mock_settings):
@@ -223,8 +252,8 @@ class TestLoadModels:
 
         pipeline.load_models("/fake/path")
 
-        # 提取所有 run_loader_node 调用的 node_def
-        call_node_defs = [c.args[0] for c in engine.run_loader_node.call_args_list]
+        # 提取所有 run_node 调用的 node_def
+        call_node_defs = [c.args[0] for c in engine.run_node.call_args_list]
         # 所有都是 loader
         assert all(nd.is_loader for nd in call_node_defs)
         # node_id 应该是 0, 1, 2（按拓扑序）
@@ -232,7 +261,7 @@ class TestLoadModels:
 
     @patch("kdit.pipelines.pipeline.load_default_settings")
     def test_load_input_pins_passed(self, mock_settings):
-        """input_pins 正确传递给 engine.run_loader_node()。"""
+        """input_pins 正确传递给 engine.run_node()。"""
         mock_settings.return_value = _make_default_settings()
         pipeline_def = _make_dag_pipeline_def()
         engine = _make_mock_engine()
@@ -242,7 +271,7 @@ class TestLoadModels:
         pipeline.load_models("/fake/path")
 
         # Loader 节点没有入边，input_pins 应该是空的
-        for c in engine.run_loader_node.call_args_list:
+        for c in engine.run_node.call_args_list:
             input_pins = c.args[1]
             assert input_pins == {}
 
@@ -258,8 +287,8 @@ class TestLoadModels:
 
         pipeline.load_models("/fake/path")
 
-        # 每次 run_loader_node 的 context 都应该有 metadata
-        for c in engine.run_loader_node.call_args_list:
+        # 每次 run_node 的 context 都应该有 metadata
+        for c in engine.run_node.call_args_list:
             context = c.args[2]
             assert isinstance(context, NodeContext)
             assert context.metadata == {"model_path": "/test/model"}
@@ -298,16 +327,18 @@ class TestGenerate:
         ctx_builder = _make_mock_ctx_builder()
         pipeline = _make_pipeline(pipeline_def, engine, ctx_builder)
         pipeline._default_settings = _make_default_settings()
+        # 预填充 loader 阶段的 output_pins（模拟 load_models 的结果）
+        pipeline._loader_outputs = {nid: dict(pins) for nid, pins in _MOCK_NODE_OUTPUTS.items() if nid in {0, 1, 2}}
         return pipeline, engine, ctx_builder
 
-    def test_generate_calls_run_infer_node_for_infer_only(self):
-        """generate() 只对 is_loader=False 的节点调用 engine.run_infer_node()。"""
+    def test_generate_calls_run_node_for_infer_only(self):
+        """generate() 只对 is_loader=False 的节点调用 engine.run_node()。"""
         pipeline, engine, _ = self._setup_pipeline_for_generate()
 
         pipeline.generate("test prompt")
 
-        # 应该调用 4 次 run_infer_node（4 个 infer 节点: text_enc, gen, vae_dec, save）
-        assert engine.run_infer_node.call_count == 4
+        # 应该调用 4 次 run_node（4 个 infer 节点: text_enc, gen, vae_dec, save）
+        assert engine.run_node.call_count == 4
 
     def test_generate_topo_order(self):
         """infer 节点按拓扑序执行。"""
@@ -315,7 +346,7 @@ class TestGenerate:
 
         pipeline.generate("test prompt")
 
-        call_node_defs = [c.args[0] for c in engine.run_infer_node.call_args_list]
+        call_node_defs = [c.args[0] for c in engine.run_node.call_args_list]
         # 所有都是 infer 节点
         assert all(not nd.is_loader for nd in call_node_defs)
         # 拓扑序: text_enc(3) → gen(4) → vae_dec(5) → save(6)
@@ -327,7 +358,7 @@ class TestGenerate:
 
         pipeline.generate("test prompt")
 
-        calls = engine.run_infer_node.call_args_list
+        calls = engine.run_node.call_args_list
 
         # text_enc(3): 入边 = loader_t5(0) → model
         ip_text = calls[0].args[1]
@@ -403,6 +434,8 @@ class TestConditionSkip:
         ctx_builder.check_condition.return_value = condition_result
         pipeline = _make_pipeline(pipeline_def, engine, ctx_builder)
         pipeline._default_settings = _make_default_settings()
+        # 预填充 loader 阶段的 output_pins（模拟 load_models 的结果）
+        pipeline._loader_outputs = {nid: dict(pins) for nid, pins in _MOCK_NODE_OUTPUTS.items() if nid in {0, 1, 2}}
         return pipeline, engine, ctx_builder
 
     def test_generate_condition_skip(self):
@@ -412,8 +445,8 @@ class TestConditionSkip:
         pipeline.generate("test prompt")
 
         # gen(4) 被跳过，只执行 3 个节点
-        assert engine.run_infer_node.call_count == 3
-        executed_ids = [c.args[0].node_id for c in engine.run_infer_node.call_args_list]
+        assert engine.run_node.call_count == 3
+        executed_ids = [c.args[0].node_id for c in engine.run_node.call_args_list]
         assert 4 not in executed_ids
         # text_enc(3), vae_dec(5), save(6) 仍然执行
         assert 3 in executed_ids
@@ -427,7 +460,7 @@ class TestConditionSkip:
         pipeline.generate("test prompt")
 
         # 所有 4 个 infer 节点都执行
-        assert engine.run_infer_node.call_count == 4
+        assert engine.run_node.call_count == 4
 
     def test_generate_condition_only_checked_for_conditional_nodes(self):
         """只有设置了 condition 的节点才调用 check_condition()。"""
@@ -660,6 +693,55 @@ class TestComputeInputPins(unittest.TestCase):
         mapping = compute_input_pins(node, edges)
 
         self.assertEqual(mapping, {})
+
+    def test_dynamic_mode_from_all_outputs(self):
+        """动态模式：从 all_outputs 查找实际 PoolKey。"""
+        node = NodeDef(node_id=2, node_type=NT.GENERATE)
+        edges = (
+            Edge(0, ModelKey.Wan2_2_T2V_14B, 2, ModelKey.Wan2_2_T2V_14B),
+            Edge(1, TensorKey.POSITIVE, 2, TensorKey.POSITIVE),
+        )
+        all_outputs = {
+            0: {ModelKey.Wan2_2_T2V_14B: ModelPoolKey(0, ModelKey.Wan2_2_T2V_14B)},
+            1: {TensorKey.POSITIVE: TensorPoolKey(1, TensorKey.POSITIVE)},
+        }
+
+        mapping = compute_input_pins(node, edges, all_outputs)
+
+        self.assertEqual(len(mapping), 2)
+        self.assertEqual(mapping[ModelKey.Wan2_2_T2V_14B], ModelPoolKey(0, ModelKey.Wan2_2_T2V_14B))
+        self.assertEqual(mapping[TensorKey.POSITIVE], TensorPoolKey(1, TensorKey.POSITIVE))
+
+    def test_dynamic_mode_missing_upstream_skips_pin(self):
+        """动态模式：上游节点不在 all_outputs 中时跳过该 pin。"""
+        node = NodeDef(node_id=2, node_type=NT.VAE_DECODE)
+        edges = (Edge(1, TensorKey.LATENTS, 2, TensorKey.LATENTS),)
+        all_outputs: dict = {}  # 上游 node 1 不存在（被跳过）
+
+        mapping = compute_input_pins(node, edges, all_outputs)
+
+        self.assertEqual(mapping, {})
+
+    def test_dynamic_mode_matches_static_mode(self):
+        """动态模式与静态模式产生相同结果（当 output_pins 结构一致时）。"""
+        node = NodeDef(node_id=4, node_type=NT.GENERATE)
+        edges = (
+            Edge(1, ModelKey.Wan2_2_T2V_14B, 4, ModelKey.Wan2_2_T2V_14B),
+            Edge(3, TensorKey.POSITIVE, 4, TensorKey.POSITIVE),
+            Edge(3, TensorKey.NEGATIVE, 4, TensorKey.NEGATIVE),
+        )
+        all_outputs = {
+            1: {ModelKey.Wan2_2_T2V_14B: ModelPoolKey(1, ModelKey.Wan2_2_T2V_14B)},
+            3: {
+                TensorKey.POSITIVE: TensorPoolKey(3, TensorKey.POSITIVE),
+                TensorKey.NEGATIVE: TensorPoolKey(3, TensorKey.NEGATIVE),
+            },
+        }
+
+        static_mapping = compute_input_pins(node, edges)
+        dynamic_mapping = compute_input_pins(node, edges, all_outputs)
+
+        self.assertEqual(static_mapping, dynamic_mapping)
 
 
 if __name__ == "__main__":

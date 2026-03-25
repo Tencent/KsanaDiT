@@ -77,14 +77,30 @@ def topo_sort(nodes: tuple[NodeDef, ...], edges: tuple[Edge, ...]) -> list[NodeD
 def compute_input_pins(
     node_def: NodeDef,
     edges: tuple[Edge, ...],
+    all_outputs: dict[int, Pins] | None = None,
 ) -> Pins:
     """从 DAG edges 计算当前 Node 的 input_pins（扁平映射）。
 
-    返回 ``{PinDef: PinPoolKey}`` — 即 ``{TensorKey | ModelKey: TensorPoolKey | ModelPoolKey}``。
+    Args:
+        node_def: 目标节点定义。
+        edges: DAG 边集合。
+        all_outputs: 上游 Node 的 output_pins 集合（``{node_id: Pins}``）。
+            提供时从中查找实际 PoolKey（动态模式）；
+            为 ``None`` 时从 edge 静态构建 PoolKey（向后兼容）。
+
+    Returns:
+        ``{PinDef: PinPoolKey}`` — 即 ``{TensorKey | ModelKey: TensorPoolKey | ModelPoolKey}``。
     """
     pins: Pins = {}
     for edge in edges:
-        if edge.dst_node_id == node_def.node_id:
+        if edge.dst_node_id != node_def.node_id:
+            continue
+        if all_outputs is not None:
+            src_outputs = all_outputs.get(edge.src_node_id, {})
+            pool_key = src_outputs.get(edge.src_pin)
+            if pool_key is not None:
+                pins[edge.dst_pin] = pool_key
+        else:
             if isinstance(edge.src_pin, ModelKey):
                 pins[edge.dst_pin] = ModelPoolKey(edge.src_node_id, edge.src_pin)
             else:

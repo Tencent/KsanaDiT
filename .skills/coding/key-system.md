@@ -12,7 +12,7 @@
 |----------|---------|------|---------|
 | `ModelKey` | `kdit/models/model_key.py` | 标识一个具体的模型类别 | `ModelPool` 存取、`KsanaModel.__init__`、Loader/Infer Node 注册与分发、`GeneratorFactory` 注册、`settings` 配置映射 |
 | `PipelineKey` | `kdit/pipelines/pipeline_key.py` | 标识一条完整的推理流水线 | `KsanaBasePipeline.__init__`、pipeline 创建与路由、`base_pipeline` 中 pipeline→model 映射表的 key 侧 |
-| `InferNodeType` | `kdit/nodes/core/node_types.py` | 标识推理节点类型 | `InferNodeFactory` 注册与分发、`executor.run_infer_node` |
+| `InferNodeType` | `kdit/nodes/core/node_types.py` | 标识推理节点类型 | `InferNodeFactory` 注册与分发、`executor.run_node` |
 
 ### 核心约束
 

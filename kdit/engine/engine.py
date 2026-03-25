@@ -243,69 +243,45 @@ class Engine:
     def clear_models(self, *args, **kwargs):
         pass
 
-    # TODO: To be remove
-    def broadcast_input_args(self, prompts, *, seed, prompts_negative=None, **kwargs):
-        if dist.is_initialized():
-            dist.broadcast_object_list([prompts, seed], src=0)
-            if prompts_negative is not None:
-                dist.broadcast_object_list(prompts_negative, src=0)
-
-    @auto_dispatch
-    def generate(self, *args, **kwargs):
-        def pre_func_all(*args, **kwargs):
-            # Note: here covers ray and gpus
-            if self.num_gpus > 1:
-                runtime_config = kwargs.get("runtime_config", None)
-                seed = runtime_config.seed if runtime_config else None
-                self.broadcast_input_args(*args, seed=seed, **kwargs)
-
-        return {self.FUNC_KEY_PRE_ALL: pre_func_all, self.FUNC_KEY_POST_RAY_OUTPUTS: self._get_rank_0_result}
-
-    # TODO: remove above
-
     # ── V5 Node 架构：统一入口 ──────────────────────────────────────────
 
-    def run_loader_node(self, node_def, input_pins, context):
-        """IONode 执行入口 — 分发到所有 Executor。
+    def run_node(self, node_def, input_pins, context) -> dict:
+        """统一 Node 执行入口 — 根据 node_def 类型自动生成 profile label 并分发到所有 Executor。
 
         Args:
-            node_def: ``NodeDef`` — Loader 节点定义（is_loader=True）。
+            node_def: ``NodeDef`` — 节点定义。
             input_pins: ``dict`` — 由 ``compute_input_pins()`` 生成的 pin 映射。
-            context: ``NodeContext`` — metadata 中存放 build_loader_kwargs() 的结果。
+            context: ``NodeContext`` — 可序列化的上下文。
+
+        Returns:
+            output_pins — ``{TensorKey | ModelKey: TensorPoolKey | ModelPoolKey}`` 映射。
+            Ray 模式下取 rank 0 的结果（output_pins 是纯元数据，所有 rank 相同）。
         """
-        # 自动按 model_key 生成 profile label
-        if node_def.model_key is not None:
-            model_name = node_def.model_key.name if hasattr(node_def.model_key, "name") else str(node_def.model_key)
-            node_label = f"load_[{model_name}]"
-        else:
-            node_label = f"load_node_{node_def.node_id}"
+        node_label = self._build_node_label(node_def)
 
         with time_profile(node_label):
             if self.is_ray:
-                ray.get([ex.run_loader_node.remote(node_def, input_pins, context) for ex in self.executors])
+                results = ray.get([ex.run_node.remote(node_def, input_pins, context) for ex in self.executors])
+                return results[0]
             else:
-                self.executors.run_loader_node(node_def, input_pins, context)
+                return self.executors.run_node(node_def, input_pins, context)
 
-    def run_infer_node(self, node_def, input_pins, context):
-        """InferNode 执行入口 — 分发到所有 Executor，结果写入各自 tensor_pool。
+    @staticmethod
+    def _build_node_label(node_def) -> str:
+        """根据 NodeDef 生成 time_profile 标签。"""
+        if node_def.is_io:
+            # IO (Loader) — "load_[MODEL_NAME]" 或 "load_node_{id}"
+            if node_def.model_key is not None:
+                model_name = node_def.model_key.name if hasattr(node_def.model_key, "name") else str(node_def.model_key)
+                return f"load_[{model_name}]"
+            return f"load_node_{node_def.node_id}"
 
-        Args:
-            node_def: ``NodeDef`` — Infer 节点定义（is_loader=False）。
-            input_pins: ``dict`` — 由 ``compute_input_pins()`` 生成的 pin 映射。
-            context: ``NodeContext`` — 可序列化的上下文（device 字段由 Executor 注入）。
-        """
-        # 自动按 node_type + model_key 生成 profile label
-        node_label = node_def.node_type.name if node_def.node_type is not None else f"node_{node_def.node_id}"
+        # Infer — "NODE_TYPE[MODEL_NAME]" 或 "NODE_TYPE" 或 "node_{id}"
+        label = node_def.node_type.name if node_def.node_type is not None else f"node_{node_def.node_id}"
         if node_def.model_key is not None:
             model_name = node_def.model_key.name if hasattr(node_def.model_key, "name") else str(node_def.model_key)
-            node_label = f"{node_label}[{model_name}]"
-
-        with time_profile(node_label):
-            if self.is_ray:
-                futures = [ex.run_infer_node.remote(node_def, input_pins, context) for ex in self.executors]
-                ray.get(futures)
-            else:
-                self.executors.run_infer_node(node_def, input_pins, context)
+            label = f"{label}[{model_name}]"
+        return label
 
     def clear_all_tensors(self):
         """清理所有 Executor 的 tensor_pool — 用于 Pipeline/ComfyUI 的 try/finally 异常恢复。"""
@@ -367,7 +343,7 @@ class Engine:
     def rename_tensor(self, old_key, new_key):
         """重命名所有 Executor 的 tensor_pool 中的 key。
 
-        用于 Pipeline 编排时在两个 run_infer_node 之间调整 key 名称，
+        用于 Pipeline 编排时在两个 run_node 之间调整 key 名称，
         使上游 Node 的输出 key 匹配下游 Node 的输入 key。
         """
         if self.is_ray:

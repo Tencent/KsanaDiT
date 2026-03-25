@@ -44,7 +44,7 @@ from ..core.node_types import NodeDispatchPolicy
 class DiffusionLoaderNode(IONode):
     """加载 Diffusion 模型。
 
-    context.metadata 由 Executor.run_loader_node() 自动注入 dist_config / shard_fn，
+    context.metadata 由 Executor.run_node() 自动注入 dist_config / shard_fn，
     Pipeline 只需传 model_path / model_config / lora_config。
     ComfyUI 适配层可额外传 model_patch_path 用于合并补丁权重（如 VACE）。
     """

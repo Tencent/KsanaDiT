@@ -1,6 +1,6 @@
 # Copyright 2026 Tencent
 
-"""Tests for Executor.run_loader_node() / run_infer_node() — DAG 模式的 Node 执行入口。
+"""Tests for Executor.run_node() — DAG 模式的 Node 执行入口。
 
 这些测试通过 mock 避免真实 GPU 依赖，验证核心逻辑：
 - DeviceInfo 注入
@@ -61,7 +61,7 @@ def _make_executor():
 
 
 class TestExecutorRunInferNode:
-    """测试 run_infer_node() 对 InferNode 的处理。
+    """测试 run_node() 对 InferNode 的处理。
 
     新签名：node.run(pins: PinHub, *, context: NodeContext)
     - pins 是第一个位置参数（PinHub 实例）
@@ -69,7 +69,7 @@ class TestExecutorRunInferNode:
     """
 
     def test_device_info_injected_when_none(self):
-        """context.device 为 None 时，run_infer_node() 自动注入 executor 的 DeviceInfo。"""
+        """context.device 为 None 时，run_node() 自动注入 executor 的 DeviceInfo。"""
         executor = _make_executor()
         context = NodeContext(prompt="test")
         assert context.device is None
@@ -81,7 +81,7 @@ class TestExecutorRunInferNode:
         mock_node.output_defs = []
 
         with patch("kdit.executor.executor.Executor._get_or_create_node", return_value=mock_node):
-            executor.run_infer_node(node_def, input_pins={}, context=context)
+            executor.run_node(node_def, input_pins={}, context=context)
 
         # 验证 node.run() 被调用，且 context（keyword 参数）中注入了 device
         mock_node.run.assert_called_once()
@@ -91,7 +91,7 @@ class TestExecutorRunInferNode:
         assert injected_ctx.device == executor.device_ctx
 
     def test_device_info_not_overwritten_when_present(self):
-        """context.device 已有值时，run_infer_node() 不覆盖。"""
+        """context.device 已有值时，run_node() 不覆盖。"""
         executor = _make_executor()
         existing_device = DeviceInfo(
             device=torch.device("cpu"),
@@ -108,7 +108,7 @@ class TestExecutorRunInferNode:
         mock_node.output_defs = []
 
         with patch("kdit.executor.executor.Executor._get_or_create_node", return_value=mock_node):
-            executor.run_infer_node(node_def, input_pins={}, context=context)
+            executor.run_node(node_def, input_pins={}, context=context)
 
         call_kwargs = mock_node.run.call_args.kwargs
         injected_ctx = call_kwargs["context"]
@@ -128,7 +128,7 @@ class TestExecutorRunInferNode:
         mock_node.output_defs = []
 
         with patch("kdit.executor.executor.Executor._get_or_create_node", return_value=mock_node):
-            executor.run_infer_node(node_def, input_pins={}, context=context)
+            executor.run_node(node_def, input_pins={}, context=context)
 
         call_args = mock_node.run.call_args
         pins = call_args.args[0]
@@ -146,7 +146,7 @@ class TestExecutorRunInferNode:
         mock_node.output_defs = []
 
         with patch("kdit.executor.executor.Executor._get_or_create_node", return_value=mock_node):
-            executor.run_infer_node(node_def, input_pins={}, context=context)
+            executor.run_node(node_def, input_pins={}, context=context)
 
         call_kwargs = mock_node.run.call_args.kwargs
         assert "context" in call_kwargs
@@ -166,13 +166,13 @@ class TestExecutorRunInferNode:
         mock_node.output_defs = []
 
         with patch("kdit.executor.executor.Executor._get_or_create_node", return_value=mock_node):
-            executor.run_infer_node(node_def, input_pins={}, context=context)
+            executor.run_node(node_def, input_pins={}, context=context)
 
         executor._pre_sync_tensors.assert_called_once_with(mock_node, NodeDispatchPolicy.ALL_ALL_ALL)
         executor._post_sync_tensors.assert_called_once_with(mock_node, node_def, NodeDispatchPolicy.ALL_ALL_ALL)
 
     def test_infer_node_call_signature(self):
-        """run_infer_node() 调用签名验证：node.run(pins: PinHub, context=NodeContext)。"""
+        """run_node() 调用签名验证：node.run(pins: PinHub, context=NodeContext)。"""
         executor = _make_executor()
         context = NodeContext(prompt="test")
 
@@ -183,7 +183,7 @@ class TestExecutorRunInferNode:
         mock_node.output_defs = []
 
         with patch("kdit.executor.executor.Executor._get_or_create_node", return_value=mock_node):
-            executor.run_infer_node(node_def, input_pins={}, context=context)
+            executor.run_node(node_def, input_pins={}, context=context)
 
         call_args = mock_node.run.call_args
         # 只有 1 个位置参数（PinHub）
@@ -195,7 +195,7 @@ class TestExecutorRunInferNode:
 
 
 class TestExecutorRunLoaderNode:
-    """测试 run_loader_node() 对 IONode 的处理。
+    """测试 run_node() 对 IONode 的处理。
 
     新签名：node.run(pins: PinHub, *, context: NodeContext)
     - pins 是第一个位置参数（PinHub 实例）
@@ -216,7 +216,7 @@ class TestExecutorRunLoaderNode:
         mock_node.dispatch_policy = NodeDispatchPolicy.ALL_ALL_ALL
 
         with patch("kdit.executor.executor.Executor._get_or_create_node", return_value=mock_node):
-            executor.run_loader_node(node_def, input_pins={}, context=context)
+            executor.run_node(node_def, input_pins={}, context=context)
 
         # IONode 不需要 tensor sync
         executor._pre_sync_tensors.assert_not_called()
@@ -233,7 +233,7 @@ class TestExecutorRunLoaderNode:
         mock_node.dispatch_policy = NodeDispatchPolicy.ALL_ALL_ALL
 
         with patch("kdit.executor.executor.Executor._get_or_create_node", return_value=mock_node):
-            executor.run_loader_node(node_def, input_pins={}, context=context)
+            executor.run_node(node_def, input_pins={}, context=context)
 
         call_args = mock_node.run.call_args
         pins = call_args.args[0]
@@ -250,7 +250,7 @@ class TestExecutorRunLoaderNode:
         mock_node.dispatch_policy = NodeDispatchPolicy.ALL_ALL_ALL
 
         with patch("kdit.executor.executor.Executor._get_or_create_node", return_value=mock_node):
-            executor.run_loader_node(node_def, input_pins={}, context=context)
+            executor.run_node(node_def, input_pins={}, context=context)
 
         call_kwargs = mock_node.run.call_args.kwargs
         assert "context" in call_kwargs
@@ -267,7 +267,7 @@ class TestExecutorRunLoaderNode:
         mock_node.dispatch_policy = NodeDispatchPolicy.ALL_ALL_ALL
 
         with patch("kdit.executor.executor.Executor._get_or_create_node", return_value=mock_node):
-            executor.run_loader_node(node_def, input_pins={}, context=context)
+            executor.run_node(node_def, input_pins={}, context=context)
 
         call_kwargs = mock_node.run.call_args.kwargs
         injected_ctx = call_kwargs["context"]
@@ -287,7 +287,7 @@ class TestExecutorRunLoaderNode:
         mock_node.dispatch_policy = NodeDispatchPolicy.ALL_ALL_ALL
 
         with patch("kdit.executor.executor.Executor._get_or_create_node", return_value=mock_node):
-            executor.run_loader_node(node_def, input_pins={}, context=context)
+            executor.run_node(node_def, input_pins={}, context=context)
 
         call_kwargs = mock_node.run.call_args.kwargs
         injected_ctx = call_kwargs["context"]
@@ -306,7 +306,7 @@ class TestExecutorRunLoaderNode:
         mock_node.dispatch_policy = NodeDispatchPolicy.ALL_ALL_ALL
 
         with patch("kdit.executor.executor.Executor._get_or_create_node", return_value=mock_node):
-            executor.run_loader_node(node_def, input_pins={}, context=context)
+            executor.run_node(node_def, input_pins={}, context=context)
 
         call_kwargs = mock_node.run.call_args.kwargs
         injected_ctx = call_kwargs["context"]
@@ -314,7 +314,7 @@ class TestExecutorRunLoaderNode:
         assert injected_ctx.metadata["dist_config"] is fake_dist
 
     def test_loader_node_call_signature(self):
-        """run_loader_node() 调用签名验证：node.run(pins: PinHub, context=NodeContext)。"""
+        """run_node() 调用签名验证：node.run(pins: PinHub, context=NodeContext)。"""
         executor = _make_executor()
         context = NodeContext(prompt="test")
 
@@ -324,7 +324,7 @@ class TestExecutorRunLoaderNode:
         mock_node.dispatch_policy = NodeDispatchPolicy.ALL_ALL_ALL
 
         with patch("kdit.executor.executor.Executor._get_or_create_node", return_value=mock_node):
-            executor.run_loader_node(node_def, input_pins={}, context=context)
+            executor.run_node(node_def, input_pins={}, context=context)
 
         call_args = mock_node.run.call_args
         # 只有 1 个位置参数（PinHub）
@@ -400,7 +400,7 @@ class TestDispatchPolicySkip:
         mock_node.output_defs = []
 
         with patch("kdit.executor.executor.Executor._get_or_create_node", return_value=mock_node):
-            executor.run_infer_node(node_def, input_pins={}, context=context)
+            executor.run_node(node_def, input_pins={}, context=context)
 
         # run() 不应被调用（非 rank0）
         mock_node.run.assert_not_called()
@@ -424,7 +424,7 @@ class TestDispatchPolicySkip:
         mock_node.output_defs = []
 
         with patch("kdit.executor.executor.Executor._get_or_create_node", return_value=mock_node):
-            executor.run_infer_node(node_def, input_pins={}, context=context)
+            executor.run_node(node_def, input_pins={}, context=context)
 
         mock_node.run.assert_called_once()
 
@@ -445,7 +445,7 @@ class TestDispatchPolicySkip:
         mock_node.dispatch_policy = NodeDispatchPolicy.R0_R0_BCAST
 
         with patch("kdit.executor.executor.Executor._get_or_create_node", return_value=mock_node):
-            executor.run_loader_node(node_def, input_pins={}, context=context)
+            executor.run_node(node_def, input_pins={}, context=context)
 
         mock_node.run.assert_not_called()
 
@@ -463,7 +463,7 @@ class TestBuildOutputPins:
         mock_node.dispatch_policy = NodeDispatchPolicy.ALL_ALL_ALL
 
         with patch("kdit.executor.executor.Executor._get_or_create_node", return_value=mock_node):
-            output_pins = executor.run_infer_node(node_def, input_pins={}, context=NodeContext(prompt="test"))
+            output_pins = executor.run_node(node_def, input_pins={}, context=NodeContext(prompt="test"))
 
         assert TensorKey.LATENTS in output_pins
         assert output_pins[TensorKey.LATENTS] == TensorPoolKey(5, TensorKey.LATENTS)
@@ -478,7 +478,7 @@ class TestBuildOutputPins:
         mock_node.dispatch_policy = NodeDispatchPolicy.ALL_ALL_ALL
 
         with patch("kdit.executor.executor.Executor._get_or_create_node", return_value=mock_node):
-            output_pins = executor.run_loader_node(node_def, input_pins={}, context=NodeContext(metadata={}))
+            output_pins = executor.run_node(node_def, input_pins={}, context=NodeContext(metadata={}))
 
         assert ModelKey.VAE_WAN2_2 in output_pins
         assert output_pins[ModelKey.VAE_WAN2_2] == ModelPoolKey(2, ModelKey.VAE_WAN2_2)
@@ -493,7 +493,7 @@ class TestBuildOutputPins:
         mock_node.dispatch_policy = NodeDispatchPolicy.ALL_ALL_ALL
 
         with patch("kdit.executor.executor.Executor._get_or_create_node", return_value=mock_node):
-            output_pins = executor.run_infer_node(node_def, input_pins={}, context=NodeContext(prompt="test"))
+            output_pins = executor.run_node(node_def, input_pins={}, context=NodeContext(prompt="test"))
 
         assert output_pins == {}
 
@@ -507,17 +507,17 @@ class TestBuildOutputPins:
         mock_node.dispatch_policy = NodeDispatchPolicy.ALL_ALL_ALL
 
         with patch("kdit.executor.executor.Executor._get_or_create_node", return_value=mock_node):
-            output_pins = executor.run_infer_node(node_def, input_pins={}, context=NodeContext(prompt="test"))
+            output_pins = executor.run_node(node_def, input_pins={}, context=NodeContext(prompt="test"))
 
         assert output_pins[TensorKey.POSITIVE] == TensorPoolKey(3, TensorKey.POSITIVE)
         assert output_pins[TensorKey.NEGATIVE] == TensorPoolKey(3, TensorKey.NEGATIVE)
 
 
 class TestAutoConsumeInputTensors:
-    """测试 run_infer_node() 自动消费输入 tensor 引用。"""
+    """测试 run_node() 自动消费输入 tensor 引用。"""
 
     def test_consume_called_for_input_tensors(self):
-        """run_infer_node() 执行后自动 consume 输入 tensor 的引用。"""
+        """run_node() 执行后自动 consume 输入 tensor 的引用。"""
         executor = _make_executor()
         node_def = NodeDef(node_id=5, node_type=InferNodeType.GENERATE, model_key=ModelKey.Wan2_2_T2V_14B)
 
@@ -533,7 +533,7 @@ class TestAutoConsumeInputTensors:
         input_pins = {TensorKey.POSITIVE: input_pool_key}
 
         with patch("kdit.executor.executor.Executor._get_or_create_node", return_value=mock_node):
-            executor.run_infer_node(node_def, input_pins=input_pins, context=NodeContext(prompt="test"))
+            executor.run_node(node_def, input_pins=input_pins, context=NodeContext(prompt="test"))
 
         # ref_count 从 2 降到 1，tensor 仍存在
         assert executor.tensor_pool.get(input_pool_key) is not None
@@ -554,13 +554,13 @@ class TestAutoConsumeInputTensors:
         input_pins = {TensorKey.POSITIVE: input_pool_key}
 
         with patch("kdit.executor.executor.Executor._get_or_create_node", return_value=mock_node):
-            executor.run_infer_node(node_def, input_pins=input_pins, context=NodeContext(prompt="test"))
+            executor.run_node(node_def, input_pins=input_pins, context=NodeContext(prompt="test"))
 
         # ref_count 从 1 降到 0，tensor 被释放
         assert executor.tensor_pool.get(input_pool_key) is None
 
     def test_loader_does_not_consume_inputs(self):
-        """run_loader_node() 不自动消费输入 tensor（Loader 没有 tensor 输入）。"""
+        """run_node() 不自动消费输入 tensor（Loader 没有 tensor 输入）。"""
         executor = _make_executor()
         node_def = NodeDef(node_id=0, node_type=IONodeType.LOAD_MODEL, model_key=ModelKey.T5TextEncoder)
 
@@ -576,7 +576,7 @@ class TestAutoConsumeInputTensors:
         input_pins = {TensorKey.POSITIVE: input_pool_key}
 
         with patch("kdit.executor.executor.Executor._get_or_create_node", return_value=mock_node):
-            executor.run_loader_node(node_def, input_pins=input_pins, context=NodeContext(metadata={}))
+            executor.run_node(node_def, input_pins=input_pins, context=NodeContext(metadata={}))
 
         # Loader 不消费，tensor 仍存在
         assert executor.tensor_pool.get(input_pool_key) is not None
