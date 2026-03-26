@@ -137,7 +137,7 @@ git clone https://github.com/Tencent/kDiT.git
 
 # 3. 进入 kDiT 目录并安装依赖
 cd kDiT
-./scripts/install.sh
+./scripts/install_public.sh
 ```
 
 安装完成后，重启 ComfyUI 即可在节点列表中看到 kDiT 相关节点。更多 ComfyUI 使用说明请参考 [comfyui/README.md](./comfyui/README.md)。

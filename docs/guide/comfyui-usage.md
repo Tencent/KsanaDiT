@@ -19,7 +19,7 @@ git clone https://github.com/Tencent/kDiT.git
 
 # 3. Enter the kDiT directory and install via script
 cd kDiT
-./scripts/install.sh
+./scripts/install_public.sh
 ```
 
 The install script automatically detects your platform (GPU/NPU/XPU), installs all dependencies, and sets up ComfyUI custom nodes.

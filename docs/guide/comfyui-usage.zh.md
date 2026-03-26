@@ -19,7 +19,7 @@ git clone https://github.com/Tencent/kDiT.git
 
 # 3. 进入 kDiT 目录并通过脚本安装
 cd kDiT
-./scripts/install.sh
+./scripts/install_public.sh
 ```
 
 安装脚本会自动检测平台（GPU/NPU/XPU），安装所有依赖，并自动配置 ComfyUI 自定义节点。

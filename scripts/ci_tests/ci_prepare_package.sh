@@ -48,7 +48,7 @@ cd /ci_workspace/${BK_CI_GIT_REPO_HEAD_COMMIT_ID}/
 pip uninstall -y kdit
 pip uninstall -y ksana-dit
 
-echo -e "yes\nyes\n" | ./scripts/install.sh
+echo -e "y\ny\n" | ./scripts/install.sh
 
 ln -sf /dockerdata/ci-models/single/comfy_models .
 ln -sf /dockerdata/ci-models/single/Wan2.2-Lightning .
