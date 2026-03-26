@@ -1,4 +1,4 @@
-# 工作流规范：测试、格式检查与文档同步
+# 交付验收：测试、格式检查与文档同步
 
 ---
 
@@ -101,6 +101,28 @@ pre-commit run --all-files
 
 - ❌ **禁止**跳过 pre-commit 检查（`git commit --no-verify`），除非有明确的临时理由
 - ❌ **禁止**手动运行 `black` 或 `ruff` 来替代 pre-commit — 以 pre-commit 配置为准，确保团队一致性
+
+### pytest 与 pre-commit 的检查维度差异
+
+> **关键认知**：pytest 和 pre-commit 检查的是**完全不同的维度**，两者缺一不可。仅靠 pytest 全绿不能认为代码正确。
+
+| 检查工具 | 检查方式 | 能发现的问题 | 不能发现的问题 |
+|---------|---------|-------------|-------------|
+| pytest | **运行时**执行代码 | 逻辑错误、功能缺陷、运行时异常 | 类型注解引用未定义名称（F821）、格式问题、unused import |
+| pre-commit (ruff) | **静态**分析源码 | F821、格式问题、import 顺序、未使用变量 | 逻辑错误、运行时行为 |
+
+**典型陷阱**：`from __future__ import annotations`（PEP 563）使所有类型注解变成惰性字符串，运行时不求值。这意味着注解中引用的未导入名称在 pytest 中**永远不会报错**，只有 ruff 等静态工具才能发现。
+
+```python
+# 示例：pytest 通过但 ruff 报 F821
+from __future__ import annotations
+
+class Foo:
+    def bar(self) -> UndefinedType:  # F821: ruff 报错，pytest 不报错
+        return 42
+```
+
+**实操要求**：实现完成后，必须先 `git commit`（触发 pre-commit）检查静态问题，再运行 pytest 检查运行时行为。两步都通过才算完成。
 
 ---
 

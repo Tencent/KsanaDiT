@@ -15,7 +15,8 @@
 from abc import ABC, abstractmethod
 
 from .node_context import NodeContext
-from .node_types import NodeDispatchPolicy, PinDef
+from .node_types import NodeDispatchPolicy
+from .pin_def import PinDef
 from .pin_hub import PinHub
 
 

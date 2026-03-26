@@ -27,11 +27,11 @@ description: >
 |------|------|
 | [`00_install.md`](00_install.md) | Roo Code / Claude Code 的 Skill 安装方式（符号链接） |
 
-### 01 Spec Coding
+### 01 Development Spec
 
 | 文件 | 主题 |
 |------|------|
-| [`01_spec_coding/spec-coding.md`](01_spec_coding/spec-coding.md) | Spec Coding：先设计后编码的 5 步工作流（需求澄清→可行性分析→结构设计→测试设计→编码实现） |
+| [`01_development_spec/development_spec.md`](01_development_spec/development_spec.md) | Development Spec：先设计后编码的 7 步工作流（需求澄清→可行性分析→结构设计→测试设计→编码实现→校验→文档同步），适用于编码实现和架构讨论/设计评审 |
 
 ### 02 架构
 
@@ -51,7 +51,7 @@ description: >
 
 | 文件 | 主题 |
 |------|------|
-| [`03_standards/imports-and-types.md`](03_standards/imports-and-types.md) | Import 风格（方案 B）、类型注解规范、Lint 抑制注释 |
+| [`03_standards/imports-and-types.md`](03_standards/imports-and-types.md) | Import 风格（方案 B）、类型注解规范、未使用的变量import注释 |
 | [`03_standards/key-system.md`](03_standards/key-system.md) | Key 类型体系（ModelKey / PipelineKey / ModelPoolKey / TensorPoolKey / InferNodeType / IONodeType） |
 | [`03_standards/node-and-tensor.md`](03_standards/node-and-tensor.md) | Node/Tensor API、Ownership 关系、InferNode 开发规范 |
 | [`03_standards/exception-handling.md`](03_standards/exception-handling.md) | 异常处理规范：禁止裸 except Exception、常见异常类型速查 |
@@ -61,4 +61,4 @@ description: >
 
 | 文件 | 主题 |
 |------|------|
-| [`04_quality/checklist.md`](04_quality/checklist.md) | 质量保障清单：单元测试、代码格式检查、文档同步规范 |
+| [`04_quality/verification.md`](04_quality/verification.md) | 交付验收：单元测试、代码格式检查、文档同步规范 |

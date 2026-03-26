@@ -39,8 +39,6 @@ from kdit.nodes.loaders.text_encoder_loader import TextEncoderLoaderNode
 from kdit.nodes.loaders.vae_loader import VAELoaderNode
 from kdit.tensor.tensor_pool import TensorPool
 
-_NODE_ID = 42
-
 
 def _make_device_info():
     return DeviceInfo(
@@ -51,15 +49,16 @@ def _make_device_info():
     )
 
 
-def _make_loader_pins(*, node_id=_NODE_ID, model_key, model_pool=None):
+def _make_loader_pins(*, model_key, model_pool=None):
     """为 Loader 节点构建 PinHub — Loader 没有输入 pin，只有输出。"""
-    node_def = NodeDef(node_id=node_id, node_type=IONodeType.LOAD_MODEL, model_key=model_key)
-    return PinHub(
+    node_def = NodeDef(node_type=IONodeType.LOAD_MODEL, model_key=model_key)
+    pins = PinHub(
         node_def=node_def,
         input_pins={},
         tensor_pool=TensorPool(),
         model_pool=model_pool or ModelPool(),
     )
+    return pins, node_def
 
 
 class TestTextEncoderLoaderNode(unittest.TestCase):
@@ -76,7 +75,7 @@ class TestTextEncoderLoaderNode(unittest.TestCase):
     @patch("kdit.nodes.loaders.text_encoder_loader.load_default_settings")
     @patch("kdit.nodes.loaders.text_encoder_loader.Path")
     @patch("kdit.nodes.loaders.text_encoder_loader.os.path.exists", return_value=True)
-    def test_run_puts_model_into_pool(self, mock_exists, mock_path_cls, mock_load_settings, mock_model_cls):
+    def test_run_puts_model_into_pool(self, _mock_exists, mock_path_cls, mock_load_settings, mock_model_cls):
         # ── arrange ──
         mock_path_cls.return_value.is_dir.return_value = True
         mock_settings = MagicMock()
@@ -89,13 +88,13 @@ class TestTextEncoderLoaderNode(unittest.TestCase):
             metadata={"model_path": "/fake/text_encoder"},
             device=self.device_info,
         )
-        pins = _make_loader_pins(model_key=self.model_key, model_pool=self.model_pool)
+        pins, node_def = _make_loader_pins(model_key=self.model_key, model_pool=self.model_pool)
 
         # ── act ──
         self.node.run(pins, context=context)
 
         # ── assert: model 被正确写入 ModelPool ──
-        expected_key = ModelPoolKey(_NODE_ID, self.model_key)
+        expected_key = ModelPoolKey(node_def.node_id, self.model_key)
         stored_model = self.model_pool.get_model(expected_key)
         self.assertIs(stored_model, mock_model)
 
@@ -112,7 +111,7 @@ class TestTextEncoderLoaderNode(unittest.TestCase):
     @patch("kdit.nodes.loaders.text_encoder_loader.load_default_settings")
     @patch("kdit.nodes.loaders.text_encoder_loader.Path")
     @patch("kdit.nodes.loaders.text_encoder_loader.os.path.exists", return_value=True)
-    def test_run_with_qwen_model_key(self, mock_exists, mock_path_cls, mock_load_settings, mock_model_cls):
+    def test_run_with_qwen_model_key(self, _mock_exists, mock_path_cls, mock_load_settings, mock_model_cls):
         """验证不同 model_key 也能正确写入 ModelPool。"""
         self.node._factory_model_key = ModelKey.Qwen2VLTextEncoder
         mock_path_cls.return_value.is_dir.return_value = True
@@ -124,24 +123,24 @@ class TestTextEncoderLoaderNode(unittest.TestCase):
             metadata={"model_path": "/fake/qwen_encoder"},
             device=self.device_info,
         )
-        pins = _make_loader_pins(model_key=ModelKey.Qwen2VLTextEncoder, model_pool=self.model_pool)
+        pins, node_def = _make_loader_pins(model_key=ModelKey.Qwen2VLTextEncoder, model_pool=self.model_pool)
 
         self.node.run(pins, context=context)
 
-        expected_key = ModelPoolKey(_NODE_ID, ModelKey.Qwen2VLTextEncoder)
+        expected_key = ModelPoolKey(node_def.node_id, ModelKey.Qwen2VLTextEncoder)
         stored_model = self.model_pool.get_model(expected_key)
         self.assertIs(stored_model, mock_model_cls.return_value)
 
     @patch("kdit.nodes.loaders.text_encoder_loader.Path")
     @patch("kdit.nodes.loaders.text_encoder_loader.os.path.exists", return_value=False)
-    def test_run_raises_on_invalid_path(self, mock_exists, mock_path_cls):
+    def test_run_raises_on_invalid_path(self, _mock_exists, _mock_path_cls):
         """checkpoint_dir 不存在时应抛出 ValueError。"""
         context = NodeContext(
             prompt=["test"],
             metadata={"model_path": "/nonexistent"},
             device=self.device_info,
         )
-        pins = _make_loader_pins(model_key=self.model_key, model_pool=self.model_pool)
+        pins, _ = _make_loader_pins(model_key=self.model_key, model_pool=self.model_pool)
 
         with self.assertRaises(ValueError):
             self.node.run(pins, context=context)
@@ -160,7 +159,7 @@ class TestVAELoaderNode(unittest.TestCase):
     @patch("kdit.nodes.loaders.vae_loader.load_default_settings")
     @patch("kdit.nodes.loaders.vae_loader.is_file_or_dir", return_value=True)
     @patch("kdit.nodes.loaders.vae_loader.os.path.exists", return_value=True)
-    def test_run_puts_model_into_pool(self, mock_exists, mock_is_file, mock_load_settings):
+    def test_run_puts_model_into_pool(self, _mock_exists, _mock_is_file, mock_load_settings):
         # ── arrange ──
         mock_settings = MagicMock()
         mock_load_settings.return_value = mock_settings
@@ -172,13 +171,13 @@ class TestVAELoaderNode(unittest.TestCase):
                 metadata={"model_path": "/fake/vae.safetensors"},
                 device=self.device_info,
             )
-            pins = _make_loader_pins(model_key=self.model_key, model_pool=self.model_pool)
+            pins, node_def = _make_loader_pins(model_key=self.model_key, model_pool=self.model_pool)
 
             # ── act ──
             self.node.run(pins, context=context)
 
         # ── assert: model 被正确写入 ModelPool ──
-        expected_key = ModelPoolKey(_NODE_ID, self.model_key)
+        expected_key = ModelPoolKey(node_def.node_id, self.model_key)
         stored_model = self.model_pool.get_model(expected_key)
         self.assertIs(stored_model, mock_model)
 
@@ -188,7 +187,7 @@ class TestVAELoaderNode(unittest.TestCase):
     @patch("kdit.nodes.loaders.vae_loader.load_default_settings")
     @patch("kdit.nodes.loaders.vae_loader.is_file_or_dir", return_value=True)
     @patch("kdit.nodes.loaders.vae_loader.os.path.exists", return_value=True)
-    def test_run_with_qwen_vae(self, mock_exists, mock_is_file, mock_load_settings):
+    def test_run_with_qwen_vae(self, _mock_exists, _mock_is_file, mock_load_settings):
         """验证 QwenImageVAE model_key 也能正确写入 ModelPool。"""
         self.node._factory_model_key = ModelKey.QwenImageVAE
         mock_load_settings.return_value = MagicMock()
@@ -202,18 +201,18 @@ class TestVAELoaderNode(unittest.TestCase):
                 metadata={"model_path": "/fake/qwen_vae.safetensors"},
                 device=self.device_info,
             )
-            pins = _make_loader_pins(model_key=ModelKey.QwenImageVAE, model_pool=self.model_pool)
+            pins, node_def = _make_loader_pins(model_key=ModelKey.QwenImageVAE, model_pool=self.model_pool)
 
             self.node.run(pins, context=context)
 
-        expected_key = ModelPoolKey(_NODE_ID, ModelKey.QwenImageVAE)
+        expected_key = ModelPoolKey(node_def.node_id, ModelKey.QwenImageVAE)
         stored_model = self.model_pool.get_model(expected_key)
         self.assertIs(stored_model, mock_model)
 
     @patch("kdit.nodes.loaders.vae_loader.load_default_settings")
     @patch("kdit.nodes.loaders.vae_loader.is_file_or_dir", return_value=True)
     @patch("kdit.nodes.loaders.vae_loader.os.path.exists", return_value=True)
-    def test_run_passes_shard_fn(self, mock_exists, mock_is_file, mock_load_settings):
+    def test_run_passes_shard_fn(self, _mock_exists, _mock_is_file, mock_load_settings):
         """验证 metadata 中的 shard_fn 被正确传递给 model.load()。"""
         mock_load_settings.return_value = MagicMock()
         mock_model = MagicMock()
@@ -225,7 +224,7 @@ class TestVAELoaderNode(unittest.TestCase):
                 metadata={"model_path": "/fake/vae.safetensors", "shard_fn": fake_shard_fn},
                 device=self.device_info,
             )
-            pins = _make_loader_pins(model_key=self.model_key, model_pool=self.model_pool)
+            pins, _ = _make_loader_pins(model_key=self.model_key, model_pool=self.model_pool)
 
             self.node.run(pins, context=context)
 
@@ -233,14 +232,14 @@ class TestVAELoaderNode(unittest.TestCase):
 
     @patch("kdit.nodes.loaders.vae_loader.is_file_or_dir", return_value=False)
     @patch("kdit.nodes.loaders.vae_loader.os.path.exists", return_value=False)
-    def test_run_raises_on_invalid_path(self, mock_exists, mock_is_file):
+    def test_run_raises_on_invalid_path(self, _mock_exists, _mock_is_file):
         """model_path 不存在时应抛出 ValueError。"""
         context = NodeContext(
             prompt=["test"],
             metadata={"model_path": "/nonexistent"},
             device=self.device_info,
         )
-        pins = _make_loader_pins(model_key=self.model_key, model_pool=self.model_pool)
+        pins, _ = _make_loader_pins(model_key=self.model_key, model_pool=self.model_pool)
 
         with self.assertRaises(ValueError):
             self.node.run(pins, context=context)
@@ -275,7 +274,7 @@ class TestDiffusionLoaderNode(unittest.TestCase):
     @patch("kdit.nodes.loaders.diffusion_model_loader.build_ops")
     @patch("kdit.nodes.loaders.diffusion_model_loader.load_default_settings")
     @patch("kdit.nodes.loaders.diffusion_model_loader.is_file_or_dir", return_value=True)
-    def test_run_single_model_puts_into_pool(self, mock_is_file, mock_load_settings, mock_build_ops, mock_pmm_cls):
+    def test_run_single_model_puts_into_pool(self, _mock_is_file, mock_load_settings, mock_build_ops, _mock_pmm_cls):
         """单模型路径 — run() 后 ModelPool 中存在正确的 model。"""
         # ── arrange ──
         mock_load_settings.return_value = MagicMock()
@@ -297,7 +296,7 @@ class TestDiffusionLoaderNode(unittest.TestCase):
             },
             device=self.device_info,
         )
-        pins = _make_loader_pins(model_key=self.model_key, model_pool=self.model_pool)
+        pins, node_def = _make_loader_pins(model_key=self.model_key, model_pool=self.model_pool)
 
         with (
             patch.dict(DiffusionLoaderNode._MAP_KEY_TO_MODEL_CLASS, {self.model_key: mock_model_cls}),
@@ -307,7 +306,7 @@ class TestDiffusionLoaderNode(unittest.TestCase):
             self.node.run(pins, context=context)
 
         # ── assert: model 被正确写入 ModelPool ──
-        expected_key = ModelPoolKey(_NODE_ID, self.model_key)
+        expected_key = ModelPoolKey(node_def.node_id, self.model_key)
         stored_model = self.model_pool.get_model(expected_key)
         self.assertIs(stored_model, mock_model)
 
@@ -324,7 +323,9 @@ class TestDiffusionLoaderNode(unittest.TestCase):
     @patch("kdit.nodes.loaders.diffusion_model_loader.build_ops")
     @patch("kdit.nodes.loaders.diffusion_model_loader.load_default_settings")
     @patch("kdit.nodes.loaders.diffusion_model_loader.is_file_or_dir", return_value=True)
-    def test_run_multi_model_puts_list_into_pool(self, mock_is_file, mock_load_settings, mock_build_ops, mock_pmm_cls):
+    def test_run_multi_model_puts_list_into_pool(
+        self, _mock_is_file, mock_load_settings, mock_build_ops, _mock_pmm_cls
+    ):
         """多模型路径（如 high + low noise）— run() 后 ModelPool 中存在 model 列表。"""
         # ── arrange ──
         mock_load_settings.return_value = MagicMock()
@@ -339,7 +340,7 @@ class TestDiffusionLoaderNode(unittest.TestCase):
 
         call_count = {"n": 0}
 
-        def _make_model(*args, **kwargs):
+        def _make_model(*_args, **_kwargs):
             call_count["n"] += 1
             return mock_model_a if call_count["n"] == 1 else mock_model_b
 
@@ -355,7 +356,7 @@ class TestDiffusionLoaderNode(unittest.TestCase):
             },
             device=self.device_info,
         )
-        pins = _make_loader_pins(model_key=self.model_key, model_pool=self.model_pool)
+        pins, node_def = _make_loader_pins(model_key=self.model_key, model_pool=self.model_pool)
 
         with (
             patch.dict(DiffusionLoaderNode._MAP_KEY_TO_MODEL_CLASS, {self.model_key: mock_model_cls}),
@@ -364,7 +365,7 @@ class TestDiffusionLoaderNode(unittest.TestCase):
             self.node.run(pins, context=context)
 
         # ── assert: model 列表被正确写入 ModelPool ──
-        expected_key = ModelPoolKey(_NODE_ID, self.model_key)
+        expected_key = ModelPoolKey(node_def.node_id, self.model_key)
         stored = self.model_pool.get_model(expected_key)
         self.assertIsInstance(stored, list)
         self.assertEqual(len(stored), 2)
@@ -375,7 +376,7 @@ class TestDiffusionLoaderNode(unittest.TestCase):
     @patch("kdit.nodes.loaders.diffusion_model_loader.build_ops")
     @patch("kdit.nodes.loaders.diffusion_model_loader.load_default_settings")
     @patch("kdit.nodes.loaders.diffusion_model_loader.is_file_or_dir", return_value=True)
-    def test_run_with_i2v_model_key(self, mock_is_file, mock_load_settings, mock_build_ops, mock_pmm_cls):
+    def test_run_with_i2v_model_key(self, _mock_is_file, mock_load_settings, mock_build_ops, _mock_pmm_cls):
         """验证 I2V model_key 也能正确写入 ModelPool。"""
         self.node._factory_model_key = ModelKey.Wan2_2_I2V_14B
         mock_load_settings.return_value = MagicMock()
@@ -393,7 +394,7 @@ class TestDiffusionLoaderNode(unittest.TestCase):
             },
             device=self.device_info,
         )
-        pins = _make_loader_pins(model_key=ModelKey.Wan2_2_I2V_14B, model_pool=self.model_pool)
+        pins, node_def = _make_loader_pins(model_key=ModelKey.Wan2_2_I2V_14B, model_pool=self.model_pool)
 
         with (
             patch.dict(
@@ -404,7 +405,7 @@ class TestDiffusionLoaderNode(unittest.TestCase):
         ):
             self.node.run(pins, context=context)
 
-        expected_key = ModelPoolKey(_NODE_ID, ModelKey.Wan2_2_I2V_14B)
+        expected_key = ModelPoolKey(node_def.node_id, ModelKey.Wan2_2_I2V_14B)
         stored_model = self.model_pool.get_model(expected_key)
         self.assertIs(stored_model, mock_model)
 
@@ -419,7 +420,7 @@ class TestDiffusionLoaderNode(unittest.TestCase):
             },
             device=self.device_info,
         )
-        pins = _make_loader_pins(model_key=self.model_key, model_pool=self.model_pool)
+        pins, _ = _make_loader_pins(model_key=self.model_key, model_pool=self.model_pool)
 
         with self.assertRaises(ValueError):
             self.node.run(pins, context=context)

@@ -15,17 +15,15 @@
 from .base_node import InferNode, IONode
 from .device_info import DeviceInfo
 from .node_context import NodeContext
-from .node_def import NodeDef
+from .node_def import NodeDef, NodeRef
 from .node_factory import InferNodeFactory, LoaderNodeFactory
 from .node_types import (
     InferNodeType,
     IONodeType,
     NodeDispatchPolicy,
     NodeType,
-    PinDef,
-    PinPoolKey,
-    Pins,
 )
+from .pin_def import PinDef, PinPoolKey, PinRef, Pins
 from .pin_hub import PinHub
 
 __all__ = [
@@ -38,11 +36,12 @@ __all__ = [
     "InferNodeFactory",
     "NodeContext",
     "NodeDef",
-    "DeviceInfo",
     "NodeDispatchPolicy",
+    "NodeRef",
     "NodeType",
     "PinDef",
     "PinHub",
     "PinPoolKey",
+    "PinRef",
     "Pins",
 ]

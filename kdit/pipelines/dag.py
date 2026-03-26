@@ -21,10 +21,11 @@ from collections import deque
 
 from kdit.models.model_key import ModelKey
 from kdit.models.model_pool_key import ModelPoolKey
-from kdit.nodes.core.node_types import Pins
+from kdit.nodes.core.node_def import NodeDef
+from kdit.nodes.core.pin_def import Pins
 from kdit.tensor.tensor_pool_key import TensorPoolKey
 
-from .pipeline_def import Edge, NodeDef
+from .pipeline_def import Edge
 
 
 def topo_sort(nodes: tuple[NodeDef, ...], edges: tuple[Edge, ...]) -> list[NodeDef]:

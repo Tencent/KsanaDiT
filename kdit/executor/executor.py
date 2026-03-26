@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import dataclasses
 from abc import ABC
+from dataclasses import replace
 from functools import partial
 
 import torch
@@ -176,7 +176,7 @@ class Executor(ABC):
         if context is None:
             return context
         if context.device is None:
-            context = dataclasses.replace(context, device=self.device_info)
+            context = replace(context, device=self.device_info)
         return context
 
     def run_node(self, node_def, input_pins, context) -> dict:

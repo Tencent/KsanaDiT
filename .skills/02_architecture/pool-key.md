@@ -11,13 +11,13 @@
 # kdit/models/model_pool_key.py
 @dataclass(frozen=True)
 class ModelPoolKey:
-    node_id: int       # Builder 自动分配的 Node 唯一 ID
+    node_id: int       # NodeDef 全局自增自动分配的唯一 ID
     pin: ModelKey       # 枚举直接存储
 
 # kdit/tensor/tensor_pool_key.py
 @dataclass(frozen=True)
 class TensorPoolKey:
-    node_id: int       # Builder 自动分配的 Node 唯一 ID
+    node_id: int       # NodeDef 全局自增自动分配的唯一 ID
     pin: TensorKey      # 枚举直接存储
 ```
 

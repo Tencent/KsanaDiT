@@ -3,51 +3,61 @@
 import pytest
 
 from kdit.models.model_key import ModelKey
-from kdit.pipelines.pin_ref import NodeRef, PinRef
+from kdit.nodes.core.node_def import NodeDef, NodeRef
+from kdit.nodes.core.node_types import InferNodeType
+from kdit.nodes.core.pin_def import PinRef
 from kdit.tensor.tensor_key import TensorKey
 
 
 class TestPinRef:
     def test_tensor_pin_ref(self):
-        ref = PinRef(node_id=0, pin=TensorKey.POSITIVE)
-        assert ref.node_id == 0
+        ref = PinRef(node_id=42, pin=TensorKey.POSITIVE)
+        assert ref.node_id == 42
         assert ref.pin is TensorKey.POSITIVE
 
     def test_model_pin_ref(self):
-        ref = PinRef(node_id=1, pin=ModelKey.T5TextEncoder)
-        assert ref.node_id == 1
+        ref = PinRef(node_id=7, pin=ModelKey.T5TextEncoder)
+        assert ref.node_id == 7
         assert ref.pin is ModelKey.T5TextEncoder
 
     def test_frozen(self):
-        ref = PinRef(node_id=0, pin=TensorKey.POSITIVE)
+        ref = PinRef(node_id=1, pin=TensorKey.POSITIVE)
         with pytest.raises(AttributeError):
-            ref.node_id = 1
+            ref.node_id = 2
 
 
 class TestNodeRef:
+    def _make_node_def(self):
+        return NodeDef(node_type=InferNodeType.TEXT_ENCODE)
+
     def test_tensor_key_access(self):
-        node = NodeRef(0)
+        nd = self._make_node_def()
+        node = NodeRef(nd)
         ref = node.POSITIVE
         assert isinstance(ref, PinRef)
-        assert ref == PinRef(0, TensorKey.POSITIVE)
+        assert ref == PinRef(nd.node_id, TensorKey.POSITIVE)
 
     def test_model_key_access(self):
-        node = NodeRef(0)
+        nd = self._make_node_def()
+        node = NodeRef(nd)
         ref = node.T5TextEncoder
         assert isinstance(ref, PinRef)
-        assert ref == PinRef(0, ModelKey.T5TextEncoder)
+        assert ref == PinRef(nd.node_id, ModelKey.T5TextEncoder)
 
     def test_invalid_name_raises(self):
-        node = NodeRef(0)
+        nd = self._make_node_def()
+        node = NodeRef(nd)
         with pytest.raises(AttributeError, match="Unknown pin"):
             _ = node.INVALID_NAME
 
     def test_node_id_property(self):
-        node = NodeRef(42)
-        assert node.node_id == 42
+        nd = self._make_node_def()
+        node = NodeRef(nd)
+        assert node.node_id == nd.node_id
 
     def test_dir_contains_all_members(self):
-        node = NodeRef(0)
+        nd = self._make_node_def()
+        node = NodeRef(nd)
         members = dir(node)
         for tk in TensorKey.__members__:
             assert tk in members
@@ -55,6 +65,7 @@ class TestNodeRef:
             assert mk in members
 
     def test_base_latent_access(self):
-        node = NodeRef(3)
+        nd = self._make_node_def()
+        node = NodeRef(nd)
         ref = node.BASE_LATENT
-        assert ref == PinRef(3, TensorKey.BASE_LATENT)
+        assert ref == PinRef(nd.node_id, TensorKey.BASE_LATENT)

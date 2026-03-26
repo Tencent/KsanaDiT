@@ -90,7 +90,8 @@ class TestGeneratorNode(unittest.TestCase):
         }
 
     def _make_pins(self, input_pins=None):
-        node_def = NodeDef(node_id=30, node_type=InferNodeType.GENERATE, model_key=ModelKey.Wan2_2_T2V_14B)
+        node_def = NodeDef(node_type=InferNodeType.GENERATE, model_key=ModelKey.Wan2_2_T2V_14B)
+        self._node_def = node_def
         return PinHub(
             node_def=node_def,
             input_pins=input_pins or self.input_pins,
@@ -122,8 +123,8 @@ class TestGeneratorNode(unittest.TestCase):
         self.assertIs(ctx_arg.sample_config, self.sample_config)
         self.assertIs(ctx_arg.runtime_config, self.runtime_config)
 
-        # 验证 latents 写入 tensor_pool（通过 PinHub → TensorPoolKey(30, LATENTS)）
-        tv = self.tensor_pool.get(TensorPoolKey(30, TensorKey.LATENTS))
+        # 验证 latents 写入 tensor_pool（通过 PinHub → TensorPoolKey(node_id, LATENTS)）
+        tv = self.tensor_pool.get(TensorPoolKey(self._node_def.node_id, TensorKey.LATENTS))
         self.assertIsNotNone(tv)
 
     @patch("kdit.nodes.infers.generator_node.GeneratorRunner")

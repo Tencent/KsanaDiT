@@ -36,7 +36,7 @@ graph TB
         PinHub["PinHub\n沙箱化数据访问器\nget_model / get_tensor / put_tensor"]
         NodeContext["NodeContext\n可序列化上下文\nmetadata 禁止含 Tensor"]
         DeviceInfo["DeviceInfo\nfrozen dataclass\nExecutor 注入"]
-        NodeDef["NodeDef\nfrozen dataclass\nnode_id + node_type + model_key"]
+        NodeDef["NodeDef\nfrozen dataclass\nnode_id(auto) + node_type + model_key\nkdit/nodes/core/node_def.py"]
         DispatchPolicy["NodeDispatchPolicy\nALL_ALL_ALL\nR0_R0_BCAST\nALL_R0_R0"]
     end
 
@@ -65,7 +65,7 @@ graph TB
         PipelineKey["PipelineKey 枚举\nPipeline 身份标识"]
         InferNodeTypeK["InferNodeType 枚举\n推理节点类型"]
         IONodeTypeK["IONodeType 枚举\n加载节点类型"]
-        PinDef["PinDef = TensorKey | ModelKey\nPin 声明类型"]
+        PinDef["PinDef = TensorKey | ModelKey\nPin 声明类型\nkdit/nodes/core/pin_def.py"]
     end
 
     %% 外部入口 → Pipeline

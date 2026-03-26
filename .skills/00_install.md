@@ -27,7 +27,7 @@ Roo Code 通过以下目录发现和加载 Skill：
 | Skill 名称 | 入口文件 | 适用模式 | 说明 |
 |------------|---------|---------|------|
 | `kdit-skill` | `.skills/SKILL.md` | **全模式**（code、architect、ask、debug） | 项目知识库：架构、规范、API 等。任何模式下理解/修改 kDiT 代码时都需要 |
-| `spec-coding` | `.skills/01_spec_coding/spec-coding.md` | **仅 Code 模式** | 先设计后编码的 7 步工作流，仅在编码实现时触发 |
+| `development_spec` | `.skills/01_development_spec/development_spec.md` | **Code + Architect 模式** | 先设计后编码的 7 步工作流，在编码实现和架构讨论/设计评审时触发 |
 
 ### 目录结构总览
 
@@ -40,8 +40,12 @@ Roo Code 通过以下目录发现和加载 Skill：
 │       └── SKILL.md                 # → 符号链接到 .skills/SKILL.md
 │
 ├── skills-code/                     # Code 模式专属 Skill
-│   └── spec-coding/
-│       └── SKILL.md                 # → 符号链接到 .skills/01_spec_coding/spec-coding.md
+│   └── development_spec/
+│       └── SKILL.md                 # → 符号链接到 .skills/01_development_spec/development_spec.md
+│
+├── skills-architect/                # Architect 模式专属 Skill
+│   └── development_spec/
+│       └── SKILL.md                 # → 符号链接到 .skills/01_development_spec/development_spec.md
 │
 ├── rules-code/                      # 各模式的 Rules（AGENTS.md）
 │   └── AGENTS.md
@@ -65,15 +69,22 @@ mkdir -p .roo/skills/kdit-skill
 rm -f .roo/skills/kdit-skill/SKILL.md
 ln -s ../../../.skills/SKILL.md .roo/skills/kdit-skill/SKILL.md
 
-# ── 2. Code 模式专属 Skill：spec-coding ──
-# 仅 Code 模式下触发（先设计后编码工作流）
-mkdir -p .roo/skills-code/spec-coding
-rm -f .roo/skills-code/spec-coding/SKILL.md
-ln -s ../../../.skills/01_spec_coding/spec-coding.md .roo/skills-code/spec-coding/SKILL.md
+# ── 2. Code 模式 Skill：development_spec ──
+# Code 模式下触发（先设计后编码工作流）
+mkdir -p .roo/skills-code/development_spec
+rm -f .roo/skills-code/development_spec/SKILL.md
+ln -s ../../../.skills/01_development_spec/development_spec.md .roo/skills-code/development_spec/SKILL.md
+
+# ── 3. Architect 模式 Skill：development_spec ──
+# Architect 模式下触发（架构讨论与设计评审）
+mkdir -p .roo/skills-architect/development_spec
+rm -f .roo/skills-architect/development_spec/SKILL.md
+ln -s ../../../.skills/01_development_spec/development_spec.md .roo/skills-architect/development_spec/SKILL.md
 ```
 
 > **重要**：每个 SKILL.md 的 YAML frontmatter 中的 `name` 字段必须与 `.roo/` 下的目录名一致。
-> 例如 `.skills/SKILL.md` 的 `name` 应为 `kdit-skill`，对应目录 `.roo/skills/kdit-skill/`。
+> 例如 `.skills/SKILL.md` 的 `name` 应为 `kdit-skill`，对应目录 `.roo/skills/kdit-skill/`；
+> `.skills/01_development_spec/development_spec.md` 的 `name` 应为 `development_spec`，对应目录 `.roo/skills-code/development_spec/` 和 `.roo/skills-architect/development_spec/`。
 
 > **注意**：Skill 的符号链接是**文件级**（链接 `SKILL.md` 文件本身），而非目录级。
 > 这是因为 `.skills/` 的目录结构（按编号分类）与 Roo Code 要求的目录结构（按 skill-name 命名）不同。
@@ -113,8 +124,11 @@ ls -la .roo/skills/*/SKILL.md 2>/dev/null
 echo "=== Code 模式 Skills ==="
 ls -la .roo/skills-code/*/SKILL.md 2>/dev/null
 
+echo "=== Architect 模式 Skills ==="
+ls -la .roo/skills-architect/*/SKILL.md 2>/dev/null
+
 # 检查链接目标是否存在
-find .roo/skills .roo/skills-code -name "SKILL.md" -type l -exec sh -c \
+find .roo/skills .roo/skills-code .roo/skills-architect -name "SKILL.md" -type l -exec sh -c \
   'test -e "$1" && echo "✅ $1" || echo "❌ BROKEN: $1"' _ {} \; 2>/dev/null
 ```
 
@@ -142,7 +156,7 @@ Claude Code 有三层配置，各司其职：
 | 源文件 | Claude Code Skill 名称 | 注册路径 | 触发方式 |
 |--------|----------------------|---------|---------|
 | `.skills/SKILL.md` | `kdit-skill` | `.claude/skills/kdit-skill/SKILL.md` | 自动触发（理解/修改 kDiT 代码时） + 手动 `/kdit-skill` |
-| `.skills/01_spec_coding/spec-coding.md` | `spec-coding` | `.claude/skills/spec-coding/SKILL.md` | 自动触发（编码实现时） + 手动 `/spec-coding` |
+| `.skills/01_development_spec/development_spec.md` | `development_spec` | `.claude/skills/development_spec/SKILL.md` | 自动触发（编码实现、架构讨论时） + 手动 `/development_spec` |
 
 ### CLAUDE.md — 持久指令
 
@@ -172,8 +186,8 @@ CLAUDE.md 支持 `@path/to/file` 语法导入外部文件，但为保持简洁�
 │   └── skills/                             # 按需 Skill
 │       ├── kdit-skill/
 │       │   └── SKILL.md                    # → 符号链接到 ../../.skills/SKILL.md
-│       └── spec-coding/
-│           └── SKILL.md                    # → 符号链接到 ../../.skills/01_spec_coding/spec-coding.md
+│       └── development_spec/
+│           └── SKILL.md                    # → 符号链接到 ../../.skills/01_development_spec/development_spec.md
 ```
 
 ### 安装步骤
@@ -187,11 +201,11 @@ mkdir -p .claude/skills/kdit-skill
 rm -f .claude/skills/kdit-skill/SKILL.md
 ln -s ../../../.skills/SKILL.md .claude/skills/kdit-skill/SKILL.md
 
-# ── 2. Skill：spec-coding（先设计后编码工作流） ──
-# Claude 在编码实现时自动触发，也可手动 /spec-coding
-mkdir -p .claude/skills/spec-coding
-rm -f .claude/skills/spec-coding/SKILL.md
-ln -s ../../../.skills/01_spec_coding/spec-coding.md .claude/skills/spec-coding/SKILL.md
+# ── 2. Skill：development_spec（先设计后编码工作流） ──
+# Claude 在编码实现或架构讨论时自动触发，也可手动 /development_spec
+mkdir -p .claude/skills/development_spec
+rm -f .claude/skills/development_spec/SKILL.md
+ln -s ../../../.skills/01_development_spec/development_spec.md .claude/skills/development_spec/SKILL.md
 
 # ── 3. CLAUDE.md（持久指令） ──
 # 需要手动创建，内容见下方模板
@@ -223,7 +237,7 @@ kDiT 是一个分布式视频生成推理框架，基于 DAG 编排 + Ray 分布
 本项目配置了以下 Skill，Claude 应在合适时机自动触发：
 
 - **kdit-skill**（`/kdit-skill`）：项目知识库，包含架构、编码规范、API 参考。在理解或修改 kDiT 代码时触发。
-- **spec-coding**（`/spec-coding`）：先设计后编码的工作流。在实现新功能或重大修改时触发。
+- **development_spec**（`/development_spec`）：先设计后编码的工作流。在实现新功能、重大修改或架构讨论与设计评审时触发。
 
 ## 核心约定
 
@@ -278,6 +292,6 @@ test -f CLAUDE.md && echo "✅ CLAUDE.md exists" || echo "⚠️  CLAUDE.md not 
 ```
 
 这些插件提供额外的 Skill（如 `/superpowers:brainstorming`、`/code-review:code-review` 等），
-与我们自定义的 `kdit-skill` 和 `spec-coding` Skill 互补，不冲突。
+与我们自定义的 `kdit-skill` 和 `development_spec` Skill 互补，不冲突。
 
 如需添加权限白名单或 hooks，也在此文件中配置。详见 [Claude Code Settings 文档](https://docs.anthropic.com/en/docs/claude-code/settings)。

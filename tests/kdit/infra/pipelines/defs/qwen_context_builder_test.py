@@ -59,9 +59,9 @@ def _make_inputs(prompt="test", num_prompts=1, **overrides) -> PipelineGenerateI
     return PipelineGenerateInputs(**defaults)
 
 
-def _node_def(node_type, model_key=None, node_id=1):
+def _node_def(node_type, model_key=None):
     """创建 InferNode 的 NodeDef。"""
-    return NodeDef(node_id=node_id, node_type=node_type, model_key=model_key)
+    return NodeDef(node_type=node_type, model_key=model_key)
 
 
 # ── QwenT2IContextBuilder ────────────────────────────────────────────────
@@ -193,7 +193,7 @@ class TestQwenEditContextBuilder(unittest.TestCase):
         extra = QwenEditExtraInputs(img_path="ref.png")
         builder, inputs = self._prepare(extra_inputs=extra)
 
-        nd = _node_def(NT.READ_IMAGE, node_id=10)
+        nd = _node_def(NT.READ_IMAGE)
         ctx = builder.build_context(nd, inputs)
 
         self.assertIn("img_paths", ctx.metadata)

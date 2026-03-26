@@ -12,8 +12,9 @@
 
 ## NodeRef / PinRef — DAG 连线引用
 
-- `NodeRef`：`add_loader()` / `add_infer()` 返回的 Node 引用，支持属性访问生成 PinRef
-- `PinRef`：`(node_id, pin)` 二元组，用于 `connect()` 声明连线
+- `NodeRef`：`add_loader()` / `add_infer()` 返回的 Node 引用，支持属性访问生成 PinRef。定义在 `kdit/nodes/core/node_def.py`
+- `PinRef`：`(node_id, pin)` frozen dataclass，用于 `connect()` 声明连线。定义在 `kdit/nodes/core/pin_def.py`
+- 旧的 `kdit/pipelines/pin_ref.py` 已删除，NodeRef 和 PinRef 分别搬到上述位置
 
 ```python
 vae_a = builder.add_infer(InferNodeType.VAE_ENCODE_SPATIAL, ModelKey.VAE_WAN2_1)

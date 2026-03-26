@@ -35,18 +35,19 @@ from kdit.tensor.tensor_pool import TensorPool
 from kdit.tensor.tensor_pool_key import TensorPoolKey
 
 
-def _make_pins(*, node_id=0, model_key=None, tensor_pool=None, model_pool=None, tensor_mapping=None):
-    """构建一个 PinHub 实例。"""
+def _make_pins(*, model_key=None, tensor_pool=None, model_pool=None, tensor_mapping=None):
+    """构建一个 (PinHub, NodeDef) 元组。"""
     input_pins = dict(tensor_mapping or {})
     if model_key is not None:
         input_pins[model_key] = ModelPoolKey(99, model_key)
-    node_def = NodeDef(node_id=node_id, node_type=InferNodeType.VAE_DECODE, model_key=model_key)
-    return PinHub(
+    node_def = NodeDef(node_type=InferNodeType.VAE_DECODE, model_key=model_key)
+    pins = PinHub(
         node_def=node_def,
         input_pins=input_pins,
         tensor_pool=tensor_pool or MagicMock(),
         model_pool=model_pool or MagicMock(),
     )
+    return pins, node_def
 
 
 class TestVAEDecodeNode(unittest.TestCase):
@@ -77,9 +78,8 @@ class TestVAEDecodeNode(unittest.TestCase):
 
         self.tensor_mapping = {TensorKey.LATENTS: TensorPoolKey(10, TensorKey.LATENTS)}
 
-    def _make_pins(self, node_id=0):
+    def _make_pins(self):
         return _make_pins(
-            node_id=node_id,
             model_key=ModelKey.VAE_WAN2_2,
             tensor_pool=self.tensor_pool,
             model_pool=self.model_pool,
@@ -88,7 +88,7 @@ class TestVAEDecodeNode(unittest.TestCase):
 
     def test_run_calls_forward_decode(self):
         context = NodeContext(device=self.device_info, metadata={})
-        pins = self._make_pins()
+        pins, _ = self._make_pins()
         self.node.run(pins, context=context)
         self.mock_vae.forward_decode.assert_called_once()
         call_kwargs = self.mock_vae.forward_decode.call_args[1]
@@ -97,10 +97,10 @@ class TestVAEDecodeNode(unittest.TestCase):
 
     def test_run_writes_video_to_tensor_pool(self):
         context = NodeContext(device=self.device_info, metadata={})
-        pins = self._make_pins(node_id=5)
+        pins, node_def = self._make_pins()
         self.node.run(pins, context=context)
-        # 验证 VIDEO 写入 tensor_pool（通过 PinHub → TensorPoolKey(5, VIDEO)）
-        tv = self.tensor_pool.get(TensorPoolKey(5, TensorKey.VIDEO))
+        # 验证 VIDEO 写入 tensor_pool（通过 PinHub → TensorPoolKey(node_id, VIDEO)）
+        tv = self.tensor_pool.get(TensorPoolKey(node_def.node_id, TensorKey.VIDEO))
         self.assertIsNotNone(tv)
 
     def test_offload_model_when_requested(self):
@@ -108,13 +108,13 @@ class TestVAEDecodeNode(unittest.TestCase):
             device=self.device_info,
             metadata={"offload_model": True},
         )
-        pins = self._make_pins()
+        pins, _ = self._make_pins()
         self.node.run(pins, context=context)
         self.mock_vae.to.assert_called_once_with(torch.device("cpu"))
 
     def test_no_offload_by_default(self):
         context = NodeContext(device=self.device_info, metadata={})
-        pins = self._make_pins()
+        pins, _ = self._make_pins()
         self.node.run(pins, context=context)
         self.mock_vae.to.assert_not_called()
 

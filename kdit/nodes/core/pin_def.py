@@ -12,10 +12,38 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""Pin 类型定义 — PinDef, PinPoolKey, Pins, PinRef。
+
+Pin 是 Node 的输入/输出端口。本模块定义了 Pin 的静态声明类型（PinDef）、
+运行时 Pool Key 类型（PinPoolKey）、DAG 连线映射（Pins）、以及连线引用（PinRef）。
+"""
+
+from __future__ import annotations
+
 from dataclasses import dataclass
 
 from kdit.models.model_key import ModelKey
+from kdit.models.model_pool_key import ModelPoolKey
 from kdit.tensor.tensor_key import TensorKey
+from kdit.tensor.tensor_pool_key import TensorPoolKey
+
+# ---------------------------------------------------------------------------
+# 类型别名 — Def（静态声明）与 Pin（运行时映射）
+# ---------------------------------------------------------------------------
+
+#: Node 声明的端口类型（TensorKey 或 ModelKey）
+PinDef = TensorKey | ModelKey
+
+#: 运行时 pool 中的实际 key（TensorPoolKey 或 ModelPoolKey）
+PinPoolKey = TensorPoolKey | ModelPoolKey
+
+#: DAG 连线映射：PinDef → PinPoolKey
+Pins = dict[PinDef, PinPoolKey]
+
+
+# ---------------------------------------------------------------------------
+# PinRef — 连线时引用某个 Node 的某个 Pin
+# ---------------------------------------------------------------------------
 
 
 @dataclass(frozen=True)
@@ -33,34 +61,8 @@ class PinRef:
     node_id: int
     pin: TensorKey | ModelKey
 
-    def __rshift__(self, other: "PinRef") -> tuple["PinRef", "PinRef"]:
+    def __rshift__(self, other: PinRef) -> tuple[PinRef, PinRef]:
         """``src >> dst`` — 返回 (src, dst) 元组，供 connect() 使用。"""
         if not isinstance(other, PinRef):
             return NotImplemented
         return (self, other)
-
-
-class NodeRef:
-    """add_loader/add_infer 返回的 Node 引用，用于 connect。
-
-    支持属性访问：node_ref.POSITIVE → PinRef(node_id, TensorKey.POSITIVE)
-    """
-
-    def __init__(self, node_id: int):
-        self._node_id = node_id
-
-    @property
-    def node_id(self) -> int:
-        return self._node_id
-
-    def __getattr__(self, name: str) -> PinRef:
-        # vae_a.BASE_LATENT → PinRef(node_id, TensorKey.BASE_LATENT)
-        if hasattr(TensorKey, name):
-            return PinRef(self._node_id, getattr(TensorKey, name))
-        if hasattr(ModelKey, name):
-            return PinRef(self._node_id, getattr(ModelKey, name))
-        raise AttributeError(f"Unknown pin: {name}")
-
-    def __dir__(self):
-        """IDE 自动补全支持。"""
-        return list(TensorKey.__members__) + list(ModelKey.__members__)

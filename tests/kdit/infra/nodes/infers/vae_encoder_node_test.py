@@ -67,8 +67,8 @@ class TestVAEEncodeSpatialNode(unittest.TestCase):
             TensorKey.END_IMG: TensorPoolKey(10, TensorKey.END_IMG),
         }
 
-    def _make_pins(self, node_id=0):
-        node_def = NodeDef(node_id=node_id, node_type=InferNodeType.VAE_ENCODE_SPATIAL, model_key=ModelKey.VAE_WAN2_2)
+    def _make_pins(self):
+        node_def = NodeDef(node_type=InferNodeType.VAE_ENCODE_SPATIAL, model_key=ModelKey.VAE_WAN2_2)
         return PinHub(
             node_def=node_def,
             input_pins={
@@ -93,10 +93,11 @@ class TestVAEEncodeSpatialNode(unittest.TestCase):
             device=self.device_info,
             metadata={"target_f": 16, "target_h": 480, "target_w": 832},
         )
-        pins = self._make_pins(node_id=5)
+        pins = self._make_pins()
         self.node.run(pins, context=context)
-        # 验证 BASE_LATENT 写入 tensor_pool（通过 PinHub → TensorPoolKey(5, BASE_LATENT)）
-        tv = self.tensor_pool.get(TensorPoolKey(5, TensorKey.BASE_LATENT))
+        # 验证 BASE_LATENT 写入 tensor_pool（通过 PinHub → TensorPoolKey(node_id, BASE_LATENT)）
+        node_id = pins._node_def.node_id
+        tv = self.tensor_pool.get(TensorPoolKey(node_id, TensorKey.BASE_LATENT))
         self.assertIsNotNone(tv)
         self.assertIsInstance(tv.data, list)
 
@@ -106,10 +107,11 @@ class TestVAEEncodeSpatialNode(unittest.TestCase):
             device=self.device_info,
             metadata={"target_f": 16, "target_h": 480, "target_w": 832},
         )
-        pins = self._make_pins(node_id=7)
+        pins = self._make_pins()
         self.node.run(pins, context=context)
         # latent 为 None 时不写入
-        tv = self.tensor_pool.get(TensorPoolKey(7, TensorKey.BASE_LATENT))
+        node_id = pins._node_def.node_id
+        tv = self.tensor_pool.get(TensorPoolKey(node_id, TensorKey.BASE_LATENT))
         self.assertIsNone(tv)
 
     def test_dispatch_policy(self):
@@ -148,8 +150,8 @@ class TestVAEEncodeImagesNode(unittest.TestCase):
 
         self.tensor_mapping = {TensorKey.IMAGE: TensorPoolKey(10, TensorKey.IMAGE)}
 
-    def _make_pins(self, node_id=0):
-        node_def = NodeDef(node_id=node_id, node_type=InferNodeType.VAE_ENCODE_IMAGES, model_key=ModelKey.VAE_WAN2_2)
+    def _make_pins(self):
+        node_def = NodeDef(node_type=InferNodeType.VAE_ENCODE_IMAGES, model_key=ModelKey.VAE_WAN2_2)
         return PinHub(
             node_def=node_def,
             input_pins={
@@ -174,10 +176,11 @@ class TestVAEEncodeImagesNode(unittest.TestCase):
             device=self.device_info,
             metadata={"batch_size": 1},
         )
-        pins = self._make_pins(node_id=5)
+        pins = self._make_pins()
         self.node.run(pins, context=context)
-        # 验证 AUX_LATENT 写入 tensor_pool（通过 PinHub → TensorPoolKey(5, AUX_LATENT)）
-        tv = self.tensor_pool.get(TensorPoolKey(5, TensorKey.AUX_LATENT))
+        # 验证 AUX_LATENT 写入 tensor_pool（通过 PinHub → TensorPoolKey(node_id, AUX_LATENT)）
+        node_id = pins._node_def.node_id
+        tv = self.tensor_pool.get(TensorPoolKey(node_id, TensorKey.AUX_LATENT))
         self.assertIsNotNone(tv)
 
     def test_dispatch_policy(self):

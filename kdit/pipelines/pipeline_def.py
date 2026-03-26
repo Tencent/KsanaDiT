@@ -23,16 +23,15 @@ PipelineDef 是不可变的数据结构，描述一条 Pipeline 的完整 DAG �
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from kdit.models.model_key import ModelKey
-from kdit.nodes.core.node_def import NodeDef
+from kdit.nodes.core.node_def import NodeDef, NodeRef
 from kdit.nodes.core.node_types import InferNodeType, IONodeType
 from kdit.tensor import TensorKey
 from kdit.utils import log
 
 from .context_builder import ContextBuilder
-from .pin_ref import NodeRef
 from .pipeline_key import PipelineKey
 
 # ── DAG 数据结构 ─────────────────────────────────────────────────────────
@@ -115,26 +114,19 @@ class PipelineDefBuilder:
 
     def __init__(self, pipeline_key: PipelineKey):
         self._pipeline_key = pipeline_key
-        self._id_counter = 0
         self._node_defs: list[NodeDef] = []
         self._edges: list[Edge] = []
         # 公共
         self._context_builder_cls: type[ContextBuilder] | None = None
         self._keep_tensors: list[TensorKey] = []
 
-    def _alloc_node_id(self) -> int:
-        """分配唯一的 node_id，从 0 开始递增。"""
-        nid = self._id_counter
-        self._id_counter += 1
-        return nid
-
     # ── DAG API ──
 
     def add_loader(self, model_key: ModelKey) -> NodeRef:
         """添加一个 Loader Node，返回 NodeRef。"""
-        node_id = self._alloc_node_id()
-        self._node_defs.append(NodeDef(node_id=node_id, node_type=IONodeType.LOAD_MODEL, model_key=model_key))
-        return NodeRef(node_id)
+        node_def = NodeDef(node_type=IONodeType.LOAD_MODEL, model_key=model_key)
+        self._node_defs.append(node_def)
+        return NodeRef(node_def)
 
     def add_infer(
         self,
@@ -142,9 +134,9 @@ class PipelineDefBuilder:
         model_key: ModelKey | None = None,
     ) -> _NodeRefWithWhen:
         """添加一个 Infer Node，返回 _NodeRefWithWhen（支持 .when() 和 pin 访问）。"""
-        node_id = self._alloc_node_id()
-        self._node_defs.append(NodeDef(node_id=node_id, node_type=node_type, model_key=model_key))
-        return _NodeRefWithWhen(self, node_id)
+        node_def = NodeDef(node_type=node_type, model_key=model_key)
+        self._node_defs.append(node_def)
+        return _NodeRefWithWhen(self, node_def)
 
     def connect(self, *edges) -> PipelineDefBuilder:
         """声明连线。支持两种格式 + 一对多。
@@ -232,23 +224,18 @@ class _NodeRefWithWhen(NodeRef):
     不调用 .when() 时，行为与 NodeRef 完全一致。
     """
 
-    def __init__(self, builder: PipelineDefBuilder, node_id: int):
-        super().__init__(node_id)
+    def __init__(self, builder: PipelineDefBuilder, node_def: NodeDef):
+        super().__init__(node_def)
         self._builder = builder
 
     def when(self, condition_name: str) -> NodeRef:
         """设置条件执行 — condition_name 必须是 ContextBuilder 上的方法名。"""
-        # 找到对应的 NodeDef 并替换
+        # 找到对应的 NodeDef 并用 replace 替换 condition
         for i, nd in enumerate(self._builder._node_defs):
-            if nd.node_id == self._node_id:
-                self._builder._node_defs[i] = NodeDef(
-                    node_id=nd.node_id,
-                    node_type=nd.node_type,
-                    model_key=nd.model_key,
-                    condition=condition_name,
-                )
+            if nd.node_id == self._node_def.node_id:
+                self._builder._node_defs[i] = replace(nd, condition=condition_name)
                 break
-        return NodeRef(self._node_id)
+        return NodeRef(self._node_def)
 
 
 # ── PipelineDef 注册表 ──────────────────────────────────────────────────

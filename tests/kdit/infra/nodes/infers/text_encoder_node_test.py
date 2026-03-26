@@ -34,18 +34,22 @@ from kdit.tensor import TensorKey
 from kdit.tensor.tensor_pool_key import TensorPoolKey
 
 
-def _make_pins(*, node_id=0, model_key=None, tensor_pool=None, model_pool=None):
-    """构建一个 PinHub 实例，model pin 映射到 node_id=99 的上游。"""
+def _make_pins(*, model_key=None, tensor_pool=None, model_pool=None):
+    """构建一个 PinHub 实例，model pin 映射到 node_id=99 的上游。
+
+    Returns (PinHub, NodeDef) so callers can reference node_def.node_id.
+    """
     input_pins = {}
     if model_key is not None:
         input_pins[model_key] = ModelPoolKey(99, model_key)
-    node_def = NodeDef(node_id=node_id, node_type=InferNodeType.TEXT_ENCODE, model_key=model_key)
-    return PinHub(
+    node_def = NodeDef(node_type=InferNodeType.TEXT_ENCODE, model_key=model_key)
+    pin_hub = PinHub(
         node_def=node_def,
         input_pins=input_pins,
         tensor_pool=tensor_pool or MagicMock(),
         model_pool=model_pool or MagicMock(),
     )
+    return pin_hub, node_def
 
 
 class TestT5TextEncodeNode(unittest.TestCase):
@@ -81,7 +85,7 @@ class TestT5TextEncodeNode(unittest.TestCase):
             metadata={},
         )
 
-        pins = _make_pins(
+        pins, node_def = _make_pins(
             model_key=ModelKey.T5TextEncoder,
             tensor_pool=self.tensor_pool,
             model_pool=self.model_pool,
@@ -95,8 +99,8 @@ class TestT5TextEncodeNode(unittest.TestCase):
         # 验证 positive/negative 写入 tensor_pool（通过 PinHub → TensorPoolKey）
         self.assertEqual(self.tensor_pool.put.call_count, 2)
         calls = self.tensor_pool.put.call_args_list
-        self.assertEqual(calls[0][0][0], TensorPoolKey(0, TensorKey.POSITIVE))
-        self.assertEqual(calls[1][0][0], TensorPoolKey(0, TensorKey.NEGATIVE))
+        self.assertEqual(calls[0][0][0], TensorPoolKey(node_def.node_id, TensorKey.POSITIVE))
+        self.assertEqual(calls[1][0][0], TensorPoolKey(node_def.node_id, TensorKey.NEGATIVE))
 
     def test_dispatch_policy(self):
         self.assertEqual(T5TextEncodeNode.dispatch_policy, NodeDispatchPolicy.ALL_ALL_ALL)
@@ -142,7 +146,7 @@ class TestQwenTextEncodeNode(unittest.TestCase):
             metadata={},
         )
 
-        pins = _make_pins(
+        pins, node_def = _make_pins(
             model_key=ModelKey.Qwen2VLTextEncoder,
             tensor_pool=self.tensor_pool,
             model_pool=self.model_pool,
@@ -156,8 +160,8 @@ class TestQwenTextEncodeNode(unittest.TestCase):
         # 验证 positive/negative 写入 tensor_pool（元组形式）
         self.assertEqual(self.tensor_pool.put.call_count, 2)
         calls = self.tensor_pool.put.call_args_list
-        self.assertEqual(calls[0][0][0], TensorPoolKey(0, TensorKey.POSITIVE))
-        self.assertEqual(calls[1][0][0], TensorPoolKey(0, TensorKey.NEGATIVE))
+        self.assertEqual(calls[0][0][0], TensorPoolKey(node_def.node_id, TensorKey.POSITIVE))
+        self.assertEqual(calls[1][0][0], TensorPoolKey(node_def.node_id, TensorKey.NEGATIVE))
         # 验证写入的是 (embeds, mask) 元组
         self.assertIsInstance(calls[0][0][1], tuple)
         self.assertIsInstance(calls[1][0][1], tuple)

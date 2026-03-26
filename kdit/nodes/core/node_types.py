@@ -15,23 +15,7 @@
 from enum import Enum, auto
 from typing import Union
 
-from kdit.models.model_key import ModelKey
-from kdit.models.model_pool_key import ModelPoolKey
-from kdit.tensor.tensor_key import TensorKey
-from kdit.tensor.tensor_pool_key import TensorPoolKey
-
-# ---------------------------------------------------------------------------
-# 类型别名 — Def（静态声明）与 Pin（运行时映射）
-# ---------------------------------------------------------------------------
-
-#: Node 声明的端口类型（TensorKey 或 ModelKey）
-PinDef = Union[TensorKey, ModelKey]
-
-#: 运行时 pool 中的实际 key（TensorPoolKey 或 ModelPoolKey）
-PinPoolKey = Union[TensorPoolKey, ModelPoolKey]
-
-#: DAG 连线映射：PinDef → PinPoolKey
-Pins = dict[PinDef, PinPoolKey]
+from kdit.nodes.core.pin_def import PinDef, PinPoolKey, Pins  # noqa: F401 # pylint: disable=unused-import
 
 
 class NodeDispatchPolicy(Enum):

@@ -21,7 +21,7 @@ from kdit.tensor.tensor_pool_key import TensorPoolKey
 from kdit.tensor.tensor_value import TensorData
 
 from .node_def import NodeDef
-from .node_types import Pins
+from .pin_def import Pins
 
 
 class PinHub:

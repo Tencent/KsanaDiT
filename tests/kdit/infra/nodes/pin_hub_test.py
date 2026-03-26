@@ -17,9 +17,9 @@ from kdit.tensor.tensor_pool import TensorPool
 from kdit.tensor.tensor_pool_key import TensorPoolKey
 
 
-def _node_def(node_id, *, model_key=None, node_type=InferNodeType.TEXT_ENCODE):
+def _node_def(*, model_key=None, node_type=InferNodeType.TEXT_ENCODE):
     """构建一个最小 NodeDef。"""
-    return NodeDef(node_id=node_id, node_type=node_type, model_key=model_key)
+    return NodeDef(node_type=node_type, model_key=model_key)
 
 
 class _StubModel(ModelBase):
@@ -40,18 +40,20 @@ class TestPinHub:
         tp = TensorPool()
         mp = ModelPool()
 
-        # 上游 node_id=0 写入 LATENTS
-        upstream = PinHub(node_def=_node_def(0), input_pins={}, tensor_pool=tp, model_pool=mp)
+        # 上游写入 LATENTS
+        nd_up = _node_def()
+        upstream = PinHub(node_def=nd_up, input_pins={}, tensor_pool=tp, model_pool=mp)
         data = torch.randn(1, 4, 8, 8)
         upstream.put_tensor(TensorKey.LATENTS, data)
 
-        # 验证 pool 中有 TensorPoolKey(0, LATENTS)
-        assert tp.has(TensorPoolKey(0, TensorKey.LATENTS))
+        # 验证 pool 中有 TensorPoolKey(nd_up.node_id, LATENTS)
+        assert tp.has(TensorPoolKey(nd_up.node_id, TensorKey.LATENTS))
 
-        # 下游 node_id=1 映射 LATENTS -> 上游的 TensorPoolKey(0, LATENTS)
+        # 下游映射 LATENTS -> 上游的 TensorPoolKey
+        nd_down = _node_def()
         downstream = PinHub(
-            node_def=_node_def(1),
-            input_pins={TensorKey.LATENTS: TensorPoolKey(0, TensorKey.LATENTS)},
+            node_def=nd_down,
+            input_pins={TensorKey.LATENTS: TensorPoolKey(nd_up.node_id, TensorKey.LATENTS)},
             tensor_pool=tp,
             model_pool=mp,
         )
@@ -62,14 +64,16 @@ class TestPinHub:
         """未映射的 tensor pin 返回 None。"""
         tp = TensorPool()
         mp = ModelPool()
-        hub = PinHub(node_def=_node_def(0), input_pins={}, tensor_pool=tp, model_pool=mp)
+        nd = _node_def()
+        hub = PinHub(node_def=nd, input_pins={}, tensor_pool=tp, model_pool=mp)
         assert hub.get_tensor(TensorKey.POSITIVE) is None
 
     def test_get_model_unmapped_raises(self):
         """未映射的 model pin 抛出 KeyError。"""
         tp = TensorPool()
         mp = ModelPool()
-        hub = PinHub(node_def=_node_def(0), input_pins={}, tensor_pool=tp, model_pool=mp)
+        nd = _node_def()
+        hub = PinHub(node_def=nd, input_pins={}, tensor_pool=tp, model_pool=mp)
         with pytest.raises(KeyError, match="not connected"):
             hub.get_model(ModelKey.T5TextEncoder)
 
@@ -78,15 +82,17 @@ class TestPinHub:
         tp = TensorPool()
         mp = ModelPool()
 
-        # 在 pool 中直接写入两个 tensor
-        key_a = TensorPoolKey(0, TensorKey.POSITIVE)
-        key_b = TensorPoolKey(0, TensorKey.NEGATIVE)
+        # 在 pool 中直接写入两个 tensor（使用任意 node_id）
+        nd_src = _node_def()
+        key_a = TensorPoolKey(nd_src.node_id, TensorKey.POSITIVE)
+        key_b = TensorPoolKey(nd_src.node_id, TensorKey.NEGATIVE)
         tp.put(key_a, torch.randn(2))
         tp.put(key_b, torch.randn(3))
 
         # PinHub 只映射 POSITIVE
+        nd_down = _node_def()
         hub = PinHub(
-            node_def=_node_def(1),
+            node_def=nd_down,
             input_pins={TensorKey.POSITIVE: key_a},
             tensor_pool=tp,
             model_pool=mp,
@@ -100,31 +106,31 @@ class TestPinHub:
         tp = TensorPool()
         mp = ModelPool()
 
-        hub = PinHub(node_def=_node_def(42), input_pins={}, tensor_pool=tp, model_pool=mp)
+        nd = _node_def()
+        hub = PinHub(node_def=nd, input_pins={}, tensor_pool=tp, model_pool=mp)
         hub.put_tensor(TensorKey.VIDEO, torch.randn(1))
 
-        # 验证 pool 中的 key 是 TensorPoolKey(42, VIDEO)
-        assert tp.has(TensorPoolKey(42, TensorKey.VIDEO))
+        # 验证 pool 中的 key 是 TensorPoolKey(nd.node_id, VIDEO)
+        assert tp.has(TensorPoolKey(nd.node_id, TensorKey.VIDEO))
         # 其他 node_id 的 key 不存在
-        assert not tp.has(TensorPoolKey(0, TensorKey.VIDEO))
-        assert not tp.has(TensorPoolKey(1, TensorKey.VIDEO))
+        assert not tp.has(TensorPoolKey(nd.node_id + 100, TensorKey.VIDEO))
 
     def test_put_and_get_model(self):
         """put_model 写入后，下游 PinHub 通过映射可读回。"""
         tp = TensorPool()
         mp = ModelPool()
 
-        # 上游 node_id=0 写入 T5TextEncoder（有参调用）
-        nd_up = _node_def(0, model_key=ModelKey.T5TextEncoder, node_type=IONodeType.LOAD_MODEL)
+        # 上游写入 T5TextEncoder
+        nd_up = _node_def(model_key=ModelKey.T5TextEncoder, node_type=IONodeType.LOAD_MODEL)
         upstream = PinHub(node_def=nd_up, input_pins={}, tensor_pool=tp, model_pool=mp)
         model = _StubModel(ModelKey.T5TextEncoder)
         upstream.put_model(model, ModelKey.T5TextEncoder)
 
-        # 下游 node_id=1 映射 T5TextEncoder -> 上游的 ModelPoolKey(0, T5TextEncoder)
-        nd_down = _node_def(1, model_key=ModelKey.T5TextEncoder)
+        # 下游映射 T5TextEncoder -> 上游的 ModelPoolKey
+        nd_down = _node_def(model_key=ModelKey.T5TextEncoder)
         downstream = PinHub(
             node_def=nd_down,
-            input_pins={ModelKey.T5TextEncoder: ModelPoolKey(0, ModelKey.T5TextEncoder)},
+            input_pins={ModelKey.T5TextEncoder: ModelPoolKey(nd_up.node_id, ModelKey.T5TextEncoder)},
             tensor_pool=tp,
             model_pool=mp,
         )
@@ -136,12 +142,14 @@ class TestPinHub:
         tp = TensorPool()
         mp = ModelPool()
 
-        key = TensorPoolKey(0, TensorKey.LATENTS)
+        nd_src = _node_def()
+        key = TensorPoolKey(nd_src.node_id, TensorKey.LATENTS)
         data = torch.randn(2, 4)
         tp.put(key, data)
 
+        nd_down = _node_def()
         hub = PinHub(
-            node_def=_node_def(1),
+            node_def=nd_down,
             input_pins={TensorKey.LATENTS: key},
             tensor_pool=tp,
             model_pool=mp,
@@ -155,14 +163,17 @@ class TestPinHub:
         """未映射的 tensor pin peek 返回 None。"""
         tp = TensorPool()
         mp = ModelPool()
-        hub = PinHub(node_def=_node_def(0), input_pins={}, tensor_pool=tp, model_pool=mp)
+        nd = _node_def()
+        hub = PinHub(node_def=nd, input_pins={}, tensor_pool=tp, model_pool=mp)
         assert hub.peek_tensor(TensorKey.POSITIVE) is None
 
     def test_input_pins_serializable(self):
         """input_pins 可通过 pickle 序列化（模拟 Ray 传输）。"""
+        nd_a = _node_def()
+        nd_b = _node_def()
         mapping = {
-            TensorKey.POSITIVE: TensorPoolKey(1, TensorKey.POSITIVE),
-            ModelKey.T5TextEncoder: ModelPoolKey(0, ModelKey.T5TextEncoder),
+            TensorKey.POSITIVE: TensorPoolKey(nd_a.node_id, TensorKey.POSITIVE),
+            ModelKey.T5TextEncoder: ModelPoolKey(nd_b.node_id, ModelKey.T5TextEncoder),
         }
         restored = pickle.loads(pickle.dumps(mapping))
         assert restored == mapping
@@ -177,16 +188,16 @@ class TestPinHubModelAutoResolve:
         mp = ModelPool()
 
         # 上游 Loader 写入 model
-        nd_up = _node_def(0, model_key=ModelKey.T5TextEncoder, node_type=IONodeType.LOAD_MODEL)
+        nd_up = _node_def(model_key=ModelKey.T5TextEncoder, node_type=IONodeType.LOAD_MODEL)
         upstream = PinHub(node_def=nd_up, input_pins={}, tensor_pool=tp, model_pool=mp)
         model = _StubModel(ModelKey.T5TextEncoder)
         upstream.put_model(model)  # 无参 — 自动用 node_def.model_key
 
         # 下游 Infer 读取 model
-        nd_down = _node_def(1, model_key=ModelKey.T5TextEncoder)
+        nd_down = _node_def(model_key=ModelKey.T5TextEncoder)
         downstream = PinHub(
             node_def=nd_down,
-            input_pins={ModelKey.T5TextEncoder: ModelPoolKey(0, ModelKey.T5TextEncoder)},
+            input_pins={ModelKey.T5TextEncoder: ModelPoolKey(nd_up.node_id, ModelKey.T5TextEncoder)},
             tensor_pool=tp,
             model_pool=mp,
         )
@@ -198,13 +209,13 @@ class TestPinHubModelAutoResolve:
         tp = TensorPool()
         mp = ModelPool()
 
-        nd = _node_def(5, model_key=ModelKey.VAE_WAN2_2, node_type=IONodeType.LOAD_MODEL)
+        nd = _node_def(model_key=ModelKey.VAE_WAN2_2, node_type=IONodeType.LOAD_MODEL)
         hub = PinHub(node_def=nd, input_pins={}, tensor_pool=tp, model_pool=mp)
         model = _StubModel(ModelKey.VAE_WAN2_2)
         hub.put_model(model)  # 无参
 
         # 验证 ModelPool 中有对应 key
-        pool_key = ModelPoolKey(5, ModelKey.VAE_WAN2_2)
+        pool_key = ModelPoolKey(nd.node_id, ModelKey.VAE_WAN2_2)
         assert mp.get_model(pool_key) is model
 
     def test_get_model_no_arg_no_model_key_raises(self):
@@ -212,7 +223,7 @@ class TestPinHubModelAutoResolve:
         tp = TensorPool()
         mp = ModelPool()
 
-        nd = _node_def(0, model_key=None)
+        nd = _node_def(model_key=None)
         hub = PinHub(node_def=nd, input_pins={}, tensor_pool=tp, model_pool=mp)
         with pytest.raises(KeyError, match="not connected"):
             hub.get_model()
@@ -223,16 +234,17 @@ class TestPinHubModelAutoResolve:
         mp = ModelPool()
 
         # node_def 的 model_key 是 T5，但显式请求 VAE
-        nd = _node_def(1, model_key=ModelKey.T5TextEncoder)
+        nd_src = _node_def()
+        nd = _node_def(model_key=ModelKey.T5TextEncoder)
         hub = PinHub(
             node_def=nd,
-            input_pins={ModelKey.VAE_WAN2_2: ModelPoolKey(0, ModelKey.VAE_WAN2_2)},
+            input_pins={ModelKey.VAE_WAN2_2: ModelPoolKey(nd_src.node_id, ModelKey.VAE_WAN2_2)},
             tensor_pool=tp,
             model_pool=mp,
         )
         # 先在 pool 中放入 VAE model
         vae_model = _StubModel(ModelKey.VAE_WAN2_2)
-        mp.update_model_with_key(ModelPoolKey(0, ModelKey.VAE_WAN2_2), vae_model)
+        mp.update_model_with_key(ModelPoolKey(nd_src.node_id, ModelKey.VAE_WAN2_2), vae_model)
 
         result = hub.get_model(ModelKey.VAE_WAN2_2)
         assert result is vae_model

@@ -18,10 +18,10 @@ import unittest
 
 from kdit.models.model_key import ModelKey
 from kdit.nodes.core.node_context import NodeContext
+from kdit.nodes.core.node_def import NodeRef
 from kdit.nodes.core.node_types import InferNodeType as NT
 from kdit.nodes.core.node_types import IONodeType
 from kdit.pipelines.context_builder import ContextBuilder
-from kdit.pipelines.pin_ref import NodeRef
 from kdit.pipelines.pipeline_def import (
     PipelineDef,
     PipelineDefBuilder,
@@ -48,32 +48,24 @@ class TestPipelineDefBuilderDAG(unittest.TestCase):
     """PipelineDefBuilder DAG 模式构建与校验。"""
 
     def test_add_loader_returns_node_ref(self):
-        """add_loader() 返回 NodeRef，node_id 从 0 开始自增。"""
+        """add_loader() 返回 NodeRef，node_id 自动分配且唯一。"""
         builder = PipelineDefBuilder(PipelineKey.Wan2_2_T2V_14B)
         ref0 = builder.add_loader(ModelKey.T5TextEncoder)
         ref1 = builder.add_loader(ModelKey.Wan2_2_T2V_14B)
 
         self.assertIsInstance(ref0, NodeRef)
         self.assertIsInstance(ref1, NodeRef)
-        self.assertEqual(ref0.node_id, 0)
-        self.assertEqual(ref1.node_id, 1)
+        self.assertNotEqual(ref0.node_id, ref1.node_id)
 
     def test_add_infer_returns_node_ref_with_when(self):
         """add_infer() 返回 _NodeRefWithWhen（支持 .when() 和 pin 访问）。"""
         builder = PipelineDefBuilder(PipelineKey.Wan2_2_T2V_14B)
-        builder.add_loader(ModelKey.T5TextEncoder)
+        loader = builder.add_loader(ModelKey.T5TextEncoder)
         ref = builder.add_infer(NT.TEXT_ENCODE, ModelKey.T5TextEncoder)
 
         self.assertIsInstance(ref, _NodeRefWithWhen)
         self.assertIsInstance(ref, NodeRef)
-        self.assertEqual(ref.node_id, 1)
-
-    def test_alloc_node_id_increments(self):
-        """_alloc_node_id() 从 0 开始递增。"""
-        builder = PipelineDefBuilder(PipelineKey.Wan2_2_T2V_14B)
-        self.assertEqual(builder._alloc_node_id(), 0)
-        self.assertEqual(builder._alloc_node_id(), 1)
-        self.assertEqual(builder._alloc_node_id(), 2)
+        self.assertNotEqual(ref.node_id, loader.node_id)
 
     def test_connect_pinref_with_rshift(self):
         """connect() 使用 >> 操作符正确添加 Edge。"""
@@ -89,9 +81,9 @@ class TestPipelineDefBuilderDAG(unittest.TestCase):
         self.assertEqual(len(pipeline_def.edges), 1)
 
         edge = pipeline_def.edges[0]
-        self.assertEqual(edge.src_node_id, 0)
+        self.assertEqual(edge.src_node_id, t5.node_id)
         self.assertEqual(edge.src_pin, ModelKey.T5TextEncoder)
-        self.assertEqual(edge.dst_node_id, 1)
+        self.assertEqual(edge.dst_node_id, enc.node_id)
         self.assertEqual(edge.dst_pin, ModelKey.T5TextEncoder)
 
     def test_connect_pinref_tuple(self):
@@ -108,9 +100,9 @@ class TestPipelineDefBuilderDAG(unittest.TestCase):
         self.assertEqual(len(pipeline_def.edges), 1)
 
         edge = pipeline_def.edges[0]
-        self.assertEqual(edge.src_node_id, 0)
+        self.assertEqual(edge.src_node_id, t5.node_id)
         self.assertEqual(edge.src_pin, ModelKey.T5TextEncoder)
-        self.assertEqual(edge.dst_node_id, 1)
+        self.assertEqual(edge.dst_node_id, enc.node_id)
         self.assertEqual(edge.dst_pin, ModelKey.T5TextEncoder)
 
     def test_connect_one_to_many(self):
@@ -128,12 +120,12 @@ class TestPipelineDefBuilderDAG(unittest.TestCase):
         pipeline_def = builder.context_builder(_DummyContextBuilder).build()
         self.assertEqual(len(pipeline_def.edges), 2)
 
-        # 第一条边: enc → gen (node_id 1 → 2, 因为 loader 是 0)
-        self.assertEqual(pipeline_def.edges[0].src_node_id, 1)
-        self.assertEqual(pipeline_def.edges[0].dst_node_id, 2)
-        # 第二条边: enc → dec (node_id 1 → 3)
-        self.assertEqual(pipeline_def.edges[1].src_node_id, 1)
-        self.assertEqual(pipeline_def.edges[1].dst_node_id, 3)
+        # 第一条边: enc → gen
+        self.assertEqual(pipeline_def.edges[0].src_node_id, enc.node_id)
+        self.assertEqual(pipeline_def.edges[0].dst_node_id, gen.node_id)
+        # 第二条边: enc → dec
+        self.assertEqual(pipeline_def.edges[1].src_node_id, enc.node_id)
+        self.assertEqual(pipeline_def.edges[1].dst_node_id, dec.node_id)
 
     def test_build_dag_returns_frozen_pipeline_def(self):
         """build() 返回 frozen PipelineDef，nodes 和 edges 正确。"""

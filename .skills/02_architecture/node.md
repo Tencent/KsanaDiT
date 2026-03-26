@@ -21,11 +21,14 @@
 
 ### 类型
 
-| 名称 | 类型 | 层级 |
-|------|------|------|
-| `PinDef` | `TensorKey \| ModelKey` | Def |
-| `PinPoolKey` | `TensorPoolKey \| ModelPoolKey` | Pin |
-| `Pins` | `dict[PinDef, PinPoolKey]` | Pin |
+| 名称 | 类型 | 层级 | 定义位置 |
+|------|------|------|---------|
+| `PinDef` | `TensorKey \| ModelKey` | Def | `kdit/nodes/core/pin_def.py` |
+| `PinPoolKey` | `TensorPoolKey \| ModelPoolKey` | Pin | `kdit/nodes/core/pin_def.py` |
+| `Pins` | `dict[PinDef, PinPoolKey]` | Pin | `kdit/nodes/core/pin_def.py` |
+| `PinRef` | `(node_id, pin)` | Pin | `kdit/nodes/core/pin_def.py` |
+| `NodeRef` | `NodeDef 的引用` | Def | `kdit/nodes/core/node_def.py` |
+| `NodeDef` | `frozen dataclass` | Def | `kdit/nodes/core/node_def.py` |
 
 ---
 
@@ -33,7 +36,7 @@
 
 - Node 的入参和出参**不直接传输 tensor 和 model**，这两者都通过 Pool 存储，通过 PoolKey 引用。避免多卡 Ray 场景下耗时的序列化操作。
 - 其他入参只能包含简单的 config 内容（通过 `NodeContext`），不允许存在 tensor 或 model 直接传输。
-- 每个 Node 实例有唯一的 `node_id`（int），由模块级全局计数器（`itertools.count(1)`）自动分配，用户不感知。
+- 每个 Node 实例有唯一的 `node_id`（int），由模块级全局计数器（`itertools.count(0)`）在 `NodeDef` 构造时自动分配（`field(init=False)`），用户不可指定。定义在 `kdit/nodes/core/node_def.py`。计数器仅在主进程的 PipelineDefBuilder 构建 DAG 时使用，不存在多卡多进程竞争。
 - DAG 中未连接的输入 pin 代表"不输入"，Node 收到 `None`。Node **必须**自行处理 `None` 输入。
 
 ---

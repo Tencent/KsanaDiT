@@ -12,12 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from kdit.nodes.core.node_def import NodeRef
+from kdit.nodes.core.pin_def import PinRef
+
 from .context_builder import ContextBuilder
 from .dag import compute_input_pins, topo_sort
 from .defs import *  # noqa: F403
 from .extra_inputs import ExtraInputs
 from .generate_inputs import PipelineGenerateInputs
-from .pin_ref import NodeRef, PinRef
 from .pipeline import Pipeline
 from .pipeline_def import (
     Edge,

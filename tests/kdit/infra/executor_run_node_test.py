@@ -74,7 +74,7 @@ class TestExecutorRunInferNode:
         context = NodeContext(prompt="test")
         assert context.device is None
 
-        node_def = NodeDef(node_id=0, node_type=InferNodeType.TEXT_ENCODE, model_key=ModelKey.T5TextEncoder)
+        node_def = NodeDef(node_type=InferNodeType.TEXT_ENCODE, model_key=ModelKey.T5TextEncoder)
 
         mock_node = MagicMock()
         mock_node.dispatch_policy = NodeDispatchPolicy.ALL_ALL_ALL
@@ -101,7 +101,7 @@ class TestExecutorRunInferNode:
         )
         context = NodeContext(prompt="test", device=existing_device)
 
-        node_def = NodeDef(node_id=0, node_type=InferNodeType.TEXT_ENCODE, model_key=ModelKey.T5TextEncoder)
+        node_def = NodeDef(node_type=InferNodeType.TEXT_ENCODE, model_key=ModelKey.T5TextEncoder)
 
         mock_node = MagicMock()
         mock_node.dispatch_policy = NodeDispatchPolicy.ALL_ALL_ALL
@@ -121,7 +121,7 @@ class TestExecutorRunInferNode:
         executor = _make_executor()
         context = NodeContext(prompt="test")
 
-        node_def = NodeDef(node_id=5, node_type=InferNodeType.GENERATE, model_key=ModelKey.T5TextEncoder)
+        node_def = NodeDef(node_type=InferNodeType.GENERATE, model_key=ModelKey.T5TextEncoder)
 
         mock_node = MagicMock()
         mock_node.dispatch_policy = NodeDispatchPolicy.ALL_ALL_ALL
@@ -139,7 +139,7 @@ class TestExecutorRunInferNode:
         executor = _make_executor()
         context = NodeContext(prompt="test")
 
-        node_def = NodeDef(node_id=0, node_type=InferNodeType.TEXT_ENCODE, model_key=ModelKey.T5TextEncoder)
+        node_def = NodeDef(node_type=InferNodeType.TEXT_ENCODE, model_key=ModelKey.T5TextEncoder)
 
         mock_node = MagicMock()
         mock_node.dispatch_policy = NodeDispatchPolicy.ALL_ALL_ALL
@@ -159,7 +159,7 @@ class TestExecutorRunInferNode:
         executor._post_sync_tensors = MagicMock()
         context = NodeContext(prompt="test")
 
-        node_def = NodeDef(node_id=0, node_type=InferNodeType.VAE_DECODE, model_key=ModelKey.T5TextEncoder)
+        node_def = NodeDef(node_type=InferNodeType.VAE_DECODE, model_key=ModelKey.T5TextEncoder)
 
         mock_node = MagicMock()
         mock_node.dispatch_policy = NodeDispatchPolicy.ALL_ALL_ALL
@@ -176,7 +176,7 @@ class TestExecutorRunInferNode:
         executor = _make_executor()
         context = NodeContext(prompt="test")
 
-        node_def = NodeDef(node_id=0, node_type=InferNodeType.GENERATE, model_key=ModelKey.Wan2_2_T2V_14B)
+        node_def = NodeDef(node_type=InferNodeType.GENERATE, model_key=ModelKey.Wan2_2_T2V_14B)
 
         mock_node = MagicMock()
         mock_node.dispatch_policy = NodeDispatchPolicy.ALL_ALL_ALL
@@ -210,7 +210,7 @@ class TestExecutorRunLoaderNode:
         executor._post_sync_tensors = MagicMock()
         context = NodeContext(prompt="test")
 
-        node_def = NodeDef(node_id=0, node_type=IONodeType.LOAD_MODEL, model_key=ModelKey.T5TextEncoder)
+        node_def = NodeDef(node_type=IONodeType.LOAD_MODEL, model_key=ModelKey.T5TextEncoder)
 
         mock_node = MagicMock()
         mock_node.dispatch_policy = NodeDispatchPolicy.ALL_ALL_ALL
@@ -227,7 +227,7 @@ class TestExecutorRunLoaderNode:
         executor = _make_executor()
         context = NodeContext(prompt="test")
 
-        node_def = NodeDef(node_id=0, node_type=IONodeType.LOAD_MODEL, model_key=ModelKey.T5TextEncoder)
+        node_def = NodeDef(node_type=IONodeType.LOAD_MODEL, model_key=ModelKey.T5TextEncoder)
 
         mock_node = MagicMock()
         mock_node.dispatch_policy = NodeDispatchPolicy.ALL_ALL_ALL
@@ -244,7 +244,7 @@ class TestExecutorRunLoaderNode:
         executor = _make_executor()
         context = NodeContext(prompt="test")
 
-        node_def = NodeDef(node_id=0, node_type=IONodeType.LOAD_MODEL, model_key=ModelKey.T5TextEncoder)
+        node_def = NodeDef(node_type=IONodeType.LOAD_MODEL, model_key=ModelKey.T5TextEncoder)
 
         mock_node = MagicMock()
         mock_node.dispatch_policy = NodeDispatchPolicy.ALL_ALL_ALL
@@ -261,7 +261,7 @@ class TestExecutorRunLoaderNode:
         executor = _make_executor()
         context = NodeContext(prompt="test", metadata={})
 
-        node_def = NodeDef(node_id=0, node_type=IONodeType.LOAD_MODEL, model_key=ModelKey.T5TextEncoder)
+        node_def = NodeDef(node_type=IONodeType.LOAD_MODEL, model_key=ModelKey.T5TextEncoder)
 
         mock_node = MagicMock()
         mock_node.dispatch_policy = NodeDispatchPolicy.ALL_ALL_ALL
@@ -281,7 +281,7 @@ class TestExecutorRunLoaderNode:
         executor = _make_executor()
         context = NodeContext(prompt="test", metadata={"model_path": "/tmp/vae.safetensors", "extra_flag": True})
 
-        node_def = NodeDef(node_id=0, node_type=IONodeType.LOAD_MODEL, model_key=ModelKey.VAE_WAN2_1)
+        node_def = NodeDef(node_type=IONodeType.LOAD_MODEL, model_key=ModelKey.VAE_WAN2_1)
 
         mock_node = MagicMock()
         mock_node.dispatch_policy = NodeDispatchPolicy.ALL_ALL_ALL
@@ -300,7 +300,7 @@ class TestExecutorRunLoaderNode:
         fake_dist = MagicMock()
         context = NodeContext(prompt="test", metadata={"dist_config": fake_dist})
 
-        node_def = NodeDef(node_id=0, node_type=IONodeType.LOAD_MODEL, model_key=ModelKey.T5TextEncoder)
+        node_def = NodeDef(node_type=IONodeType.LOAD_MODEL, model_key=ModelKey.T5TextEncoder)
 
         mock_node = MagicMock()
         mock_node.dispatch_policy = NodeDispatchPolicy.ALL_ALL_ALL
@@ -318,7 +318,7 @@ class TestExecutorRunLoaderNode:
         executor = _make_executor()
         context = NodeContext(prompt="test")
 
-        node_def = NodeDef(node_id=0, node_type=IONodeType.LOAD_MODEL, model_key=ModelKey.T5TextEncoder)
+        node_def = NodeDef(node_type=IONodeType.LOAD_MODEL, model_key=ModelKey.T5TextEncoder)
 
         mock_node = MagicMock()
         mock_node.dispatch_policy = NodeDispatchPolicy.ALL_ALL_ALL
@@ -341,7 +341,7 @@ class TestGetOrCreateNode:
     def test_loader_node_created_via_factory(self):
         """IONode 通过 LoaderNodeFactory.create() 创建。"""
         executor = _make_executor()
-        node_def = NodeDef(node_id=0, node_type=IONodeType.LOAD_MODEL, model_key=ModelKey.T5TextEncoder)
+        node_def = NodeDef(node_type=IONodeType.LOAD_MODEL, model_key=ModelKey.T5TextEncoder)
 
         mock_node = MagicMock()
         with patch("kdit.nodes.core.node_factory.LoaderNodeFactory.create", return_value=mock_node) as mock_create:
@@ -353,7 +353,7 @@ class TestGetOrCreateNode:
     def test_infer_node_created_via_factory(self):
         """InferNode 通过 InferNodeFactory.create() 创建。"""
         executor = _make_executor()
-        node_def = NodeDef(node_id=1, node_type=InferNodeType.TEXT_ENCODE, model_key=ModelKey.T5TextEncoder)
+        node_def = NodeDef(node_type=InferNodeType.TEXT_ENCODE, model_key=ModelKey.T5TextEncoder)
 
         mock_node = MagicMock()
         with patch("kdit.nodes.core.node_factory.InferNodeFactory.create", return_value=mock_node) as mock_create:
@@ -365,7 +365,7 @@ class TestGetOrCreateNode:
     def test_node_cached_by_node_id(self):
         """同一 node_id 只创建一次，后续调用返回缓存实例。"""
         executor = _make_executor()
-        node_def = NodeDef(node_id=42, node_type=IONodeType.LOAD_MODEL, model_key=ModelKey.T5TextEncoder)
+        node_def = NodeDef(node_type=IONodeType.LOAD_MODEL, model_key=ModelKey.T5TextEncoder)
 
         mock_node = MagicMock()
         with patch("kdit.nodes.core.node_factory.LoaderNodeFactory.create", return_value=mock_node) as mock_create:
@@ -393,7 +393,7 @@ class TestDispatchPolicySkip:
         )
         context = NodeContext(prompt="test")
 
-        node_def = NodeDef(node_id=0, node_type=InferNodeType.VAE_ENCODE_SPATIAL, model_key=ModelKey.T5TextEncoder)
+        node_def = NodeDef(node_type=InferNodeType.VAE_ENCODE_SPATIAL, model_key=ModelKey.T5TextEncoder)
 
         mock_node = MagicMock()
         mock_node.dispatch_policy = NodeDispatchPolicy.R0_R0_BCAST
@@ -417,7 +417,7 @@ class TestDispatchPolicySkip:
         )
         context = NodeContext(prompt="test")
 
-        node_def = NodeDef(node_id=0, node_type=InferNodeType.TEXT_ENCODE, model_key=ModelKey.T5TextEncoder)
+        node_def = NodeDef(node_type=InferNodeType.TEXT_ENCODE, model_key=ModelKey.T5TextEncoder)
 
         mock_node = MagicMock()
         mock_node.dispatch_policy = NodeDispatchPolicy.ALL_ALL_ALL
@@ -439,7 +439,7 @@ class TestDispatchPolicySkip:
         )
         context = NodeContext(prompt="test")
 
-        node_def = NodeDef(node_id=0, node_type=IONodeType.LOAD_MODEL, model_key=ModelKey.T5TextEncoder)
+        node_def = NodeDef(node_type=IONodeType.LOAD_MODEL, model_key=ModelKey.T5TextEncoder)
 
         mock_node = MagicMock()
         mock_node.dispatch_policy = NodeDispatchPolicy.R0_R0_BCAST
@@ -456,7 +456,7 @@ class TestBuildOutputPins:
     def test_output_pins_built_from_output_defs(self):
         """InferNode 的 output_pins 包含 output_defs 中的 TensorKey。"""
         executor = _make_executor()
-        node_def = NodeDef(node_id=5, node_type=InferNodeType.GENERATE, model_key=ModelKey.Wan2_2_T2V_14B)
+        node_def = NodeDef(node_type=InferNodeType.GENERATE, model_key=ModelKey.Wan2_2_T2V_14B)
 
         mock_node = MagicMock()
         mock_node.output_defs = [TensorKey.LATENTS]
@@ -466,12 +466,12 @@ class TestBuildOutputPins:
             output_pins = executor.run_node(node_def, input_pins={}, context=NodeContext(prompt="test"))
 
         assert TensorKey.LATENTS in output_pins
-        assert output_pins[TensorKey.LATENTS] == TensorPoolKey(5, TensorKey.LATENTS)
+        assert output_pins[TensorKey.LATENTS] == TensorPoolKey(node_def.node_id, TensorKey.LATENTS)
 
     def test_output_pins_includes_model_for_loader(self):
         """IONode（Loader）的 output_pins 包含 model 映射。"""
         executor = _make_executor()
-        node_def = NodeDef(node_id=2, node_type=IONodeType.LOAD_MODEL, model_key=ModelKey.VAE_WAN2_2)
+        node_def = NodeDef(node_type=IONodeType.LOAD_MODEL, model_key=ModelKey.VAE_WAN2_2)
 
         mock_node = MagicMock()
         mock_node.output_defs = []
@@ -481,12 +481,12 @@ class TestBuildOutputPins:
             output_pins = executor.run_node(node_def, input_pins={}, context=NodeContext(metadata={}))
 
         assert ModelKey.VAE_WAN2_2 in output_pins
-        assert output_pins[ModelKey.VAE_WAN2_2] == ModelPoolKey(2, ModelKey.VAE_WAN2_2)
+        assert output_pins[ModelKey.VAE_WAN2_2] == ModelPoolKey(node_def.node_id, ModelKey.VAE_WAN2_2)
 
     def test_output_pins_empty_for_no_outputs(self):
         """没有 output_defs 且 model_key 为 None 的 InferNode 返回空 dict。"""
         executor = _make_executor()
-        node_def = NodeDef(node_id=10, node_type=InferNodeType.SAVE_VIDEO)
+        node_def = NodeDef(node_type=InferNodeType.SAVE_VIDEO)
 
         mock_node = MagicMock()
         mock_node.output_defs = []
@@ -500,7 +500,7 @@ class TestBuildOutputPins:
     def test_output_pins_multiple_tensor_keys(self):
         """多个 TensorKey 的 output_defs 全部映射到 output_pins。"""
         executor = _make_executor()
-        node_def = NodeDef(node_id=3, node_type=InferNodeType.TEXT_ENCODE, model_key=ModelKey.T5TextEncoder)
+        node_def = NodeDef(node_type=InferNodeType.TEXT_ENCODE, model_key=ModelKey.T5TextEncoder)
 
         mock_node = MagicMock()
         mock_node.output_defs = [TensorKey.POSITIVE, TensorKey.NEGATIVE]
@@ -509,8 +509,8 @@ class TestBuildOutputPins:
         with patch("kdit.executor.executor.Executor._get_or_create_node", return_value=mock_node):
             output_pins = executor.run_node(node_def, input_pins={}, context=NodeContext(prompt="test"))
 
-        assert output_pins[TensorKey.POSITIVE] == TensorPoolKey(3, TensorKey.POSITIVE)
-        assert output_pins[TensorKey.NEGATIVE] == TensorPoolKey(3, TensorKey.NEGATIVE)
+        assert output_pins[TensorKey.POSITIVE] == TensorPoolKey(node_def.node_id, TensorKey.POSITIVE)
+        assert output_pins[TensorKey.NEGATIVE] == TensorPoolKey(node_def.node_id, TensorKey.NEGATIVE)
 
 
 class TestAutoConsumeInputTensors:
@@ -519,10 +519,11 @@ class TestAutoConsumeInputTensors:
     def test_consume_called_for_input_tensors(self):
         """run_node() 执行后自动 consume 输入 tensor 的引用。"""
         executor = _make_executor()
-        node_def = NodeDef(node_id=5, node_type=InferNodeType.GENERATE, model_key=ModelKey.Wan2_2_T2V_14B)
+        node_def = NodeDef(node_type=InferNodeType.GENERATE, model_key=ModelKey.Wan2_2_T2V_14B)
 
         # 注册引用计数
-        input_pool_key = TensorPoolKey(3, TensorKey.POSITIVE)
+        nd_src = NodeDef(node_type=InferNodeType.TEXT_ENCODE)
+        input_pool_key = TensorPoolKey(nd_src.node_id, TensorKey.POSITIVE)
         executor.tensor_pool.put(input_pool_key, MagicMock())
         executor.tensor_pool.register(input_pool_key, ref_count=2)
 
@@ -541,9 +542,10 @@ class TestAutoConsumeInputTensors:
     def test_consume_releases_when_ref_count_zero(self):
         """引用计数归零时，tensor 自动释放。"""
         executor = _make_executor()
-        node_def = NodeDef(node_id=5, node_type=InferNodeType.GENERATE, model_key=ModelKey.Wan2_2_T2V_14B)
+        node_def = NodeDef(node_type=InferNodeType.GENERATE, model_key=ModelKey.Wan2_2_T2V_14B)
 
-        input_pool_key = TensorPoolKey(3, TensorKey.POSITIVE)
+        nd_src = NodeDef(node_type=InferNodeType.TEXT_ENCODE)
+        input_pool_key = TensorPoolKey(nd_src.node_id, TensorKey.POSITIVE)
         executor.tensor_pool.put(input_pool_key, MagicMock())
         executor.tensor_pool.register(input_pool_key, ref_count=1)
 
@@ -562,14 +564,15 @@ class TestAutoConsumeInputTensors:
     def test_loader_does_not_consume_inputs(self):
         """run_node() 不自动消费输入 tensor（Loader 没有 tensor 输入）。"""
         executor = _make_executor()
-        node_def = NodeDef(node_id=0, node_type=IONodeType.LOAD_MODEL, model_key=ModelKey.T5TextEncoder)
+        node_def = NodeDef(node_type=IONodeType.LOAD_MODEL, model_key=ModelKey.T5TextEncoder)
 
         mock_node = MagicMock()
         mock_node.output_defs = []
         mock_node.dispatch_policy = NodeDispatchPolicy.ALL_ALL_ALL
 
         # 即使 input_pins 中有 tensor，Loader 也不消费
-        input_pool_key = TensorPoolKey(99, TensorKey.POSITIVE)
+        nd_src = NodeDef(node_type=InferNodeType.TEXT_ENCODE)
+        input_pool_key = TensorPoolKey(nd_src.node_id, TensorKey.POSITIVE)
         executor.tensor_pool.put(input_pool_key, MagicMock())
         executor.tensor_pool.register(input_pool_key, ref_count=1)
 
@@ -588,7 +591,8 @@ class TestRegisterRefCount:
     def test_register_ref_count(self):
         """register_ref_count() 正确注册引用计数。"""
         executor = _make_executor()
-        pool_key = TensorPoolKey(5, TensorKey.LATENTS)
+        nd = NodeDef(node_type=InferNodeType.GENERATE)
+        pool_key = TensorPoolKey(nd.node_id, TensorKey.LATENTS)
         executor.tensor_pool.put(pool_key, MagicMock())
 
         executor.register_ref_count(pool_key, ref_count=3)
