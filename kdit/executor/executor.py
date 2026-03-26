@@ -23,7 +23,7 @@ from ..config import DistributedConfig
 from ..distributed import shard_model
 from ..models.model_key import ModelKey
 from ..models.model_pool import ModelPool
-from ..nodes.core.device_context import NodeDeviceContext
+from ..nodes.core.device_info import DeviceInfo
 from ..nodes.core.pin_hub import PinHub
 from ..tensor import TensorKey, TensorPool
 from ..tensor.tensor_pool_key import TensorPoolKey
@@ -58,10 +58,10 @@ class Executor(ABC):
         self.shard_fn = None
         self.dist_config = DistributedConfig(num_gpus=1, use_sp=False, dit_fsdp=False, ulysses_size=1)
 
-        # V5 Node 架构：三大管理器
+        # Node 架构：三大管理器
         self.tensor_pool = TensorPool()
         self.dist_group = DistributedGroupManager()
-        self.device_ctx = self._build_device_ctx(self.device, self.offload_device, self.rank_id, self.world_size)
+        self.device_info = self._build_device_info(self.device, self.offload_device, self.rank_id, self.world_size)
 
         # DAG 模式：Node 实例缓存（按 node_id 缓存，避免重复创建）
         self._node_cache: dict[int, object] = {}
@@ -89,9 +89,9 @@ class Executor(ABC):
         reset_logging(rank_id)
         self.shard_fn = partial(shard_model, device_id=self.device_id) if self.dist_config.dit_fsdp else None
 
-        # V5: 同步 dist_group + 重建 device_ctx
+        # Node 架构：同步 dist_group + 重建 device_info
         self.dist_group.init(rank_id, self.world_size)
-        self.device_ctx = self._build_device_ctx(self.device, self.offload_device, rank_id, self.world_size)
+        self.device_info = self._build_device_info(self.device, self.offload_device, rank_id, self.world_size)
 
     def clear_models(self, model_keys: list[ModelKey] | ModelKey = None):
         if self.model_pool is None:
@@ -101,12 +101,12 @@ class Executor(ABC):
         if model_keys is None:
             self.tensor_pool.clear()
 
-    # ── V5 Node 架构：统一入口 ──────────────────────────────────────────
+    # ── Node 架构：统一入口 ──────────────────────────────────────────
 
     @staticmethod
-    def _build_device_ctx(device, offload_device, rank_id, world_size) -> NodeDeviceContext:
-        """构建 KsanaDeviceContext。"""
-        return NodeDeviceContext(device=device, offload_device=offload_device, rank_id=rank_id, world_size=world_size)
+    def _build_device_info(device, offload_device, rank_id, world_size) -> DeviceInfo:
+        """构建 DeviceInfo。"""
+        return DeviceInfo(compute_device=device, offload_device=offload_device, rank_id=rank_id, world_size=world_size)
 
     # ── DAG Node 执行入口 ─────────────────────────────────────────────
 
@@ -176,7 +176,7 @@ class Executor(ABC):
         if context is None:
             return context
         if context.device is None:
-            context = dataclasses.replace(context, device=self.device_ctx)
+            context = dataclasses.replace(context, device=self.device_info)
         return context
 
     def run_node(self, node_def, input_pins, context) -> dict:
@@ -212,7 +212,7 @@ class Executor(ABC):
         node = self._get_or_create_node(node_def)
         policy = node.dispatch_policy
 
-        is_active = policy == NodeDispatchPolicy.ALL_ALL_ALL or self.device_ctx.rank_id == 0
+        is_active = policy == NodeDispatchPolicy.ALL_ALL_ALL or self.device_info.rank_id == 0
         if is_active:
             pins = self._build_pin_hub(node_def, input_pins)
             node.run(pins, context=context)
@@ -234,7 +234,7 @@ class Executor(ABC):
 
         self._pre_sync_tensors(node, policy)
 
-        is_active = policy == NodeDispatchPolicy.ALL_ALL_ALL or self.device_ctx.rank_id == 0
+        is_active = policy == NodeDispatchPolicy.ALL_ALL_ALL or self.device_info.rank_id == 0
         if is_active:
             pins = self._build_pin_hub(node_def, input_pins)
             node.run(pins, context=context)
@@ -262,13 +262,13 @@ class Executor(ABC):
         from ..nodes.core.node_types import NodeDispatchPolicy
         from ..tensor.tensor_pool_key import TensorPoolKey
 
-        if policy == NodeDispatchPolicy.R0_R0_BCAST and self.device_ctx.world_size > 1:
+        if policy == NodeDispatchPolicy.R0_R0_BCAST and self.device_info.world_size > 1:
             pool_keys = [TensorPoolKey(node_def.node_id, pin) for pin in node.output_defs]
             self.dist_group.broadcast_tensors(
                 tensor_pool=self.tensor_pool,
                 keys=pool_keys,
                 src_rank=0,
-                device=self.device_ctx.device,
+                device=self.device_info.compute_device,
             )
 
     def put_tensors(self, tensors: dict):

@@ -70,7 +70,7 @@ class T5TextEncodeNode(InferNode):
     @time_profile
     def run(self, pins, *, context):
         model = pins.get_model(self._factory_model_key)
-        device = context.metadata.get("text_run_device", context.device.device)
+        device = context.metadata.get("text_run_device", context.device.compute_device)
         meta = context.metadata
 
         prompts_positive_list, prompts_negative_list = _validate_prompts(
@@ -115,7 +115,7 @@ class QwenTextEncodeNode(InferNode):
     @time_profile
     def run(self, pins, *, context):
         model = pins.get_model(self._factory_model_key)
-        device = context.metadata.get("text_run_device", context.device.device)
+        device = context.metadata.get("text_run_device", context.device.compute_device)
         meta = context.metadata
         images = meta.get("condition_image_path")
 

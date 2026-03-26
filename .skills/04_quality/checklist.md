@@ -1,10 +1,8 @@
 # 工作流规范：测试、格式检查与文档同步
 
-> 本文件从 [`.skills/coding.md`](../coding.md) 拆分，包含 §13、§14、§15。
-
 ---
 
-## 13. 新增功能必须同步单元测试
+## 新增功能必须同步单元测试
 
 ### 规则
 
@@ -63,7 +61,7 @@ pytest -s -v tests/kdit/infra/generators/wan_generator_test.py::TestClassName::t
 
 ---
 
-## 14. 代码格式检查规范
+## 代码格式检查规范
 
 ### 规则
 
@@ -106,7 +104,7 @@ pre-commit run --all-files
 
 ---
 
-## 15. 代码修改必须同步更新文档
+## 代码修改必须同步更新文档
 
 ### 规则
 
@@ -116,7 +114,7 @@ pre-commit run --all-files
 
 | 文档位置 | 内容 | 更新时机 |
 |---------|------|---------|
-| `.skills/coding.md` | 开发规范和编码约定 | 新增/修改编码规范、架构模式、API 约定时 |
+| `.skills/` | 架构和编码规范 | 新增/修改编码规范、架构模式、API 约定时 |
 | `AGENTS.md` | Agent 工作指南（概要级） | 新增/修改关键模式、测试约定、配置系统时 |
 | `.roo/rules-*/AGENTS.md` | 各模式特定规则 | 新增/修改与特定模式相关的规则时 |
 | `docs/` | 用户文档和 API 文档 | 新增/修改公开 API、架构变更时 |
@@ -125,6 +123,6 @@ pre-commit run --all-files
 ### 要求
 
 1. **API 变更**：修改公开 API 签名或行为时，更新 `docs/api/` 下对应的文档和 Python docstring
-2. **架构变更**：修改核心架构（如 Node 调度策略、Pipeline 定义方式）时，更新 `docs/architecture*.md` 和 `.skills/coding.md`
+2. **架构变更**：修改核心架构（如 Node 调度策略、Pipeline 定义方式）时，更新 `.skills/02_architecture/` `.skills/03_standards/` 和 `AGENTS.md`
 3. **新增模型支持**：添加新模型时，更新 `docs/guide/supported-models*.md` 和相关 Pipeline 文档
-4. **规则变更**：修改编码规范时，同步更新 `.skills/coding.md`、`AGENTS.md`、`.roo/rules-*/AGENTS.md`
+4. **规则变更**：修改编码规范时，同步更新 `.skills/03_standards/`、`AGENTS.md`、`.roo/rules-*/AGENTS.md`

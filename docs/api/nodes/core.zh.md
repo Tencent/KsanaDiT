@@ -14,9 +14,9 @@
 
 ::: kdit.nodes.core.node_context.NodeContext
 
-## NodeDeviceContext
+## DeviceInfo
 
-::: kdit.nodes.core.device_context.NodeDeviceContext
+::: kdit.nodes.core.device_info.DeviceInfo
 
 ## NodeDispatchPolicy
 

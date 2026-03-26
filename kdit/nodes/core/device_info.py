@@ -24,11 +24,7 @@ class DeviceInfo:
     替代原 NodeDeviceContext，名字更短。frozen=True 保证 Node 无法篡改。
     """
 
-    device: torch.device
+    compute_device: torch.device
     offload_device: torch.device
     rank_id: int
     world_size: int
-
-
-# 向后兼容别名 — Phase 5 移除
-NodeDeviceContext = DeviceInfo

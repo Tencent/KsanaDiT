@@ -18,7 +18,7 @@ import torch
 
 from kdit.config import RuntimeConfig, SampleConfig
 
-from .device_context import DeviceInfo
+from .device_info import DeviceInfo
 
 
 @dataclass

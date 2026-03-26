@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from .base_node import InferNode, IONode
-from .device_context import DeviceInfo, NodeDeviceContext
+from .device_info import DeviceInfo
 from .node_context import NodeContext
 from .node_def import NodeDef
 from .node_factory import InferNodeFactory, LoaderNodeFactory
@@ -38,7 +38,7 @@ __all__ = [
     "InferNodeFactory",
     "NodeContext",
     "NodeDef",
-    "NodeDeviceContext",
+    "DeviceInfo",
     "NodeDispatchPolicy",
     "NodeType",
     "PinDef",

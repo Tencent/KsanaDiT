@@ -66,7 +66,7 @@ class VAEEncodeSpatialNode(InferNode):
             meta.get("target_f"),
             meta.get("target_h"),
             meta.get("target_w"),
-            device=context.device.device,
+            device=context.device.compute_device,
             target_batch_size=batch_size,
             start_img=start_img,
             end_img=end_img,
@@ -107,7 +107,7 @@ class VAEEncodeImagesNode(InferNode):
 
         image_embeds = vae_model.forward_encode_image(
             image=image,
-            device=context.device.device,
+            device=context.device.compute_device,
             target_batch_size=batch_size,
         )
 

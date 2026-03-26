@@ -78,7 +78,7 @@ class ReadImageNode(InferNode):
         if img_paths is None:
             return
 
-        device = context.device.device if context.device else "cpu"
+        device = context.device.compute_device if context.device else "cpu"
         img_tensor = _load_image_paths(img_paths, device=device)
         if img_tensor is not None:
             log.info(f"ReadImageNode: loaded {img_tensor.shape[0]} image(s), shape={img_tensor.shape}")

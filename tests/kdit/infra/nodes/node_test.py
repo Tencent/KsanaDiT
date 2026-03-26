@@ -17,7 +17,7 @@
 import pytest
 import torch
 
-from kdit.nodes.core.device_context import NodeDeviceContext
+from kdit.nodes.core.device_info import DeviceInfo
 from kdit.nodes.core.node_context import NodeContext
 from kdit.nodes.core.node_factory import InferNodeFactory, LoaderNodeFactory
 from kdit.nodes.core.node_types import InferNodeType, NodeDispatchPolicy
@@ -54,13 +54,13 @@ class TestKsanaInferNodeType:
         assert actual == expected
 
 
-# ── NodeDeviceContext ─────────────────────────────────────────────────────
+# ── DeviceInfo ─────────────────────────────────────────────────────
 
 
 class TestKsanaDeviceContext:
     def test_creation(self):
-        ctx = NodeDeviceContext(
-            device=torch.device("cpu"),
+        ctx = DeviceInfo(
+            compute_device=torch.device("cpu"),
             offload_device=torch.device("cpu"),
             rank_id=0,
             world_size=2,
@@ -69,8 +69,8 @@ class TestKsanaDeviceContext:
         assert ctx.world_size == 2
 
     def test_frozen(self):
-        ctx = NodeDeviceContext(
-            device=torch.device("cpu"),
+        ctx = DeviceInfo(
+            compute_device=torch.device("cpu"),
             offload_device=torch.device("cpu"),
             rank_id=0,
             world_size=1,

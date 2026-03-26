@@ -1,10 +1,8 @@
 # Import 风格、类型注解与 Lint 抑制
 
-> 本文件从 [`.skills/coding.md`](../coding.md) 拆分，包含 §1、§2、§11。
-
 ---
 
-## 1. Import 风格规范（方案 B）
+## Import 风格规范（方案 B）
 
 ### 规则
 
@@ -67,7 +65,7 @@ grep -rn "from \.\.\." kdit/
 
 ---
 
-## 2. 类型注解与导入规范
+## 类型注解与导入规范
 
 ### 规则
 
@@ -79,7 +77,7 @@ grep -rn "from \.\.\." kdit/
 
 - ❌ **禁止使用 `from __future__ import annotations`** — 除非文件中存在前向引用（类方法返回自身类型），否则不需要
 - ❌ **禁止使用 `typing.TYPE_CHECKING`** — 所有导入必须是普通导入，不使用 `if TYPE_CHECKING:` 保护
-- ❌ **尽量避免 `from typing import`** — 优先使用 `collections.abc`（如 `Callable`, `Sequence`, `Mapping`）和内置泛型（如 `list[str]`, `dict[str, int]`）。只有 `Any` 等无替代品的类型才从 `typing` 导入
+- ❌ **尽量避免 `from typing import`** — 优先使用 `collections.abc`（如 `Callable`, `Sequence`, `Mapping`）和内置泛型（如 `list[str]`, `dict[str, int]`）。也尽量避免使用 `Any` ，尽量避免导入 `typing`
 - ❌ **避免重复导入** — 同一个模块中不要出现多条导入同一来源的语句，应合并为一条
 
 ### 示例
@@ -114,12 +112,11 @@ class SampleConfig:
 from collections.abc import Callable, Sequence  # ✅
 # from typing import Callable, Sequence  # ❌ 避免
 
-from typing import Any  # ✅ Any 无替代品，可以从 typing 导入
 ```
 
 ---
 
-## 11. Lint 抑制注释规范
+## Lint 抑制注释规范
 
 ### 规则
 

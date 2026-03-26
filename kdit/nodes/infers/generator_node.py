@@ -83,7 +83,7 @@ class GeneratorNode(InferNode):
             negative=pins.get_tensor(TensorKey.NEGATIVE),
             base_latent=base_latent,
             aux_latent=aux_latent,
-            device=context.device.device,
+            device=context.device.compute_device,
             offload_device=context.device.offload_device,
             sample_config=context.sample_config,
             runtime_config=context.runtime_config,

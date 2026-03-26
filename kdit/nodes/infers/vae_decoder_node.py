@@ -46,7 +46,7 @@ class VAEDecodeNode(InferNode):
         video = vae_model.forward_decode(
             latents=latents,
             local_rank=0,
-            device=context.device.device,
+            device=context.device.compute_device,
             with_end_image=meta.get("with_end_image", False),
         )
 

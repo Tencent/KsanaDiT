@@ -63,6 +63,4 @@ except Exception:  # pylint: disable=broad-except
 
 ### Lint 工具配置
 
-- **ruff**: 规则 `BLE001` (blind-except) 会检测 `except Exception`
-- **pylint**: 规则 `broad-except` 会检测 `except Exception`
-- 如需豁免，使用行内注释 `# pylint: disable=broad-except` 或 `# noqa: BLE001`
+- 如需豁免，使用行内注释 `# pylint: disable=broad-except`

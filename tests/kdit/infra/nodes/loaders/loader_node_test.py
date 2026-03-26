@@ -29,7 +29,7 @@ import torch
 from kdit.models.model_key import ModelKey
 from kdit.models.model_pool import ModelPool
 from kdit.models.model_pool_key import ModelPoolKey
-from kdit.nodes.core.device_context import DeviceInfo
+from kdit.nodes.core.device_info import DeviceInfo
 from kdit.nodes.core.node_context import NodeContext
 from kdit.nodes.core.node_def import NodeDef
 from kdit.nodes.core.node_types import IONodeType
@@ -44,7 +44,7 @@ _NODE_ID = 42
 
 def _make_device_info():
     return DeviceInfo(
-        device=torch.device("cpu"),
+        compute_device=torch.device("cpu"),
         offload_device=torch.device("cpu"),
         rank_id=0,
         world_size=1,

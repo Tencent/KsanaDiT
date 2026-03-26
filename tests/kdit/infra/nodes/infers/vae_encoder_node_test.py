@@ -24,7 +24,7 @@ import torch
 
 from kdit.models.model_key import ModelKey
 from kdit.models.model_pool_key import ModelPoolKey
-from kdit.nodes.core.device_context import DeviceInfo
+from kdit.nodes.core.device_info import DeviceInfo
 from kdit.nodes.core.node_context import NodeContext
 from kdit.nodes.core.node_types import InferNodeType, NodeDispatchPolicy
 from kdit.nodes.core.pin_hub import PinHub
@@ -56,7 +56,7 @@ class TestVAEEncodeSpatialNode(unittest.TestCase):
         self.model_pool.get_model.return_value = self.mock_vae
 
         self.device_info = DeviceInfo(
-            device=torch.device("cpu"),
+            compute_device=torch.device("cpu"),
             offload_device=torch.device("cpu"),
             rank_id=0,
             world_size=1,
@@ -140,7 +140,7 @@ class TestVAEEncodeImagesNode(unittest.TestCase):
         self.model_pool.get_model.return_value = self.mock_vae
 
         self.device_info = DeviceInfo(
-            device=torch.device("cpu"),
+            compute_device=torch.device("cpu"),
             offload_device=torch.device("cpu"),
             rank_id=0,
             world_size=1,

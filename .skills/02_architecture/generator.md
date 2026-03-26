@@ -1,14 +1,23 @@
-# BaseLatent 与 AuxLatent 语义规范
+# Generator — Diffusion 去噪引擎
 
-> 本文件从 [`.skills/coding.md`](../coding.md) 拆分，包含 §12。
+Generator 是 Node 内部的实现细节（被 [`GeneratorNode`](../../kdit/nodes/infers/generator_node.py:42) 封装），负责 Diffusion 去噪流程。Generator 内部的 tensor 流转（noise、denoise step 等）不受 DAG 改造影响。
 
 ---
 
-## 12. BaseLatent 与 AuxLatent 语义规范
+## 声明式架构 (Plan E)
+
+- **`GeneratorFactory` 已废弃**，新架构使用 [`GeneratorDef`](../../kdit/generators/generator_def.py:30) (frozen dataclass) + [`GeneratorRunner`](../../kdit/generators/generator_runner.py:38) (final 类，无子类)
+- **三个 Handler 注入模型差异**: [`TextHandler`](../../kdit/generators/handlers/text_handler.py) / [`LatentHandler`](../../kdit/generators/handlers/latent_handler.py) / [`DenoiseHandler`](../../kdit/generators/handlers/denoise_handler.py)
+- **注册表模式**: [`register_generator_def()`](../../kdit/generators/generator_def.py:48) 注册到 `_GENERATOR_DEF_REGISTRY`，定义文件在 [`kdit/generators/defs/`](../../kdit/generators/defs/) 下
+- **`GeneratorRunner.run(ctx)`** 接收 [`GeneratorInferContext`](../../kdit/generators/generator_context.py:64) 结构化上下文
+
+---
+
+## BaseLatent 与 AuxLatent 语义规范
 
 ### 概述
 
-Generator 的输入 latent 分为两类：**BaseLatent**（主 latent）和 **AuxLatent**（辅助 latent），定义在 `kdit/generators/generator_context.py`。
+Generator 的输入 latent 分为两类：**BaseLatent**（主 latent）和 **AuxLatent**（辅助 latent），定义在 [`kdit/generators/generator_context.py`](../../kdit/generators/generator_context.py)。
 
 ### BaseLatent — 主 latent，决定输出尺寸
 
@@ -17,7 +26,7 @@ Generator 的输入 latent 分为两类：**BaseLatent**（主 latent）和 **Au
 - **视频场景**：`noise_shape` 决定视频的分辨率（H × W）和时长（F 帧数）
 - **图片场景**：`noise_shape` 决定图片的分辨率（H × W）
 
-`noise_shape` 从 `base_latent.latent.shape[1:]` 推导（`BaseGenerator.run()` 中 `noise_shape = list(base_latent_obj.latent.shape[1:])`）。
+`noise_shape` 从 `base_latent.latent.shape[1:]` 推导（`GeneratorRunner.run()` 中 `noise_shape = list(base_latent_obj.latent.shape[1:])`）。
 
 ```python
 # kdit/generators/generator_context.py

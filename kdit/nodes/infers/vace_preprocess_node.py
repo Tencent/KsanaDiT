@@ -55,7 +55,7 @@ class VACEPreprocessNode(InferNode):
             return
 
         vae_model = pins.get_model(vae_model_key)
-        device = context.device.device if context.device else "cpu"
+        device = context.device.compute_device if context.device else "cpu"
 
         # 编码控制视频帧
         encoded_config = encode_vace_context(vae_model, video_control_config, device=device)

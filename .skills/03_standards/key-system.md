@@ -1,27 +1,24 @@
 # Key 类型体系设计规范
 
-> 本文件从 [`.skills/coding.md`](../coding.md) 拆分，包含 §3。
-
 ---
 
-## 3. Key 类型体系设计规范
-
-### 三种 Key 的职责
+## 四种 Key 的职责
 
 | Key 类型 | 定义位置 | 语义 | 使用场景 |
 |----------|---------|------|---------|
-| `ModelKey` | `kdit/models/model_key.py` | 标识一个具体的模型类别 | `ModelPool` 存取、`KsanaModel.__init__`、Loader/Infer Node 注册与分发、`GeneratorFactory` 注册、`settings` 配置映射 |
-| `PipelineKey` | `kdit/pipelines/pipeline_key.py` | 标识一条完整的推理流水线 | `KsanaBasePipeline.__init__`、pipeline 创建与路由、`base_pipeline` 中 pipeline→model 映射表的 key 侧 |
-| `InferNodeType` | `kdit/nodes/core/node_types.py` | 标识推理节点类型 | `InferNodeFactory` 注册与分发、`executor.run_node` |
+| `ModelKey` | [`kdit/models/model_key.py`](../../kdit/models/model_key.py:49) | 标识一个具体的模型类别 | `ModelPool` 存取、`ModelBase.__init__`、Loader/Infer Node 注册与分发、`GeneratorDef` 注册、`settings` 配置映射 |
+| `PipelineKey` | [`kdit/pipelines/pipeline_key.py`](../../kdit/pipelines/pipeline_key.py) | 标识一条完整的推理流水线 | `Pipeline.__init__`、pipeline 创建与路由、pipeline→model 映射表的 key 侧 |
+| `InferNodeType` | [`kdit/nodes/core/node_types.py`](../../kdit/nodes/core/node_types.py:69) | 标识推理节点类型 | `InferNodeFactory` 注册与分发、`PipelineDefBuilder.add_infer()` |
+| `IONodeType` | [`kdit/nodes/core/node_types.py`](../../kdit/nodes/core/node_types.py:57) | 标识加载节点类型 | `LoaderNodeFactory` 注册与分发、`PipelineDefBuilder.add_loader()` |
 
-### 核心约束
+## 核心约束
 
-1. **`ModelPool` 只接受 `ModelKey`** — 不允许传入 `PipelineKey` 或其他类型。
+1. **`ModelPool` 只接受 `ModelKey` 创建的 `ModelPoolKey`** — 不允许传入 `PipelineKey`创建的 `ModelPoolKey` 或其他类型。
 2. **`ModelKey` 和 `PipelineKey` 是独立枚举** — 不存在别名关系（如 `ModelKey = PipelineKey`），即使部分成员同名。
 3. **DiffusionModel 的 `ModelKey` 成员与 `PipelineKey` 同名** — 因为不同 pipeline 的 diffusion model 权重不同，需要独立的 key。
 4. **`get_model_key_from_path()` 统一返回 `ModelKey`** — 调用方如需 `PipelineKey`，必须自行通过 `PipelineKey[model_key.name]` 转换。
 
-### 成员分类
+## 成员分类
 
 ```python
 class ModelKey(Enum):
@@ -44,7 +41,7 @@ class ModelKey(Enum):
     QwenImage_Edit = auto()
 ```
 
-### Pipeline → Model 映射方向
+## Pipeline → Model 映射方向
 
 `base_pipeline.py` 中的映射表遵循 **pipeline key → model key** 方向：
 
@@ -57,7 +54,7 @@ _TEXT_ENCODER_MAP = {
 }
 ```
 
-### 禁止事项
+## 禁止事项
 
 - ❌ 不要创建 `ModelKey = PipelineKey` 这样的别名
 - ❌ 不要让 `ModelPool` 接受 `PipelineKey`

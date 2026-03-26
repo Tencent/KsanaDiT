@@ -243,7 +243,7 @@ class Engine:
     def clear_models(self, *args, **kwargs):
         pass
 
-    # ── V5 Node 架构：统一入口 ──────────────────────────────────────────
+    # ── Node 架构：统一入口 ──────────────────────────────────────────
 
     def run_node(self, node_def, input_pins, context) -> dict:
         """统一 Node 执行入口 — 根据 node_def 类型自动生成 profile label 并分发到所有 Executor。

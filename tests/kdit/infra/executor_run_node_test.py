@@ -18,7 +18,7 @@ import torch
 from kdit.models.model_key import ModelKey
 from kdit.models.model_pool import ModelPool
 from kdit.models.model_pool_key import ModelPoolKey
-from kdit.nodes.core.device_context import DeviceInfo
+from kdit.nodes.core.device_info import DeviceInfo
 from kdit.nodes.core.node_context import NodeContext
 from kdit.nodes.core.node_types import InferNodeType, IONodeType, NodeDispatchPolicy
 from kdit.nodes.core.pin_hub import PinHub
@@ -47,8 +47,8 @@ def _make_executor():
     executor.dist_config = DistributedConfig(num_gpus=1, use_sp=False, dit_fsdp=False, ulysses_size=1)
     executor.tensor_pool = TensorPool()
     executor.dist_group = MagicMock()
-    executor.device_ctx = DeviceInfo(
-        device=torch.device("cpu"),
+    executor.device_info = DeviceInfo(
+        compute_device=torch.device("cpu"),
         offload_device=torch.device("cpu"),
         rank_id=0,
         world_size=1,
@@ -88,13 +88,13 @@ class TestExecutorRunInferNode:
         call_kwargs = mock_node.run.call_args.kwargs
         injected_ctx = call_kwargs["context"]
         assert injected_ctx.device is not None
-        assert injected_ctx.device == executor.device_ctx
+        assert injected_ctx.device == executor.device_info
 
     def test_device_info_not_overwritten_when_present(self):
         """context.device 已有值时，run_node() 不覆盖。"""
         executor = _make_executor()
         existing_device = DeviceInfo(
-            device=torch.device("cpu"),
+            compute_device=torch.device("cpu"),
             offload_device=torch.device("cpu"),
             rank_id=7,
             world_size=8,
@@ -385,8 +385,8 @@ class TestDispatchPolicySkip:
         """R0_R0_BCAST policy 下，非 rank0 的 InferNode 不执行 run()。"""
         executor = _make_executor()
         # 模拟 rank 1
-        executor.device_ctx = DeviceInfo(
-            device=torch.device("cpu"),
+        executor.device_info = DeviceInfo(
+            compute_device=torch.device("cpu"),
             offload_device=torch.device("cpu"),
             rank_id=1,
             world_size=2,
@@ -409,8 +409,8 @@ class TestDispatchPolicySkip:
         """ALL_ALL_ALL policy 下，所有 rank 都执行 run()。"""
         executor = _make_executor()
         # 模拟 rank 3
-        executor.device_ctx = DeviceInfo(
-            device=torch.device("cpu"),
+        executor.device_info = DeviceInfo(
+            compute_device=torch.device("cpu"),
             offload_device=torch.device("cpu"),
             rank_id=3,
             world_size=4,
@@ -431,8 +431,8 @@ class TestDispatchPolicySkip:
     def test_loader_r0_only_skips_non_rank0(self):
         """IONode 的 R0_R0_BCAST policy 下，非 rank0 不执行。"""
         executor = _make_executor()
-        executor.device_ctx = DeviceInfo(
-            device=torch.device("cpu"),
+        executor.device_info = DeviceInfo(
+            compute_device=torch.device("cpu"),
             offload_device=torch.device("cpu"),
             rank_id=1,
             world_size=2,

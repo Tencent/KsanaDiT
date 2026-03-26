@@ -18,20 +18,20 @@ from . import (  # noqa: F401  # pylint: disable=unused-import
     loaders,
 )
 from .core import (
+    DeviceInfo,
     InferNode,
     InferNodeFactory,
     InferNodeType,
     IONode,
     LoaderNodeFactory,
     NodeContext,
-    NodeDeviceContext,
     NodeDispatchPolicy,
 )
 
 __all__ = [
     "IONode",
     "InferNode",
-    "NodeDeviceContext",
+    "DeviceInfo",
     "NodeContext",
     "LoaderNodeFactory",
     "InferNodeFactory",

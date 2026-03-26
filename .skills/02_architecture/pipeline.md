@@ -1,11 +1,34 @@
-# Pipeline 接口、ExtraInputs 与 ContextBuilder 规范
+# Pipeline — 编排层
 
-> 本文件定义 Pipeline.generate() 接口规范、模型特有输入管理（ExtraInputs）、
-> ContextBuilder 开发约束。
+**职责**：DAG 遍历 + 计算 `input_pins` + 分发执行。
+
+- `PipelineDef` 是不可变的 DAG 定义（frozen dataclass），包含 `nodes` + `edges`
+- `PipelineDefBuilder` 链式构建，通过 `.add_loader()` / `.add_infer()` / `.connect()` 声明
+- Pipeline 层负责 DAG 拓扑排序、条件检查、构建 NodeContext
+- Pipeline 层计算 `input_pins`（纯数据），传给 Engine → Executor
+- Executor 只执行单个 Node，不感知 DAG
+- `Pipeline.generate()` 接收 `extra_inputs: ExtraInputs | None` 传递模型特有输入，**禁止** `**kwargs`
+- `ContextBuilder` 是 Pipeline 和 Node 之间的桥梁，负责 `prepare_generate_inputs()` + `build_context()`
+
+## NodeRef / PinRef — DAG 连线引用
+
+- `NodeRef`：`add_loader()` / `add_infer()` 返回的 Node 引用，支持属性访问生成 PinRef
+- `PinRef`：`(node_id, pin)` 二元组，用于 `connect()` 声明连线
+
+```python
+vae_a = builder.add_infer(InferNodeType.VAE_ENCODE_SPATIAL, ModelKey.VAE_WAN2_1)
+gen   = builder.add_infer(InferNodeType.GENERATE, ModelKey.Wan2_2_I2V_14B)
+
+# vae_a.BASE_LATENT → PinRef(node_id, TensorKey.BASE_LATENT)
+builder.connect((vae_a.BASE_LATENT, gen.BASE_LATENT))
+```
+
+- `NodeRef.__getattr__` 在 TensorKey 和 ModelKey 枚举中查找属性名，不需要引号
+- 只有相同类型（都是 TensorKey 或都是 ModelKey）的 pin 才能 connect，但不要求同名
 
 ---
 
-## 1. Pipeline.generate() 接口规范
+## Pipeline.generate() 接口规范
 
 ### 签名
 
@@ -39,7 +62,7 @@ def generate(
 
 ---
 
-## 2. ExtraInputs — 模型特有输入管理
+## ExtraInputs — 模型特有输入管理
 
 ### 基类
 
@@ -100,7 +123,7 @@ pipeline.generate(
 
 ---
 
-## 3. ContextBuilder 开发规范
+## ContextBuilder 开发规范
 
 ### 职责
 
@@ -168,7 +191,7 @@ def _build_read_image_ctx(self, node_def: NodeDef, inputs) -> NodeContext:
 
 ---
 
-## 4. 悬空 Pin 规则
+## 悬空 Pin 规则
 
 ### 规则
 
@@ -183,9 +206,9 @@ DAG 中未连接的输入 pin 代表"不输入"：
 ```python
 # GeneratorNode 已正确处理 AUX_LATENT = None
 class GeneratorNode(InferNode):
-    input_tensor_pins = [TensorKey.POSITIVE, TensorKey.NEGATIVE,
-                         TensorKey.BASE_LATENT, TensorKey.AUX_LATENT,
-                         TensorKey.VACE_CONTEXT]
+    input_defs = [TensorKey.POSITIVE, TensorKey.NEGATIVE,
+                  TensorKey.BASE_LATENT, TensorKey.AUX_LATENT,
+                  TensorKey.VACE_CONTEXT]
 
     def run(self, pins, *, context):
         aux_latent_val = pins.get_tensor(TensorKey.AUX_LATENT)
@@ -201,7 +224,7 @@ class GeneratorNode(InferNode):
 
 ---
 
-## 5. Cross-Pin Connect
+## Cross-Pin Connect
 
 ### 规则
 
