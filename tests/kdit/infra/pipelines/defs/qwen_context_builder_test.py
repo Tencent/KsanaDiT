@@ -21,6 +21,7 @@ from unittest.mock import MagicMock
 from kdit.models.model_key import ModelKey
 from kdit.nodes.core.node_context import NodeContext
 from kdit.nodes.core.node_types import InferNodeType as NT
+from kdit.nodes.core.node_types import IONodeType as IOT
 from kdit.pipelines.context_builders.qwen import QwenEditExtraInputs
 from kdit.pipelines.generate_inputs import PipelineGenerateInputs
 from kdit.pipelines.pipeline_def import NodeDef
@@ -128,7 +129,7 @@ class TestQwenT2IContextBuilder(unittest.TestCase):
             _vae_model_key=None,
         )
 
-        nd = _node_def(NT.SAVE_IMAGE)
+        nd = _node_def(IOT.SAVE_IMAGE)
         ctx = builder.build_context(nd, inputs)
         self.assertIsInstance(ctx, NodeContext)
 
@@ -193,7 +194,7 @@ class TestQwenEditContextBuilder(unittest.TestCase):
         extra = QwenEditExtraInputs(img_path="ref.png")
         builder, inputs = self._prepare(extra_inputs=extra)
 
-        nd = _node_def(NT.READ_IMAGE)
+        nd = _node_def(IOT.READ_IMAGE)
         ctx = builder.build_context(nd, inputs)
 
         self.assertIn("img_paths", ctx.metadata)

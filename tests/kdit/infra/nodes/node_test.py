@@ -19,7 +19,7 @@ import torch
 
 from kdit.nodes.core.device_info import DeviceInfo
 from kdit.nodes.core.node_context import NodeContext
-from kdit.nodes.core.node_factory import InferNodeFactory, LoaderNodeFactory
+from kdit.nodes.core.node_factory import InferNodeFactory, IONodeFactory
 from kdit.nodes.core.node_types import InferNodeType, NodeDispatchPolicy
 
 # ── NodeDispatchPolicy ────────────────────────────────────────────────────
@@ -45,10 +45,7 @@ class TestKsanaInferNodeType:
             "VAE_ENCODE_IMAGES",
             "VAE_DECODE",
             "GENERATE",
-            "READ_IMAGE",
             "VACE_PREPROCESS",
-            "SAVE_VIDEO",
-            "SAVE_IMAGE",
         }
         actual = {nt.name for nt in InferNodeType}
         assert actual == expected
@@ -97,11 +94,11 @@ class TestNodeContext:
 
 
 class TestNodeFactory:
-    def test_loader_factory_has_entries(self):
-        # 确保 import kdit.nodes 后注册了 loader
+    def test_io_factory_has_entries(self):
+        # 确保 import kdit.nodes 后注册了 IO nodes
         import kdit.nodes  # pylint: disable=unused-import # noqa: F401
 
-        assert len(LoaderNodeFactory._registry) > 0
+        assert len(IONodeFactory._registry) > 0
 
     def test_infer_factory_has_entries(self):
         import kdit.nodes  # pylint: disable=unused-import # noqa: F401

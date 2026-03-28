@@ -21,9 +21,10 @@ QwenT2IContextBuilder 和 QwenEditContextBuilder 分别处理纯文生图和编�
 from dataclasses import dataclass
 from typing import Any
 
-from kdit.models.model_key import ModelKey
+from kdit.models.model_pool_key import ModelPoolKey
 from kdit.nodes.core.node_context import NodeContext
 from kdit.nodes.core.node_types import InferNodeType as NT
+from kdit.nodes.core.node_types import IONodeType as IOT
 
 from ..context_builder import ContextBuilder
 from ..extra_inputs import ExtraInputs
@@ -124,7 +125,7 @@ class QwenT2IContextBuilder(QwenContextBuilder):
         *,
         _default_settings: Any,
         _engine: Any,
-        _vae_model_key: ModelKey | None,
+        _vae_model_key: ModelPoolKey | None,
     ) -> None:
         """保存目标尺寸，noise_shape 由 VAE_COMPUTE_SHAPE 节点计算。"""
         rc = base_inputs.runtime_config
@@ -151,7 +152,7 @@ class QwenT2IContextBuilder(QwenContextBuilder):
                 return self._build_gen_ctx(inputs)
             case NT.VAE_DECODE:
                 return self._build_decode_ctx(inputs)
-            case NT.SAVE_IMAGE:
+            case IOT.SAVE_IMAGE:
                 return self._build_save_ctx(inputs)
             case _:
                 raise ValueError(f"QwenT2IContextBuilder: unexpected node_type {node_def.node_type}")
@@ -183,7 +184,7 @@ class QwenEditContextBuilder(QwenContextBuilder):
         *,
         _default_settings: Any,
         _engine: Any,
-        _vae_model_key: ModelKey | None,
+        _vae_model_key: ModelPoolKey | None,
     ) -> None:
         """提取 Edit 特有输入：参考图路径、目标尺寸。"""
         rc = base_inputs.runtime_config
@@ -208,7 +209,7 @@ class QwenEditContextBuilder(QwenContextBuilder):
             case NT.TEXT_ENCODE:
                 # Edit 模式：传入 condition_image_path
                 return self._build_text_ctx(inputs, condition_image_path=extra.img_path)
-            case NT.READ_IMAGE:
+            case IOT.READ_IMAGE:
                 # ReadImageNode 期望 str | list[str]，需要将二维列表展平
                 flat_paths = [p for group in extra.img_path for p in group] if extra.img_path else None
                 return NodeContext(metadata={"img_paths": flat_paths})
@@ -226,7 +227,7 @@ class QwenEditContextBuilder(QwenContextBuilder):
                 return self._build_gen_ctx(inputs)
             case NT.VAE_DECODE:
                 return self._build_decode_ctx(inputs)
-            case NT.SAVE_IMAGE:
+            case IOT.SAVE_IMAGE:
                 return self._build_save_ctx(inputs)
             case _:
                 raise ValueError(f"QwenEditContextBuilder: unexpected node_type {node_def.node_type}")

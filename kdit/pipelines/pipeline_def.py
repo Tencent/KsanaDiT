@@ -95,7 +95,7 @@ class PipelineDefBuilder:
         enc = builder.add_infer(InferNodeType.TEXT_ENCODE, ModelKey.T5TextEncoder)
         gen = builder.add_infer(InferNodeType.GENERATE, ModelKey.Wan2_2_T2V_14B)
         dec = builder.add_infer(InferNodeType.VAE_DECODE, ModelKey.VAE_WAN2_2)
-        save = builder.add_infer(InferNodeType.SAVE_VIDEO)
+        save = builder.add_io(IONodeType.SAVE_VIDEO)
         builder.connect(
             t5.T5TextEncoder >> enc.T5TextEncoder,
             enc.POSITIVE >> gen.POSITIVE,
@@ -134,6 +134,16 @@ class PipelineDefBuilder:
         model_key: ModelKey | None = None,
     ) -> _NodeRefWithWhen:
         """添加一个 Infer Node，返回 _NodeRefWithWhen（支持 .when() 和 pin 访问）。"""
+        node_def = NodeDef(node_type=node_type, model_key=model_key)
+        self._node_defs.append(node_def)
+        return _NodeRefWithWhen(self, node_def)
+
+    def add_io(
+        self,
+        node_type: IONodeType,
+        model_key: ModelKey | None = None,
+    ) -> _NodeRefWithWhen:
+        """添加一个 IONode（非 Loader），返回 _NodeRefWithWhen。"""
         node_def = NodeDef(node_type=node_type, model_key=model_key)
         self._node_defs.append(node_def)
         return _NodeRefWithWhen(self, node_def)

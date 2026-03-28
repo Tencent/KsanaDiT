@@ -113,17 +113,17 @@ class Executor(ABC):
     def _get_or_create_node(self, node_def):
         """根据 NodeDef 获取或创建 Node 实例（缓存在 _node_cache 中）。
 
-        IONode 通过 LoaderNodeFactory.create(model_key) 创建；
+        IONode 通过 IONodeFactory.create(node_type, model_key) 创建；
         InferNode 通过 InferNodeFactory.create(node_type, model_key) 创建。
         """
-        from ..nodes.core.node_factory import InferNodeFactory, LoaderNodeFactory
+        from ..nodes.core.node_factory import InferNodeFactory, IONodeFactory
 
         node_id = node_def.node_id
         if node_id in self._node_cache:
             return self._node_cache[node_id]
 
-        if node_def.is_loader:
-            node = LoaderNodeFactory.create(node_def.model_key)
+        if node_def.is_io:
+            node = IONodeFactory.create(node_def.node_type, node_def.model_key)
         else:
             node = InferNodeFactory.create(node_def.node_type, node_def.model_key)
 
@@ -199,6 +199,7 @@ class Executor(ABC):
 
         自动注入 DeviceInfo / dist_config / shard_fn 到 context，
         构建 PinHub 绑定本地 pool，调用 node.run(pins, context=context)。
+        支持 pre/post tensor 同步和输入引用消费（Save/Read 类 IONode 需要）。
         """
         from ..nodes.core.node_types import NodeDispatchPolicy
 
@@ -212,10 +213,15 @@ class Executor(ABC):
         node = self._get_or_create_node(node_def)
         policy = node.dispatch_policy
 
+        self._pre_sync_tensors(node, policy)
+
         is_active = policy == NodeDispatchPolicy.ALL_ALL_ALL or self.device_info.rank_id == 0
         if is_active:
             pins = self._build_pin_hub(node_def, input_pins)
             node.run(pins, context=context)
+
+        self._post_sync_tensors(node, node_def, policy)
+        self._consume_input_tensors(input_pins)
 
         return self._build_output_pins(node, node_def)
 
@@ -271,8 +277,8 @@ class Executor(ABC):
                 device=self.device_info.compute_device,
             )
 
-    def put_tensors(self, tensors: dict):
-        """将 tensor 写入 tensor_pool（由 Engine 桥接方法通过 Ray 调用）。"""
+    def _put_tensors(self, tensors: dict):
+        """将 tensor 写入 tensor_pool（内部方法，由 Engine._put_tensors 通过 Ray 调用）。"""
         for key, tensor in tensors.items():
             if tensor is not None:
                 self.tensor_pool.put(key, tensor)
@@ -284,10 +290,6 @@ class Executor(ABC):
     def has_tensor(self, key):
         """检查 tensor_pool 中是否存在指定 key（由 Engine 桥接方法通过 Ray 调用）。"""
         return self.tensor_pool.has(key)
-
-    def rename_tensor(self, old_key, new_key):
-        """重命名 tensor_pool 中的 key（由 Engine 桥接方法通过 Ray 调用）。"""
-        self.tensor_pool.rename(old_key, new_key)
 
     def clear_tensor_pool(self, exclude=None):
         """清理 tensor pool（session 结束时由 Engine 调用）。

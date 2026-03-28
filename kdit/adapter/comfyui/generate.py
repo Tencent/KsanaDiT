@@ -20,6 +20,7 @@ from kdit.memory.estimator import (
     get_available_memory,
 )
 from kdit.nodes.core.node_context import NodeContext
+from kdit.nodes.core.node_def import NodeDef
 from kdit.nodes.core.node_types import InferNodeType
 from kdit.tensor import TensorKey
 from kdit.utils import log
@@ -28,7 +29,7 @@ from kdit.utils.monitor import report
 from kdit.utils.profile import MemoryProfiler, TimeProfiler
 from kdit.utils.vace import prepare_video_control_config
 
-from .output_types import KsanaNodeGeneratorOutput
+from .output_types import GeneratorOutput
 
 
 def _prepare_memory_for_kdit_models(model_key, latent_shape, run_dtype, comfy_device, comfy_free_mem_func):
@@ -64,7 +65,7 @@ def _resolve_latent_shape_for_memory(kdit_engine, base_latent):
             return list(data[0].shape) if data else None
         return list(data.shape) if data is not None else None
 
-    base_latent_key = base_latent.samples
+    base_latent_key = base_latent.samples  # TensorPoolKey
     if not kdit_engine.has_tensor(base_latent_key):
         raise RuntimeError(
             f"generate: tensor key '{base_latent_key}' not found in pool. "
@@ -108,14 +109,13 @@ def generate(  # noqa: C901
         if len(sigmas) != expected_lengths:
             raise RuntimeError(f"sigmas length ({len(sigmas)}) must be equal to steps + 1 ({expected_lengths})")
 
-    diffusion_model_key = model.model
-    if diffusion_model_key is None:
+    model_pool_key = model.model  # ModelPoolKey
+    if model_pool_key is None:
         raise RuntimeError(
             "Ksana diffusion model is not loaded (model=None). "
             "Check that `KsanaModelLoaderNode` succeeded and that the requested diffusion model file exists."
         )
-    if isinstance(diffusion_model_key, (list, tuple)):
-        raise RuntimeError("Ksana diffusion model key can not be list or tuple.")
+    diffusion_model_key = model_pool_key.pin  # ModelKey
     run_dtype = model.run_dtype
     kdit_engine = get_engine()
 
@@ -156,7 +156,7 @@ def generate(  # noqa: C901
         vace_embeds=vace_embeds,
     )
 
-    # 构建 NodeContext — tensor 参数通过 tensor_pool 传递
+    # 构建 NodeContext — tensor 参数通过 input_pins 传递
     context = NodeContext(
         sample_config=SampleConfig(
             steps=steps,
@@ -180,15 +180,22 @@ def generate(  # noqa: C901
         },
     )
 
-    try:
-        kdit_engine.put_tensors({TensorKey.POSITIVE: positive[0][0], TensorKey.NEGATIVE: negative[0][0]})
-        # base_latent.samples 是 BASE_LATENT 或 AUX_LATENT — 已在 pool 中
-        if aux_latent is not None and aux_latent.samples is not None:
-            # aux_latent.samples 是 TensorKey — 重命名为 GeneratorNode 期望的 AUX_LATENT
-            kdit_engine.rename_tensor(aux_latent.samples, TensorKey.AUX_LATENT)
-        kdit_engine.run_infer_node(InferNodeType.GENERATE, diffusion_model_key, context)
-    finally:
-        kdit_engine.clear_all_tensors()
+    # 注入 conditioning tensor 并构建 input_pins
+    feed_pins = kdit_engine.feed_tensors({TensorKey.POSITIVE: positive[0][0], TensorKey.NEGATIVE: negative[0][0]})
+    input_pins = dict(feed_pins)
+
+    # 链接上游 base_latent（TensorPoolKey from vae_encode/empty_latent）
+    input_pins[TensorKey.BASE_LATENT] = base_latent.samples
+
+    # 链接上游 aux_latent（可选，无需 rename_tensor）
+    if aux_latent is not None and aux_latent.samples is not None:
+        input_pins[TensorKey.AUX_LATENT] = aux_latent.samples
+
+    # 链接 model
+    input_pins[diffusion_model_key] = model_pool_key
+
+    node_def = NodeDef(node_type=InferNodeType.GENERATE, model_key=diffusion_model_key)
+    result_pins = kdit_engine.run_node(node_def, input_pins, context)
 
     MemoryProfiler.record_memory("after_kdit_engine_generate_with_tensors")
 
@@ -197,7 +204,7 @@ def generate(  # noqa: C901
         _profiler.finish()
         _profiler.print_summary()
 
-    return KsanaNodeGeneratorOutput(
-        samples=TensorKey.LATENTS,
+    return GeneratorOutput(
+        samples=result_pins.get(TensorKey.LATENTS),
         with_end_image=base_latent.with_end_image,
     )

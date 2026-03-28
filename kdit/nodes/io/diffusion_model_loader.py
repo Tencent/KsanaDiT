@@ -28,11 +28,12 @@ from kdit.utils.lora import load_state_dict_and_merge_lora
 from kdit.utils.profile import time_profile
 
 from ..core.base_node import IONode
-from ..core.node_factory import LoaderNodeFactory
-from ..core.node_types import NodeDispatchPolicy
+from ..core.node_factory import IONodeFactory
+from ..core.node_types import IONodeType, NodeDispatchPolicy
 
 
-@LoaderNodeFactory.register(
+@IONodeFactory.register(
+    IONodeType.LOAD_MODEL,
     [
         ModelKey.Wan2_2_T2V_14B,
         ModelKey.Wan2_2_I2V_14B,

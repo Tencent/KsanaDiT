@@ -26,7 +26,7 @@ from kdit.tensor.tensor_key import TensorKey
 # 全局 node_id 分配器
 # ---------------------------------------------------------------------------
 
-_node_id_counter = itertools.count(0)
+_node_id_counter = itertools.count(1)
 
 
 @dataclass(frozen=True)
@@ -47,13 +47,13 @@ class NodeDef:
 
     @property
     def is_io(self) -> bool:
-        """True 表示 IONode（Loader/Save/Read），False 表示 InferNode。"""
+        """True 表示 IONode（Loader/Save/Read/Feed/Fetch），False 表示 InferNode。"""
         return isinstance(self.node_type, IONodeType)
 
     @property
     def is_loader(self) -> bool:
-        """向后兼容别名 — 等价于 is_io。"""
-        return self.is_io
+        """True 仅当 node_type == IONodeType.LOAD_MODEL。"""
+        return self.node_type == IONodeType.LOAD_MODEL
 
 
 # ---------------------------------------------------------------------------

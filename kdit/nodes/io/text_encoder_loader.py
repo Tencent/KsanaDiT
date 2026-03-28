@@ -21,12 +21,13 @@ from kdit.settings import load_default_settings
 from kdit.utils import log, time_profile
 
 from ..core.base_node import IONode
-from ..core.node_factory import LoaderNodeFactory
-from ..core.node_types import NodeDispatchPolicy
+from ..core.node_factory import IONodeFactory
+from ..core.node_types import IONodeType, NodeDispatchPolicy
 
 
-@LoaderNodeFactory.register(
-    [ModelKey.T5TextEncoder, ModelKey.Qwen2VLTextEncoder, ModelKey.Qwen2VLTextEncoderMultimodal]
+@IONodeFactory.register(
+    IONodeType.LOAD_MODEL,
+    [ModelKey.T5TextEncoder, ModelKey.Qwen2VLTextEncoder, ModelKey.Qwen2VLTextEncoderMultimodal],
 )
 class TextEncoderLoaderNode(IONode):
     """加载 TextEncoder 模型。"""

@@ -203,8 +203,8 @@ class TestExecutorRunLoaderNode:
     - dist_config / shard_fn 注入到 context.metadata
     """
 
-    def test_loader_node_no_sync(self):
-        """IONode 不调用 _pre_sync_tensors / _post_sync_tensors。"""
+    def test_loader_node_has_sync(self):
+        """IONode 也调用 _pre_sync_tensors / _post_sync_tensors（Save/Read 类需要）。"""
         executor = _make_executor()
         executor._pre_sync_tensors = MagicMock()
         executor._post_sync_tensors = MagicMock()
@@ -218,9 +218,8 @@ class TestExecutorRunLoaderNode:
         with patch("kdit.executor.executor.Executor._get_or_create_node", return_value=mock_node):
             executor.run_node(node_def, input_pins={}, context=context)
 
-        # IONode 不需要 tensor sync
-        executor._pre_sync_tensors.assert_not_called()
-        executor._post_sync_tensors.assert_not_called()
+        executor._pre_sync_tensors.assert_called_once()
+        executor._post_sync_tensors.assert_called_once()
 
     def test_loader_node_receives_pin_hub_as_first_arg(self):
         """IONode 的 run() 第一个位置参数是 PinHub 实例。"""
@@ -339,15 +338,15 @@ class TestGetOrCreateNode:
     """测试 _get_or_create_node() 的缓存行为。"""
 
     def test_loader_node_created_via_factory(self):
-        """IONode 通过 LoaderNodeFactory.create() 创建。"""
+        """IONode 通过 IONodeFactory.create() 创建。"""
         executor = _make_executor()
         node_def = NodeDef(node_type=IONodeType.LOAD_MODEL, model_key=ModelKey.T5TextEncoder)
 
         mock_node = MagicMock()
-        with patch("kdit.nodes.core.node_factory.LoaderNodeFactory.create", return_value=mock_node) as mock_create:
+        with patch("kdit.nodes.core.node_factory.IONodeFactory.create", return_value=mock_node) as mock_create:
             result = executor._get_or_create_node(node_def)
 
-        mock_create.assert_called_once_with(ModelKey.T5TextEncoder)
+        mock_create.assert_called_once_with(IONodeType.LOAD_MODEL, ModelKey.T5TextEncoder)
         assert result is mock_node
 
     def test_infer_node_created_via_factory(self):
@@ -368,7 +367,7 @@ class TestGetOrCreateNode:
         node_def = NodeDef(node_type=IONodeType.LOAD_MODEL, model_key=ModelKey.T5TextEncoder)
 
         mock_node = MagicMock()
-        with patch("kdit.nodes.core.node_factory.LoaderNodeFactory.create", return_value=mock_node) as mock_create:
+        with patch("kdit.nodes.core.node_factory.IONodeFactory.create", return_value=mock_node) as mock_create:
             first = executor._get_or_create_node(node_def)
             second = executor._get_or_create_node(node_def)
 
@@ -486,7 +485,7 @@ class TestBuildOutputPins:
     def test_output_pins_empty_for_no_outputs(self):
         """没有 output_defs 且 model_key 为 None 的 InferNode 返回空 dict。"""
         executor = _make_executor()
-        node_def = NodeDef(node_type=InferNodeType.SAVE_VIDEO)
+        node_def = NodeDef(node_type=IONodeType.SAVE_VIDEO)
 
         mock_node = MagicMock()
         mock_node.output_defs = []
@@ -561,8 +560,8 @@ class TestAutoConsumeInputTensors:
         # ref_count 从 1 降到 0，tensor 被释放
         assert executor.tensor_pool.get(input_pool_key) is None
 
-    def test_loader_does_not_consume_inputs(self):
-        """run_node() 不自动消费输入 tensor（Loader 没有 tensor 输入）。"""
+    def test_io_node_also_consumes_inputs(self):
+        """IONode 也消费 input tensor（Save/Read 类 IONode 需要）。"""
         executor = _make_executor()
         node_def = NodeDef(node_type=IONodeType.LOAD_MODEL, model_key=ModelKey.T5TextEncoder)
 
@@ -570,7 +569,6 @@ class TestAutoConsumeInputTensors:
         mock_node.output_defs = []
         mock_node.dispatch_policy = NodeDispatchPolicy.ALL_ALL_ALL
 
-        # 即使 input_pins 中有 tensor，Loader 也不消费
         nd_src = NodeDef(node_type=InferNodeType.TEXT_ENCODE)
         input_pool_key = TensorPoolKey(nd_src.node_id, TensorKey.POSITIVE)
         executor.tensor_pool.put(input_pool_key, MagicMock())
@@ -581,8 +579,8 @@ class TestAutoConsumeInputTensors:
         with patch("kdit.executor.executor.Executor._get_or_create_node", return_value=mock_node):
             executor.run_node(node_def, input_pins=input_pins, context=NodeContext(metadata={}))
 
-        # Loader 不消费，tensor 仍存在
-        assert executor.tensor_pool.get(input_pool_key) is not None
+        # IONode 也消费 input tensor（统一行为）
+        assert executor.tensor_pool.get(input_pool_key) is None
 
 
 class TestRegisterRefCount:

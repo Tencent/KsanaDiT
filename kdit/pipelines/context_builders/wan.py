@@ -28,9 +28,10 @@ import torchvision.transforms.functional as tvtf
 from PIL import Image
 
 from kdit.config.lora_config import LoraConfig
-from kdit.models.model_key import ModelKey
+from kdit.models.model_pool_key import ModelPoolKey
 from kdit.nodes.core.node_context import NodeContext
 from kdit.nodes.core.node_types import InferNodeType as NT
+from kdit.nodes.core.node_types import IONodeType as IOT
 from kdit.tensor import TensorKey
 from kdit.utils.logger import log
 from kdit.utils.types import str_to_list
@@ -221,7 +222,7 @@ class WanT2VContextBuilder(WanContextBuilder):
         *,
         _default_settings: Any,
         _engine: Any,
-        _vae_model_key: ModelKey | None,
+        _vae_model_key: ModelPoolKey | None,
     ) -> None:
         """保存目标尺寸，noise_shape 由 VAE_COMPUTE_SHAPE 节点计算。"""
         rc = base_inputs.runtime_config
@@ -251,7 +252,7 @@ class WanT2VContextBuilder(WanContextBuilder):
                 return self._build_gen_ctx(inputs)
             case NT.VAE_DECODE:
                 return self._build_decode_ctx(inputs)
-            case NT.SAVE_VIDEO:
+            case IOT.SAVE_VIDEO:
                 return self._build_save_ctx(inputs)
             case _:
                 raise ValueError(f"WanT2VContextBuilder: unexpected node_type {node_def.node_type}")
@@ -285,7 +286,7 @@ class WanI2VContextBuilder(WanContextBuilder):
         *,
         _default_settings: Any,
         _engine: Any,
-        _vae_model_key: ModelKey | None,
+        _vae_model_key: ModelPoolKey | None,
     ) -> None:
         """提取 I2V 特有输入：图片路径、VACE 配置、noise_shape。"""
         settings = _default_settings
@@ -332,7 +333,7 @@ class WanI2VContextBuilder(WanContextBuilder):
         match node_def.node_type:
             case NT.TEXT_ENCODE:
                 return self._build_text_ctx(inputs)
-            case NT.READ_IMAGE:
+            case IOT.READ_IMAGE:
                 # ReadImageNode: 通过 edges 区分 start/end image
                 img_paths = self._resolve_read_image_paths(node_def)
                 return NodeContext(metadata={"img_paths": img_paths})
@@ -352,7 +353,7 @@ class WanI2VContextBuilder(WanContextBuilder):
                 return self._build_gen_ctx(inputs)
             case NT.VAE_DECODE:
                 return self._build_decode_ctx(inputs)
-            case NT.SAVE_VIDEO:
+            case IOT.SAVE_VIDEO:
                 return self._build_save_ctx(inputs)
             case _:
                 raise ValueError(f"WanI2VContextBuilder: unexpected node_type {node_def.node_type}")
@@ -429,12 +430,12 @@ def _valid_video_control_config(
     video_control_config: VaceConfig | None,
     runtime_config: Any,
     engine: Any | None,
-    vae_model_key: ModelKey | None,
+    vae_model_key: Any | None,
     vae_stride: Any | None,
 ) -> VaceConfig | None:
     """校验并构建 VACE 配置 — 从 BasePipeline._valid_video_control_config 迁移。
 
-    需要 engine 和 vae_model_key 来构建 vae_encode_fn 闭包。
+    需要 engine 和 vae_model_key（ModelPoolKey）来构建 vae_encode_fn 闭包。
     """
     if video_control_config is None:
         return None
@@ -448,13 +449,15 @@ def _valid_video_control_config(
     num_frames = runtime_config.frame_num
 
     def vae_encode_fn(frame: torch.Tensor) -> torch.Tensor:
+        from kdit.nodes.core.node_def import NodeDef as _NodeDef
+
         context = NodeContext()
-        try:
-            engine.put_tensors({TensorKey.IMAGE: frame})
-            engine.run_infer_node(NT.VAE_ENCODE_IMAGES, vae_model_key, context)
-            tensor_value = engine.get_tensor(TensorKey.AUX_LATENT)
-        finally:
-            engine.clear_all_tensors()
+        feed_pins = engine.feed_tensors({TensorKey.IMAGE: frame})
+        input_pins = dict(feed_pins)
+        input_pins[vae_model_key.pin] = vae_model_key
+        node_def = _NodeDef(node_type=NT.VAE_ENCODE_IMAGES, model_key=vae_model_key.pin)
+        result_pins = engine.run_node(node_def, input_pins, context)
+        tensor_value = engine.get_tensor(result_pins[TensorKey.AUX_LATENT])
         latents_list = tensor_value.data  # list[Tensor]
         return latent_process_out(latents_list[0])
 

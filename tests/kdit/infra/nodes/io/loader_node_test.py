@@ -34,9 +34,9 @@ from kdit.nodes.core.node_context import NodeContext
 from kdit.nodes.core.node_def import NodeDef
 from kdit.nodes.core.node_types import IONodeType
 from kdit.nodes.core.pin_hub import PinHub
-from kdit.nodes.loaders.diffusion_model_loader import DiffusionLoaderNode
-from kdit.nodes.loaders.text_encoder_loader import TextEncoderLoaderNode
-from kdit.nodes.loaders.vae_loader import VAELoaderNode
+from kdit.nodes.io.diffusion_model_loader import DiffusionLoaderNode
+from kdit.nodes.io.text_encoder_loader import TextEncoderLoaderNode
+from kdit.nodes.io.vae_loader import VAELoaderNode
 from kdit.tensor.tensor_pool import TensorPool
 
 
@@ -71,10 +71,10 @@ class TestTextEncoderLoaderNode(unittest.TestCase):
         self.model_pool = ModelPool()
         self.device_info = _make_device_info()
 
-    @patch("kdit.nodes.loaders.text_encoder_loader.KsanaTextEncoderModel")
-    @patch("kdit.nodes.loaders.text_encoder_loader.load_default_settings")
-    @patch("kdit.nodes.loaders.text_encoder_loader.Path")
-    @patch("kdit.nodes.loaders.text_encoder_loader.os.path.exists", return_value=True)
+    @patch("kdit.nodes.io.text_encoder_loader.KsanaTextEncoderModel")
+    @patch("kdit.nodes.io.text_encoder_loader.load_default_settings")
+    @patch("kdit.nodes.io.text_encoder_loader.Path")
+    @patch("kdit.nodes.io.text_encoder_loader.os.path.exists", return_value=True)
     def test_run_puts_model_into_pool(self, _mock_exists, mock_path_cls, mock_load_settings, mock_model_cls):
         # ── arrange ──
         mock_path_cls.return_value.is_dir.return_value = True
@@ -107,10 +107,10 @@ class TestTextEncoderLoaderNode(unittest.TestCase):
             dtype=None,
         )
 
-    @patch("kdit.nodes.loaders.text_encoder_loader.KsanaTextEncoderModel")
-    @patch("kdit.nodes.loaders.text_encoder_loader.load_default_settings")
-    @patch("kdit.nodes.loaders.text_encoder_loader.Path")
-    @patch("kdit.nodes.loaders.text_encoder_loader.os.path.exists", return_value=True)
+    @patch("kdit.nodes.io.text_encoder_loader.KsanaTextEncoderModel")
+    @patch("kdit.nodes.io.text_encoder_loader.load_default_settings")
+    @patch("kdit.nodes.io.text_encoder_loader.Path")
+    @patch("kdit.nodes.io.text_encoder_loader.os.path.exists", return_value=True)
     def test_run_with_qwen_model_key(self, _mock_exists, mock_path_cls, mock_load_settings, mock_model_cls):
         """验证不同 model_key 也能正确写入 ModelPool。"""
         self.node._factory_model_key = ModelKey.Qwen2VLTextEncoder
@@ -131,8 +131,8 @@ class TestTextEncoderLoaderNode(unittest.TestCase):
         stored_model = self.model_pool.get_model(expected_key)
         self.assertIs(stored_model, mock_model_cls.return_value)
 
-    @patch("kdit.nodes.loaders.text_encoder_loader.Path")
-    @patch("kdit.nodes.loaders.text_encoder_loader.os.path.exists", return_value=False)
+    @patch("kdit.nodes.io.text_encoder_loader.Path")
+    @patch("kdit.nodes.io.text_encoder_loader.os.path.exists", return_value=False)
     def test_run_raises_on_invalid_path(self, _mock_exists, _mock_path_cls):
         """checkpoint_dir 不存在时应抛出 ValueError。"""
         context = NodeContext(
@@ -156,9 +156,9 @@ class TestVAELoaderNode(unittest.TestCase):
         self.model_pool = ModelPool()
         self.device_info = _make_device_info()
 
-    @patch("kdit.nodes.loaders.vae_loader.load_default_settings")
-    @patch("kdit.nodes.loaders.vae_loader.is_file_or_dir", return_value=True)
-    @patch("kdit.nodes.loaders.vae_loader.os.path.exists", return_value=True)
+    @patch("kdit.nodes.io.vae_loader.load_default_settings")
+    @patch("kdit.nodes.io.vae_loader.is_file_or_dir", return_value=True)
+    @patch("kdit.nodes.io.vae_loader.os.path.exists", return_value=True)
     def test_run_puts_model_into_pool(self, _mock_exists, _mock_is_file, mock_load_settings):
         # ── arrange ──
         mock_settings = MagicMock()
@@ -184,9 +184,9 @@ class TestVAELoaderNode(unittest.TestCase):
         # ── assert: model.load() 被调用 ──
         mock_model.load.assert_called_once_with("/fake/vae.safetensors", shard_fn=None)
 
-    @patch("kdit.nodes.loaders.vae_loader.load_default_settings")
-    @patch("kdit.nodes.loaders.vae_loader.is_file_or_dir", return_value=True)
-    @patch("kdit.nodes.loaders.vae_loader.os.path.exists", return_value=True)
+    @patch("kdit.nodes.io.vae_loader.load_default_settings")
+    @patch("kdit.nodes.io.vae_loader.is_file_or_dir", return_value=True)
+    @patch("kdit.nodes.io.vae_loader.os.path.exists", return_value=True)
     def test_run_with_qwen_vae(self, _mock_exists, _mock_is_file, mock_load_settings):
         """验证 QwenImageVAE model_key 也能正确写入 ModelPool。"""
         self.node._factory_model_key = ModelKey.QwenImageVAE
@@ -209,9 +209,9 @@ class TestVAELoaderNode(unittest.TestCase):
         stored_model = self.model_pool.get_model(expected_key)
         self.assertIs(stored_model, mock_model)
 
-    @patch("kdit.nodes.loaders.vae_loader.load_default_settings")
-    @patch("kdit.nodes.loaders.vae_loader.is_file_or_dir", return_value=True)
-    @patch("kdit.nodes.loaders.vae_loader.os.path.exists", return_value=True)
+    @patch("kdit.nodes.io.vae_loader.load_default_settings")
+    @patch("kdit.nodes.io.vae_loader.is_file_or_dir", return_value=True)
+    @patch("kdit.nodes.io.vae_loader.os.path.exists", return_value=True)
     def test_run_passes_shard_fn(self, _mock_exists, _mock_is_file, mock_load_settings):
         """验证 metadata 中的 shard_fn 被正确传递给 model.load()。"""
         mock_load_settings.return_value = MagicMock()
@@ -230,8 +230,8 @@ class TestVAELoaderNode(unittest.TestCase):
 
         mock_model.load.assert_called_once_with("/fake/vae.safetensors", shard_fn=fake_shard_fn)
 
-    @patch("kdit.nodes.loaders.vae_loader.is_file_or_dir", return_value=False)
-    @patch("kdit.nodes.loaders.vae_loader.os.path.exists", return_value=False)
+    @patch("kdit.nodes.io.vae_loader.is_file_or_dir", return_value=False)
+    @patch("kdit.nodes.io.vae_loader.os.path.exists", return_value=False)
     def test_run_raises_on_invalid_path(self, _mock_exists, _mock_is_file):
         """model_path 不存在时应抛出 ValueError。"""
         context = NodeContext(
@@ -270,10 +270,10 @@ class TestDiffusionLoaderNode(unittest.TestCase):
         config.torch_compile_config = None
         return config
 
-    @patch("kdit.nodes.loaders.diffusion_model_loader.PinnedMemoryManager")
-    @patch("kdit.nodes.loaders.diffusion_model_loader.build_ops")
-    @patch("kdit.nodes.loaders.diffusion_model_loader.load_default_settings")
-    @patch("kdit.nodes.loaders.diffusion_model_loader.is_file_or_dir", return_value=True)
+    @patch("kdit.nodes.io.diffusion_model_loader.PinnedMemoryManager")
+    @patch("kdit.nodes.io.diffusion_model_loader.build_ops")
+    @patch("kdit.nodes.io.diffusion_model_loader.load_default_settings")
+    @patch("kdit.nodes.io.diffusion_model_loader.is_file_or_dir", return_value=True)
     def test_run_single_model_puts_into_pool(self, _mock_is_file, mock_load_settings, mock_build_ops, _mock_pmm_cls):
         """单模型路径 — run() 后 ModelPool 中存在正确的 model。"""
         # ── arrange ──
@@ -319,10 +319,10 @@ class TestDiffusionLoaderNode(unittest.TestCase):
         mock_model.apply_torch_compile.assert_called_once()
         mock_model.apply_pinned_memory.assert_called_once()
 
-    @patch("kdit.nodes.loaders.diffusion_model_loader.PinnedMemoryManager")
-    @patch("kdit.nodes.loaders.diffusion_model_loader.build_ops")
-    @patch("kdit.nodes.loaders.diffusion_model_loader.load_default_settings")
-    @patch("kdit.nodes.loaders.diffusion_model_loader.is_file_or_dir", return_value=True)
+    @patch("kdit.nodes.io.diffusion_model_loader.PinnedMemoryManager")
+    @patch("kdit.nodes.io.diffusion_model_loader.build_ops")
+    @patch("kdit.nodes.io.diffusion_model_loader.load_default_settings")
+    @patch("kdit.nodes.io.diffusion_model_loader.is_file_or_dir", return_value=True)
     def test_run_multi_model_puts_list_into_pool(
         self, _mock_is_file, mock_load_settings, mock_build_ops, _mock_pmm_cls
     ):
@@ -372,10 +372,10 @@ class TestDiffusionLoaderNode(unittest.TestCase):
         self.assertIs(stored[0], mock_model_a)
         self.assertIs(stored[1], mock_model_b)
 
-    @patch("kdit.nodes.loaders.diffusion_model_loader.PinnedMemoryManager")
-    @patch("kdit.nodes.loaders.diffusion_model_loader.build_ops")
-    @patch("kdit.nodes.loaders.diffusion_model_loader.load_default_settings")
-    @patch("kdit.nodes.loaders.diffusion_model_loader.is_file_or_dir", return_value=True)
+    @patch("kdit.nodes.io.diffusion_model_loader.PinnedMemoryManager")
+    @patch("kdit.nodes.io.diffusion_model_loader.build_ops")
+    @patch("kdit.nodes.io.diffusion_model_loader.load_default_settings")
+    @patch("kdit.nodes.io.diffusion_model_loader.is_file_or_dir", return_value=True)
     def test_run_with_i2v_model_key(self, _mock_is_file, mock_load_settings, mock_build_ops, _mock_pmm_cls):
         """验证 I2V model_key 也能正确写入 ModelPool。"""
         self.node._factory_model_key = ModelKey.Wan2_2_I2V_14B

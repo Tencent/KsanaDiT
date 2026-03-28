@@ -25,16 +25,16 @@ from torchvision import transforms
 from kdit.tensor import TensorKey
 from kdit.utils import log
 
-from ..core.base_node import InferNode
-from ..core.node_factory import InferNodeFactory
-from ..core.node_types import InferNodeType, NodeDispatchPolicy
+from ..core.base_node import IONode
+from ..core.node_factory import IONodeFactory
+from ..core.node_types import IONodeType, NodeDispatchPolicy
 
 
 def _load_image_paths(img_paths: str | list[str], device: str = "cpu") -> torch.Tensor | None:
     """加载一个或多个图片路径为 tensor。
 
     Returns:
-        Tensor [N, C, H, W] in range [0, 1]，或 None（路径无效时）。
+        Tensor [N, C, H, W] in range [-1, 1]，或 None（路径无效时）。
     """
     if isinstance(img_paths, str):
         img_paths = [img_paths]
@@ -46,7 +46,8 @@ def _load_image_paths(img_paths: str | list[str], device: str = "cpu") -> torch.
     for p in img_paths:
         try:
             img = Image.open(p).convert("RGB")
-            tensors.append(to_tensor(img))
+            # to_tensor 输出 [0, 1]，归一化到 [-1, 1] 以匹配 VAE 编码器期望
+            tensors.append(to_tensor(img).sub_(0.5).div_(0.5))
         except OSError:
             log.warning(f"ReadImageNode: failed to load image: {p}")
             continue
@@ -58,8 +59,8 @@ def _load_image_paths(img_paths: str | list[str], device: str = "cpu") -> torch.
     return torch.stack(tensors).to(device)
 
 
-@InferNodeFactory.register(InferNodeType.READ_IMAGE, [None])
-class ReadImageNode(InferNode):
+@IONodeFactory.register(IONodeType.READ_IMAGE, [None])
+class ReadImageNode(IONode):
     """读取图片文件并输出 tensor。
 
     单一功能：读取一个或多个图片路径，拼成一个 tensor 输出。

@@ -21,6 +21,7 @@ Edit 流程：TextEncode → ReadImage → VAE_ENCODE_IMAGES(条件)
 
 from kdit.models.model_key import ModelKey
 from kdit.nodes.core.node_types import InferNodeType as NT
+from kdit.nodes.core.node_types import IONodeType as IOT
 from kdit.tensor import TensorKey
 
 from ..context_builders.qwen import QwenEditContextBuilder
@@ -36,12 +37,12 @@ vae = _b.add_loader(ModelKey.QwenImageVAE)
 
 # infer nodes
 text = _b.add_infer(NT.TEXT_ENCODE, ModelKey.Qwen2VLTextEncoderMultimodal)
-read_r = _b.add_infer(NT.READ_IMAGE)
+read_r = _b.add_io(IOT.READ_IMAGE)
 vae_enc = _b.add_infer(NT.VAE_ENCODE_IMAGES, ModelKey.QwenImageVAE).when("has_ref_images")
 shape = _b.add_infer(NT.VAE_COMPUTE_SHAPE, ModelKey.QwenImageVAE)
 gen = _b.add_infer(NT.GENERATE, ModelKey.QwenImage_Edit)
 dec = _b.add_infer(NT.VAE_DECODE, ModelKey.QwenImageVAE)
-save = _b.add_infer(NT.SAVE_IMAGE)
+save = _b.add_io(IOT.SAVE_IMAGE)
 
 # edges
 _b.connect(

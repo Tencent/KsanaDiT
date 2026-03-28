@@ -15,8 +15,27 @@
 from kdit.utils.factory import AdvancedFactory, SimpleFactory
 
 
+class IONodeFactory(AdvancedFactory):
+    """IO Node 工厂 — 二级 key (IONodeType, ModelKey | None)。
+
+    替代 LoaderNodeFactory，统一管理所有 IONode（Loader/Save/Read/Feed/Fetch）。
+
+    - register(io_node_type, model_key_list): 注册 IONode 类
+    - create(io_node_type, model_key=None): 创建 IONode 实例，自动注入 _factory_model_key
+    """
+
+    @classmethod
+    def create(cls, io_node_type, model_key=None, *args, **kwargs):
+        node = super().create(io_node_type, model_key, *args, **kwargs)
+        node._factory_model_key = model_key
+        return node
+
+
 class LoaderNodeFactory(SimpleFactory):
     """Loader Node 工厂 — 纯注册表 + _factory_model_key 注入。
+
+    .. deprecated::
+        请使用 IONodeFactory 替代。保留仅为向后兼容迁移期。
 
     - register(model_key_list): 注册 IONode 类
     - create(model_key): 创建 IONode 实例，自动注入 _factory_model_key

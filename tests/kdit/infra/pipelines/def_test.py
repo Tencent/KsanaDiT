@@ -21,6 +21,7 @@ from kdit.nodes.core.node_context import NodeContext
 from kdit.nodes.core.node_def import NodeRef
 from kdit.nodes.core.node_types import InferNodeType as NT
 from kdit.nodes.core.node_types import IONodeType
+from kdit.nodes.core.node_types import IONodeType as IOT
 from kdit.pipelines.context_builder import ContextBuilder
 from kdit.pipelines.pipeline_def import (
     PipelineDef,
@@ -132,7 +133,7 @@ class TestPipelineDefBuilderDAG(unittest.TestCase):
         builder = PipelineDefBuilder(PipelineKey.Wan2_2_T2V_14B)
         t5 = builder.add_loader(ModelKey.T5TextEncoder)
         enc = builder.add_infer(NT.TEXT_ENCODE, ModelKey.T5TextEncoder)
-        save = builder.add_infer(NT.SAVE_VIDEO)
+        save = builder.add_io(IOT.SAVE_VIDEO)
 
         builder.connect(
             t5.T5TextEncoder >> enc.T5TextEncoder,
@@ -157,7 +158,7 @@ class TestPipelineDefBuilderDAG(unittest.TestCase):
         builder = PipelineDefBuilder(PipelineKey.Wan2_2_I2V_14B)
         builder.add_loader(ModelKey.VAE_WAN2_2)
         builder.add_infer(NT.VAE_ENCODE_SPATIAL, ModelKey.VAE_WAN2_2).when("has_test_input")
-        builder.add_infer(NT.SAVE_VIDEO)
+        builder.add_io(IOT.SAVE_VIDEO)
 
         pipeline_def = builder.context_builder(_DummyContextBuilder).build()
 
@@ -165,7 +166,7 @@ class TestPipelineDefBuilderDAG(unittest.TestCase):
         vae_node = next(n for n in pipeline_def.nodes if n.node_type == NT.VAE_ENCODE_SPATIAL)
         self.assertEqual(vae_node.condition, "has_test_input")
         # SAVE_VIDEO 无条件
-        save_node = next(n for n in pipeline_def.nodes if n.node_type == NT.SAVE_VIDEO)
+        save_node = next(n for n in pipeline_def.nodes if n.node_type == IOT.SAVE_VIDEO)
         self.assertIsNone(save_node.condition)
 
     def test_when_returns_node_ref(self):
@@ -182,7 +183,7 @@ class TestPipelineDefBuilderDAG(unittest.TestCase):
         builder = PipelineDefBuilder(PipelineKey.Wan2_2_T2V_14B)
         builder.add_loader(ModelKey.T5TextEncoder)
         builder.add_infer(NT.TEXT_ENCODE, ModelKey.T5TextEncoder)
-        builder.add_infer(NT.SAVE_VIDEO)
+        builder.add_io(IOT.SAVE_VIDEO)
 
         pipeline_def = builder.context_builder(_DummyContextBuilder).build()
 
@@ -201,24 +202,24 @@ class TestPipelineDefBuilderDAG(unittest.TestCase):
         # Infer node without model
         save = pipeline_def.nodes[2]
         self.assertFalse(save.is_loader)
-        self.assertEqual(save.node_type, NT.SAVE_VIDEO)
+        self.assertEqual(save.node_type, IOT.SAVE_VIDEO)
         self.assertIsNone(save.model_key)
 
     def test_save_node_no_model_key(self):
         """SaveNode 的 model_key 为 None。"""
         builder = PipelineDefBuilder(PipelineKey.Wan2_2_T2V_14B)
         builder.add_loader(ModelKey.VAE_WAN2_2)
-        builder.add_infer(NT.SAVE_VIDEO)
+        builder.add_io(IOT.SAVE_VIDEO)
 
         pipeline_def = builder.context_builder(_DummyContextBuilder).build()
-        save_node = next(n for n in pipeline_def.nodes if n.node_type == NT.SAVE_VIDEO)
+        save_node = next(n for n in pipeline_def.nodes if n.node_type == IOT.SAVE_VIDEO)
         self.assertIsNone(save_node.model_key)
 
     def test_frozen_dataclass(self):
         """PipelineDef 是 frozen dataclass — 不可修改。"""
         builder = PipelineDefBuilder(PipelineKey.Wan2_2_T2V_14B)
         builder.add_loader(ModelKey.VAE_WAN2_2)
-        builder.add_infer(NT.SAVE_VIDEO)
+        builder.add_io(IOT.SAVE_VIDEO)
 
         pipeline_def = builder.context_builder(_DummyContextBuilder).build()
         with self.assertRaises(AttributeError):
@@ -378,7 +379,7 @@ class TestPipelineDefStructure(unittest.TestCase):
                 NT.VAE_COMPUTE_SHAPE,
                 NT.GENERATE,
                 NT.VAE_DECODE,
-                NT.SAVE_VIDEO,
+                IOT.SAVE_VIDEO,
             ],
         )
 
@@ -392,7 +393,7 @@ class TestPipelineDefStructure(unittest.TestCase):
         self.assertGreaterEqual(len(infers), 5)
 
         # 检查包含 READ_IMAGE 节点
-        read_image_nodes = [n for n in infers if n.node_type == NT.READ_IMAGE]
+        read_image_nodes = [n for n in infers if n.node_type == IOT.READ_IMAGE]
         self.assertGreaterEqual(len(read_image_nodes), 1)
 
         # 检查 VACE_PREPROCESS 有条件
@@ -431,7 +432,7 @@ class TestPipelineDefStructure(unittest.TestCase):
                 NT.VAE_COMPUTE_SHAPE,
                 NT.GENERATE,
                 NT.VAE_DECODE,
-                NT.SAVE_IMAGE,
+                IOT.SAVE_IMAGE,
             ],
         )
 

@@ -19,6 +19,7 @@
 
 from kdit.models.model_key import ModelKey
 from kdit.nodes.core.node_types import InferNodeType as NT
+from kdit.nodes.core.node_types import IONodeType as IOT
 from kdit.tensor import TensorKey
 
 from ..context_builders.wan import WanT2VContextBuilder
@@ -37,7 +38,7 @@ enc = _b.add_infer(NT.TEXT_ENCODE, ModelKey.T5TextEncoder)
 shape = _b.add_infer(NT.VAE_COMPUTE_SHAPE, ModelKey.VAE_WAN2_1)
 gen = _b.add_infer(NT.GENERATE, ModelKey.Wan2_2_T2V_14B)
 dec = _b.add_infer(NT.VAE_DECODE, ModelKey.VAE_WAN2_1)
-save = _b.add_infer(NT.SAVE_VIDEO)
+save = _b.add_io(IOT.SAVE_VIDEO)
 
 # edges
 _b.connect(

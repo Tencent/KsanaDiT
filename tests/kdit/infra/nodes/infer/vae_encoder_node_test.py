@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Tests for kdit.nodes.infers.vae_encoder_node — VAEEncodeSpatialNode / VAEEncodeImagesNode。
+"""Tests for kdit.nodes.infer.vae_encoder_node — VAEEncodeSpatialNode / VAEEncodeImagesNode。
 
 使用 mock 替代 model_pool / tensor_pool，通过 PinHub 访问数据，不需要 GPU。
 """
@@ -28,7 +28,7 @@ from kdit.nodes.core.device_info import DeviceInfo
 from kdit.nodes.core.node_context import NodeContext
 from kdit.nodes.core.node_types import InferNodeType, NodeDispatchPolicy
 from kdit.nodes.core.pin_hub import PinHub
-from kdit.nodes.infers.vae_encoder_node import VAEEncodeImagesNode, VAEEncodeSpatialNode
+from kdit.nodes.infer.vae_encoder_node import VAEEncodeImagesNode, VAEEncodeSpatialNode
 from kdit.pipelines.pipeline_def import NodeDef
 from kdit.tensor import TensorKey
 from kdit.tensor.tensor_pool import TensorPool

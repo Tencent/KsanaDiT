@@ -16,7 +16,7 @@ from .base_node import InferNode, IONode
 from .device_info import DeviceInfo
 from .node_context import NodeContext
 from .node_def import NodeDef, NodeRef
-from .node_factory import InferNodeFactory, LoaderNodeFactory
+from .node_factory import InferNodeFactory, IONodeFactory, LoaderNodeFactory
 from .node_types import (
     InferNodeType,
     IONodeType,
@@ -32,6 +32,7 @@ __all__ = [
     "IONodeType",
     "InferNode",
     "InferNodeType",
+    "IONodeFactory",
     "LoaderNodeFactory",
     "InferNodeFactory",
     "NodeContext",

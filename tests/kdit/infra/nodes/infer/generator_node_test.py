@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Tests for kdit.nodes.infers.generator_node — GeneratorNode.run()。
+"""Tests for kdit.nodes.infer.generator_node — GeneratorNode.run()。
 
 使用 mock 替代 PinHub 内部的 pool / GeneratorRunner，不需要 GPU。
 """
@@ -30,7 +30,7 @@ from kdit.nodes.core.device_info import DeviceInfo
 from kdit.nodes.core.node_context import NodeContext
 from kdit.nodes.core.node_types import InferNodeType, NodeDispatchPolicy
 from kdit.nodes.core.pin_hub import PinHub
-from kdit.nodes.infers.generator_node import GeneratorNode
+from kdit.nodes.infer.generator_node import GeneratorNode
 from kdit.pipelines.pipeline_def import NodeDef
 from kdit.tensor import TensorKey
 from kdit.tensor.tensor_pool import TensorPool
@@ -99,8 +99,8 @@ class TestGeneratorNode(unittest.TestCase):
             model_pool=self.model_pool,
         )
 
-    @patch("kdit.nodes.infers.generator_node.GeneratorRunner")
-    @patch("kdit.nodes.infers.generator_node.get_generator_def")
+    @patch("kdit.nodes.infer.generator_node.GeneratorRunner")
+    @patch("kdit.nodes.infer.generator_node.get_generator_def")
     def test_run_constructs_context_and_calls_generator(self, mock_get_def, mock_runner_cls):
         """run() 应构造 GeneratorInferContext 并调用 runner.run(ctx)。"""
         mock_runner = MagicMock()
@@ -127,8 +127,8 @@ class TestGeneratorNode(unittest.TestCase):
         tv = self.tensor_pool.get(TensorPoolKey(self._node_def.node_id, TensorKey.LATENTS))
         self.assertIsNotNone(tv)
 
-    @patch("kdit.nodes.infers.generator_node.GeneratorRunner")
-    @patch("kdit.nodes.infers.generator_node.get_generator_def")
+    @patch("kdit.nodes.infer.generator_node.GeneratorRunner")
+    @patch("kdit.nodes.infer.generator_node.get_generator_def")
     def test_base_latent_constructed_from_tensor_pool(self, mock_get_def, mock_runner_cls):
         """base_latent 应从 PinHub 中的 BASE_LATENT 构造为 BaseLatent 对象。"""
         from kdit.generators.generator_context import BaseLatent

@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Tests for kdit.nodes.infers.text_encoder_node — T5TextEncodeNode / QwenTextEncodeNode。
+"""Tests for kdit.nodes.infer.text_encoder_node — T5TextEncodeNode / QwenTextEncodeNode。
 
 使用 mock 替代 model_pool / tensor_pool，通过 PinHub 访问数据，不需要 GPU。
 """
@@ -28,7 +28,7 @@ from kdit.nodes.core.device_info import DeviceInfo
 from kdit.nodes.core.node_context import NodeContext
 from kdit.nodes.core.node_types import InferNodeType, NodeDispatchPolicy
 from kdit.nodes.core.pin_hub import PinHub
-from kdit.nodes.infers.text_encoder_node import QwenTextEncodeNode, T5TextEncodeNode
+from kdit.nodes.infer.text_encoder_node import QwenTextEncodeNode, T5TextEncodeNode
 from kdit.pipelines.pipeline_def import NodeDef
 from kdit.tensor import TensorKey
 from kdit.tensor.tensor_pool_key import TensorPoolKey

@@ -56,5 +56,5 @@ class TestNodeDefAutoId:
 
     def test_model_key_default_none(self):
         """model_key 默认为 None。"""
-        nd = NodeDef(node_type=InferNodeType.SAVE_VIDEO)
+        nd = NodeDef(node_type=IONodeType.SAVE_VIDEO)
         assert nd.model_key is None

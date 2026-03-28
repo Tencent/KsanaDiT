@@ -21,6 +21,7 @@ from unittest.mock import MagicMock
 from kdit.models.model_key import ModelKey
 from kdit.nodes.core.node_context import NodeContext
 from kdit.nodes.core.node_types import InferNodeType as NT
+from kdit.nodes.core.node_types import IONodeType as IOT
 from kdit.pipelines.context_builders.wan import WanI2VExtraInputs
 from kdit.pipelines.generate_inputs import PipelineGenerateInputs
 from kdit.pipelines.pipeline_def import NodeDef
@@ -253,7 +254,7 @@ class TestWanI2VContextBuilder(unittest.TestCase):
         extra = WanI2VExtraInputs(start_img_path="test.png")
         builder, inputs = self._prepare(extra_inputs=extra)
 
-        nd = _node_def(NT.READ_IMAGE)
+        nd = _node_def(IOT.READ_IMAGE)
         ctx = builder.build_context(nd, inputs)
 
         self.assertIn("img_paths", ctx.metadata)

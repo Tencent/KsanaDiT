@@ -307,11 +307,14 @@ class Pipeline:
         return output if runtime_config.return_frames else None
 
     def _find_vae_model_key(self):
-        """从 DAG nodes 中查找 VAE ModelKey。"""
-        return next(
-            (n.model_key for n in self._def.nodes if n.is_loader and n.model_key in VAE_KEYS),
-            None,
-        )
+        """从 DAG loader 输出中查找 VAE ModelPoolKey。"""
+        for node_def in self._def.nodes:
+            if node_def.is_loader and node_def.model_key in VAE_KEYS:
+                node_outputs = self._loader_outputs.get(node_def.node_id, {})
+                pool_key = node_outputs.get(node_def.model_key)
+                if pool_key is not None:
+                    return pool_key
+        return None
 
     def _generate_dag(self, inputs: PipelineGenerateInputs):
         """按拓扑序遍历 Infer 节点，通过 engine.run_node() 执行。
@@ -340,6 +343,18 @@ class Pipeline:
             with _task_node_timer(node_def):
                 output_pins = self._engine.run_node(node_def, input_pins, node_ctx)
                 all_outputs[node_def.node_id] = output_pins
+
+        # 4. 将 keep_tensors 通过 FetchTensorNode 从 DAG 命名空间写回 staging
+        for keep_key in self._def.keep_tensors:
+            # 反向遍历找到最后一个产出该 TensorKey 的 node
+            pool_key = None
+            for node_def in reversed(sorted_nodes):
+                node_outputs = all_outputs.get(node_def.node_id, {})
+                if keep_key in node_outputs:
+                    pool_key = node_outputs[keep_key]
+                    break
+            if pool_key is not None:
+                self._engine.fetch_tensor(keep_key, pool_key)
 
 
 # ── 辅助函数 ─────────────────────────────────────────────────────────────

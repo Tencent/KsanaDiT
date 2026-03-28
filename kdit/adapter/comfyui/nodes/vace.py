@@ -21,7 +21,7 @@ from kdit.utils import common_upscale, get_intermediate_device
 from kdit.utils.logger import log
 from kdit.utils.vace import VAE_STRIDE, latent_process_out
 
-from ..output_types import KsanaNodeVAEEncodeOutput
+from ..output_types import VAEEncodeOutput
 from ..types import (
     BASE_LATENT,
     KDIT_VAE_MODEL,
@@ -147,16 +147,21 @@ class KsanaWanVaceToVideoNode:
     def _vae_encode(self, vae_key, image):
         """Encode images using kDiT VAE, returns raw tensor data."""
         from kdit.nodes.core.node_context import NodeContext
+        from kdit.nodes.core.node_def import NodeDef
         from kdit.nodes.core.node_types import InferNodeType
         from kdit.tensor import TensorKey
 
         kdit_engine = get_engine()
-        context = NodeContext(metadata={"image": image})
-        try:
-            kdit_engine.run_infer_node(InferNodeType.VAE_ENCODE_IMAGES, vae_key, context)
-            tensor_value = kdit_engine.get_tensor(TensorKey.AUX_LATENT)
-        finally:
-            kdit_engine.clear_all_tensors()
+        context = NodeContext()
+
+        feed_pins = kdit_engine.feed_tensors({TensorKey.IMAGE: image})
+        input_pins = dict(feed_pins)
+        input_pins[vae_key.pin] = vae_key
+
+        node_def = NodeDef(node_type=InferNodeType.VAE_ENCODE_IMAGES, model_key=vae_key.pin)
+        result_pins = kdit_engine.run_node(node_def, input_pins, context)
+
+        tensor_value = kdit_engine.get_tensor(result_pins[TensorKey.AUX_LATENT])
         return tensor_value.data if tensor_value is not None else None
 
     def encode(
@@ -290,9 +295,9 @@ class KsanaWanVaceToVideoNode:
             device=get_intermediate_device(),
         )
         kdit_engine = get_engine()
-        kdit_engine.put_tensors({TensorKey.BASE_LATENT: latent})
-        out_latent = KsanaNodeVAEEncodeOutput(
-            samples=TensorKey.BASE_LATENT,
+        feed_pins = kdit_engine.feed_tensors({TensorKey.BASE_LATENT: latent})
+        out_latent = VAEEncodeOutput(
+            samples=feed_pins[TensorKey.BASE_LATENT],
             with_end_image=False,
             batch_size_per_prompts=batch_size,
         )

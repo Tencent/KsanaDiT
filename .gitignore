@@ -15,5 +15,5 @@ site/
 *.mp4
 *.sh
 CLAUDE.md
-.design_drafts/
+design_drafts/
 .claude/

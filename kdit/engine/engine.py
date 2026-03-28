@@ -269,14 +269,14 @@ class Engine:
     @staticmethod
     def _build_node_label(node_def) -> str:
         """根据 NodeDef 生成 time_profile 标签。"""
-        if node_def.is_io:
-            # IO (Loader) — "load_[MODEL_NAME]" 或 "load_node_{id}"
+        if node_def.is_loader:
+            # Loader — "load_[MODEL_NAME]" 或 "load_node_{id}"
             if node_def.model_key is not None:
                 model_name = node_def.model_key.name if hasattr(node_def.model_key, "name") else str(node_def.model_key)
                 return f"load_[{model_name}]"
             return f"load_node_{node_def.node_id}"
 
-        # Infer — "NODE_TYPE[MODEL_NAME]" 或 "NODE_TYPE" 或 "node_{id}"
+        # Infer / non-loader IO — "NODE_TYPE[MODEL_NAME]" 或 "NODE_TYPE" 或 "node_{id}"
         label = node_def.node_type.name if node_def.node_type is not None else f"node_{node_def.node_id}"
         if node_def.model_key is not None:
             model_name = node_def.model_key.name if hasattr(node_def.model_key, "name") else str(node_def.model_key)
@@ -306,10 +306,10 @@ class Engine:
         else:
             self.executors.clear_tensor_pool(exclude=exclude)
 
-    def put_tensors(self, tensors: dict):
-        """将 tensor 写入所有 Executor 的 tensor_pool。
+    def _put_tensors(self, tensors: dict):
+        """将 tensor 写入所有 Executor 的 tensor_pool（内部方法）。
 
-        用于外部（如 ComfyUI adapter）向 Node 传递输入数据。
+        外部请使用 ``feed_tensors()`` 注入 tensor。
 
         Args:
             tensors: ``{TensorKey: tensor}`` 映射，value 为 None 的条目会被跳过。
@@ -318,11 +318,59 @@ class Engine:
         if not tensors:
             return
         if self.is_ray:
-            futures = [ex.put_tensors.remote(tensors) for ex in self.executors]
+            futures = [ex._put_tensors.remote(tensors) for ex in self.executors]
             ray.get(futures)
         else:
             for key, tensor in tensors.items():
                 self.executors.tensor_pool.put(key, tensor)
+
+    def feed_tensors(self, tensors: dict) -> dict:
+        """将 tensor 注入 DAG 命名空间 — 写入 staging 后通过 FeedTensorNode 转移。
+
+        Args:
+            tensors: ``{TensorKey: tensor}`` 映射，value 为 None 的条目会被跳过。
+
+        Returns:
+            output_pins — ``{TensorKey: TensorPoolKey}`` 映射，供下游 Node 的 input_pins 使用。
+        """
+        from ..nodes.core.node_context import NodeContext
+        from ..nodes.core.node_def import NodeDef
+        from ..nodes.core.node_types import IONodeType
+        from ..tensor.tensor_pool import _FEED_STAGING_ID
+        from ..tensor.tensor_pool_key import TensorPoolKey
+
+        tensors = {k: v for k, v in tensors.items() if v is not None}
+        if not tensors:
+            return {}
+
+        # 1. 写入 staging(0)
+        self._put_tensors(tensors)
+
+        # 2. 创建 FeedTensorNode 并执行
+        feed_keys = list(tensors.keys())
+        node_def = NodeDef(node_type=IONodeType.FEED_TENSOR)
+        input_pins = {key: TensorPoolKey(_FEED_STAGING_ID, key) for key in feed_keys}
+        context = NodeContext(metadata={"feed_keys": feed_keys})
+        return self.run_node(node_def, input_pins, context)
+
+    def fetch_tensor(self, key, source_pool_key):
+        """从 DAG 命名空间取回 tensor 到 staging — 按需创建 FetchTensorNode。
+
+        Args:
+            key: ``TensorKey`` — 要取回的 tensor key。
+            source_pool_key: ``TensorPoolKey`` — 上游 node 的输出 pool key。
+
+        Returns:
+            取回后可通过 ``engine.get_tensor(key)`` 从 staging 读取。
+        """
+        from ..nodes.core.node_context import NodeContext
+        from ..nodes.core.node_def import NodeDef
+        from ..nodes.core.node_types import IONodeType
+
+        node_def = NodeDef(node_type=IONodeType.FETCH_TENSOR)
+        input_pins = {key: source_pool_key}
+        context = NodeContext(metadata={"fetch_keys": [key]})
+        self.run_node(node_def, input_pins, context)
 
     def get_tensor(self, key):
         """从 rank 0 Executor 的 tensor_pool 读取 TensorValue。
@@ -339,17 +387,6 @@ class Engine:
         if self.is_ray:
             return ray.get(self.executors[0].has_tensor.remote(key))
         return self.executors.tensor_pool.has(key)
-
-    def rename_tensor(self, old_key, new_key):
-        """重命名所有 Executor 的 tensor_pool 中的 key。
-
-        用于 Pipeline 编排时在两个 run_node 之间调整 key 名称，
-        使上游 Node 的输出 key 匹配下游 Node 的输入 key。
-        """
-        if self.is_ray:
-            ray.get([ex.rename_tensor.remote(old_key, new_key) for ex in self.executors])
-        else:
-            self.executors.rename_tensor(old_key, new_key)
 
     # ── 清理 ───────────────────────────────────────────────────────────
 

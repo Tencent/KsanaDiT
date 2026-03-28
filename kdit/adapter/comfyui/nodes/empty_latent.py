@@ -17,6 +17,7 @@ import torch
 
 from kdit import get_engine
 from kdit.nodes.core.node_context import NodeContext
+from kdit.nodes.core.node_def import NodeDef
 from kdit.nodes.core.node_types import InferNodeType
 from kdit.tensor import TensorKey
 from kdit.utils import log
@@ -62,8 +63,8 @@ class EmptyLatentNode:
                     [batch_size, 16, ((num_frames - 1) // 4) + 1, height // 8, width // 8], device=torch.device("cpu")
                 )
             kdit_engine = get_engine()
-            kdit_engine.put_tensors({TensorKey.LATENTS: latent})
-            return (EmptyLatentOutput(samples=TensorKey.LATENTS),)
+            feed_pins = kdit_engine.feed_tensors({TensorKey.LATENTS: latent})
+            return (EmptyLatentOutput(samples=feed_pins[TensorKey.LATENTS]),)
 
         kdit_engine = get_engine()
         log.info(f"encoder vae: {vae}")
@@ -75,10 +76,10 @@ class EmptyLatentNode:
                 "batch_size": batch_size,
             }
         )
-        # VAE_COMPUTE_SHAPE 输出 BASE_LATENT，直接保留在 pool 中
-        try:
-            kdit_engine.run_infer_node(InferNodeType.VAE_COMPUTE_SHAPE, vae, context)
-        finally:
-            kdit_engine.clear_all_tensors()
 
-        return (EmptyLatentOutput(samples=TensorKey.BASE_LATENT),)
+        # VAE_COMPUTE_SHAPE 只需 model，无 tensor input
+        input_pins = {vae.pin: vae}
+        node_def = NodeDef(node_type=InferNodeType.VAE_COMPUTE_SHAPE, model_key=vae.pin)
+        result_pins = kdit_engine.run_node(node_def, input_pins, context)
+
+        return (EmptyLatentOutput(samples=result_pins.get(TensorKey.BASE_LATENT)),)

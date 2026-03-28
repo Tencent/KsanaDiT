@@ -53,7 +53,7 @@ class NodeContext:
             if isinstance(value, torch.Tensor):
                 raise TypeError(
                     f"NodeContext.{field_name} is a Tensor! "
-                    f"Use engine.put_tensors() + TensorKey instead. "
+                    f"Use engine.feed_tensors() + TensorKey instead. "
                     f"NodeContext must be serializable for Ray dispatch."
                 )
             if isinstance(value, dict):
@@ -61,6 +61,6 @@ class NodeContext:
                     if isinstance(v, torch.Tensor):
                         raise TypeError(
                             f"NodeContext.{field_name}[{k!r}] is a Tensor! "
-                            f"Use engine.put_tensors() + TensorKey instead. "
+                            f"Use engine.feed_tensors() + TensorKey instead. "
                             f"NodeContext must be serializable for Ray dispatch."
                         )

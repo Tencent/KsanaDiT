@@ -19,6 +19,7 @@
 
 from kdit.models.model_key import ModelKey
 from kdit.nodes.core.node_types import InferNodeType as NT
+from kdit.nodes.core.node_types import IONodeType as IOT
 from kdit.tensor import TensorKey
 
 from ..context_builders.qwen import QwenT2IContextBuilder
@@ -37,7 +38,7 @@ text = _b.add_infer(NT.TEXT_ENCODE, ModelKey.Qwen2VLTextEncoder)
 shape = _b.add_infer(NT.VAE_COMPUTE_SHAPE, ModelKey.QwenImageVAE)
 gen = _b.add_infer(NT.GENERATE, ModelKey.QwenImage_T2I)
 dec = _b.add_infer(NT.VAE_DECODE, ModelKey.QwenImageVAE)
-save = _b.add_infer(NT.SAVE_IMAGE)
+save = _b.add_io(IOT.SAVE_IMAGE)
 
 # edges
 _b.connect(

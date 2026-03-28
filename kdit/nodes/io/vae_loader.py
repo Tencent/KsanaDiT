@@ -20,11 +20,11 @@ from kdit.settings import load_default_settings
 from kdit.utils import is_file_or_dir, log, time_profile
 
 from ..core.base_node import IONode
-from ..core.node_factory import LoaderNodeFactory
-from ..core.node_types import NodeDispatchPolicy
+from ..core.node_factory import IONodeFactory
+from ..core.node_types import IONodeType, NodeDispatchPolicy
 
 
-@LoaderNodeFactory.register([ModelKey.VAE_WAN2_1, ModelKey.VAE_WAN2_2, ModelKey.QwenImageVAE])
+@IONodeFactory.register(IONodeType.LOAD_MODEL, [ModelKey.VAE_WAN2_1, ModelKey.VAE_WAN2_2, ModelKey.QwenImageVAE])
 class VAELoaderNode(IONode):
     """加载 VAE 模型。"""
 

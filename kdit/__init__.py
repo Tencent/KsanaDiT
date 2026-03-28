@@ -27,8 +27,8 @@ from .config import (
 )
 from .engine import Engine, get_engine
 from .models import KsanaDiffusionModel
-from .nodes.infers import *  # noqa: F403
-from .nodes.loaders import *  # noqa: F403
+from .nodes.infer import *  # noqa: F403
+from .nodes.io import *  # noqa: F403
 from .pipelines import Pipeline
 from .utils import KSANA_LOGGER_LEVEL, KSANA_MEMORY_PROFILER  # noqa: F401  # pylint: disable=unused-import
 

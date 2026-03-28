@@ -17,16 +17,15 @@ from .tensor_key import TensorKey
 from .tensor_pool_key import TensorPoolKey
 from .tensor_value import TensorData, TensorValue
 
-#: 外部直接操作 TensorPool 时（如 ComfyUI adapter 通过 Engine 桥接方法），
-#: 裸 TensorKey 自动包装为 TensorPoolKey(node_id=0, ...)。
-#: node_id=0 是约定的"外部注入"标识，与 DAG 节点的 node_id >= 1 不冲突。
-_EXTERNAL_NODE_ID = 0
+#: Feed/Fetch staging 区的 node_id — 外部 tensor 注入和取出的中转命名空间。
+#: node_id=0 预留给 staging，DAG 节点的 node_id 从 1 开始。
+_FEED_STAGING_ID = 0
 
 
-def _normalize_key(key: TensorKey | TensorPoolKey) -> TensorPoolKey:
-    """裸 TensorKey 自动转换为 TensorPoolKey(0, key)，TensorPoolKey 原样返回。"""
+def _as_staging_key(key: TensorKey | TensorPoolKey) -> TensorPoolKey:
+    """裸 TensorKey 自动转换为 staging 区的 TensorPoolKey(0, key)，TensorPoolKey 原样返回。"""
     if isinstance(key, TensorKey):
-        return TensorPoolKey(_EXTERNAL_NODE_ID, key)
+        return TensorPoolKey(_FEED_STAGING_ID, key)
     return key
 
 
@@ -50,17 +49,17 @@ class TensorPool:
 
     def put(self, key: TensorKey | TensorPoolKey, data: TensorData) -> None:
         """存入 tensor（或 list[Tensor]），覆盖同名 key。"""
-        key = _normalize_key(key)
+        key = _as_staging_key(key)
         self._stores[key] = TensorValue(data)
 
     def get(self, key: TensorKey | TensorPoolKey) -> TensorValue | None:
         """读取 TensorValue，不存在返回 None。"""
-        key = _normalize_key(key)
+        key = _as_staging_key(key)
         return self._stores.get(key)
 
     def has(self, key: TensorKey | TensorPoolKey) -> bool:
         """检查 key 是否存在于 pool 中。"""
-        key = _normalize_key(key)
+        key = _as_staging_key(key)
         return key in self._stores
 
     # ── 引用计数 ──────────────────────────────────────────────
@@ -90,7 +89,7 @@ class TensorPool:
 
     def remove(self, key: TensorKey | TensorPoolKey) -> None:
         """释放并移除指定 key 的 tensor。不存在时静默跳过。"""
-        key = _normalize_key(key)
+        key = _as_staging_key(key)
         if key in self._stores:
             self._stores[key].release()
             del self._stores[key]
@@ -102,9 +101,17 @@ class TensorPool:
 
         被排除的 key 保留在池中不被 release。同时清理对应的引用计数记录。
         """
-        exclude_set = {_normalize_key(k) for k in exclude} if exclude else set()
+        exclude_set = {_as_staging_key(k) for k in exclude} if exclude else set()
         keys_to_remove = [k for k in self._stores if k not in exclude_set]
         for k in keys_to_remove:
+            self._stores[k].release()
+            del self._stores[k]
+            self._ref_counts.pop(k, None)
+
+    def clear_staging(self) -> None:
+        """释放所有 staging 区（node_id=0）的 tensor。"""
+        staging_keys = [k for k in self._stores if k.node_id == _FEED_STAGING_ID]
+        for k in staging_keys:
             self._stores[k].release()
             del self._stores[k]
             self._ref_counts.pop(k, None)
@@ -122,8 +129,8 @@ class TensorPool:
         Raises:
             KeyError: old_key 不存在于 pool 中。
         """
-        old_key = _normalize_key(old_key)
-        new_key = _normalize_key(new_key)
+        old_key = _as_staging_key(old_key)
+        new_key = _as_staging_key(new_key)
         if old_key == new_key:
             return
         if old_key not in self._stores:

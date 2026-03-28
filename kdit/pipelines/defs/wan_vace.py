@@ -20,6 +20,7 @@ VACE 与 I2V 共享 WanI2VContextBuilder — 两者的区别仅在 PipelineDef �
 
 from kdit.models.model_key import ModelKey
 from kdit.nodes.core.node_types import InferNodeType as NT
+from kdit.nodes.core.node_types import IONodeType as IOT
 from kdit.tensor import TensorKey
 
 from ..context_builders.wan import WanI2VContextBuilder
@@ -35,13 +36,13 @@ vae = _b.add_loader(ModelKey.VAE_WAN2_1)
 
 # infer nodes
 enc = _b.add_infer(NT.TEXT_ENCODE, ModelKey.T5TextEncoder)
-read_start = _b.add_infer(NT.READ_IMAGE)
-read_end = _b.add_infer(NT.READ_IMAGE)
+read_start = _b.add_io(IOT.READ_IMAGE)
+read_end = _b.add_io(IOT.READ_IMAGE)
 vae_enc = _b.add_infer(NT.VAE_ENCODE_SPATIAL, ModelKey.VAE_WAN2_1)
 vace = _b.add_infer(NT.VACE_PREPROCESS).when("has_vace")
 gen = _b.add_infer(NT.GENERATE, ModelKey.Wan2_1_VACE_14B)
 dec = _b.add_infer(NT.VAE_DECODE, ModelKey.VAE_WAN2_1)
-save = _b.add_infer(NT.SAVE_VIDEO)
+save = _b.add_io(IOT.SAVE_VIDEO)
 
 # edges
 _b.connect(

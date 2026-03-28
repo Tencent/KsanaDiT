@@ -14,8 +14,8 @@
 
 # 导入子包（触发 @LoaderNodeFactory/@InferNodeFactory.register 注册）
 from . import (  # noqa: F401  # pylint: disable=unused-import
-    infers,
-    loaders,
+    infer,
+    io,
 )
 from .core import (
     DeviceInfo,
@@ -23,6 +23,7 @@ from .core import (
     InferNodeFactory,
     InferNodeType,
     IONode,
+    IONodeFactory,
     LoaderNodeFactory,
     NodeContext,
     NodeDispatchPolicy,
@@ -30,6 +31,7 @@ from .core import (
 
 __all__ = [
     "IONode",
+    "IONodeFactory",
     "InferNode",
     "DeviceInfo",
     "NodeContext",

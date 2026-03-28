@@ -17,7 +17,7 @@ import unittest
 import numpy as np
 import torch
 
-from kdit.adapter.comfyui.output_types import KsanaNodeVAEEncodeOutput
+from kdit.adapter.comfyui.output_types import VAEEncodeOutput
 from kdit.tensor import TensorKey
 from kdit.utils.debug import print_recursive
 from kdit.utils.logger import log
@@ -45,7 +45,7 @@ class TestPrint(unittest.TestCase):
             print_recursive(obj, print_func)
 
     def test_print_recursive_obj_torch_float(self):
-        obj = KsanaNodeVAEEncodeOutput(
+        obj = VAEEncodeOutput(
             samples=TensorKey.BASE_LATENT,
             with_end_image=True,
             batch_size_per_prompts=1,

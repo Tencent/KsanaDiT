@@ -48,6 +48,8 @@ class IONodeType(Enum):
     SAVE_VIDEO = auto()
     SAVE_IMAGE = auto()
     READ_IMAGE = auto()
+    FEED_TENSOR = auto()
+    FETCH_TENSOR = auto()
 
 
 class InferNodeType(Enum):
@@ -59,9 +61,6 @@ class InferNodeType(Enum):
     VAE_ENCODE_IMAGES = auto()
     VAE_DECODE = auto()
     GENERATE = auto()
-    SAVE_VIDEO = auto()
-    SAVE_IMAGE = auto()
-    READ_IMAGE = auto()
     VACE_PREPROCESS = auto()
 
 

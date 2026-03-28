@@ -18,30 +18,29 @@ from dataclasses import dataclass, field
 
 import torch
 
-from kdit.models.model_key import ModelKey
-from kdit.tensor import TensorKey
+from kdit.models.model_pool_key import ModelPoolKey
+from kdit.tensor.tensor_pool_key import TensorPoolKey
 
 
 @dataclass
-class KsanaNodeModelLoaderOutput:
-    model: ModelKey | list[ModelKey] = field(default=None)
-    model_name: str = field(default_factory=str)  # TODO(qian):  need remove
+class ModelLoaderOutput:
+    model: ModelPoolKey | None = field(default=None)
     run_dtype: torch.dtype | None = field(default=None)
 
 
 @dataclass
-class KsanaNodeGeneratorOutput:
-    samples: TensorKey | None = field(default=None)
+class GeneratorOutput:
+    samples: TensorPoolKey | None = field(default=None)
     with_end_image: bool = field(default=False)
 
 
 @dataclass
-class KsanaNodeVAEEncodeOutput:
-    samples: TensorKey | None = field(default=None)
+class VAEEncodeOutput:
+    samples: TensorPoolKey | None = field(default=None)
     with_end_image: bool = field(default=False)
     batch_size_per_prompts: int = field(default=1)
 
 
 @dataclass
 class EmptyLatentOutput:
-    samples: TensorKey | None = field(default=None)
+    samples: TensorPoolKey | None = field(default=None)

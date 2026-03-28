@@ -18,12 +18,13 @@ from kdit import get_engine
 from kdit.config import DistributedConfig
 from kdit.models.model_key import get_model_key_from_path
 from kdit.nodes.core.node_context import NodeContext
-from kdit.nodes.core.node_types import InferNodeType
+from kdit.nodes.core.node_def import NodeDef
+from kdit.nodes.core.node_types import InferNodeType, IONodeType
 from kdit.tensor import TensorKey
 from kdit.utils import get_gpu_count, log
 from kdit.utils.profile import MemoryProfiler
 
-from .output_types import KsanaNodeVAEEncodeOutput
+from .output_types import VAEEncodeOutput
 
 
 class KsanaNodeVAELoader:
@@ -35,11 +36,14 @@ class KsanaNodeVAELoader:
         num_gpus = get_gpu_count()
         kdit_engine = get_engine(dist_config=DistributedConfig(num_gpus=num_gpus))
         if cls.LOADED_MODEL is not None:
-            kdit_engine.clear_models(cls.LOADED_MODEL)
+            kdit_engine.clear_models(cls.LOADED_MODEL.pin)
         model_key = get_model_key_from_path(vae_path)
-        kdit_engine.run_loader_node(model_key, model_path=vae_path)
-        cls.LOADED_MODEL = model_key
-        return cls.LOADED_MODEL
+        node_def = NodeDef(node_type=IONodeType.LOAD_MODEL, model_key=model_key)
+        context = NodeContext(metadata={"model_path": vae_path})
+        output_pins = kdit_engine.run_node(node_def, {}, context)
+        model_pool_key = output_pins.get(model_key)
+        cls.LOADED_MODEL = model_pool_key
+        return model_pool_key
 
 
 def vae_encode(
@@ -62,12 +66,11 @@ def vae_encode(
             latent = torch.zeros(
                 [batch_size, 16, ((num_frames - 1) // 4) + 1, height // 8, width // 8], device=torch.device("cpu")
             )
-        # 无 VAE 时也写入 pool，保持 key 模式一致
+        # 无 VAE 时通过 feed_tensors 注入 pool
         kdit_engine = get_engine()
-        # BASE_LATENT always list
-        kdit_engine.put_tensors({TensorKey.BASE_LATENT: [latent]})
-        return KsanaNodeVAEEncodeOutput(
-            samples=TensorKey.BASE_LATENT,
+        feed_pins = kdit_engine.feed_tensors({TensorKey.BASE_LATENT: [latent]})
+        return VAEEncodeOutput(
+            samples=feed_pins[TensorKey.BASE_LATENT],
             with_end_image=False,
             batch_size_per_prompts=batch_size,
         )
@@ -105,14 +108,17 @@ def vae_encode(
             "batch_size": batch_size,
         }
     )
-    try:
-        kdit_engine.put_tensors({TensorKey.START_IMG: start_image, TensorKey.END_IMG: end_image})
-        kdit_engine.run_infer_node(InferNodeType.VAE_ENCODE_SPATIAL, vae, context)
-    finally:
-        kdit_engine.clear_all_tensors()
 
-    return KsanaNodeVAEEncodeOutput(
-        samples=TensorKey.BASE_LATENT,
+    # 注入 tensor 并构建 input_pins
+    feed_pins = kdit_engine.feed_tensors({TensorKey.START_IMG: start_image, TensorKey.END_IMG: end_image})
+    input_pins = dict(feed_pins)
+    input_pins[vae.pin] = vae  # Model pin
+
+    node_def = NodeDef(node_type=InferNodeType.VAE_ENCODE_SPATIAL, model_key=vae.pin)
+    result_pins = kdit_engine.run_node(node_def, input_pins, context)
+
+    return VAEEncodeOutput(
+        samples=result_pins.get(TensorKey.BASE_LATENT),
         with_end_image=with_end_image,
         batch_size_per_prompts=int(batch_size),
     )
@@ -130,15 +136,17 @@ def vae_encode_image(
     log.info(f"encoder vae: {vae}")
 
     context = NodeContext(metadata={"batch_size": batch_size})
-    try:
-        kdit_engine.put_tensors({TensorKey.IMAGE: image})
-        kdit_engine.run_infer_node(InferNodeType.VAE_ENCODE_IMAGES, vae, context)
-    finally:
-        kdit_engine.clear_all_tensors()
+
+    feed_pins = kdit_engine.feed_tensors({TensorKey.IMAGE: image})
+    input_pins = dict(feed_pins)
+    input_pins[vae.pin] = vae
+
+    node_def = NodeDef(node_type=InferNodeType.VAE_ENCODE_IMAGES, model_key=vae.pin)
+    result_pins = kdit_engine.run_node(node_def, input_pins, context)
 
     MemoryProfiler.record_memory("after vae_encode_image")
-    return KsanaNodeVAEEncodeOutput(
-        samples=TensorKey.AUX_LATENT,
+    return VAEEncodeOutput(
+        samples=result_pins.get(TensorKey.AUX_LATENT),
         with_end_image=False,
         batch_size_per_prompts=int(batch_size),
     )
@@ -150,24 +158,26 @@ def _comfy_process_output(image):
 
 def vae_decode(vae, latent):
     MemoryProfiler.record_memory("before vae_decode")
-    latents_key = latent.samples  # TensorKey — tensor 在 pool 中
+    latent_pool_key = latent.samples  # TensorPoolKey — tensor 在 pool 中
     with_end_image = latent.with_end_image
     kdit_engine = get_engine()
 
-    if not kdit_engine.has_tensor(latents_key):
+    if not kdit_engine.has_tensor(latent_pool_key):
         raise RuntimeError(
-            f"vae_decode: tensor key '{latents_key}' not found in pool. "
+            f"vae_decode: tensor key '{latent_pool_key}' not found in pool. "
             "Ensure the upstream node (vae_encode/generate) wrote the tensor to the pool correctly."
         )
 
     context = NodeContext(metadata={"with_end_image": with_end_image})
     try:
-        # latents_key 可能是 LATENTS 或 AUX_LATENT，VAEDecodeNode 读 LATENTS
-        if latents_key != TensorKey.LATENTS:
-            tensor_value = kdit_engine.get_tensor(latents_key)
-            kdit_engine.put_tensors({TensorKey.LATENTS: tensor_value.data})
-        kdit_engine.run_infer_node(InferNodeType.VAE_DECODE, vae, context)
-        video_tv = kdit_engine.get_tensor(TensorKey.VIDEO)
+        # input_pins: 将 LATENTS 映射到上游的 pool key，无需 rename
+        input_pins = {TensorKey.LATENTS: latent_pool_key}
+        input_pins[vae.pin] = vae
+
+        node_def = NodeDef(node_type=InferNodeType.VAE_DECODE, model_key=vae.pin)
+        result_pins = kdit_engine.run_node(node_def, input_pins, context)
+
+        video_tv = kdit_engine.get_tensor(result_pins[TensorKey.VIDEO])
         images = video_tv.data
     finally:
         kdit_engine.clear_all_tensors()

@@ -38,6 +38,7 @@ from typing import Any
 
 from kdit.config.lora_config import LoraConfig
 from kdit.models.model_key import DIFFUSION_KEYS, TEXT_ENCODER_KEYS, VAE_KEYS, ModelKey
+from kdit.models.model_pool_key import ModelPoolKey
 from kdit.nodes.core.node_context import NodeContext
 
 from .extra_inputs import ExtraInputs
@@ -149,7 +150,7 @@ class ContextBuilder(ABC):
         *,
         _default_settings: Any,
         _engine: Any,
-        _vae_model_key: ModelKey | None,
+        _vae_model_key: ModelPoolKey | None,
     ) -> None:
         """从 extra_inputs 中提取并校验 Pipeline 特有的输入。
 
@@ -161,7 +162,7 @@ class ContextBuilder(ABC):
             extra_inputs: 模型特有输入（ExtraInputs 子类实例或 None）。
             _default_settings: Pipeline 默认配置（由 Pipeline 注入）。
             _engine: Engine 引用（由 Pipeline 注入）。
-            _vae_model_key: VAE ModelKey（由 Pipeline 注入）。
+            _vae_model_key: VAE ModelPoolKey（由 Pipeline 注入）。
         """
 
     @abstractmethod

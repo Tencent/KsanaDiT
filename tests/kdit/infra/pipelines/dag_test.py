@@ -74,7 +74,7 @@ def _make_dag_pipeline_def(*, with_condition=False):
         condition="should_generate" if with_condition else None,
     )
     vae_dec = NodeDef(node_type=NT.VAE_DECODE, model_key=ModelKey.VAE_WAN2_2)
-    save = NodeDef(node_type=NT.SAVE_VIDEO)
+    save = NodeDef(node_type=IONodeType.SAVE_VIDEO)
 
     nodes = (loader_t5, loader_dit, loader_vae, text_enc, gen, vae_dec, save)
     edges = (
@@ -203,13 +203,13 @@ class TestNodeDefDisplayName:
         assert _node_def_display_name(nd) == "GENERATE(Wan2_2_T2V_14B)"
 
     def test_infer_node_def_no_model(self):
-        """Infer NodeDef 无 model_key 时只显示 TYPE。"""
-        nd = NodeDef(node_type=NT.SAVE_VIDEO)
+        """IO NodeDef 无 model_key 时只显示 TYPE。"""
+        nd = NodeDef(node_type=IONodeType.SAVE_VIDEO)
         assert _node_def_display_name(nd) == "SAVE_VIDEO"
 
     def test_infer_node_def_no_model_save_image(self):
-        """Infer NodeDef 无 model_key 时只显示 TYPE（SAVE_IMAGE 示例）。"""
-        nd = NodeDef(node_type=NT.SAVE_IMAGE)
+        """IO NodeDef 无 model_key 时只显示 TYPE（SAVE_IMAGE 示例）。"""
+        nd = NodeDef(node_type=IONodeType.SAVE_IMAGE)
         assert _node_def_display_name(nd) == "SAVE_IMAGE"
 
     def test_phase_display_name_dispatches_to_node_def(self):
@@ -508,13 +508,18 @@ class TestFindVaeModelKey:
     """Pipeline._find_vae_model_key() 的行为。"""
 
     def test_finds_vae(self):
-        """从 nodes 中找到 VAE key。"""
+        """从 loader_outputs 中找到 VAE ModelPoolKey。"""
         pipeline_def, nd = _make_dag_pipeline_def()
         engine = _make_mock_engine(nd)
         pipeline = _make_pipeline(pipeline_def, engine, nodes_dict=nd)
 
+        # 模拟 load_models 的 output — _loader_outputs 中有 VAE 的 ModelPoolKey
+        vae_node = nd["loader_vae"]
+        vae_pool_key = ModelPoolKey(vae_node.node_id, ModelKey.VAE_WAN2_2)
+        pipeline._loader_outputs[vae_node.node_id] = {ModelKey.VAE_WAN2_2: vae_pool_key}
+
         result = pipeline._find_vae_model_key()
-        assert result == ModelKey.VAE_WAN2_2
+        assert result == vae_pool_key
 
     def test_no_vae_returns_none(self):
         """无 VAE 时返回 None。"""
@@ -542,7 +547,7 @@ class TestTopoSort(unittest.TestCase):
         """线性 DAG: A → B → C 拓扑排序结果正确。"""
         a = NodeDef(node_type=IONodeType.LOAD_MODEL, model_key=ModelKey.T5TextEncoder)
         b = NodeDef(node_type=NT.TEXT_ENCODE)
-        c = NodeDef(node_type=NT.SAVE_VIDEO)
+        c = NodeDef(node_type=IONodeType.SAVE_VIDEO)
 
         nodes = (a, b, c)
         edges = (
@@ -558,7 +563,7 @@ class TestTopoSort(unittest.TestCase):
         a = NodeDef(node_type=IONodeType.LOAD_MODEL, model_key=ModelKey.T5TextEncoder)
         b = NodeDef(node_type=NT.TEXT_ENCODE)
         c = NodeDef(node_type=NT.VAE_DECODE)
-        d = NodeDef(node_type=NT.SAVE_VIDEO)
+        d = NodeDef(node_type=IONodeType.SAVE_VIDEO)
 
         nodes = (a, b, c, d)
         edges = (

@@ -30,7 +30,7 @@ from .empty_torch_cache import kdit_empty_torch_cache
 from .generate import generate
 from .load import KsanaNodeModelLoader
 from .lora import build_list_of_lora_config
-from .output_types import KsanaNodeGeneratorOutput, KsanaNodeModelLoaderOutput, KsanaNodeVAEEncodeOutput
+from .output_types import GeneratorOutput, ModelLoaderOutput, VAEEncodeOutput
 from .torch_compile import torch_compile_config
 from .types import (
     AUX_LATENT,
@@ -98,9 +98,9 @@ __all__ = [
     "WANVIDEO_SLG_ARGS",
     "WANVIDEO_FETA_ARGS",
     "WANVIDEO_EXPERIMENTAL_ARGS",
-    "KsanaNodeModelLoaderOutput",
-    "KsanaNodeGeneratorOutput",
-    "KsanaNodeVAEEncodeOutput",
+    "ModelLoaderOutput",
+    "GeneratorOutput",
+    "VAEEncodeOutput",
     "KsanaNodeModelLoader",
     "KsanaNodeVAELoader",
     "KsanaNodeDBCache",

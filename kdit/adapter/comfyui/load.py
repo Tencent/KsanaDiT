@@ -17,10 +17,13 @@ import os
 from kdit import get_engine
 from kdit.config import DistributedConfig, KsanaAttentionConfig, KsanaLinearBackend, ModelConfig
 from kdit.models.model_key import get_model_key_from_path
+from kdit.nodes.core.node_context import NodeContext
+from kdit.nodes.core.node_def import NodeDef
+from kdit.nodes.core.node_types import IONodeType
 from kdit.utils import get_gpu_count, log
 from kdit.utils.profile import MemoryProfiler
 
-from .output_types import KsanaNodeModelLoaderOutput
+from .output_types import ModelLoaderOutput
 
 
 class KsanaNodeModelLoader:
@@ -83,18 +86,21 @@ class KsanaNodeModelLoader:
 
         kdit_engine = get_engine(dist_config=DistributedConfig(num_gpus=num_gpus))
         if cls.LOADED_MODEL is not None:
-            kdit_engine.clear_models(cls.LOADED_MODEL)
+            kdit_engine.clear_models(cls.LOADED_MODEL.pin)
 
         try:
-            kdit_engine.run_loader_node(
-                model_key,
-                model_path=model_path,
-                model_patch_path=vace_model,
-                model_config=model_config,
-                lora_config=lora,
-                comfy_bar_callback=comfy_bar_callback,
+            node_def = NodeDef(node_type=IONodeType.LOAD_MODEL, model_key=model_key)
+            context = NodeContext(
+                metadata={
+                    "model_path": model_path,
+                    "model_patch_path": vace_model,
+                    "model_config": model_config,
+                    "lora_config": lora,
+                    "comfy_bar_callback": comfy_bar_callback,
+                }
             )
-            loaded_model_keys = model_key
+            output_pins = kdit_engine.run_node(node_def, {}, context)
+            model_pool_key = output_pins.get(model_key)
         except Exception as e:  # pylint: disable=broad-except
             cls.LOADED_MODEL = None
             log.exception("load_diffusion_model failed")
@@ -102,9 +108,9 @@ class KsanaNodeModelLoader:
                 f"load_diffusion_model failed for: {high_noise_model_path} ({type(e).__name__}: {e})"
             ) from e
 
-        cls.LOADED_MODEL = loaded_model_keys
+        cls.LOADED_MODEL = model_pool_key
         MemoryProfiler.record_memory("after_load_model")
-        return KsanaNodeModelLoaderOutput(
-            model=cls.LOADED_MODEL,
+        return ModelLoaderOutput(
+            model=model_pool_key,
             run_dtype=model_config.run_dtype,
         )
