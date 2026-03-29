@@ -162,7 +162,7 @@ Engine (singleton via get_default / 或多实例)
  │    └── 多卡模式: N 个 RayExecutor (Ray Actor)
  ├── owns: num_gpus, _is_ray, _cleaned_up (引擎级元数据)
  ├── NOT own: model_pool, tensor_pool, device 信息 (这些属于 Executor)
- └── NOT own: 任何 Node 实例 (Node 由 AdvancedFactory 按需创建，用完即弃)
+ └── NOT own: 任何 Node 实例 (Node 由 IONodeFactory/InferNodeFactory 按需创建，缓存在 Executor 中)
 
 Executor (每卡一个实例)
  ├── owns: model_pool        — ModelPool (存储已加载的模型)
@@ -172,7 +172,7 @@ Executor (每卡一个实例)
  ├── owns: device / offload_device / device_id (设备信息)
  ├── owns: rank_id / world_size (分布式信息)
  ├── owns: dist_config / shard_fn (分布式配置)
- └── NOT own: Node 实例 (Node 在 run_node 中临时创建)
+ └── owns: _node_cache — Node 实例按 node_id 缓存复用
 ```
 
 ### Engine ([`kdit/engine/engine.py`](../../kdit/engine/engine.py))
@@ -192,7 +192,7 @@ Executor (每卡一个实例)
 |------|------|------|
 | `engine.run_node()` | 执行 Node | 分发到所有 Executor，**返回 `output_pins`**。Ray 模式取 rank 0 结果 |
 | `engine.get_tensor(key)` | 取回 TensorValue | 自动从 rank 0 取，返回 `TensorValue`（需 `.data` 取裸 tensor） |
-| `engine.put_tensors(tensors)` | 写入 tensor | 写入所有 Executor 的 tensor_pool，自动包装为 `TensorValue` |
+| `engine.feed_tensors(tensors)` | 写入 tensor | 写入所有 Executor 的 tensor_pool，自动包装为 `TensorValue`，返回 feed_pins |
 | `engine.has_tensor(key)` | 检查 key 存在性 | 检查 rank 0 的 tensor_pool 中是否存在指定 key |
 | `engine.register_tensor(pool_key, ref_count)` | 注册引用计数 | 透传到所有 Executor 的 tensor_pool.register() |
 | `engine.clear_all_tensors()` | 清理所有 tensor | 清理所有 Executor 的 tensor_pool — 用于 try/finally 异常恢复 |

@@ -15,4 +15,4 @@
 grep -rn "class Ksana" kdit/ --include="*.py" | grep -v __pycache__ | grep -v "adapter/comfyui/"
 ```
 
-预期输出为空（重命名正在进行中，如有残留需逐步清理）。
+预期输出为空（重命名正在进行中。当前残留集中在 `kdit/models/`、`kdit/config/`、`kdit/cache/`、`kdit/operations/`、`kdit/utils/`、`kdit/scheduler/` 等模块，需逐步清理）。

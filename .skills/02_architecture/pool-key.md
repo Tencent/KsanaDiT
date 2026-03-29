@@ -116,7 +116,7 @@ def clear(self, exclude: list[TensorKey | TensorPoolKey] | None = None) -> None:
 
 - **Owner**: Executor
 - **生命周期**: 与 Executor 同生命周期，`clear_models()` 可手动清理
-- **内容**: `dict[ModelKey, ModelBase]`
+- **内容**: `dict[ModelPoolKey, ModelBase]`（旧代码中存在 `ModelKey` 作为 key 的用法，已标记为 deprecated）
 - **用途**: IONode 写入模型，InferNode 读取模型
 
 ---

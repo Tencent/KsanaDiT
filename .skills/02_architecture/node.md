@@ -36,7 +36,7 @@
 
 - Node 的入参和出参**不直接传输 tensor 和 model**，这两者都通过 Pool 存储，通过 PoolKey 引用。避免多卡 Ray 场景下耗时的序列化操作。
 - 其他入参只能包含简单的 config 内容（通过 `NodeContext`），不允许存在 tensor 或 model 直接传输。
-- 每个 Node 实例有唯一的 `node_id`（int），由模块级全局计数器（`itertools.count(0)`）在 `NodeDef` 构造时自动分配（`field(init=False)`），用户不可指定。定义在 `kdit/nodes/core/node_def.py`。计数器仅在主进程的 PipelineDefBuilder 构建 DAG 时使用，不存在多卡多进程竞争。
+- 每个 Node 实例有唯一的 `node_id`（int），由模块级全局计数器（`itertools.count(1)`）在 `NodeDef` 构造时自动分配（`field(init=False)`），用户不可指定。定义在 `kdit/nodes/core/node_def.py`。计数器仅在主进程的 PipelineDefBuilder 构建 DAG 时使用，不存在多卡多进程竞争。
 - DAG 中未连接的输入 pin 代表"不输入"，Node 收到 `None`。Node **必须**自行处理 `None` 输入。
 
 ---
@@ -96,7 +96,6 @@ def run(self, pins: PinHub, *, context: NodeContext) -> None:
 | `InferNode.run()` | `None` | 结果写入 tensor_pool，不返回 tensor |
 
 **禁止** `InferNode.run()` 返回 dict 或 tensor。所有中间结果通过 `tensor_pool.put(key, tensor)` 写入。
-> **非常重要** : 待重构决定是否需要返回`output_pins`, 待更新
 
 ### run() 写入规则
 
@@ -122,7 +121,7 @@ def run(self, pins: PinHub, *, context: NodeContext) -> None:
 - `run()` 签名固定，**禁止**添加额外参数或 `**kwargs`
 - 额外配置（包括 IONode 的加载参数）通过 `context.metadata` 传递
 - tensor 只能通过 `pins.get_tensor()` / `pins.put_tensor()` 流转，**禁止**在参数或 metadata 中传递 tensor
-- `NodeContext.__post_init__` 递归校验 metadata 不含 `torch.Tensor`
+- `NodeContext.__post_init__` 校验 metadata 字段和一层 dict values 不含 `torch.Tensor`
 
 ---
 
@@ -143,7 +142,7 @@ def run(self, pins: PinHub, *, context: NodeContext) -> None:
 - Node 间通过 **同一个 Executor 内的 tensor_pool** 传递数据，不经过 Engine
 - 跨 rank 数据传递由 `DispatchPolicy.RANK_0_BROADCAST` 的 broadcast 机制自动处理
 - `engine.get_tensor()` 只用于 Pipeline/ComfyUI 取回最终结果，不用于 Node 间传递
-- Pipeline/ComfyUI 向 Node 传递 tensor 输入时，必须通过 `engine.put_tensors()` 写入 tensor_pool
+- Pipeline/ComfyUI 向 Node 传递 tensor 输入时，必须通过 `engine.feed_tensors()` 写入 tensor_pool
 - **禁止**在 ComfyUI adapter 之间传递裸 `torch.Tensor`，必须传递 `TensorKey`
 
 ---
@@ -189,7 +188,7 @@ def _get_or_create_node(self, node_def):
     if node_def.node_id in self._node_cache:
         return self._node_cache[node_def.node_id]
     if node_def.is_io:
-        node = LoaderNodeFactory.create(node_def.model_key)
+        node = IONodeFactory.create(node_def.node_type, node_def.model_key)
     else:
         node = InferNodeFactory.create(node_def.node_type, node_def.model_key)
     self._node_cache[node_def.node_id] = node
@@ -211,13 +210,23 @@ Node 实例按 `node_id` 缓存在 Executor 中，同一 node_id 复用同一实
 
 ## Node 注册
 
+### InferNode 注册
+
 - 使用 `@InferNodeFactory.register()` 装饰器注册
 - 注册键为 `(InferNodeType, [ModelKey, ...])`
-- `InferNodeType` 枚举值：`TEXT_ENCODE`, `VAE_ENCODE_SPATIAL`, `VAE_ENCODE_IMAGES`, `VAE_COMPUTE_SHAPE`, `VAE_DECODE`, `GENERATE`, `SAVE_VIDEO`, `SAVE_IMAGE`, `READ_IMAGE`, `VACE_PREPROCESS`
+- `InferNodeType` 枚举值：`TEXT_ENCODE`, `VAE_COMPUTE_SHAPE`, `VAE_ENCODE_SPATIAL`, `VAE_ENCODE_IMAGES`, `VAE_DECODE`, `GENERATE`, `VACE_PREPROCESS`
+
+### IONode 注册
+
+- 使用 `@IONodeFactory.register()` 装饰器注册
+- 注册键为 `(IONodeType, [ModelKey | None, ...])`
+- `IONodeType` 枚举值：`LOAD_MODEL`, `SAVE_VIDEO`, `SAVE_IMAGE`, `READ_IMAGE`, `FEED_TENSOR`, `FETCH_TENSOR`
 
 ---
 
 ## 现有 Node 参考
+
+### InferNode
 
 | Node | dispatch_policy | input_defs | output_defs |
 |------|----------------|------------|-------------|
@@ -228,9 +237,20 @@ Node 实例按 `node_id` 缓存在 Executor 中，同一 node_id 复用同一实
 | `VAEComputeShapeNode` | `R0_R0_BCAST` | `[]` | `[BASE_LATENT]` |
 | `VAEDecodeNode` | `ALL_R0_R0` | `[LATENTS]` | `[VIDEO]` |
 | `GeneratorNode` | `ALL_ALL_ALL` | `[POSITIVE, NEGATIVE, BASE_LATENT, AUX_LATENT, VACE_CONTEXT]` | `[LATENTS]` |
-| `SaveVideoNode` | `ALL_R0_R0` | `[VIDEO]` | `[]` |
-| `SaveImageNode` | `ALL_R0_R0` | `[VIDEO]` | `[]` |
-| `ReadImageNode` | `R0_R0_BCAST` | `[]` | `[IMAGE]` |
+| `VACEPreprocessNode` | `R0_R0_BCAST` | `[]` | `[VACE_CONTEXT]` |
+
+### IONode
+
+| Node | dispatch_policy | input_defs | output_defs | 说明 |
+|------|----------------|------------|-------------|------|
+| `DiffusionLoaderNode` | — | — | model | 加载 Diffusion 模型 |
+| `TextEncoderLoaderNode` | — | — | model | 加载文本编码器 |
+| `VAELoaderNode` | — | — | model | 加载 VAE |
+| `SaveVideoNode` | `ALL_R0_R0` | `[VIDEO]` | `[]` | 保存视频 |
+| `SaveImageNode` | `ALL_R0_R0` | `[VIDEO]` | `[]` | 保存图片 |
+| `ReadImageNode` | `R0_R0_BCAST` | `[]` | `[IMAGE]` | 读取图片 |
+| `FeedTensorNode` | — | — | 动态 | 外部 tensor 注入桥接 |
+| `FetchTensorNode` | — | 动态 | — | 外部 tensor 提取桥接 |
 
 ---
 

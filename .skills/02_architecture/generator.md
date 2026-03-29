@@ -87,3 +87,12 @@ class AuxLatent:
 - ❌ **禁止**绕过 `BaseLatent` 直接在 `context.metadata` 中传递 noise_shape — noise_shape 必须从 `base_latent.latent.shape[1:]` 推导
 - ❌ **禁止**在新模型中假设 `BaseLatent.mask` 一定为 None — 应通过 `preprocess_base_latent()` 处理
 - ❌ **禁止**在 `AuxLatent` 中放不可序列化对象 — AuxLatent 通过 tensor_pool 流转，必须是 tensor 或 list[tensor]
+
+---
+
+## 相关文档
+
+- Node 设计 → [`node.md`](node.md)
+- 架构总览 → [`overview.md`](overview.md)
+- PinHub 沙箱 → [`pin-hub.md`](pin-hub.md)
+- Key 类型体系 → [`../03_standards/key-system.md`](../03_standards/key-system.md)

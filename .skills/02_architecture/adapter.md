@@ -15,6 +15,16 @@ adapter 为了让 kdit 的 Node 可以适配多种其他工具的一个适配层
 
 ## 包结构
 
-- [`kdit/adapter/comfyui/nodes/`](../../kdit/adapter/comfyui/nodes/) 是 ComfyUI 插件节点，未来需要重构到`kdit/adapter/comfyui`
+- [`kdit/adapter/comfyui/nodes/`](../../kdit/adapter/comfyui/nodes/) 是 ComfyUI 插件节点
 - [`kdit/nodes/`](../../kdit/nodes/) 是 kdit 内部节点
-- 两者 API 完全不同，不要混淆，adapter就是负责两者接口的薄适配
+- 两者 API 完全不同，不要混淆，adapter 负责两者接口的薄适配
+
+## FeedTensor / FetchTensor 桥接
+
+ComfyUI adapter 通过 `engine.feed_tensors()` 写入 tensor 到 staging area，由 `FeedTensorNode`（IONode）桥接到 DAG 内部。`FetchTensorNode` 则反向提取 DAG 输出供 ComfyUI 使用。
+
+## 相关文档
+
+- 架构总览 → [`overview.md`](overview.md)
+- Node 设计 → [`node.md`](node.md)
+- 依赖方向与命名 → [`../03_standards/naming.md`](../03_standards/naming.md)

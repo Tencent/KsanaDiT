@@ -8,8 +8,8 @@
 |----------|---------|------|---------|
 | `ModelKey` | [`kdit/models/model_key.py`](../../kdit/models/model_key.py:49) | 标识一个具体的模型类别 | `ModelPool` 存取、`ModelBase.__init__`、Loader/Infer Node 注册与分发、`GeneratorDef` 注册、`settings` 配置映射 |
 | `PipelineKey` | [`kdit/pipelines/pipeline_key.py`](../../kdit/pipelines/pipeline_key.py) | 标识一条完整的推理流水线 | `Pipeline.__init__`、pipeline 创建与路由、pipeline→model 映射表的 key 侧 |
-| `InferNodeType` | [`kdit/nodes/core/node_types.py`](../../kdit/nodes/core/node_types.py:69) | 标识推理节点类型 | `InferNodeFactory` 注册与分发、`PipelineDefBuilder.add_infer()` |
-| `IONodeType` | [`kdit/nodes/core/node_types.py`](../../kdit/nodes/core/node_types.py:57) | 标识加载节点类型 | `LoaderNodeFactory` 注册与分发、`PipelineDefBuilder.add_loader()` |
+| `InferNodeType` | [`kdit/nodes/core/node_types.py`](../../kdit/nodes/core/node_types.py:55) | 标识推理节点类型 | `InferNodeFactory` 注册与分发、`PipelineDefBuilder.add_infer()` |
+| `IONodeType` | [`kdit/nodes/core/node_types.py`](../../kdit/nodes/core/node_types.py:41) | 标识加载节点类型 | `IONodeFactory` 注册与分发、`PipelineDefBuilder.add_loader()` |
 
 ## 核心约束
 
@@ -43,16 +43,9 @@ class ModelKey(Enum):
 
 ## Pipeline → Model 映射方向
 
-`base_pipeline.py` 中的映射表遵循 **pipeline key → model key** 方向：
+`ContextBuilder` 中的映射逻辑遵循 **pipeline key → model key** 方向。`model_key.py` 中定义了 `TEXT_ENCODER_KEYS`、`DIFFUSION_KEYS`、`VAE_KEYS` 等分类集合，用于按 `ModelKey` 类别进行分组和查找。
 
-```python
-# key 侧: PipelineKey（输入）
-# value 侧: ModelKey（输出）
-_TEXT_ENCODER_MAP = {
-    PipelineKey.Wan2_2_T2V_14B: ModelKey.T5TextEncoder,
-    ...
-}
-```
+调用方通过 `PipelineKey[model_key.name]` 进行 `ModelKey` ↔ `PipelineKey` 转换。
 
 ## 禁止事项
 

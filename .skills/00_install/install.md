@@ -156,7 +156,7 @@ Claude Code 有三层配置，各司其职：
 | 源文件 | Claude Code Skill 名称 | 注册路径 | 触发方式 |
 |--------|----------------------|---------|---------|
 | `.skills/SKILL.md` | `kdit-skill` | `.claude/skills/kdit-skill/SKILL.md` | 自动触发（理解/修改 kDiT 代码时） + 手动 `/kdit-skill` |
-| `.skills/01_development_spec/development_spec.md` | `development_spec` | `.claude/skills/development_spec/SKILL.md` | 自动触发（编码实现、架构讨论时） + 手动 `/development_spec` |
+| `.skills/01_development_spec/development_spec.md` | `kdit-development-spec` | `.claude/skills/kdit-development-spec/SKILL.md` | 自动触发（编码实现、架构讨论时） + 手动 `/kdit-development-spec` |
 
 ### CLAUDE.md — 持久指令
 
@@ -237,7 +237,7 @@ kDiT 是一个分布式视频生成推理框架，基于 DAG 编排 + Ray 分布
 本项目配置了以下 Skill，Claude 应在合适时机自动触发：
 
 - **kdit-skill**（`/kdit-skill`）：项目知识库，包含架构、编码规范、API 参考。在理解或修改 kDiT 代码时触发。
-- **development_spec**（`/development_spec`）：先设计后编码的工作流。在实现新功能、重大修改或架构讨论与设计评审时触发。
+- **kdit-development-spec**（`/kdit-development-spec`）：先设计后编码的工作流。在实现新功能、重大修改或架构讨论与设计评审时触发。
 
 ## 核心约定
 

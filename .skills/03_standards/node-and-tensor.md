@@ -52,7 +52,7 @@ class MyNode(InferNode):
 
 ## TensorKey 枚举使用规范
 
-tensor_pool 的 key **必须**使用 `TensorKey(str, Enum)` 枚举，全局统一，不使用裸字符串：
+tensor_pool 的 key **必须**使用 `TensorKey(Enum)` 枚举，全局统一，不使用裸字符串：
 
 ```python
 from kdit.tensor import TensorKey
@@ -60,7 +60,7 @@ from kdit.tensor import TensorKey
 # ✅ 使用枚举
 pins.put_tensor(TensorKey.LATENTS, latents)
 video = engine.get_tensor(TensorKey.VIDEO)
-engine.put_tensors(**{TensorKey.POSITIVE: positive, TensorKey.NEGATIVE: negative})
+engine.feed_tensors(**{TensorKey.POSITIVE: positive, TensorKey.NEGATIVE: negative})
 
 # ❌ 裸字符串
 tensor_pool.put("latents", latents)
@@ -85,7 +85,7 @@ tensor_pool.put("latents", latents)
 
 ## NodeContext 禁止 tensor
 
-`NodeContext.metadata` 中**禁止**包含 `torch.Tensor`。`__post_init__` 递归检查 metadata dict 的 values：
+`NodeContext.metadata` 中**禁止**包含 `torch.Tensor`。`__post_init__` 检查字段和一层 dict values：
 
 ```python
 def __post_init__(self):
@@ -97,14 +97,14 @@ def __post_init__(self):
                 if isinstance(v, torch.Tensor):
                     raise TypeError(
                         f"NodeContext.{field_name}[{k!r}] is a Tensor! "
-                        f"Use engine.put_tensors() + TensorKey instead."
+                        f"Use engine.feed_tensors() + TensorKey instead."
                     )
 ```
 
 **原因**：
 - 单卡模式下 metadata 中的 tensor 能跑，但违反设计约束
 - 多卡 Ray 模式下 context 会被 pickle 序列化，metadata 中的大 tensor 导致性能严重下降
-- 所有 tensor 输入必须走 `engine.put_tensors()` → `tensor_pool`，Node 从 `tensor_pool` 读取
+- 所有 tensor 输入必须走 `engine.feed_tensors()` → `tensor_pool`，Node 从 `tensor_pool` 读取
 
 ---
 

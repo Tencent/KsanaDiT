@@ -87,8 +87,7 @@ class ExtraInputs:
 
 | 子类 | 文件 | 字段 |
 |------|------|------|
-| `WanI2VExtraInputs` | `kdit/pipelines/context_builders/wan.py` | `start_img_path`, `end_img_path`, `aux_latent`, `video_control_config` |
-| `WanVACEExtraInputs` | `kdit/pipelines/context_builders/wan.py` | `video_control_config` |
+| `WanI2VExtraInputs` | `kdit/pipelines/context_builders/wan.py` | `start_img_path`, `end_img_path`, `video_control_config`, `aux_latent`（I2V 和 VACE 共用） |
 | `QwenEditExtraInputs` | `kdit/pipelines/context_builders/qwen.py` | `img_path` |
 
 ### 设计原则

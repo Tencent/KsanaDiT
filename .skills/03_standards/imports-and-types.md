@@ -31,7 +31,7 @@ from kdit.utils import is_file_or_dir, log
 
 # ✅ 同子包 (nodes) → 相对导入
 from ..core.base_node import IONode
-from ..core.node_factory import LoaderNodeFactory
+from ..core.node_factory import IONodeFactory
 from ..core.node_types import NodeDispatchPolicy
 ```
 
@@ -104,7 +104,7 @@ if TYPE_CHECKING:
 @dataclass(frozen=True)
 class SampleConfig:
     steps: int | None = None
-    cfg_scale: float | list[float, float] | None = None
+    cfg_scale: float | tuple[float, float] | None = None
 ```
 
 ```python
