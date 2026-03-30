@@ -23,6 +23,7 @@ from kdit.nodes.core.node_types import InferNodeType as NT
 from kdit.nodes.core.node_types import IONodeType
 from kdit.nodes.core.node_types import IONodeType as IOT
 from kdit.pipelines.context_builder import ContextBuilder
+from kdit.pipelines.dag import topo_sort
 from kdit.pipelines.pipeline_def import (
     PipelineDef,
     PipelineDefBuilder,
@@ -177,6 +178,45 @@ class TestPipelineDefBuilderDAG(unittest.TestCase):
         self.assertIsInstance(ref, NodeRef)
         # when() 返回的是普通 NodeRef，不再是 _NodeRefWithWhen
         self.assertNotIsInstance(ref, _NodeRefWithWhen)
+
+    def test_when_node_ref_connect_and_topo_sort(self):
+        """回归测试：.when() 返回的 NodeRef 用于 connect() 后，topo_sort 不应 KeyError。
+
+        根因：replace() 创建新 NodeDef（新 node_id），但 when() 返回旧 NodeRef，
+        导致 edges 引用旧 node_id，而 nodes 中是新 node_id → topo_sort KeyError。
+        """
+        builder = PipelineDefBuilder(PipelineKey.Wan2_2_I2V_14B)
+        vae_loader = builder.add_loader(ModelKey.VAE_WAN2_1)
+        vae_enc = builder.add_infer(NT.VAE_ENCODE_SPATIAL, ModelKey.VAE_WAN2_1)
+        # .when() 返回的 NodeRef 用于后续 connect
+        cond_node = builder.add_infer(NT.VACE_PREPROCESS).when("has_vace")
+        gen = builder.add_infer(NT.GENERATE)
+        save = builder.add_io(IOT.SAVE_VIDEO)
+
+        builder.connect(
+            vae_loader.VAE_WAN2_1 >> vae_enc.VAE_WAN2_1,
+            vae_enc.BASE_LATENT >> gen.BASE_LATENT,
+            cond_node.VACE_CONTEXT >> gen.VACE_CONTEXT,
+            gen.LATENTS >> save.VIDEO,
+        )
+
+        pipeline_def = builder.context_builder(_DummyContextBuilder).build()
+
+        # 关键断言：topo_sort 不应抛出 KeyError
+        sorted_nodes = topo_sort(pipeline_def.nodes, pipeline_def.edges)
+        self.assertEqual(len(sorted_nodes), len(pipeline_def.nodes))
+
+    def test_when_node_id_consistency(self):
+        """回归测试：.when() 后 NodeRef 的 node_id 与 _node_defs 中的 node_id 一致。"""
+        builder = PipelineDefBuilder(PipelineKey.Wan2_2_I2V_14B)
+        builder.add_loader(ModelKey.VAE_WAN2_1)
+        ref = builder.add_infer(NT.VACE_PREPROCESS).when("has_vace")
+
+        pipeline_def = builder.context_builder(_DummyContextBuilder).build()
+
+        # ref.node_id 必须在 pipeline_def.nodes 的 node_id 集合中
+        node_ids = {n.node_id for n in pipeline_def.nodes}
+        self.assertIn(ref.node_id, node_ids, "when() 返回的 NodeRef.node_id 不在 nodes 中")
 
     def test_node_defs_structure(self):
         """NodeDef 结构正确 — loader 和 infer 的字段。"""

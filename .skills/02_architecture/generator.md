@@ -41,7 +41,7 @@ class BaseLatent:
 | 模型 | `base_latent.latent` | `base_latent.mask` | 说明 |
 |------|---------------------|-------------------|------|
 | WAN T2V | 空 latent（`torch.zeros`） | `None` | 通过 empty latent 方法创建，仅决定 noise_shape |
-| WAN I2V | VAE encode 的首帧 latent | 非 None（mask tensor） | `preprocess_base_latent()` 将 `[latent, mask]` concat |
+| WAN I2V | VAE encode 的首帧 latent | 非 None（mask tensor） | `preprocess_base_latent()` 将 `[mask, latent]` concat |
 | WAN VACE | VAE encode 的首帧 latent | 非 None（mask tensor） | 继承 WAN I2V 的行为 |
 | Qwen T2I | 空 latent（`torch.zeros`） | `None` | 通过 empty latent 方法创建 |
 | Qwen Edit | 空 latent（`torch.zeros`） | `None` | 通过 empty latent 方法创建 |
@@ -77,7 +77,7 @@ class AuxLatent:
 
 | 方法 | 基类行为 | 覆写场景 |
 |------|---------|---------|
-| `preprocess_base_latent(base_latent_list)` | 取 `list[0]`（仅 latent） | WAN I2V: 将 `[latent, mask]` concat 为单个 tensor |
+| `preprocess_base_latent(base_latent_list)` | 取 `list[0]`（仅 latent） | WAN I2V: 将 `[mask, latent]` concat 为单个 tensor |
 | `_apply_aux_latent(noise, aux, ...)` | `raise NotImplementedError` | 每个子类必须实现：WAN 做噪声混合，Qwen 直接返回 noise（不混合） |
 | `pack_aux_latent(ref_latent, patch_size)` | 直接返回 | Qwen: `pack_ref_latents()` 做 patchify |
 

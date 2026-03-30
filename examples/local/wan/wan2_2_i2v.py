@@ -31,6 +31,7 @@ from kdit.config import (
     SampleConfig,
     SolverType,
 )
+from kdit.pipelines.context_builders.wan import WanI2VExtraInputs
 from kdit.utils.distribute import get_gpu_count
 
 prompts = [
@@ -50,7 +51,9 @@ def run_simple(args):
 
     video = pipeline.generate(
         prompts,
-        start_img_path=args.img_path,
+        extra_inputs=WanI2VExtraInputs(
+            start_img_path=args.img_path,
+        ),
         sample_config=SampleConfig(steps=40),
         runtime_config=RuntimeConfig(
             seed=SEED,
@@ -62,7 +65,9 @@ def run_simple(args):
 
     video = pipeline.generate(
         prompts[0],
-        start_img_path=args.img_path,
+        extra_inputs=WanI2VExtraInputs(
+            start_img_path=args.img_path,
+        ),
         sample_config=SampleConfig(steps=40),
         runtime_config=RuntimeConfig(
             seed=SEED,
@@ -98,8 +103,10 @@ def run_start_and_end_with_lora(args):
 
     video = pipeline.generate(
         prompts[2],
-        start_img_path="./examples/images/start_image.png",
-        end_img_path="./examples/images/end_image.png",
+        extra_inputs=WanI2VExtraInputs(
+            start_img_path="./examples/images/start_image.png",
+            end_img_path="./examples/images/end_image.png",
+        ),
         sample_config=sample_config,
         runtime_config=RuntimeConfig(
             seed=SEED,
@@ -147,7 +154,9 @@ def run_turbo_diffusion(args):
 
     pipeline.generate(
         text,
-        start_img_path="./examples/images/cat.png",
+        extra_inputs=WanI2VExtraInputs(
+            start_img_path="./examples/images/cat.png",
+        ),
         runtime_config=RuntimeConfig(size=(1280, 720), seed=SEED, frame_num=81),
         sample_config=sample_config,
     )

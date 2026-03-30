@@ -30,15 +30,15 @@ class WanLatentHandler(LatentHandler):
         self._model_key = model_key
 
     def preprocess_base(self, base_latent_list: list[torch.Tensor]) -> torch.Tensor:
-        """Wan I2V: 将 [latent, mask] concat 为单个 tensor 作为模型的 y 输入。
+        """Wan I2V: 将 [mask, latent] concat 为单个 tensor 作为模型的 y 输入。
 
-        原先 base_latent 是已经 concat 好的单个 tensor（latent + mask 在 channel 维度），
+        原先 base_latent 是已经 concat 好的单个 tensor（mask + latent 在 channel 维度），
         现在 BaseLatent 将 latent 和 mask 拆分存储，需要在此处重新 concat。
         T2V 场景下 list 只有 [latent]（无 mask），直接取第一个元素。
         """
         if self._model_key == ModelKey.Wan2_2_I2V_14B and len(base_latent_list) == 2:
             latent, mask = base_latent_list
-            return torch.cat([latent, mask], dim=1)
+            return torch.cat([mask, latent], dim=1)
         return base_latent_list[0]
 
     def validate_noise_shape(

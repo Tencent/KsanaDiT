@@ -45,6 +45,22 @@ class TestWanPreprocessBase(unittest.TestCase):
         result = handler.preprocess_base([latent, mask])
         self.assertEqual(result.shape, (1, 17, 21, 30, 52))
 
+    def test_i2v_concat_order_mask_before_latent(self):
+        """回归测试：preprocess_base 必须按 [mask, latent] 顺序 concat。
+
+        Wan I2V 模型要求 channel 维度前 1 通道为 mask、后 16 通道为 latent。
+        此测试确保 concat 顺序不会被意外改回 [latent, mask]。
+        """
+        handler = WanLatentHandler(ModelKey.Wan2_2_I2V_14B)
+        latent = torch.ones(1, 16, 2, 4, 4)  # 全 1
+        mask = torch.zeros(1, 1, 2, 4, 4)  # 全 0
+        result = handler.preprocess_base([latent, mask])
+        # mask（全 0）应在 channel 维度前面，latent（全 1）在后面
+        mask_part = result[:, :1, :, :, :]
+        latent_part = result[:, 1:, :, :, :]
+        self.assertTrue(torch.equal(mask_part, mask), "前 1 通道应为 mask（全 0）")
+        self.assertTrue(torch.equal(latent_part, latent), "后 16 通道应为 latent（全 1）")
+
     def test_i2v_single_element_returns_directly(self):
         handler = WanLatentHandler(ModelKey.Wan2_2_I2V_14B)
         latent = torch.randn(1, 16, 21, 30, 52)

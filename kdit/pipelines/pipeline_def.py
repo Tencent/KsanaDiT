@@ -243,8 +243,9 @@ class _NodeRefWithWhen(NodeRef):
         # 找到对应的 NodeDef 并用 replace 替换 condition
         for i, nd in enumerate(self._builder._node_defs):
             if nd.node_id == self._node_def.node_id:
-                self._builder._node_defs[i] = replace(nd, condition=condition_name)
-                break
+                new_nd = replace(nd, condition=condition_name)
+                self._builder._node_defs[i] = new_nd
+                return NodeRef(new_nd)
         return NodeRef(self._node_def)
 
 
