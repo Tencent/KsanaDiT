@@ -5,8 +5,11 @@ __pycache__/
 output
 tmp
 refer/
+.claude/*
+!.claude/skills/
+!.claude/settings.json
 .roo*
-.claude/
+!.roo/skills/
 .gitconfig
 AGENTS.md
 *.png
@@ -16,4 +19,3 @@ site/
 *.sh
 CLAUDE.md
 design_drafts/
-.claude/

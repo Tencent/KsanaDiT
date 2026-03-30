@@ -1,0 +1,42 @@
+{
+  "permissions": {
+    "allow": [
+      "Read",
+      "Edit",
+      "Write",
+      "Bash(git:*)",
+      "Bash(mkdir:*)",
+      "Bash(grep:*)",
+      "Bash(find:*)",
+      "Bash(ls:*)",
+      "Bash(cat:*)",
+      "Bash(xargs:*)",
+      "Bash(wc:*)",
+      "Bash(echo:*)",
+      "Bash(cd:*)",
+      "Bash(for:*)",
+      "Bash(ln:*)",
+      "Bash(cp:*)",
+      "Bash(mv:*)",
+      "Bash(readlink:*)",
+      "Bash(realpath:*)",
+      "Bash(sed:*)",
+      "Bash(head:*)",
+      "Bash(tail:*)",
+      "Bash(touch:*)",
+      "Bash(diff:*)",
+      "Bash(sort:*)",
+      "Bash(uniq:*)",
+      "Bash(dirname:*)",
+      "Bash(basename:*)",
+      "Bash(test:*)",
+      "Bash([:*)",
+      "Bash(python:*)",
+      "Bash(pytest:*)"
+    ]
+  },
+  "enabledPlugins": {
+    "code-review@claude-plugins-official": true,
+    "frontend-design@claude-plugins-official": true
+  }
+}

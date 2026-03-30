@@ -14,19 +14,19 @@
 
 ### 判定标准
 
-- **"同子包"** 定义：共享 `kdit/` 下同一个一级子目录。例如 `kdit/nodes/loaders/` 和 `kdit/nodes/core/` 同属 `nodes` 子包。
+- **"同子包"** 定义：共享 `kdit/` 下同一个一级子目录。例如 `kdit/nodes/io/` 和 `kdit/nodes/core/` 同属 `nodes` 子包。
 - **三级及以上相对导入（`from ...xxx`）一律禁止**，必须改为绝对导入 `from kdit.xxx`。
 - `kdit/operations/` 内部的深层嵌套（如 `backends/radial_sage_attn/`）跨子目录时也使用绝对导入。
 
 ### 示例
 
 ```python
-# kdit/nodes/loaders/diffusion_model_loader.py
+# kdit/nodes/io/diffusion_model_loader.py
 
 # ✅ 跨子包 → 绝对导入
 from kdit.config import LoraConfig, ModelConfig
 from kdit.memory import PinnedMemoryManager
-from kdit.models import KsanaWanModel
+from kdit.models import DiffusionModel
 from kdit.utils import is_file_or_dir, log
 
 # ✅ 同子包 (nodes) → 相对导入

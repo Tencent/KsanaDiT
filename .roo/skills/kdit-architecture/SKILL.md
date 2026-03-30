@@ -1,0 +1,1 @@
+../../../.skills/02_architecture/SKILL.md

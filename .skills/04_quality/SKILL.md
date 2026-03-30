@@ -6,4 +6,22 @@ description: >
   关键词：quality、测试、test、pytest、pre-commit、ruff、black、验收。
 ---
 
-请阅读 [`.skills/04_quality/SKILL.md`](../../.skills/04_quality/SKILL.md) 获取质量保障入口和验收规范。
+# kDiT 质量保障
+
+## 适用场景
+
+- 测试设计、格式检查、文档同步
+- 交付前验收检查
+
+## 文档索引
+
+| 文件 | 说明 |
+|------|------|
+| [`verification.md`](verification.md) | 测试命名、pre-commit、文档同步 |
+
+## 相关 skill
+
+| Skill | 何时调用 |
+|-------|---------|
+| `/kdit-standards` | 编码规范 |
+| `/kdit-architecture` | 理解模块关系 |

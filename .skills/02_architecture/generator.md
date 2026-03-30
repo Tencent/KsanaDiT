@@ -1,6 +1,6 @@
 # Generator — Diffusion 去噪引擎
 
-Generator 是 Node 内部的实现细节（被 [`GeneratorNode`](../../kdit/nodes/infers/generator_node.py:42) 封装），负责 Diffusion 去噪流程。Generator 内部的 tensor 流转（noise、denoise step 等）不受 DAG 改造影响。
+Generator 是 Node 内部的实现细节（被 [`GeneratorNode`](../../kdit/nodes/infer/generator_node.py:42) 封装），负责 Diffusion 去噪流程。Generator 内部的 tensor 流转（noise、denoise step 等）不受 DAG 改造影响。
 
 ---
 
