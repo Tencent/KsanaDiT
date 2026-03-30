@@ -8,8 +8,9 @@ refer/
 .claude/*
 !.claude/skills/
 !.claude/settings.json
-.roo*
+.roo/*
 !.roo/skills/
+.roomodes
 .gitconfig
 AGENTS.md
 *.png
