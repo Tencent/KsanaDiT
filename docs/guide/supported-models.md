@@ -85,14 +85,9 @@ All models use a **Diffusion Transformer (DiT)** architecture and support:
 
 **Typical Configuration:**
 ```python
-from kdit.config import GenerateConfig
-config = GenerateConfig(
-    num_frames=81,
-    width=720, height=480,
-    sample_steps=20,
-    sample_guide_scale=4.0,
-    sample_shift=5.0,
-)
+from kdit.config import SampleConfig, RuntimeConfig
+sample_config = SampleConfig(steps=20, cfg_scale=4.0, shift=5.0)
+runtime_config = RuntimeConfig(size=(720, 480), frame_num=81)
 ```
 
 ---
@@ -125,15 +120,11 @@ config = GenerateConfig(
 
 **Typical Configuration:**
 ```python
-from kdit.config import GenerateConfig
-config = GenerateConfig(
-    num_frames=81,
-    width=720, height=480,
-    sample_steps=20,
-    sample_guide_scale=4.0,
-    sample_shift=5.0,
-    image="path/to/image.jpg",
-)
+from kdit.config import SampleConfig, RuntimeConfig
+from kdit.pipelines.context_builders.wan import WanI2VExtraInputs
+sample_config = SampleConfig(steps=20, cfg_scale=4.0, shift=5.0)
+runtime_config = RuntimeConfig(size=(720, 480), frame_num=81)
+extra_inputs = WanI2VExtraInputs(start_img_path="path/to/image.jpg")
 ```
 
 ---
@@ -191,15 +182,14 @@ config = GenerateConfig(
 
 **Typical Configuration:**
 ```python
-from kdit.config import GenerateConfig, KsanaExperimentalConfig
-config = GenerateConfig(
-    num_frames=81,
-    width=848, height=480,
-    sample_steps=20,
-    sample_guide_scale=4.0,
-    sample_shift=5.0,
-    experimental_config=KsanaExperimentalConfig(cfg_zero_star=True),
+from kdit.config import SampleConfig, RuntimeConfig, KsanaExperimentalConfig, KsanaVideoControlConfig
+sample_config = SampleConfig(
+    steps=20, cfg_scale=4.0, shift=5.0,
+    video_control=KsanaVideoControlConfig(
+        experimental=KsanaExperimentalConfig(cfg_zero_star=True),
+    ),
 )
+runtime_config = RuntimeConfig(size=(848, 480), frame_num=81)
 ```
 
 ---
@@ -229,13 +219,9 @@ config = GenerateConfig(
 
 **Typical Configuration:**
 ```python
-from kdit.config import GenerateConfig
-config = GenerateConfig(
-    width=1024, height=1024,
-    sample_steps=20,
-    sample_guide_scale=4.0,
-    sample_shift=-1,  # auto-compute for Qwen
-)
+from kdit.config import SampleConfig, RuntimeConfig, SolverType
+sample_config = SampleConfig(steps=20, cfg_scale=4.0, shift=-1, solver=SolverType.FLOWMATCH_EULER)
+runtime_config = RuntimeConfig(size=(1024, 1024))
 ```
 
 ---
@@ -266,14 +252,10 @@ config = GenerateConfig(
 
 **Typical Configuration:**
 ```python
-from kdit.config import GenerateConfig
-config = GenerateConfig(
-    width=1024, height=1024,
-    sample_steps=20,
-    sample_guide_scale=4.0,
-    sample_shift=-1,  # auto-compute for Qwen
-    image="path/to/source.jpg",
-)
+from kdit.config import SampleConfig, RuntimeConfig, SolverType
+sample_config = SampleConfig(steps=20, cfg_scale=4.0, shift=-1, solver=SolverType.FLOWMATCH_EULER)
+runtime_config = RuntimeConfig(size=(1024, 1024))
+# Pass source image via img_path parameter
 ```
 
 ---

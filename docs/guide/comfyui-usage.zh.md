@@ -11,18 +11,15 @@ kDiT 以自定义节点插件的形式集成到 [ComfyUI](https://github.com/com
 ### 作为 ComfyUI 自定义节点安装
 
 ```bash
-# 1. 进入 ComfyUI 的 custom_nodes 目录
-cd /path/to/ComfyUI/custom_nodes
+# 1. 克隆 kDiT 仓库
+git clone https://github.com/Tencent/KsanaDiT.git
 
-# 2. 克隆 kDiT 仓库
-git clone https://github.com/Tencent/kDiT.git
-
-# 3. 进入 kDiT 目录并通过脚本安装
-cd kDiT
+# 2. 进入 kDiT 目录并执行安装脚本
+cd KsanaDiT
 ./scripts/install_public.sh
 ```
 
-安装脚本会自动检测平台（GPU/NPU/XPU），安装所有依赖，并自动配置 ComfyUI 自定义节点。
+安装脚本会自动检测平台（GPU/NPU/XPU）并安装所有依赖。安装过程中会交互式提示输入 ComfyUI 的安装根目录，以完成自定义节点的配置。
 
 ### 模型文件
 

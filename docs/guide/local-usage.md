@@ -74,10 +74,12 @@ video = pipeline.generate(
 Generate videos from an input image and text prompt.
 
 ```python
+from kdit.pipelines.context_builders.wan import WanI2VExtraInputs
+
 pipeline = Pipeline.from_models("/path/to/Wan2.2-I2V-A14B")
 video = pipeline.generate(
     "your prompt",
-    start_img_path="input.png",
+    extra_inputs=WanI2VExtraInputs(start_img_path="input.png"),
     sample_config=SampleConfig(steps=40),
     runtime_config=RuntimeConfig(seed=1234, size=(1280, 720), frame_num=81),
 )
@@ -87,8 +89,10 @@ Supports start image, end image, and start+end image modes:
 ```python
 video = pipeline.generate(
     "your prompt",
-    start_img_path="start.png",
-    end_img_path="end.png",  # optional
+    extra_inputs=WanI2VExtraInputs(
+        start_img_path="start.png",
+        end_img_path="end.png",  # optional
+    ),
     ...
 )
 ```
@@ -358,7 +362,7 @@ pipeline = Pipeline.from_models(
 
 video = pipeline.generate(
     "your prompt",
-    start_img_path="input.png",
+    extra_inputs=WanI2VExtraInputs(start_img_path="input.png"),
     sample_config=SampleConfig(steps=4, cfg_scale=1.0, shift=5.0, solver=SolverType.EULER),
     runtime_config=RuntimeConfig(size=(1280, 720), seed=1234, frame_num=81),
 )

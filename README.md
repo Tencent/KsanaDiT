@@ -62,46 +62,18 @@ We are actively working on Dockerfiles. Stay tuned!
   - CANN >= 8.0
   - torch_npu adapter
 
-### Basic Installation
+### Installation Steps
 
 ```bash
 # Clone the repository
-git clone https://github.com/Tencent/kDiT.git
-cd kDiT
+git clone https://github.com/Tencent/KsanaDiT.git
+cd KsanaDiT
 
-# Install base dependencies (GPU version by default)
-pip install -e .
+# Run the installation script (automatically handles all dependencies)
+bash scripts/install_public.sh
 ```
 
-### GPU Accelerated Installation
-
-```bash
-# Install GPU optimization dependencies (recommended)
-pip install -e ".[gpu]"
-
-# Or install manually
-pip install xformers>=0.0.29 flash-attn>=2.6.0 triton>=3.2.0
-```
-
-### NPU Environment Installation
-
-```bash
-# 1. Install CANN toolkit (refer to official documentation)
-# https://www.hiascend.com/software/cann
-
-# 2. Install torch_npu
-pip install torch-npu
-
-# 3. Install kDiT (NPU version)
-pip install -e ".[npu]"
-
-# 4. Verify NPU environment
-python -c "import torch_npu; print(torch_npu.npu.is_available())"
-```
-
-### Release Installation
-
-Direct installation via wheel packages coming soon.
+The installation script will automatically detect your hardware environment and install the appropriate dependencies.
 
 ## 🔌 Interface Support
 
@@ -128,18 +100,15 @@ For detailed usage, refer to [Quick Start](#-quick-start) and the [examples](./e
 kDiT supports usage as ComfyUI custom nodes, providing a visual workflow experience:
 
 ```bash
-# 1. Navigate to ComfyUI's custom_nodes directory
-cd /path/to/ComfyUI/custom_nodes
+# 1. Clone the kDiT repository
+git clone https://github.com/Tencent/KsanaDiT.git
 
-# 2. Clone the kDiT repository
-git clone https://github.com/Tencent/kDiT.git
-
-# 3. Enter the kDiT directory and install dependencies
-cd kDiT
-./scripts/install.sh
+# 2. Enter the kDiT directory and run the install script
+cd KsanaDiT
+./scripts/install_public.sh
 ```
 
-After installation, restart ComfyUI and you will see kDiT-related nodes in the node list. For more ComfyUI usage instructions, refer to [comfyui/README.md](./comfyui/README.md).
+During installation, the script will interactively prompt you to enter the ComfyUI installation root directory. After installation, restart ComfyUI and you will see kDiT-related nodes in the node list.
 
 ## 🚀 Quick Start
 
@@ -182,12 +151,13 @@ print(f"Generated video shape: {video.shape}")
 ```python
 from kdit import Pipeline
 from kdit.config import RuntimeConfig, SampleConfig
+from kdit.pipelines.context_builders.wan import WanI2VExtraInputs
 
 pipeline = Pipeline.from_models("path/to/Wan2.2-I2V-A14B")
 
 video = pipeline.generate(
     "Girl gently waves her fan, blows a breath of fairy air, lightning flies from her hand into the sky and thunder begins",
-    start_img_path="input.png",
+    extra_inputs=WanI2VExtraInputs(start_img_path="input.png"),
     sample_config=SampleConfig(steps=40),
     runtime_config=RuntimeConfig(
         seed=1234,
@@ -199,7 +169,7 @@ video = pipeline.generate(
 
 #### Turbo Diffusion
 
-See [run_turbo_diffusion](./examples/wan/wan2_2_i2v.py#L115)
+See [run_turbo_diffusion](./examples/local/wan/wan2_2_i2v.py)
 
 ### Text-to-Image (T2I)
 
@@ -338,6 +308,7 @@ pipeline = Pipeline.from_models(
 |---------|-----------------|----------|
 | Flash Attention | High performance, memory efficient | General recommendation |
 | Sage Attention | Optimized attention computation | Long sequences |
+| Sage SLA | Top-k sparse attention | Turbo Diffusion |
 | Radial Sage Attention | Radial sparse attention | Very long sequences |
 | Torch SDPA | PyTorch native implementation | Compatibility priority |
 
@@ -345,6 +316,7 @@ pipeline = Pipeline.from_models(
 
 | Strategy | Description | Use Case |
 |----------|-------------|----------|
+| DCache | Step-level caching with degree-based polynomial | General video generation |
 | TeaCache | Temporal-aware step-level caching | Video generation optimization |
 | MagCache | Adaptive step-level caching | Balanced quality and speed |
 | EasyCache | Lightweight step-level caching without pre-prepared parameters | Fast inference with minimal overhead |
@@ -379,6 +351,7 @@ The framework supports model parameter configuration via YAML files, located in 
 - [`qwen/t2i_20b.yaml`](kdit/settings/qwen/t2i_20b.yaml) - Qwen image generation model config
 - [`qwen/edit_20b.yaml`](kdit/settings/qwen/edit_20b.yaml) - Qwen image editing model config
 - [`wan/t2v_14b.yaml`](kdit/settings/wan/t2v_14b.yaml) - Wan2.2 T2V model config
+- [`wan/ti2v_5b.yaml`](kdit/settings/wan/ti2v_5b.yaml) - Wan2.2 TI2V 5B model config
 - [`wan/i2v_14b.yaml`](kdit/settings/wan/i2v_14b.yaml) - Wan2.2 I2V model config
 - [`wan/vace_14b.yaml`](kdit/settings/wan/vace_14b.yaml) - Wan2.1 Vace model config
 
@@ -386,11 +359,11 @@ The framework supports model parameter configuration via YAML files, located in 
 
 Complete example code is available in the [`examples/`](examples/) directory:
 
-- [`examples/wan/wan2_2_t2v.py`](examples/wan/wan2_2_t2v.py) - Text-to-Video example
-- [`examples/wan/wan2_2_i2v.py`](examples/wan/wan2_2_i2v.py) - Image-to-Video example
-- [`examples/wan/wan2_1_vace.py`](examples/wan/wan2_1_vace.py) - Video controllable editing example
-- [`examples/qwen/qwen_image_t2i.py`](examples/qwen/qwen_image_t2i.py) - Text-to-Image example
-- [`examples/qwen/qwen_image_edit.py`](examples/qwen/qwen_image_edit.py) - Image Editing example
+- [`examples/local/wan/wan2_2_t2v.py`](examples/local/wan/wan2_2_t2v.py) - Text-to-Video example
+- [`examples/local/wan/wan2_2_i2v.py`](examples/local/wan/wan2_2_i2v.py) - Image-to-Video example
+- [`examples/local/wan/wan2_1_vace.py`](examples/local/wan/wan2_1_vace.py) - Video controllable editing example
+- [`examples/local/qwen/qwen_image_t2i.py`](examples/local/qwen/qwen_image_t2i.py) - Text-to-Image example
+- [`examples/local/qwen/qwen_image_edit.py`](examples/local/qwen/qwen_image_edit.py) - Image Editing example
 
 ## 🧪 Testing
 

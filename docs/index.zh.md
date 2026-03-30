@@ -26,16 +26,17 @@ kDiT 是腾讯开发的高性能 Diffusion Transformer (DiT) 推理框架，采�
 
 ```python
 from kdit import Pipeline
+from kdit.config import RuntimeConfig, SampleConfig
 
 # 从模型路径加载 Pipeline（自动检测模型类型）
-pipeline = Pipeline.from_models(
-    diffusion_model_path="path/to/model",
-    text_encoder_path="path/to/text_encoder",
-    vae_path="path/to/vae",
-)
+pipeline = Pipeline.from_models("path/to/Wan2.2-T2V-A14B")
 
 # 生成
-result = pipeline.generate(prompt="a beautiful sunset over the ocean")
+result = pipeline.generate(
+    prompt="一只可爱的橘猫坐在窗台上，阳光透过窗户洒在它的毛发上",
+    sample_config=SampleConfig(steps=40),
+    runtime_config=RuntimeConfig(seed=1234, size=(720, 480), frame_num=81),
+)
 ```
 
 ## 两种使用模式

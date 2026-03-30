@@ -26,16 +26,17 @@ kDiT is a high-performance inference framework for Diffusion Transformer (DiT) m
 
 ```python
 from kdit import Pipeline
+from kdit.config import RuntimeConfig, SampleConfig
 
 # Load pipeline from model path (auto-detects model type)
-pipeline = Pipeline.from_models(
-    diffusion_model_path="path/to/model",
-    text_encoder_path="path/to/text_encoder",
-    vae_path="path/to/vae",
-)
+pipeline = Pipeline.from_models("path/to/Wan2.2-T2V-A14B")
 
 # Generate
-result = pipeline.generate(prompt="a beautiful sunset over the ocean")
+result = pipeline.generate(
+    prompt="a beautiful sunset over the ocean",
+    sample_config=SampleConfig(steps=40),
+    runtime_config=RuntimeConfig(seed=1234, size=(720, 480), frame_num=81),
+)
 ```
 
 ## Two Usage Modes

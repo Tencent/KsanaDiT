@@ -11,18 +11,15 @@ kDiT integrates with [ComfyUI](https://github.com/comfyanonymous/ComfyUI) as a c
 ### As a ComfyUI Custom Node
 
 ```bash
-# 1. Navigate to ComfyUI's custom_nodes directory
-cd /path/to/ComfyUI/custom_nodes
+# 1. Clone the kDiT repository
+git clone https://github.com/Tencent/KsanaDiT.git
 
-# 2. Clone the kDiT repository
-git clone https://github.com/Tencent/kDiT.git
-
-# 3. Enter the kDiT directory and install via script
-cd kDiT
+# 2. Enter the kDiT directory and run the install script
+cd KsanaDiT
 ./scripts/install_public.sh
 ```
 
-The install script automatically detects your platform (GPU/NPU/XPU), installs all dependencies, and sets up ComfyUI custom nodes.
+The install script automatically detects your platform (GPU/NPU/XPU) and installs all dependencies. During installation, it will interactively prompt you to enter the ComfyUI installation root directory to set up the custom nodes.
 
 ### Model Files
 

@@ -34,7 +34,8 @@ kDiT 是一个专为扩散模型（Diffusion Transformer）设计的高性能推
 | 模型 | 类型 | 参数量 | 支持任务 | 状态 |
 |------|------|--------|---------|------|
 | Turbo Diffusion | 图像生成视频 | 14B | I2V | ✅ |
-| Wan2.2-T2V | 文本生成视频 | 5B/14B | T2V | ✅ |
+| Wan2.2-T2V | 文本生成视频 | 14B | T2V | ✅ |
+| Wan2.2-TI2V | 文图生视频 | 5B | TI2V | ✅ |
 | Wan2.2-I2V | 图像生成视频 | 14B | I2V | ✅ |
 | Wan2.1-Vace | 视频可控编辑 | 14B | Vace | ✅ |
 
@@ -63,46 +64,18 @@ kDiT 是一个专为扩散模型（Diffusion Transformer）设计的高性能推
   - CANN >= 8.0
   - torch_npu 适配层
 
-### 基础安装
+### 安装步骤
 
 ```bash
 # 克隆仓库
-git clone https://github.com/Tencent/kDiT.git
-cd kDiT
+git clone https://github.com/Tencent/KsanaDiT.git
+cd KsanaDiT
 
-# 默认安装基础依赖GPU版本
-pip install -e .
+# 执行安装脚本（自动处理所有依赖）
+bash scripts/install_public.sh
 ```
 
-### GPU 加速安装
-
-```bash
-# 安装 GPU 优化依赖（推荐）
-pip install -e ".[gpu]"
-
-# 或手动安装
-pip install xformers>=0.0.29 flash-attn>=2.6.0 triton>=3.2.0
-```
-
-### NPU 环境安装
-
-```bash
-# 1. 安装 CANN 工具包（参考官方文档）
-# https://www.hiascend.com/software/cann
-
-# 2. 安装 torch_npu
-pip install torch-npu
-
-# 3. 安装 kDiT（NPU 版本）
-pip install -e ".[npu]"
-
-# 4. 验证 NPU 环境
-python -c "import torch_npu; print(torch_npu.npu.is_available())"
-```
-
-### 发布安装
-
-直接通过whl包安装，敬请期待。
+安装脚本会自动检测硬件环境并安装相应的依赖。
 
 ## 🔌 接口支持
 
@@ -129,18 +102,15 @@ result = pipeline.generate(prompt, ...)
 kDiT 支持作为 ComfyUI 的自定义节点使用，提供可视化工作流体验：
 
 ```bash
-# 1. 进入 ComfyUI 的 custom_nodes 目录
-cd /path/to/ComfyUI/custom_nodes
+# 1. 克隆 kDiT 仓库
+git clone https://github.com/Tencent/KsanaDiT.git
 
-# 2. 克隆 kDiT 仓库
-git clone https://github.com/Tencent/kDiT.git
-
-# 3. 进入 kDiT 目录并安装依赖
-cd kDiT
+# 2. 进入 kDiT 目录并执行安装脚本
+cd KsanaDiT
 ./scripts/install_public.sh
 ```
 
-安装完成后，重启 ComfyUI 即可在节点列表中看到 kDiT 相关节点。更多 ComfyUI 使用说明请参考 [comfyui/README.md](./comfyui/README.md)。
+安装过程中，脚本会交互式提示输入 ComfyUI 的安装根目录。安装完成后，重启 ComfyUI 即可在节点列表中看到 kDiT 相关节点。
 
 ## 🚀 快速开始
 详细的代码可以参考[examples](./examples/)
@@ -182,12 +152,13 @@ print(f"生成视频形状: {video.shape}")
 ```python
 from kdit import Pipeline
 from kdit.config import RuntimeConfig, SampleConfig
+from kdit.pipelines.context_builders.wan import WanI2VExtraInputs
 
 pipeline = Pipeline.from_models("path/to/Wan2.2-I2V-A14B")
 
 video = pipeline.generate(
     "女孩扇子轻微挥动，吹口仙气后，手上的闪电飞到空中开始打雷",
-    img_path="input.png",
+    extra_inputs=WanI2VExtraInputs(start_img_path="input.png"),
     sample_config=SampleConfig(steps=40),
     runtime_config=RuntimeConfig(
         seed=1234,
@@ -199,7 +170,7 @@ video = pipeline.generate(
 
 #### TurboDiffusion
 
-参考 [run_turbo_diffusion](./examples/wan/wan2_2_i2v.py#L115)
+参考 [run_turbo_diffusion](./examples/local/wan/wan2_2_i2v.py)
 
 ### 文本生成图像 (T2I)
 
@@ -338,6 +309,7 @@ pipeline = Pipeline.from_models(
 |------|------|---------|
 | Flash Attention | 高性能、内存高效 | 通用推荐 |
 | Sage Attention | 优化的注意力计算 | 长序列 |
+| Sage SLA | Top-k 稀疏注意力 | Turbo Diffusion |
 | Radial Sage Attention | 径向稀疏注意力 | 超长序列 |
 | Torch SDPA | PyTorch 原生实现 | 兼容性优先 |
 
@@ -345,6 +317,7 @@ pipeline = Pipeline.from_models(
 
 | 策略 | 说明 | 适用场景 |
 |------|------|---------|
+| DCache | 基于多项式度数的步级缓存 | 通用视频生成 |
 | TeaCache | 时序感知步级缓存 | 视频生成优化 |
 | MagCache | 自适应的步级别缓存 | 平衡质量与速度 |
 | EasyCache | 无需提前准备参数的，轻量级步级缓存 | 低开销快速推理 |
@@ -380,6 +353,7 @@ export KSANA_LOGGER_LEVEL=info
 - [`qwen/t2i_20b.yaml`](kdit/settings/qwen/t2i_20b.yaml) - Qwen 图像生成模型配置
 - [`qwen/edit_20b.yaml`](kdit/settings/qwen/edit_20b.yaml) - Qwen 图像编辑模型配置
 - [`wan/t2v_14b.yaml`](kdit/settings/wan/t2v_14b.yaml) - Wan2.2 T2V 模型配置
+- [`wan/ti2v_5b.yaml`](kdit/settings/wan/ti2v_5b.yaml) - Wan2.2 TI2V 5B 模型配置
 - [`wan/i2v_14b.yaml`](kdit/settings/wan/i2v_14b.yaml) - Wan2.2 I2V 模型配置
 - [`wan/vace_14b.yaml`](kdit/settings/wan/vace_14b.yaml) - Wan2.1 Vace 模型配置
 
@@ -387,11 +361,11 @@ export KSANA_LOGGER_LEVEL=info
 
 完整示例代码位于 [`examples/`](examples/) 目录：
 
-- [`examples/wan/wan2_2_t2v.py`](examples/wan/wan2_2_t2v.py) - 文本生成视频示例
-- [`examples/wan/wan2_2_i2v.py`](examples/wan/wan2_2_i2v.py) - 图像生成视频示例
-- [`examples/wan/wan2_1_vace.py`](examples/wan/wan2_1_vace.py) - 视频可控编辑示例
-- [`examples/qwen/qwen_image_t2i.py`](examples/qwen/qwen_image_t2i.py) - 文本生成图像示例
-- [`examples/qwen/qwen_image_edit.py`](examples/qwen/qwen_image_edit.py) - 图像编辑示例
+- [`examples/local/wan/wan2_2_t2v.py`](examples/local/wan/wan2_2_t2v.py) - 文本生成视频示例
+- [`examples/local/wan/wan2_2_i2v.py`](examples/local/wan/wan2_2_i2v.py) - 图像生成视频示例
+- [`examples/local/wan/wan2_1_vace.py`](examples/local/wan/wan2_1_vace.py) - 视频可控编辑示例
+- [`examples/local/qwen/qwen_image_t2i.py`](examples/local/qwen/qwen_image_t2i.py) - 文本生成图像示例
+- [`examples/local/qwen/qwen_image_edit.py`](examples/local/qwen/qwen_image_edit.py) - 图像编辑示例
 
 ## 🧪 测试
 
@@ -443,7 +417,7 @@ pytest tests/
 - [ComfyUI-WanVideoWrapper](https://github.com/kijai/ComfyUI-WanVideoWrapper) - ComfyUI 集成参考
 - [FastVideo](https://github.com/hao-ai-lab/FastVideo) - 视频生成优化技术
 - [Nunchaku](https://github.com/nunchaku-tech/nunchaku) - 量化优化方案
-- [TurborDiffusion](https://github.com/thu-ml/TurboDiffusion) - 推理加速方案
+- [TurboDiffusion](https://github.com/thu-ml/TurboDiffusion) - 推理加速方案
 
 ## 📮 联系方式
 
