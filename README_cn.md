@@ -12,6 +12,10 @@
 
 </div>
 
+## 📰 最新动态
+
+- **[2026/05]** 🔥 我们近期的一项工作 **[FIS-DiT: Breaking the Few-Step Video Inference Barrier via Training-Free Frame Interleaved Sparsity](https://arxiv.org/abs/2605.11869)** 的技术论文已公开。该工作针对少步视频推理场景，探索了一种免训练（Training-Free）的帧交错稀疏化方法；在少步蒸馏视频模型上的初步实验中，可观察到 **约 2× 的额外推理加速**。相关代码正在整理中，预计将于近期在本仓库开源，欢迎关注与交流。
+
 ## 📖 简介
 
 kDiT 是一个专为扩散模型（Diffusion Transformer）设计的高性能推理框架，支持视频生成（T2V/I2V）和图像生成（T2I）任务。框架提供了丰富的优化技术和灵活的配置选项，可在单卡或多卡环境下高效运行大规模 DiT 模型。
@@ -428,6 +432,7 @@ pytest tests/
 
 ### 已完成 ✅
 
+- [x] **技术论文发布**：[FIS-DiT](https://arxiv.org/abs/2605.11869) —— 免训练帧交错稀疏化，突破少步视频推理瓶颈
 - [x] **多平台支持**: GPU、NPU、XPU 后端支持
 - [x] **批量推理**: 支持 batch size > 1，合并 cond/uncond
 - [x] **视频编辑**: Wan2.1 Vace 视频可控编辑
@@ -441,7 +446,9 @@ pytest tests/
 
 ### 进行中 🚧
 
-- [ ] 支持更多生成模型（Z-Image、Hunyuan 等）
+- [ ] **[FIS-DiT](https://arxiv.org/abs/2605.11869)** 推理代码开源
+- [ ] **混元（Hunyuan）** 视频生成模型支持
+- [ ] **LTX** 视频生成模型支持
 - [ ] 优化内存占用，支持更长视频生成
 - [ ] 缓存策略性能调优
 - [ ] 模型量化工具链

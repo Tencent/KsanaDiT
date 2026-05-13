@@ -12,6 +12,10 @@
 
 </div>
 
+## 📰 Latest News
+
+- **[2026/05]** 🔥 Our recent work **[FIS-DiT: Breaking the Few-Step Video Inference Barrier via Training-Free Frame Interleaved Sparsity](https://arxiv.org/abs/2605.11869)** is now available on arXiv. The paper explores a training-free frame interleaved sparsity approach for few-step video inference, delivering around **2× additional speedup** on few-step distilled video models in our preliminary experiments. Code is being prepared and is expected to be released in this repository soon — feedback and discussion are welcome.
+
 ## 📖 Introduction
 
 kDiT is a high-performance inference framework specifically designed for Diffusion Transformers (DiT), supporting video generation (T2V/I2V) and image generation (T2I) tasks. The framework provides a rich set of optimization techniques and flexible configuration options, enabling efficient execution of large-scale DiT models on single or multi-GPU environments.
@@ -427,6 +431,7 @@ This project benefits from the following excellent open-source projects:
 
 ### Completed ✅
 
+- [x] **Technical Paper Released**: [FIS-DiT (arXiv:2605.11869)](https://arxiv.org/abs/2605.11869) — training-free frame interleaved sparsity for few-step video inference
 - [x] **Multi-Platform Support**: GPU, NPU, XPU backend support
 - [x] **Batch Inference**: Support for batch size > 1, merged cond/uncond
 - [x] **Video Editing**: Wan2.1 Vace video controllable editing
@@ -440,7 +445,9 @@ This project benefits from the following excellent open-source projects:
 
 ### In Progress 🚧
 
-- [ ] Support for more generation models (Z-Image, Hunyuan, etc.)
+- [ ] **[FIS-DiT](https://arxiv.org/abs/2605.11869)** inference code open-source release
+- [ ] **Hunyuan** video generation model support
+- [ ] **LTX** video generation model support
 - [ ] Memory optimization for longer video generation
 - [ ] Cache strategy performance tuning
 - [ ] Model quantization toolchain
